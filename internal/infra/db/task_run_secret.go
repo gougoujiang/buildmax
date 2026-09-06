@@ -14,7 +14,7 @@ import (
 // which item of which Secret resolved, how it was delivered, and the outcome.
 // It holds no ciphertext, plaintext, or hash of a value -- only enough to
 // explain the run. Populated by the runtime (a later phase); defined here so
-// the schema exists. See docs/design/team-secrets.md §5.2.
+// the schema exists. See docs/design/space-secrets.md §5.2.
 type taskRunSecretRow struct {
 	ID uint64 `gorm:"primaryKey;autoIncrement"`
 

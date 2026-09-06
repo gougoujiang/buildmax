@@ -17,7 +17,7 @@ import {
   writeSession,
   writeStoredUser,
 } from "../lib/api/session"
-import { clearStoredCurrentTeamId } from "../lib/storage/currentTeamStorage"
+import { clearStoredCurrentSpaceId } from "../lib/storage/currentSpaceStorage"
 
 interface AuthState {
   token: string | null
@@ -61,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // asked to leave.
     void revokeSession()
     clearSession()
-    clearStoredCurrentTeamId()
+    clearStoredCurrentSpaceId()
     setState({ token: null, user: null })
   }, [])
 

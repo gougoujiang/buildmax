@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type { Agent } from "../../lib/types"
 import type { ApiSecret, ApiTask } from "../../lib/api/types"
-import { listSecrets } from "../../features/teamSecrets/api"
-import { listActivations } from "../../features/teamPlugins/api"
+import { listSecrets } from "../../features/spaceSecrets/api"
+import { listActivations } from "../../features/spacePlugins/api"
 import { listPlugins } from "../../features/plugins/api"
 import { nameablePlugins } from "../../features/plugins/nameablePlugins"
 import { navigate } from "../../router"
@@ -15,14 +15,14 @@ import { AgentAvatar } from "../../components/UserAvatar"
 import { CreateAgentModal } from "../../components/CreateAgentModal"
 import { consumptionHealthCount } from "../../components/SecretConsumptionEditor"
 import { RunAgentModal } from "../../components/RunAgentModal"
-import { useTeam } from "../../contexts/TeamContext"
+import { useSpace } from "../../contexts/SpaceContext"
 
 interface AgentListProps {
   token: string | null
 }
 
 export function AgentList({ token }: AgentListProps) {
-  const { currentTeamId, currentUserRole } = useTeam()
+  const { currentSpaceId, currentUserRole } = useSpace()
   const [agents, setAgents] = useState<Agent[]>([])
   const [secrets, setSecrets] = useState<ApiSecret[]>([])
   const [availablePlugins, setAvailablePlugins] = useState<string[]>([])
@@ -37,72 +37,72 @@ export function AgentList({ token }: AgentListProps) {
   const canManageAgents = currentUserRole === "owner" || currentUserRole === "admin"
 
   const fetchAgents = useCallback(() => {
-    if (!token || !currentTeamId) {
+    if (!token || !currentSpaceId) {
       setAgents([])
       setLoading(false)
       return
     }
     setLoading(true)
-    getAgents(currentTeamId, token)
+    getAgents(currentSpaceId, token)
       .then((list) => {
         setAgents(list.map(apiAgentToAgent))
       })
       .finally(() => setLoading(false))
-  }, [token, currentTeamId])
+  }, [token, currentSpaceId])
 
-  // The team's secrets, to populate the create dialog's consumption editor and
+  // The space's secrets, to populate the create dialog's consumption editor and
   // flag broken grants on the cards and overview. Owner-or-admin may list them;
   // a failure leaves the editor with no options rather than blocking the page.
   useEffect(() => {
-    if (!token || !currentTeamId || !canManageAgents) {
+    if (!token || !currentSpaceId || !canManageAgents) {
       setSecrets([])
       return
     }
-    listSecrets(token, currentTeamId)
+    listSecrets(token, currentSpaceId)
       .then((res) => setSecrets(res.secrets ?? []))
       .catch(() => setSecrets([]))
-  }, [token, currentTeamId, canManageAgents])
+  }, [token, currentSpaceId, canManageAgents])
 
-  // The plugin names an agent in this team may name, for the create dialog's
+  // The plugin names an agent in this space may name, for the create dialog's
   // plugins picker. A deployment without a Marketplace, or a failed request,
   // leaves it empty and the picker shows its empty state.
   useEffect(() => {
-    if (!token || !currentTeamId || !canManageAgents) {
+    if (!token || !currentSpaceId || !canManageAgents) {
       setAvailablePlugins([])
       return
     }
     Promise.all([
-      listActivations(token, currentTeamId).catch(() => null),
+      listActivations(token, currentSpaceId).catch(() => null),
       listPlugins(token).catch(() => null),
     ])
       .then(([activations, catalog]) =>
         setAvailablePlugins(nameablePlugins(activations, catalog?.plugins ?? null)),
       )
       .catch(() => setAvailablePlugins([]))
-    // Deployment-wide catalog, fetched independently of the team-scoped plugin
+    // Deployment-wide catalog, fetched independently of the space-scoped plugin
     // options; an empty list leaves the picker at just the deployment default.
     listAgentModels(token)
       .then(setAvailableModels)
       .catch(() => setAvailableModels([]))
-  }, [token, currentTeamId, canManageAgents])
+  }, [token, currentSpaceId, canManageAgents])
 
   useEffect(() => {
     fetchAgents()
   }, [fetchAgents])
 
   // Runs per agent feed both the overview aggregates and each card's activity.
-  // There is no team-wide task endpoint, so this fans out one request per agent;
+  // There is no space-wide task endpoint, so this fans out one request per agent;
   // each is independent and a failure leaves that agent with no runs rather than
   // breaking the page. Tasks are stored newest-first for the "last run" label.
   useEffect(() => {
-    if (!token || !currentTeamId || agents.length === 0) {
+    if (!token || !currentSpaceId || agents.length === 0) {
       setTasksByAgent({})
       return
     }
     let cancelled = false
     Promise.all(
       agents.map((a) =>
-        listAgentTasks(currentTeamId, a.id, token)
+        listAgentTasks(currentSpaceId, a.id, token)
           .then((res) => [a.id, [...res.tasks].sort((x, y) => y.created_at.localeCompare(x.created_at))] as const)
           .catch(() => [a.id, [] as ApiTask[]] as const),
       ),
@@ -112,7 +112,7 @@ export function AgentList({ token }: AgentListProps) {
     return () => {
       cancelled = true
     }
-  }, [token, currentTeamId, agents])
+  }, [token, currentSpaceId, agents])
 
   const allTasks = useMemo(
     () => agents.flatMap((a) => (tasksByAgent[a.id] ?? []).map((task) => ({ task, agent: a }))),
@@ -156,10 +156,10 @@ export function AgentList({ token }: AgentListProps) {
     sandbox_filesystem_tier?: string
     secret_consumption?: import("../../lib/api/types").ApiSecretConsumption
   }) {
-    if (!token || !currentTeamId) return
+    if (!token || !currentSpaceId) return
     setError(null)
     setCreating(true)
-    createAgent(currentTeamId, values, token)
+    createAgent(currentSpaceId, values, token)
       .then((created) => {
         const mapped = apiAgentToAgent(created)
         setAgents((prev) => [...prev, mapped])
@@ -176,10 +176,10 @@ export function AgentList({ token }: AgentListProps) {
   }
 
   function handleStartTaskFromAgent(editedInput: string) {
-    if (!token || !currentTeamId || !newTaskAgent) return
+    if (!token || !currentSpaceId || !newTaskAgent) return
     setError(null)
     setStartingTaskAgentId(newTaskAgent.id)
-    createAgentTask(currentTeamId, newTaskAgent.id, editedInput, token)
+    createAgentTask(currentSpaceId, newTaskAgent.id, editedInput, token)
       .then((created) => {
         setNewTaskAgent(null)
         navigate({ name: "task", taskId: created.id })
@@ -204,7 +204,7 @@ export function AgentList({ token }: AgentListProps) {
         <div>
           <h1 className="page-activity__title">Agents</h1>
           <p className="page-activity__subtitle">
-            Create and manage team agents (personas / task templates).
+            Create and manage space agents (personas / task templates).
           </p>
         </div>
         <div className="page-activity__actions">
@@ -228,7 +228,7 @@ export function AgentList({ token }: AgentListProps) {
 
       {!canManageAgents ? (
         <p className="page-activity__empty">
-          You can start conversations with team agents, but only team owners and admins can create or edit them.
+          You can start conversations with space agents, but only space owners and admins can create or edit them.
         </p>
       ) : null}
 
@@ -253,7 +253,7 @@ export function AgentList({ token }: AgentListProps) {
             <p className="page-activity__empty agent-list__empty">
               {canManageAgents
                 ? "No agents yet. Click \"Create agent\" to add one."
-                : "No agents are available in this team yet. Team owners and admins can add one when you're ready to share a reusable agent."}
+                : "No agents are available in this space yet. Space owners and admins can add one when you're ready to share a reusable agent."}
             </p>
           ) : (
             <div className="agent-list__grid">

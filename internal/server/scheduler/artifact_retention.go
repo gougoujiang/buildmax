@@ -150,7 +150,7 @@ func (a *ArtifactRetainer) expire(ctx context.Context) int {
 	}
 	for _, it := range gone {
 		a.record(ctx, coreaudit.Event{
-			TeamID:     it.TeamID,
+			SpaceID:    it.SpaceID,
 			ActorType:  coreaudit.ActorSystem,
 			ActorID:    coreaudit.ActorOperator,
 			Action:     coreaudit.ArtifactExpired,
@@ -179,7 +179,7 @@ func (a *ArtifactRetainer) purge(ctx context.Context) (count int, bytes int64) {
 		return 0, 0
 	}
 	for _, it := range due {
-		ref := coreartifact.Ref{TeamID: it.TeamID, ArtifactID: it.ArtifactID}
+		ref := coreartifact.Ref{SpaceID: it.SpaceID, ArtifactID: it.ArtifactID}
 		if err := a.content.RemoveArtifact(ctx, ref); err != nil {
 			// Left for the next sweep. The row still names the object, so
 			// nothing is lost but time.

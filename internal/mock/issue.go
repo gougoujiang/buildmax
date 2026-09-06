@@ -14,14 +14,14 @@ type MockIssueStore struct {
 }
 
 func (m *MockIssueStore) CreateIssue(_ context.Context, userID string, in coreissue.CreateInput) (*coreissue.Issue, error) {
-	return m.CreateIssueInTeam(context.Background(), "tm_personal", userID, in)
+	return m.CreateIssueInSpace(context.Background(), "tm_personal", userID, in)
 }
 
-func (m *MockIssueStore) CreateIssueInTeam(_ context.Context, teamID, createdBy string, in coreissue.CreateInput) (*coreissue.Issue, error) {
+func (m *MockIssueStore) CreateIssueInSpace(_ context.Context, spaceID, createdBy string, in coreissue.CreateInput) (*coreissue.Issue, error) {
 	issue := coreissue.Issue{
 		ID:            fmt.Sprintf("i_mock_%d", len(m.Issues)+1),
 		UserID:        createdBy,
-		TeamID:        teamID,
+		SpaceID:       spaceID,
 		ParentIssueID: in.ParentIssueID,
 		Title:         in.Title,
 		Description:   in.Description,
@@ -54,10 +54,10 @@ func (m *MockIssueStore) ListIssuesByUser(_ context.Context, userID string, limi
 	return filtered[offset:end], total, nil
 }
 
-func (m *MockIssueStore) ListIssuesByTeam(_ context.Context, teamID string, filter coreissue.ListFilter, limit, offset int) ([]coreissue.Issue, int, error) {
+func (m *MockIssueStore) ListIssuesBySpace(_ context.Context, spaceID string, filter coreissue.ListFilter, limit, offset int) ([]coreissue.Issue, int, error) {
 	var filtered []coreissue.Issue
 	for _, issue := range m.Issues {
-		if issue.TeamID != teamID {
+		if issue.SpaceID != spaceID {
 			continue
 		}
 		switch {
@@ -140,9 +140,9 @@ func (m *MockIssueStore) UpdateIssue(_ context.Context, issueID, userID string, 
 	return nil, nil
 }
 
-func (m *MockIssueStore) UpdateIssueInTeam(_ context.Context, issueID, teamID string, in coreissue.UpdateInput) (*coreissue.Issue, error) {
+func (m *MockIssueStore) UpdateIssueInSpace(_ context.Context, issueID, spaceID string, in coreissue.UpdateInput) (*coreissue.Issue, error) {
 	for i := range m.Issues {
-		if m.Issues[i].ID != issueID || m.Issues[i].TeamID != teamID {
+		if m.Issues[i].ID != issueID || m.Issues[i].SpaceID != spaceID {
 			continue
 		}
 		return m.applyIssueUpdate(i, in)

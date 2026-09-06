@@ -11,11 +11,11 @@ import type { ApiRunProvenance, ApiTaskRunLLMCall, ApiTaskRunTrace } from "../..
  * show that message rather than a generic failure.
  */
 export async function getTaskRunTrace(
-  teamId: string,
+  spaceId: string,
   taskRunId: string,
   token: string
 ): Promise<ApiTaskRunTrace> {
-  const url = `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/task-runs/${encodeURIComponent(taskRunId)}/trace`
+  const url = `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/task-runs/${encodeURIComponent(taskRunId)}/trace`
   return requestJson<ApiTaskRunTrace>(url, { headers: authHeaders(token) })
 }
 
@@ -28,11 +28,11 @@ export async function getTaskRunTrace(
  * caller distinguishes the two — see `describeSpend`.
  */
 export async function listTaskRunLLMCalls(
-  teamId: string,
+  spaceId: string,
   taskRunId: string,
   token: string
 ): Promise<ApiTaskRunLLMCall[]> {
-  const url = `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/task-runs/${encodeURIComponent(taskRunId)}/llm-calls`
+  const url = `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/task-runs/${encodeURIComponent(taskRunId)}/llm-calls`
   return requestJson<ApiTaskRunLLMCall[]>(url, { headers: authHeaders(token) })
 }
 
@@ -44,10 +44,10 @@ export async function listTaskRunLLMCalls(
  * at all, and still came from somewhere.
  */
 export async function getTaskRunProvenance(
-  teamId: string,
+  spaceId: string,
   taskRunId: string,
   token: string
 ): Promise<ApiRunProvenance> {
-  const url = `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/task-runs/${encodeURIComponent(taskRunId)}`
+  const url = `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/task-runs/${encodeURIComponent(taskRunId)}`
   return requestJson<ApiRunProvenance>(url, { headers: authHeaders(token) })
 }

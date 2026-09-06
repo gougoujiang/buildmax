@@ -20,7 +20,7 @@ import (
 type artifactRow struct {
 	ID         uint64 `gorm:"primaryKey;autoIncrement"`
 	PublicID   string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_artifact_public_id;not null"`
-	TeamID     uint64 `gorm:"column:team_id;not null;index:idx_artifact_team_created,priority:1"`
+	SpaceID    uint64 `gorm:"column:space_id;not null;index:idx_artifact_space_created,priority:1"`
 	Filename   string `gorm:"type:varchar(512);not null"`
 	MediaType  string `gorm:"column:media_type;type:varchar(255)"`
 	SizeBytes  int64  `gorm:"column:size_bytes;not null"`
@@ -36,21 +36,21 @@ type artifactRow struct {
 	Title         string     `gorm:"type:varchar(255)"`
 	DeletedAt     *time.Time `gorm:"column:deleted_at;index"`
 	ExpiresAt     *time.Time `gorm:"column:expires_at;index"`
-	CreatedAt     time.Time  `gorm:"autoCreateTime;index:idx_artifact_team_created,priority:2"`
+	CreatedAt     time.Time  `gorm:"autoCreateTime;index:idx_artifact_space_created,priority:2"`
 }
 
 func (artifactRow) TableName() string { return "artifact" }
 
-// artifactReadRow is the row plus its team's handle.
+// artifactReadRow is the row plus its space's handle.
 type artifactReadRow struct {
-	Row          artifactRow `gorm:"embedded"`
-	TeamPublicID string      `gorm:"column:team_public_id"`
+	Row           artifactRow `gorm:"embedded"`
+	SpacePublicID string      `gorm:"column:space_public_id"`
 }
 
 func (s *Store) artifactSelect(ctx context.Context) *gorm.DB {
 	return s.db.WithContext(ctx).Model(&artifactRow{}).
-		Select("artifact.*, t.public_id AS team_public_id").
-		Joins("INNER JOIN team t ON t.id = artifact.team_id")
+		Select("artifact.*, t.public_id AS space_public_id").
+		Joins("INNER JOIN space t ON t.id = artifact.space_id")
 }
 
 func toArtifact(row *artifactReadRow) *coreartifact.Artifact {
@@ -59,7 +59,7 @@ func toArtifact(row *artifactReadRow) *coreartifact.Artifact {
 	}
 	return &coreartifact.Artifact{
 		ID:            row.Row.PublicID,
-		TeamID:        row.TeamPublicID,
+		SpaceID:       row.SpacePublicID,
 		Filename:      row.Row.Filename,
 		MediaType:     row.Row.MediaType,
 		SizeBytes:     row.Row.SizeBytes,
@@ -87,7 +87,7 @@ func toArtifacts(rows []artifactReadRow) []coreartifact.Artifact {
 // CreateArtifact records one artifact. The ID is supplied by the caller, which
 // reserved it before streaming so the storage key could be derived from it.
 func (s *Store) CreateArtifact(ctx context.Context, in coreartifact.CreateInput) (*coreartifact.Artifact, error) {
-	teamKey, err := lookupKey(ctx, s.db, "team", in.TeamID)
+	spaceKey, err := lookupKey(ctx, s.db, "space", in.SpaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +97,7 @@ func (s *Store) CreateArtifact(ctx context.Context, in coreartifact.CreateInput)
 	}
 	row := artifactRow{
 		PublicID:      id,
-		TeamID:        teamKey,
+		SpaceID:       spaceKey,
 		Filename:      in.Filename,
 		MediaType:     in.MediaType,
 		SizeBytes:     in.SizeBytes,
@@ -113,7 +113,7 @@ func (s *Store) CreateArtifact(ctx context.Context, in coreartifact.CreateInput)
 	if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
 		return nil, err
 	}
-	return toArtifact(&artifactReadRow{Row: row, TeamPublicID: canonicalPublicID(in.TeamID)}), nil
+	return toArtifact(&artifactReadRow{Row: row, SpacePublicID: canonicalPublicID(in.SpaceID)}), nil
 }
 
 // GetArtifact returns the artifact including a tombstoned one; the caller
@@ -134,10 +134,10 @@ func (s *Store) GetArtifact(ctx context.Context, artifactID string) (*coreartifa
 	return toArtifact(&row), nil
 }
 
-// ListArtifactsByTeam returns the team's live artifacts, newest first.
-func (s *Store) ListArtifactsByTeam(ctx context.Context, teamID string, limit, offset int) ([]coreartifact.Artifact, int, error) {
+// ListArtifactsBySpace returns the space's live artifacts, newest first.
+func (s *Store) ListArtifactsBySpace(ctx context.Context, spaceID string, limit, offset int) ([]coreartifact.Artifact, int, error) {
 	limit, offset = capPage(limit, offset)
-	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
+	spaceKey, err := lookupKey(ctx, s.db, "space", spaceID)
 	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, 0, nil
 	}
@@ -146,11 +146,11 @@ func (s *Store) ListArtifactsByTeam(ctx context.Context, teamID string, limit, o
 	}
 	var total int64
 	if err := s.db.WithContext(ctx).Model(&artifactRow{}).
-		Where("team_id = ? AND deleted_at IS NULL", teamKey).Count(&total).Error; err != nil {
+		Where("space_id = ? AND deleted_at IS NULL", spaceKey).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	var list []artifactReadRow
-	q := s.artifactSelect(ctx).Where("artifact.team_id = ? AND artifact.deleted_at IS NULL", teamKey).
+	q := s.artifactSelect(ctx).Where("artifact.space_id = ? AND artifact.deleted_at IS NULL", spaceKey).
 		Order("artifact.created_at DESC, artifact.id DESC")
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
@@ -204,15 +204,15 @@ func (s *Store) SoftDeleteArtifact(ctx context.Context, artifactID string, delet
 	return res.RowsAffected > 0, nil
 }
 
-// TeamArtifactBytes sums what the team's live artifacts hold.
+// SpaceArtifactBytes sums what the space's live artifacts hold.
 //
 // Computed rather than kept as a running total, for the reason the run and
 // token counts are: a stored counter has to be corrected by every path that
 // creates, deletes, or expires an artifact, and one that drifts is worse than
 // one that costs a scan. The outer COALESCE is what keeps an empty result set
 // from scanning NULL.
-func (s *Store) TeamArtifactBytes(ctx context.Context, teamID string) (int64, error) {
-	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
+func (s *Store) SpaceArtifactBytes(ctx context.Context, spaceID string) (int64, error) {
+	spaceKey, err := lookupKey(ctx, s.db, "space", spaceID)
 	if errors.Is(err, apierr.ErrNotFound) {
 		return 0, nil
 	}
@@ -222,7 +222,7 @@ func (s *Store) TeamArtifactBytes(ctx context.Context, teamID string) (int64, er
 	var total int64
 	err = s.db.WithContext(ctx).Model(&artifactRow{}).
 		Select("COALESCE(SUM(size_bytes), 0)").
-		Where("team_id = ? AND deleted_at IS NULL", teamKey).
+		Where("space_id = ? AND deleted_at IS NULL", spaceKey).
 		Scan(&total).Error
 	return total, err
 }
@@ -262,7 +262,7 @@ func (s *Store) ExpireArtifacts(ctx context.Context, now time.Time, limit int) (
 		}
 		out = append(out, coreartifact.Expired{
 			ArtifactID: rows[i].Row.PublicID,
-			TeamID:     rows[i].TeamPublicID,
+			SpaceID:    rows[i].SpacePublicID,
 		})
 	}
 	return out, nil
@@ -293,7 +293,7 @@ func (s *Store) PurgeableArtifacts(ctx context.Context, before time.Time, limit 
 	for i := range rows {
 		out[i] = coreartifact.Purgeable{
 			ArtifactID: rows[i].Row.PublicID,
-			TeamID:     rows[i].TeamPublicID,
+			SpaceID:    rows[i].SpacePublicID,
 			SizeBytes:  rows[i].Row.SizeBytes,
 		}
 	}

@@ -40,7 +40,7 @@ description: Company code review skills and agents.
 
 display_name: Code Review
 homepage: https://code.example.com/agents/code-review
-maintainer: Platform Team <platform@example.com>
+maintainer: Platform Space <platform@example.com>
 license: Apache-2.0
 
 min_buildmax_version: 0.9.0
@@ -62,7 +62,7 @@ env:
 	if m.DisplayTitle() != "Code Review" {
 		t.Errorf("DisplayTitle = %q", m.DisplayTitle())
 	}
-	if m.Maintainer != "Platform Team <platform@example.com>" {
+	if m.Maintainer != "Platform Space <platform@example.com>" {
 		t.Errorf("Maintainer = %q", m.Maintainer)
 	}
 	if len(m.Env) != 2 {
@@ -117,7 +117,7 @@ func TestParseNameRules(t *testing.T) {
 	}{
 		{"code-review", false},
 		{"a", false},
-		{"team1-code-review2", false},
+		{"space1-code-review2", false},
 		{"", true},
 		{"Code-Review", true},
 		{"code_review", true},

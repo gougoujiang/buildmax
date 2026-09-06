@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -20,8 +20,8 @@ import (
 
 const (
 	testSecret = "artifact-secret"
-	teamA      = "tm_a"
-	teamB      = "tm_b"
+	spaceA     = "tm_a"
+	spaceB     = "tm_b"
 	userOwner  = "u_owner"
 	userMember = "u_member"
 	userOther  = "u_other"
@@ -49,23 +49,23 @@ func newFixture(t *testing.T) *fixture {
 		Shares:        shares,
 		PublicBaseURL: testPublicBaseURL,
 	}
-	teams := &mock.MockTeamStore{
-		Teams: []coreteam.Team{
-			{ID: teamA, Name: "A", CreatedBy: userOwner},
-			{ID: teamB, Name: "B", CreatedBy: userOther},
+	spaces := &mock.MockSpaceStore{
+		Spaces: []corespace.Space{
+			{ID: spaceA, Name: "A", CreatedBy: userOwner},
+			{ID: spaceB, Name: "B", CreatedBy: userOther},
 		},
-		Members: []coreteam.Member{
-			{TeamID: teamA, UserID: userOwner, Role: coreteam.RoleOwner},
-			{TeamID: teamA, UserID: userMember, Role: coreteam.RoleMember},
+		Members: []corespace.Member{
+			{SpaceID: spaceA, UserID: userOwner, Role: corespace.RoleOwner},
+			{SpaceID: spaceA, UserID: userMember, Role: corespace.RoleMember},
 			// The stranger is a legitimate member of somewhere else, which is
 			// the case that separates "is a member" from "is a member of this".
-			{TeamID: teamB, UserID: userOther, Role: coreteam.RoleOwner},
+			{SpaceID: spaceB, UserID: userOther, Role: corespace.RoleOwner},
 		},
 	}
 	h := New(Config{
 		JWTSecret: testSecret,
 		Users:     &mock.MockUserStore{},
-		Teams:     teams,
+		Spaces:    spaces,
 		Artifacts: svc,
 	})
 	mux := http.NewServeMux()
@@ -104,10 +104,10 @@ func multipartBody(t *testing.T, filename, content string) (io.Reader, string) {
 	return &buf, w.FormDataContentType()
 }
 
-func (f *fixture) upload(t *testing.T, userID, teamID, filename, content string) artifactResponse {
+func (f *fixture) upload(t *testing.T, userID, spaceID, filename, content string) artifactResponse {
 	t.Helper()
 	body, contentType := multipartBody(t, filename, content)
-	rec := f.do(t, http.MethodPost, "/api/teams/"+teamID+"/artifacts", userID, body, contentType)
+	rec := f.do(t, http.MethodPost, "/api/spaces/"+spaceID+"/artifacts", userID, body, contentType)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("upload status = %d, want 201: %s", rec.Code, rec.Body.String())
 	}
@@ -120,13 +120,13 @@ func (f *fixture) upload(t *testing.T, userID, teamID, filename, content string)
 
 func TestUploadThenReadByID(t *testing.T) {
 	f := newFixture(t)
-	created := f.upload(t, userOwner, teamA, "report.md", "# hello")
+	created := f.upload(t, userOwner, spaceA, "report.md", "# hello")
 
 	if _, ok := util.CanonicalPublicID(created.ID); !ok {
 		t.Fatalf("artifact id = %q, want a canonical public ID", created.ID)
 	}
-	// A different member of the same team resolves the same reference, with no
-	// team named anywhere in the URL.
+	// A different member of the same space resolves the same reference, with no
+	// space named anywhere in the URL.
 	rec := f.do(t, http.MethodGet, "/api/artifacts/"+created.ID, userMember, nil, "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("get status = %d, want 200", rec.Code)
@@ -144,7 +144,7 @@ func TestUploadThenReadByID(t *testing.T) {
 // deployment layout, and a client that learned it could come to depend on it.
 func TestResponsesNeverCarryTheStorageKey(t *testing.T) {
 	f := newFixture(t)
-	created := f.upload(t, userOwner, teamA, "report.md", "# hello")
+	created := f.upload(t, userOwner, spaceA, "report.md", "# hello")
 
 	stored, err := f.store.GetArtifact(t.Context(), created.ID)
 	if err != nil || stored == nil {
@@ -155,7 +155,7 @@ func TestResponsesNeverCarryTheStorageKey(t *testing.T) {
 	}
 	for _, path := range []string{
 		"/api/artifacts/" + created.ID,
-		"/api/teams/" + teamA + "/artifacts",
+		"/api/spaces/" + spaceA + "/artifacts",
 	} {
 		body := f.do(t, http.MethodGet, path, userOwner, nil, "").Body.String()
 		if strings.Contains(body, stored.StorageKey) {
@@ -172,7 +172,7 @@ func TestResponsesNeverCarryTheStorageKey(t *testing.T) {
 // get for an ID that was never issued.
 func TestNonMemberCannotTellAnArtifactFromNothing(t *testing.T) {
 	f := newFixture(t)
-	created := f.upload(t, userOwner, teamA, "report.md", "# hello")
+	created := f.upload(t, userOwner, spaceA, "report.md", "# hello")
 
 	real := f.do(t, http.MethodGet, "/api/artifacts/"+created.ID, userOther, nil, "")
 	invented := f.do(t, http.MethodGet, "/api/artifacts/msyt7at6cjfr33d73mta", userOther, nil, "")
@@ -194,18 +194,18 @@ func TestNonMemberCannotTellAnArtifactFromNothing(t *testing.T) {
 
 func TestAnonymousCallerIsUnauthorized(t *testing.T) {
 	f := newFixture(t)
-	created := f.upload(t, userOwner, teamA, "report.md", "# hello")
+	created := f.upload(t, userOwner, spaceA, "report.md", "# hello")
 	if code := f.do(t, http.MethodGet, "/api/artifacts/"+created.ID, "", nil, "").Code; code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", code)
 	}
 }
 
-func TestListShowsOnlyTheTeamsOwnArtifacts(t *testing.T) {
+func TestListShowsOnlyTheSpacesOwnArtifacts(t *testing.T) {
 	f := newFixture(t)
-	f.upload(t, userOwner, teamA, "a.md", "a")
-	f.upload(t, userOther, teamB, "b.md", "b")
+	f.upload(t, userOwner, spaceA, "a.md", "a")
+	f.upload(t, userOther, spaceB, "b.md", "b")
 
-	rec := f.do(t, http.MethodGet, "/api/teams/"+teamA+"/artifacts", userMember, nil, "")
+	rec := f.do(t, http.MethodGet, "/api/spaces/"+spaceA+"/artifacts", userMember, nil, "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
@@ -214,7 +214,7 @@ func TestListShowsOnlyTheTeamsOwnArtifacts(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 	if out.Total != 1 || len(out.Items) != 1 || out.Items[0].Filename != "a.md" {
-		t.Errorf("listing = %+v, want only the team's own artifact", out)
+		t.Errorf("listing = %+v, want only the space's own artifact", out)
 	}
 }
 
@@ -242,7 +242,7 @@ func TestContentPreviewModeAndDisposition(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.filename, func(t *testing.T) {
 			f := newFixture(t)
-			created := f.upload(t, userOwner, teamA, c.filename, "content")
+			created := f.upload(t, userOwner, spaceA, c.filename, "content")
 			if created.Preview != c.wantPreview {
 				t.Errorf("preview = %q, want %q", created.Preview, c.wantPreview)
 			}
@@ -272,7 +272,7 @@ func TestContentPreviewModeAndDisposition(t *testing.T) {
 // drops the sandbox rendering headers because nothing is being rendered.
 func TestContentDownloadOverride(t *testing.T) {
 	f := newFixture(t)
-	created := f.upload(t, userOwner, teamA, "page.html", "<h1>hi</h1>")
+	created := f.upload(t, userOwner, spaceA, "page.html", "<h1>hi</h1>")
 	rec := f.do(t, http.MethodGet, "/api/artifacts/"+created.ID+"/content?dl=1", userOwner, nil, "")
 	if got := rec.Header().Get("Content-Disposition"); !strings.HasPrefix(got, "attachment") {
 		t.Errorf("Content-Disposition = %q, want attachment", got)
@@ -287,7 +287,7 @@ func TestContentDownloadOverride(t *testing.T) {
 
 func TestContentDispositionCarriesBothFilenameForms(t *testing.T) {
 	f := newFixture(t)
-	created := f.upload(t, userOwner, teamA, "报告 v2.txt", "content")
+	created := f.upload(t, userOwner, spaceA, "报告 v2.txt", "content")
 	rec := f.do(t, http.MethodGet, "/api/artifacts/"+created.ID+"/content", userOwner, nil, "")
 	got := rec.Header().Get("Content-Disposition")
 	if !strings.Contains(got, `filename="`) || !strings.Contains(got, "filename*=UTF-8''") {
@@ -302,8 +302,8 @@ func TestContentDispositionCarriesBothFilenameForms(t *testing.T) {
 // output are not theirs to withdraw.
 func TestDeletePolicy(t *testing.T) {
 	f := newFixture(t)
-	mine := f.upload(t, userMember, teamA, "mine.md", "mine")
-	theirs := f.upload(t, userOwner, teamA, "theirs.md", "theirs")
+	mine := f.upload(t, userMember, spaceA, "mine.md", "mine")
+	theirs := f.upload(t, userOwner, spaceA, "theirs.md", "theirs")
 
 	if code := f.do(t, http.MethodDelete, "/api/artifacts/"+theirs.ID, userMember, nil, "").Code; code != http.StatusForbidden {
 		t.Errorf("a member deleting someone else's artifact got %d, want 403", code)
@@ -315,13 +315,13 @@ func TestDeletePolicy(t *testing.T) {
 		t.Errorf("a deleted artifact is still readable: %d", code)
 	}
 	if code := f.do(t, http.MethodDelete, "/api/artifacts/"+theirs.ID, userOwner, nil, "").Code; code != http.StatusNoContent {
-		t.Errorf("an owner deleting any team artifact got %d, want 204", code)
+		t.Errorf("an owner deleting any space artifact got %d, want 204", code)
 	}
 }
 
 func TestDeleteByNonMemberIsNotFound(t *testing.T) {
 	f := newFixture(t)
-	created := f.upload(t, userOwner, teamA, "report.md", "hello")
+	created := f.upload(t, userOwner, spaceA, "report.md", "hello")
 	if code := f.do(t, http.MethodDelete, "/api/artifacts/"+created.ID, userOther, nil, "").Code; code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", code)
 	}
@@ -335,7 +335,7 @@ func TestUploadWithoutAFilePart(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = w.Close()
-	rec := f.do(t, http.MethodPost, "/api/teams/"+teamA+"/artifacts", userOwner, &buf, w.FormDataContentType())
+	rec := f.do(t, http.MethodPost, "/api/spaces/"+spaceA+"/artifacts", userOwner, &buf, w.FormDataContentType())
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", rec.Code)
 	}
@@ -345,7 +345,7 @@ func TestUploadOverTheLimitIsRefused(t *testing.T) {
 	f := newFixture(t)
 	f.svc.MaxFileBytes = 4
 	body, contentType := multipartBody(t, "big.bin", strings.Repeat("a", 64))
-	rec := f.do(t, http.MethodPost, "/api/teams/"+teamA+"/artifacts", userOwner, body, contentType)
+	rec := f.do(t, http.MethodPost, "/api/spaces/"+spaceA+"/artifacts", userOwner, body, contentType)
 	if rec.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("status = %d, want 413: %s", rec.Code, rec.Body.String())
 	}
@@ -356,7 +356,7 @@ func TestUploadOverTheLimitIsRefused(t *testing.T) {
 
 func TestUploadRecordsProvenance(t *testing.T) {
 	f := newFixture(t)
-	created := f.upload(t, userOwner, teamA, "report.md", "hello")
+	created := f.upload(t, userOwner, spaceA, "report.md", "hello")
 	if created.SourceType != coreartifact.SourceUserUpload {
 		t.Errorf("source type = %q, want %q", created.SourceType, coreartifact.SourceUserUpload)
 	}
@@ -368,7 +368,7 @@ func TestUploadRecordsProvenance(t *testing.T) {
 func TestUploadTitleComesFromTheQuery(t *testing.T) {
 	f := newFixture(t)
 	body, contentType := multipartBody(t, "report.md", "hello")
-	rec := f.do(t, http.MethodPost, "/api/teams/"+teamA+"/artifacts?title=Quarterly+report", userOwner, body, contentType)
+	rec := f.do(t, http.MethodPost, "/api/spaces/"+spaceA+"/artifacts?title=Quarterly+report", userOwner, body, contentType)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want 201", rec.Code)
 	}
@@ -387,11 +387,11 @@ func TestUnconfiguredDeploymentStillAuthenticatesFirst(t *testing.T) {
 	h := New(Config{
 		JWTSecret: testSecret,
 		Users:     &mock.MockUserStore{},
-		Teams:     &mock.MockTeamStore{},
+		Spaces:    &mock.MockSpaceStore{},
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
-	for _, path := range []string{"/api/artifacts/hsyt7at6cjfr33d73mta", "/api/artifacts/hsyt7at6cjfr33d73mta/content", "/api/teams/" + teamA + "/artifacts"} {
+	for _, path := range []string{"/api/artifacts/hsyt7at6cjfr33d73mta", "/api/artifacts/hsyt7at6cjfr33d73mta/content", "/api/spaces/" + spaceA + "/artifacts"} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -401,26 +401,26 @@ func TestUnconfiguredDeploymentStillAuthenticatesFirst(t *testing.T) {
 	}
 }
 
-// A client with a login but no chosen team gets its personal one. This is what
-// lets CLI and Desktop publish without ever being told about teams.
-func TestUploadToDefaultTeamUsesThePersonalTeam(t *testing.T) {
+// A client with a login but no chosen space gets its personal one. This is what
+// lets CLI and Desktop publish without ever being told about spaces.
+func TestUploadToDefaultSpaceUsesThePersonalSpace(t *testing.T) {
 	store := &mock.MockArtifactStore{}
 	storage := mock.NewMockArtifactStorage()
 	personal := "tm_personal"
-	teams := &mock.MockTeamStore{
-		Teams: []coreteam.Team{
+	spaces := &mock.MockSpaceStore{
+		Spaces: []corespace.Space{
 			{ID: personal, Name: "Mine", PersonalForUserID: util.Ptr(userOwner), CreatedBy: userOwner},
-			{ID: teamA, Name: "A", CreatedBy: userOwner},
+			{ID: spaceA, Name: "A", CreatedBy: userOwner},
 		},
-		Members: []coreteam.Member{
-			{TeamID: personal, UserID: userOwner, Role: coreteam.RoleOwner},
-			{TeamID: teamA, UserID: userOwner, Role: coreteam.RoleMember},
+		Members: []corespace.Member{
+			{SpaceID: personal, UserID: userOwner, Role: corespace.RoleOwner},
+			{SpaceID: spaceA, UserID: userOwner, Role: corespace.RoleMember},
 		},
 	}
 	h := New(Config{
 		JWTSecret: testSecret,
 		Users:     &mock.MockUserStore{},
-		Teams:     teams,
+		Spaces:    spaces,
 		Artifacts: &artifactsvc.Service{Artifacts: store, Storage: storage},
 	})
 	mux := http.NewServeMux()
@@ -436,28 +436,28 @@ func TestUploadToDefaultTeamUsesThePersonalTeam(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
 	}
-	if out.TeamID != personal {
-		t.Errorf("team = %q, want the caller's personal team %q", out.TeamID, personal)
+	if out.SpaceID != personal {
+		t.Errorf("space = %q, want the caller's personal space %q", out.SpaceID, personal)
 	}
 
-	// An explicit team is honoured, and still checked for membership.
+	// An explicit space is honoured, and still checked for membership.
 	body, contentType = multipartBody(t, "other.md", "hello")
-	rec = f.do(t, http.MethodPost, "/api/artifacts?team_id="+teamA, userOwner, body, contentType)
+	rec = f.do(t, http.MethodPost, "/api/artifacts?space_id="+spaceA, userOwner, body, contentType)
 	if rec.Code != http.StatusCreated {
-		t.Fatalf("explicit team status = %d, want 201", rec.Code)
+		t.Fatalf("explicit space status = %d, want 201", rec.Code)
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
 	}
-	if out.TeamID != teamA {
-		t.Errorf("team = %q, want %q", out.TeamID, teamA)
+	if out.SpaceID != spaceA {
+		t.Errorf("space = %q, want %q", out.SpaceID, spaceA)
 	}
 }
 
-func TestUploadToDefaultTeamRefusesATeamTheCallerIsNotIn(t *testing.T) {
+func TestUploadToDefaultSpaceRefusesASpaceTheCallerIsNotIn(t *testing.T) {
 	f := newFixture(t)
 	body, contentType := multipartBody(t, "report.md", "hello")
-	rec := f.do(t, http.MethodPost, "/api/artifacts?team_id="+teamB, userOwner, body, contentType)
+	rec := f.do(t, http.MethodPost, "/api/artifacts?space_id="+spaceB, userOwner, body, contentType)
 	if rec.Code != http.StatusForbidden {
 		t.Errorf("status = %d, want 403", rec.Code)
 	}

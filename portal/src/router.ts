@@ -15,7 +15,7 @@ export const SEGMENT = {
   account: "account",
   space: "space",
   admin: "admin",
-  teamSettings: "team-settings",
+  spaceSettings: "space-settings",
   workflows: "workflows",
   workflow: "workflow",
   workflowRun: "workflow-run",
@@ -71,13 +71,13 @@ export function parseHash(hash: string): Route {
   }
   if (parts[0] === SEGMENT.admin) {
     if (parts[1] === "accounts") return { name: "admin", section: "accounts" }
-    if (parts[1] === "teams") return { name: "admin", section: "teams" }
+    if (parts[1] === "spaces") return { name: "admin", section: "spaces" }
     if (parts[1] === "models") return { name: "admin", section: "models" }
     if (parts[1] === "plugins") return { name: "admin", section: "plugins" }
     if (parts[1] === "audit") return { name: "admin", section: "audit" }
     return { name: "admin", section: "overview" }
   }
-  if (parts[0] === SEGMENT.teamSettings) {
+  if (parts[0] === SEGMENT.spaceSettings) {
     return { name: "space", section: "overview" }
   }
   if (parts[0] === SEGMENT.workflows) {
@@ -101,7 +101,7 @@ export function parseHash(hash: string): Route {
   if (parts[0] === SEGMENT.marketplace) {
     return { name: "marketplace" }
   }
-  // An artifact's address is its id alone -- no team in the path, matching the
+  // An artifact's address is its id alone -- no space in the path, matching the
   // API. See docs/design/unified-artifacts.md section 6.1.
   if (parts[0] === SEGMENT.artifact && parts[1]) {
     return { name: "artifact", artifactId: parts[1] }
@@ -170,8 +170,8 @@ export function buildHash(route: Route): string {
       switch (route.section) {
         case "accounts":
           return `#/${SEGMENT.admin}/accounts`
-        case "teams":
-          return `#/${SEGMENT.admin}/teams`
+        case "spaces":
+          return `#/${SEGMENT.admin}/spaces`
         case "models":
           return `#/${SEGMENT.admin}/models`
         case "plugins":

@@ -133,7 +133,7 @@ export function apiWorkflowRevisionToWorkflowRevision(api: ApiWorkflowRevision):
 export function apiWorkflowToWorkflow(api: ApiWorkflow): Workflow {
   return {
     id: api.id,
-    teamId: api.team_id,
+    spaceId: api.space_id,
     name: api.name,
     description: api.description,
     definition: api.definition,

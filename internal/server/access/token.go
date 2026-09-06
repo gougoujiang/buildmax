@@ -2,7 +2,7 @@
 //
 // It exists because those two questions were answered inside auth.go, which
 // made auth.go the file every other route had to reach into: fifteen of them
-// called withUserPathTeamAndStore, nineteen called pathValueRequired. Splitting
+// called withUserPathSpaceAndStore, nineteen called pathValueRequired. Splitting
 // the route packages apart is only possible once the question every route asks
 // first has a home of its own.
 package access

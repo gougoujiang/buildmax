@@ -25,12 +25,12 @@ const uploadSlackBytes int64 = 1 << 20
 const maxTitleLen = 200
 
 func (h *Handler) uploadArtifactHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, svc, ok := h.teamCaller(w, r)
+	userID, spaceID, svc, ok := h.spaceCaller(w, r)
 	if !ok {
 		return
 	}
 	ReceiveUpload(w, r, svc, ReceiveInput{
-		TeamID:        teamID,
+		SpaceID:       spaceID,
 		SourceType:    coreartifact.SourceUserUpload,
 		CreatedByType: coreartifact.CreatorUser,
 		CreatedByID:   userID,
@@ -38,8 +38,8 @@ func (h *Handler) uploadArtifactHandler(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-func (h *Handler) uploadToDefaultTeamHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndDefaultTeam(w, r, r.URL.Query().Get("team_id"))
+func (h *Handler) uploadToDefaultSpaceHandler(w http.ResponseWriter, r *http.Request) {
+	userID, spaceID, ok := h.guard().UserAndDefaultSpace(w, r, r.URL.Query().Get("space_id"))
 	if !ok {
 		return
 	}
@@ -48,7 +48,7 @@ func (h *Handler) uploadToDefaultTeamHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	ReceiveUpload(w, r, svc, ReceiveInput{
-		TeamID:        teamID,
+		SpaceID:       spaceID,
 		SourceType:    coreartifact.SourceUserUpload,
 		CreatedByType: coreartifact.CreatorUser,
 		CreatedByID:   userID,
@@ -71,7 +71,7 @@ func WantShare(r *http.Request) bool {
 // ReceiveInput is who the artifact belongs to and what produced it. The caller
 // has already decided both; this package never infers provenance from a route.
 type ReceiveInput struct {
-	TeamID        string
+	SpaceID       string
 	SourceType    string
 	SourceID      string
 	CreatedByType string
@@ -112,7 +112,7 @@ func ReceiveUpload(w http.ResponseWriter, r *http.Request, svc *artifactsvc.Serv
 	defer func() { _ = part.Close() }()
 
 	rec, err := svc.Create(r.Context(), artifactsvc.CreateInput{
-		TeamID:        in.TeamID,
+		SpaceID:       in.SpaceID,
 		Filename:      part.FileName(),
 		Title:         title(r),
 		SourceType:    in.SourceType,
@@ -122,7 +122,7 @@ func ReceiveUpload(w http.ResponseWriter, r *http.Request, svc *artifactsvc.Serv
 		Content:       part,
 	})
 	if err != nil {
-		writeUploadError(w, err, in.TeamID)
+		writeUploadError(w, err, in.SpaceID)
 		return
 	}
 	resp := toResponse(rec)
@@ -191,7 +191,7 @@ func title(r *http.Request) string {
 	return t
 }
 
-func writeUploadError(w http.ResponseWriter, err error, teamID string) {
+func writeUploadError(w http.ResponseWriter, err error, spaceID string) {
 	var tooBig *http.MaxBytesError
 	if errors.As(err, &tooBig) || errors.Is(err, artifactsvc.ErrTooLarge) {
 		httputil.WriteJSONError(w, http.StatusRequestEntityTooLarge, artifactsvc.ErrTooLarge.Error())
@@ -204,5 +204,5 @@ func writeUploadError(w http.ResponseWriter, err error, teamID string) {
 	if httputil.WriteServiceError(w, err) {
 		return
 	}
-	httputil.WriteInternalError(w, err, "handler error", "handler", "upload_artifact", "team_id", teamID)
+	httputil.WriteInternalError(w, err, "handler error", "handler", "upload_artifact", "space_id", spaceID)
 }

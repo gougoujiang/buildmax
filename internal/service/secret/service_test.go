@@ -28,7 +28,7 @@ func (m *memStore) CreateSecret(_ context.Context, in coresecret.CreateInput) (*
 	m.seq++
 	id := "sec_" + string(rune('a'+m.seq))
 	meta := coresecret.Secret{
-		ID: id, TeamID: in.TeamID, Name: in.Name, Description: in.Description,
+		ID: id, SpaceID: in.SpaceID, Name: in.Name, Description: in.Description,
 		Provider: in.Provider, State: coresecret.StateActive, ItemNames: in.ItemNames, CreatedBy: in.CreatedBy,
 	}
 	m.byID[id] = &storedSecret{meta: meta, sealed: in.Sealed}
@@ -45,10 +45,10 @@ func (m *memStore) GetSecret(_ context.Context, id string) (*coresecret.Secret, 
 	return &cp, nil
 }
 
-func (m *memStore) ListSecretsByTeam(_ context.Context, teamID string) ([]coresecret.Secret, error) {
+func (m *memStore) ListSecretsBySpace(_ context.Context, spaceID string) ([]coresecret.Secret, error) {
 	var out []coresecret.Secret
 	for _, s := range m.byID {
-		if s.meta.TeamID == teamID {
+		if s.meta.SpaceID == spaceID {
 			out = append(out, s.meta)
 		}
 	}
@@ -108,7 +108,7 @@ func TestService_CreateAndEdit(t *testing.T) {
 	svc := testService(t)
 
 	created, err := svc.Create(ctx, CreateCmd{
-		TeamID: "tm_1", CreatedBy: "u_1", Name: "aws",
+		SpaceID: "tm_1", CreatedBy: "u_1", Name: "aws",
 		Items: map[string]string{"access_key_id": "AKIA", "secret_access_key": "wJa"},
 	})
 	if err != nil {
@@ -147,28 +147,28 @@ func TestService_Validation(t *testing.T) {
 	ctx := context.Background()
 	svc := testService(t)
 
-	if _, err := svc.Create(ctx, CreateCmd{TeamID: "t", CreatedBy: "u", Name: "", Items: map[string]string{"k": "v"}}); err != ErrNameRequired {
+	if _, err := svc.Create(ctx, CreateCmd{SpaceID: "t", CreatedBy: "u", Name: "", Items: map[string]string{"k": "v"}}); err != ErrNameRequired {
 		t.Fatalf("empty name err = %v", err)
 	}
-	if _, err := svc.Create(ctx, CreateCmd{TeamID: "t", CreatedBy: "u", Name: "n", Items: nil}); err != ErrNoItems {
+	if _, err := svc.Create(ctx, CreateCmd{SpaceID: "t", CreatedBy: "u", Name: "n", Items: nil}); err != ErrNoItems {
 		t.Fatalf("no items err = %v", err)
 	}
-	if _, err := svc.Create(ctx, CreateCmd{TeamID: "t", CreatedBy: "u", Name: "n", Items: map[string]string{"bad-name": "v"}}); err != ErrInvalidItem {
+	if _, err := svc.Create(ctx, CreateCmd{SpaceID: "t", CreatedBy: "u", Name: "n", Items: map[string]string{"bad-name": "v"}}); err != ErrInvalidItem {
 		t.Fatalf("invalid item err = %v", err)
 	}
 }
 
-func TestService_TeamScopeAndState(t *testing.T) {
+func TestService_SpaceScopeAndState(t *testing.T) {
 	ctx := context.Background()
 	svc := testService(t)
-	created, err := svc.Create(ctx, CreateCmd{TeamID: "tm_1", CreatedBy: "u", Name: "n", Items: map[string]string{"k": "v"}})
+	created, err := svc.Create(ctx, CreateCmd{SpaceID: "tm_1", CreatedBy: "u", Name: "n", Items: map[string]string{"k": "v"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Another team cannot see it.
+	// Another space cannot see it.
 	if _, err := svc.Get(ctx, "tm_2", created.ID); err != ErrNotFound {
-		t.Fatalf("cross-team get err = %v", err)
+		t.Fatalf("cross-space get err = %v", err)
 	}
 
 	// Destroy, then edits are refused and the material is gone.
@@ -183,7 +183,7 @@ func TestService_TeamScopeAndState(t *testing.T) {
 func TestService_PatchRemoveMissing(t *testing.T) {
 	ctx := context.Background()
 	svc := testService(t)
-	created, _ := svc.Create(ctx, CreateCmd{TeamID: "t", CreatedBy: "u", Name: "n", Items: map[string]string{"k": "v"}})
+	created, _ := svc.Create(ctx, CreateCmd{SpaceID: "t", CreatedBy: "u", Name: "n", Items: map[string]string{"k": "v"}})
 	if _, err := svc.PatchItems(ctx, "t", created.ID, nil, []string{"absent"}); err != ErrItemNotFound {
 		t.Fatalf("remove-missing err = %v", err)
 	}

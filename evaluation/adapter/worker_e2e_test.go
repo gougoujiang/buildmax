@@ -98,15 +98,15 @@ func TestWorkerRunMaterializesAndProducesAGradableBundle(t *testing.T) {
 		t.Fatalf("trial was not gradable: status %q, error %q", res.Bundle.Status, res.Bundle.Error)
 	}
 
-	// The team's file reaching the run at all means the worker materialized the
+	// The space's file reaching the run at all means the worker materialized the
 	// persistent workspace into the run-scoped directory — the step this
 	// adapter exists to exercise. It lands under `home/` rather than at the
-	// workspace root, which is where a worker puts what a team supplied.
+	// workspace root, which is where a worker puts what a space supplied.
 	if _, err := os.Stat(filepath.Join(res.Workspace, "home", "notes.txt")); err != nil {
-		t.Errorf("the team's file did not reach the run workspace: %v", err)
+		t.Errorf("the space's file did not reach the run workspace: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(res.Workspace, "notes.txt")); err == nil {
-		t.Error("the team's file is at the workspace root; a path assertion written for the CLI " +
+		t.Error("the space's file is at the workspace root; a path assertion written for the CLI " +
 			"would then pass here for the wrong reason")
 	}
 	got, err := os.ReadFile(filepath.Join(res.Workspace, "report.md"))
@@ -260,7 +260,7 @@ func TestWorkerRunRejectsATaskThatShipsItsAnswer(t *testing.T) {
 	}
 	t.Cleanup(res.Cleanup)
 
-	// The boundary is checked against the team's persistent workspace, since
+	// The boundary is checked against the space's persistent workspace, since
 	// that is what the worker will materialize.
 	if res.Bundle.Status != contract.StatusInvalidTask {
 		t.Errorf("status = %q, want %q", res.Bundle.Status, contract.StatusInvalidTask)

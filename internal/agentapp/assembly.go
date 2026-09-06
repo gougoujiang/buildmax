@@ -29,8 +29,8 @@ func ValidateAdditionalSystemPrompt(text string) error {
 // ValidateInstructionLayers bounds the complete user-authored instruction
 // prefix. Space and Agent instructions are both permanent on every model call,
 // so they share one budget rather than each quietly doubling it.
-func ValidateInstructionLayers(teamInstructions, additionalSystemPrompt string) error {
-	return agent.ValidateInstructionLayers(teamInstructions, additionalSystemPrompt)
+func ValidateInstructionLayers(spaceInstructions, additionalSystemPrompt string) error {
+	return agent.ValidateInstructionLayers(spaceInstructions, additionalSystemPrompt)
 }
 
 // BuildEffectiveSystemPrompt builds the agent system prompt for a workspace, an optional model
@@ -61,7 +61,7 @@ func BuildSystemPromptWithLayers(workspaceDir, modelName, additionalSystemPrompt
 	return buildSystemPromptWithLayers(workspaceDir, modelName, "", additionalSystemPrompt, "", caps)
 }
 
-func buildSystemPromptWithLayers(workspaceDir, modelName, teamInstructions, additionalSystemPrompt, additionalLayerName string, caps PromptCapabilities) (string, []agent.PromptLayer) {
+func buildSystemPromptWithLayers(workspaceDir, modelName, spaceInstructions, additionalSystemPrompt, additionalLayerName string, caps PromptCapabilities) (string, []agent.PromptLayer) {
 	effectivePrompt := DefaultSystemPrompt
 	layers := []agent.PromptLayer{{Name: "runtime", Chars: len(DefaultSystemPrompt)}}
 	appendLayer := func(name, text string) {
@@ -81,7 +81,7 @@ func buildSystemPromptWithLayers(workspaceDir, modelName, teamInstructions, addi
 	if ws, err := ReadAgentsMd(workspaceDir); err == nil && ws != "" {
 		appendLayer("workspace_agents_md", ws)
 	}
-	if shared := strings.TrimSpace(teamInstructions); shared != "" {
+	if shared := strings.TrimSpace(spaceInstructions); shared != "" {
 		appendLayer("space_instructions", "# Space instructions\n"+shared)
 	}
 	if extra := strings.TrimSpace(additionalSystemPrompt); extra != "" {

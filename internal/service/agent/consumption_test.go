@@ -24,12 +24,12 @@ func env(grants ...agentdef.SecretEnvGrant) agentdef.SecretConsumption {
 }
 
 func TestValidateConsumption(t *testing.T) {
-	const team = "tm_1"
+	const space = "tm_1"
 	secrets := fakeSecrets{
-		"sec_aws":   {ID: "sec_aws", TeamID: team, State: coresecret.StateActive, ItemNames: []string{"access_key_id", "secret_access_key", "region"}},
-		"sec_gh":    {ID: "sec_gh", TeamID: team, State: coresecret.StateActive, ItemNames: []string{"token"}},
-		"sec_dead":  {ID: "sec_dead", TeamID: team, State: coresecret.StateDestroyed, ItemNames: nil},
-		"sec_other": {ID: "sec_other", TeamID: "tm_2", State: coresecret.StateActive, ItemNames: []string{"token"}},
+		"sec_aws":   {ID: "sec_aws", SpaceID: space, State: coresecret.StateActive, ItemNames: []string{"access_key_id", "secret_access_key", "region"}},
+		"sec_gh":    {ID: "sec_gh", SpaceID: space, State: coresecret.StateActive, ItemNames: []string{"token"}},
+		"sec_dead":  {ID: "sec_dead", SpaceID: space, State: coresecret.StateDestroyed, ItemNames: nil},
+		"sec_other": {ID: "sec_other", SpaceID: "tm_2", State: coresecret.StateActive, ItemNames: []string{"token"}},
 	}
 	svc := &Service{Secrets: secrets}
 
@@ -47,7 +47,7 @@ func TestValidateConsumption(t *testing.T) {
 		), false},
 
 		{"unknown secret", env(agentdef.SecretEnvGrant{Secret: "sec_nope", Item: "x", EnvName: "X"}), true},
-		{"another team's secret", env(agentdef.SecretEnvGrant{Secret: "sec_other", Item: "token", EnvName: "T"}), true},
+		{"another space's secret", env(agentdef.SecretEnvGrant{Secret: "sec_other", Item: "token", EnvName: "T"}), true},
 		{"destroyed secret", env(agentdef.SecretEnvGrant{Secret: "sec_dead", Item: "token", EnvName: "T"}), true},
 		{"item not in secret", env(agentdef.SecretEnvGrant{Secret: "sec_gh", Item: "missing", EnvName: "X"}), true},
 		{"selected item needs env_name", env(agentdef.SecretEnvGrant{Secret: "sec_gh", Item: "token"}), true},
@@ -72,7 +72,7 @@ func TestValidateConsumption(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := svc.validateConsumption(context.Background(), team, tc.cons)
+			err := svc.validateConsumption(context.Background(), space, tc.cons)
 			if tc.wantErr && err == nil {
 				t.Fatal("expected an error, got nil")
 			}

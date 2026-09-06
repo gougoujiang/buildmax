@@ -22,7 +22,7 @@ const FILESYSTEM_TIERS: FormModalSelectOption[] = [
   {
     value: "workspace_plus_shared_read",
     label: "Workspace + shared read",
-    description: "Workspace read/write, plus read access to team-shared paths.",
+    description: "Workspace read/write, plus read access to space-shared paths.",
   },
   {
     value: "workspace_plus_external_write",
@@ -31,14 +31,14 @@ const FILESYSTEM_TIERS: FormModalSelectOption[] = [
   },
 ]
 
-/** An agent that declares nothing inherits the team's default, and only then
+/** An agent that declares nothing inherits the space's default, and only then
  * falls through to the strictest baseline -- so the first option here is
  * "inherit," not a hardcoded tier. */
 export const AGENT_SANDBOX_NETWORK_TIER_OPTIONS: FormModalSelectOption[] = [
   {
     value: "",
-    label: "Team default",
-    description: "Inherit this team's default network tier (or the strictest baseline if the team sets none).",
+    label: "Space default",
+    description: "Inherit this space's default network tier (or the strictest baseline if the space sets none).",
   },
   ...NETWORK_TIERS,
 ]
@@ -46,13 +46,13 @@ export const AGENT_SANDBOX_NETWORK_TIER_OPTIONS: FormModalSelectOption[] = [
 export const AGENT_SANDBOX_FILESYSTEM_TIER_OPTIONS: FormModalSelectOption[] = [
   {
     value: "",
-    label: "Team default",
-    description: "Inherit this team's default filesystem tier (or the strictest baseline if the team sets none).",
+    label: "Space default",
+    description: "Inherit this space's default filesystem tier (or the strictest baseline if the space sets none).",
   },
   ...FILESYSTEM_TIERS,
 ]
 
-/** A team's own default has no further tier to inherit from -- leaving it
+/** A space's own default has no further tier to inherit from -- leaving it
  * unset means the strictest baseline applies to every agent that declares
  * nothing. */
 export const TEAM_SANDBOX_NETWORK_TIER_OPTIONS: FormModalSelectOption[] = [

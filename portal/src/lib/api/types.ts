@@ -32,11 +32,11 @@ export interface ApiWorkspace {
   created_at?: string
 }
 
-/** Agent as returned by team-scoped agent endpoints. */
+/** Agent as returned by space-scoped agent endpoints. */
 export interface ApiAgent {
   id: string
   user_id: string
-  team_id: string
+  space_id: string
   name: string
   description: string
   instructions: string
@@ -47,17 +47,17 @@ export interface ApiAgent {
   model?: string
   /**
    * Catalog plugin names this agent loads for a background run. Nothing is
-   * inherited from the team's activations: an agent that names none loads none.
+   * inherited from the space's activations: an agent that names none loads none.
    */
   plugins?: string[]
   /**
    * config.SandboxNetworkTier / config.SandboxFilesystemTier this agent
-   * declares. Empty inherits the team's default, then the strictest
+   * declares. Empty inherits the space's default, then the strictest
    * baseline. See docs/design/agent-sandbox-policy.md.
    */
   sandbox_network_tier?: string
   sandbox_filesystem_tier?: string
-  /** How this agent consumes Team Secrets. See docs/design/team-secrets.md §6. */
+  /** How this agent consumes Space Secrets. See docs/design/space-secrets.md §6. */
   secret_consumption?: ApiSecretConsumption
   revision: number
   created_at: string
@@ -82,7 +82,7 @@ export interface ApiAgentRevisionListResponse {
 export interface ApiIssue {
   id: string
   user_id: string
-  team_id: string
+  space_id: string
   parent_issue_id?: string | null
   title: string
   description: string
@@ -125,7 +125,7 @@ export interface ApiIssueCommentsResponse {
 
 export interface ApiWorkflow {
   id: string
-  team_id: string
+  space_id: string
   name: string
   description: string
   definition: string
@@ -256,10 +256,10 @@ export interface ApiTasksListResponse {
   total: number
 }
 
-/** Task as returned by team-scoped task endpoints. */
+/** Task as returned by space-scoped task endpoints. */
 export interface ApiTask {
   id: string
-  team_id: string
+  space_id: string
   conversation_id?: string
   session_id: string | null
   status: string
@@ -294,7 +294,7 @@ export interface ApiTaskRun {
   started_at?: string | null
   ended_at?: string | null
   agent_revision?: number | null
-  team_agent_instructions_revision?: number | null
+  space_agent_instructions_revision?: number | null
   retry_of_task_run_id?: string | null
 }
 
@@ -347,7 +347,7 @@ export interface ApiRunSourceMessage {
 }
 
 /**
- * Response from the team-scoped cancel endpoint.
+ * Response from the space-scoped cancel endpoint.
  *
  * `cancel_requested` is the difference that matters to the UI: false means the
  * run is already over, true means it is still executing and its worker has been
@@ -374,14 +374,14 @@ export interface RetryTaskResponse {
 }
 
 /**
- * A durable file the team keeps, addressed by its own opaque id.
+ * A durable file the space keeps, addressed by its own opaque id.
  *
  * Not a run output: those are paths inside one run's directory and come from
  * the task-run routes instead. See docs/design/unified-artifacts.md section 5.3.
  */
 export interface ApiArtifact {
   id: string
-  team_id: string
+  space_id: string
   filename: string
   media_type: string
   size_bytes: number
@@ -565,7 +565,7 @@ export interface ApiLLMCallCost {
  */
 export interface ApiAuditEvent {
   id: string
-  team_id?: string
+  space_id?: string
   actor_type: string
   actor_id: string
   action: string
@@ -584,8 +584,8 @@ export interface ApiAuditEventsResponse {
 // --- Deployment administration ---
 //
 // These come from /api/admin, which is deployment-scoped rather than
-// team-scoped. Nothing here carries team content: an administrator learns that
-// an account or a team exists, never what is in it.
+// space-scoped. Nothing here carries space content: an administrator learns that
+// an account or a space exists, never what is in it.
 
 /** One deployment-scoped grant. */
 export interface ApiSystemGrant {
@@ -625,14 +625,14 @@ export interface ApiAdminUsersResponse {
   total: number
 }
 
-export interface ApiAdminUserTeam {
-  team_id: string
+export interface ApiAdminUserSpace {
+  space_id: string
   name: string
   role: string
 }
 
 export interface ApiAdminUserDetail extends ApiAdminUser {
-  teams: ApiAdminUserTeam[]
+  spaces: ApiAdminUserSpace[]
   /** Live login chains, not tokens. */
   session_count: number
   system_roles: string[]
@@ -750,21 +750,21 @@ export interface ApiPluginInspection {
  * Unlike the digest, the server cannot verify any of it, so it is shown as a
  * claim rather than as proof.
  */
-/** Who fills a team's plugin activation list. */
+/** Who fills a space's plugin activation list. */
 export type ApiPluginCuration = "open" | "curated"
 
 /** How an activation came to exist. */
 export type ApiPluginActivationOrigin = "curated" | "automatic"
 
 /**
- * One team's pinned use of one catalog plugin.
+ * One space's pinned use of one catalog plugin.
  *
  * The pin is the point: a release published after this row was written cannot
  * change what a run loads until somebody moves it.
  */
 export interface ApiPluginActivation {
   id: string
-  team_id: string
+  space_id: string
   plugin_name: string
   version: string
   digest: string
@@ -777,7 +777,7 @@ export interface ApiPluginActivation {
 }
 
 /**
- * What a team has activated, and who fills the list.
+ * What a space has activated, and who fills the list.
  *
  * The mode travels with the activations because reading one without the other
  * misleads: an empty list means "nothing activated yet" when open and "nothing
@@ -827,7 +827,7 @@ export interface ApiPluginResponse {
   releases: ApiPluginRelease[]
 }
 
-export interface ApiAdminTeam {
+export interface ApiAdminSpace {
   id: string
   name: string
   personal: boolean
@@ -837,28 +837,28 @@ export interface ApiAdminTeam {
   created_at: string
 }
 
-export interface ApiAdminTeamsResponse {
-  teams: ApiAdminTeam[]
+export interface ApiAdminSpacesResponse {
+  spaces: ApiAdminSpace[]
   total: number
 }
 
-export interface ApiAdminTeamMember {
+export interface ApiAdminSpaceMember {
   user_id: string
   email?: string
   role: string
 }
 
-export interface ApiAdminTeamDetail extends ApiAdminTeam {
-  members: ApiAdminTeamMember[]
+export interface ApiAdminSpaceDetail extends ApiAdminSpace {
+  members: ApiAdminSpaceMember[]
   usage?: ApiUsage
 }
 
-/** Upload response from the team-scoped upload endpoint. */
+/** Upload response from the space-scoped upload endpoint. */
 export interface UploadResponse {
   uploaded: string[]
 }
 
-/** Usage as returned by team usage endpoints (and the legacy personal alias). */
+/** Usage as returned by space usage endpoints (and the legacy personal alias). */
 export interface ApiUsage {
   run_count: number
   total_tokens: number
@@ -875,25 +875,25 @@ export interface ApiUsage {
   max_storage_bytes?: number
 }
 
-/** Tier 1 conversation as returned by team-scoped conversation endpoints. */
+/** Tier 1 conversation as returned by space-scoped conversation endpoints. */
 export interface ApiConversation {
   id: string
   user_id: string
-  team_id: string
+  space_id: string
   channel: string
   title?: string
   created_at: string
   created_by: string
 }
 
-export interface ApiTeam {
+export interface ApiSpace {
   id: string
   name: string
   personal_for_user_id?: string | null
   created_at?: string
 }
 
-export interface ApiTeamAgentInstructions {
+export interface ApiSpaceAgentInstructions {
   instructions: string
   revision: number
 }
@@ -902,19 +902,19 @@ export interface ApiTeamAgentInstructions {
  * The tiers an agent that declares neither inherits. See
  * docs/design/agent-sandbox-policy.md §9 M3.
  */
-export interface ApiTeamSandboxDefaults {
+export interface ApiSpaceSandboxDefaults {
   sandbox_network_tier?: string
   sandbox_filesystem_tier?: string
 }
 
 /**
- * A Team Secret: a group of named items, sealed. The API never returns an item
+ * A Space Secret: a group of named items, sealed. The API never returns an item
  * value -- item_names lists the keys present, and there is no reveal route. See
- * docs/design/team-secrets.md.
+ * docs/design/space-secrets.md.
  */
 export interface ApiSecret {
   id: string
-  team_id: string
+  space_id: string
   name: string
   description: string
   provider: string
@@ -951,7 +951,7 @@ export interface ApiSetSecretStateRequest {
 }
 
 /**
- * How an agent consumes a Team Secret's item as an environment variable: a
+ * How an agent consumes a Space Secret's item as an environment variable: a
  * selected item under a chosen name, or -- when item is empty -- the whole
  * group under each item's own name with an optional prefix.
  */
@@ -967,8 +967,8 @@ export interface ApiSecretConsumption {
   env?: ApiSecretEnvGrant[]
 }
 
-export interface ApiTeamMember {
-  team_id: string
+export interface ApiSpaceMember {
+  space_id: string
   user_id: string
   role: string
   created_at?: string
@@ -977,12 +977,12 @@ export interface ApiTeamMember {
 }
 
 /**
- * A pending offer of team membership against an account that already
- * exists. Never carries a code -- see docs/design/team-membership-lifecycle.md.
+ * A pending offer of space membership against an account that already
+ * exists. Never carries a code -- see docs/design/space-membership-lifecycle.md.
  */
 export interface ApiInvitation {
   id: string
-  team_id: string
+  space_id: string
   user_id: string
   role: string
   invited_by: string
@@ -991,7 +991,7 @@ export interface ApiInvitation {
 }
 
 export interface ApiMemberRole {
-  team_id: string
+  space_id: string
   user_id: string
   role: string
 }
@@ -1001,19 +1001,19 @@ export interface ApiMemberLoginCode {
   expires_at: string
 }
 
-/** Response from the team-scoped list conversations endpoint. */
+/** Response from the space-scoped list conversations endpoint. */
 export interface ApiConversationsListResponse {
   conversations: ApiConversation[]
   total: number
 }
 
-/** Response from the team-scoped create conversation endpoint. */
+/** Response from the space-scoped create conversation endpoint. */
 export interface CreateConversationResponse {
   conversation_id: string
   reply?: string
 }
 
-/** Message as returned by the team-scoped list conversation messages endpoint. */
+/** Message as returned by the space-scoped list conversation messages endpoint. */
 export interface ApiConversationMessage {
   id: string
   role: string
@@ -1022,12 +1022,12 @@ export interface ApiConversationMessage {
   created_at: string
 }
 
-/** Response from the team-scoped list conversation messages endpoint. */
+/** Response from the space-scoped list conversation messages endpoint. */
 export interface ApiConversationMessagesResponse {
   messages: ApiConversationMessage[]
 }
 
-/** Response from the team-scoped add conversation message endpoint. */
+/** Response from the space-scoped add conversation message endpoint. */
 export interface AddConversationMessageResponse {
   reply: string
 }

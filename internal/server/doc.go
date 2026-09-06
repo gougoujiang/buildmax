@@ -3,7 +3,7 @@
 // Route handling lives in the handlers sub-package:
 //
 //   - server/handlers — all HTTP handlers in one package, grouped by domain file:
-//     auth.go (OTP/login + JWT middleware), teams.go, agents.go, usage.go,
+//     auth.go (OTP/login + JWT middleware), spaces.go, agents.go, usage.go,
 //     issues.go, workflows.go, conversations.go, tasks.go, artifacts.go,
 //     files.go, stream.go, ws.go, webhook_keys.go, inbound_webhook.go, worker.go.
 //

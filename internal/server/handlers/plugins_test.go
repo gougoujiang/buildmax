@@ -42,7 +42,7 @@ func newCatalogFixture(t *testing.T, withMarketplace bool) *catalogFixture {
 	cfg := Config{
 		JWTSecret:  catalogSecret,
 		UserStore:  users,
-		TeamStore:  &mock.MockTeamStore{},
+		SpaceStore: &mock.MockSpaceStore{},
 		AuditStore: audits,
 		Audit:      audit.NewRecorder(audits),
 	}

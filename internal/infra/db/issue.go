@@ -16,7 +16,7 @@ type issueRow struct {
 	ID            uint64  `gorm:"primaryKey;autoIncrement"`
 	PublicID      string  `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_issue_public_id;not null"`
 	UserID        uint64  `gorm:"column:user_id;not null;index"`
-	TeamID        uint64  `gorm:"column:team_id;index:idx_issue_team_updated,priority:1"`
+	SpaceID       uint64  `gorm:"column:space_id;index:idx_issue_space_updated,priority:1"`
 	ParentIssueID *uint64 `gorm:"column:parent_issue_id;index"`
 	Title         string  `gorm:"type:varchar(255);not null"`
 	Description   string  `gorm:"type:text;not null"`
@@ -31,7 +31,7 @@ type issueRow struct {
 	// issue produce one winner and one refusal instead of a silent overwrite.
 	Version   uint64    `gorm:"column:version;not null;default:1"`
 	CreatedAt time.Time `gorm:"autoCreateTime"`
-	UpdatedAt time.Time `gorm:"autoUpdateTime;index:idx_issue_team_updated,priority:2"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime;index:idx_issue_space_updated,priority:2"`
 }
 
 func (issueRow) TableName() string { return "issue" }
@@ -41,7 +41,7 @@ func (issueRow) TableName() string { return "issue" }
 type issueReadRow struct {
 	Row               issueRow `gorm:"embedded"`
 	UserPublicID      string   `gorm:"column:user_public_id"`
-	TeamPublicID      *string  `gorm:"column:team_public_id"`
+	SpacePublicID     *string  `gorm:"column:space_public_id"`
 	ParentPublicID    *string  `gorm:"column:parent_public_id"`
 	CreatedByPublicID string   `gorm:"column:created_by_public_id"`
 }
@@ -52,10 +52,10 @@ func (s *Store) issueSelect(ctx context.Context) *gorm.DB {
 
 func issueSelectTx(tx *gorm.DB) *gorm.DB {
 	return tx.Model(&issueRow{}).
-		Select("issue.*, u.public_id AS user_public_id, t.public_id AS team_public_id, " +
+		Select("issue.*, u.public_id AS user_public_id, t.public_id AS space_public_id, " +
 			"p.public_id AS parent_public_id, cb.public_id AS created_by_public_id").
 		Joins("INNER JOIN `user` u ON u.id = issue.user_id").
-		Joins("LEFT JOIN team t ON t.id = issue.team_id").
+		Joins("LEFT JOIN space t ON t.id = issue.space_id").
 		Joins("LEFT JOIN issue p ON p.id = issue.parent_issue_id").
 		Joins("INNER JOIN `user` cb ON cb.id = issue.created_by")
 }
@@ -67,7 +67,7 @@ func toIssue(row *issueReadRow) *coreissue.Issue {
 	out := &coreissue.Issue{
 		ID:           row.Row.PublicID,
 		UserID:       row.UserPublicID,
-		TeamID:       derefPublicID(row.TeamPublicID),
+		SpaceID:      derefPublicID(row.SpacePublicID),
 		Title:        row.Row.Title,
 		Description:  row.Row.Description,
 		Status:       row.Row.Status,
@@ -94,18 +94,18 @@ func toIssues(rows []issueReadRow) []coreissue.Issue {
 }
 
 // CreateIssue creates an issue with default status todo. During the transition to
-// team ownership, issues created through user-scoped flows are attached to the
-// user's default personal team.
+// space ownership, issues created through user-scoped flows are attached to the
+// user's default personal space.
 func (s *Store) CreateIssue(ctx context.Context, userID string, in coreissue.CreateInput) (*coreissue.Issue, error) {
-	teamID, err := s.personalTeamIDForUser(ctx, userID)
+	spaceID, err := s.personalSpaceIDForUser(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	return s.CreateIssueInTeam(ctx, teamID, userID, in)
+	return s.CreateIssueInSpace(ctx, spaceID, userID, in)
 }
 
-// CreateIssueInTeam creates a team-scoped issue with default status todo.
-func (s *Store) CreateIssueInTeam(ctx context.Context, teamID, createdBy string, in coreissue.CreateInput) (*coreissue.Issue, error) {
+// CreateIssueInSpace creates a space-scoped issue with default status todo.
+func (s *Store) CreateIssueInSpace(ctx context.Context, spaceID, createdBy string, in coreissue.CreateInput) (*coreissue.Issue, error) {
 	now := time.Now().UTC()
 	row := &issueRow{
 		Title:       in.Title,
@@ -122,12 +122,12 @@ func (s *Store) CreateIssueInTeam(ctx context.Context, teamID, createdBy string,
 		}
 		row.UserID = creator
 		row.CreatedBy = creator
-		if teamID != "" {
-			teamKey, err := lookupKey(ctx, tx, "team", teamID)
+		if spaceID != "" {
+			spaceKey, err := lookupKey(ctx, tx, "space", spaceID)
 			if err != nil {
 				return err
 			}
-			row.TeamID = teamKey
+			row.SpaceID = spaceKey
 		}
 		if in.ParentIssueID != nil && *in.ParentIssueID != "" {
 			parent, err := lookupKey(ctx, tx, "issue", *in.ParentIssueID)
@@ -141,7 +141,7 @@ func (s *Store) CreateIssueInTeam(ctx context.Context, teamID, createdBy string,
 	}); err != nil {
 		return nil, err
 	}
-	return createdIssue(row, teamID, createdBy, in.ParentIssueID), nil
+	return createdIssue(row, spaceID, createdBy, in.ParentIssueID), nil
 }
 
 // createdIssue is what a caller gets back from a create. The row is already
@@ -153,11 +153,11 @@ func (s *Store) CreateIssueInTeam(ctx context.Context, teamID, createdBy string,
 // the client as the token for the next update, and a zero there is refused as
 // absent — so a freshly created issue could not be updated until it had been
 // read again.
-func createdIssue(row *issueRow, teamID, createdBy string, parentIssueID *string) *coreissue.Issue {
+func createdIssue(row *issueRow, spaceID, createdBy string, parentIssueID *string) *coreissue.Issue {
 	return &coreissue.Issue{
 		ID:            row.PublicID,
 		UserID:        createdBy,
-		TeamID:        teamID,
+		SpaceID:       spaceID,
 		ParentIssueID: parentIssueID,
 		Title:         row.Title,
 		Description:   row.Description,
@@ -194,13 +194,13 @@ func (s *Store) ListIssuesByUser(ctx context.Context, userID string, limit, offs
 	return toIssues(list), int(total), nil
 }
 
-// ListIssuesByTeam returns issues for the team ordered by updated_at DESC.
+// ListIssuesBySpace returns issues for the space ordered by updated_at DESC.
 //
-// A zero filter lists every issue in the team, sub-issues included, which is
+// A zero filter lists every issue in the space, sub-issues included, which is
 // what callers predating the hierarchy expect.
-func (s *Store) ListIssuesByTeam(ctx context.Context, teamID string, filter coreissue.ListFilter, limit, offset int) ([]coreissue.Issue, int, error) {
+func (s *Store) ListIssuesBySpace(ctx context.Context, spaceID string, filter coreissue.ListFilter, limit, offset int) ([]coreissue.Issue, int, error) {
 	limit, offset = capPage(limit, offset)
-	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
+	spaceKey, err := lookupKey(ctx, s.db, "space", spaceID)
 	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, 0, nil
 	}
@@ -219,7 +219,7 @@ func (s *Store) ListIssuesByTeam(ctx context.Context, teamID string, filter core
 		parentKey = &key
 	}
 	scope := func(q *gorm.DB, col string) *gorm.DB {
-		q = q.Where(col+"team_id = ?", teamKey)
+		q = q.Where(col+"space_id = ?", spaceKey)
 		switch {
 		case filter.TopLevelOnly:
 			q = q.Where(col + "parent_issue_id IS NULL")
@@ -342,14 +342,14 @@ func (s *Store) UpdateIssue(ctx context.Context, issueID, userID string, in core
 	return s.updateIssue(ctx, issueID, in)
 }
 
-// UpdateIssueInTeam updates only provided fields. Returns (nil, nil) if not found
-// or not owned by the given team.
-func (s *Store) UpdateIssueInTeam(ctx context.Context, issueID, teamID string, in coreissue.UpdateInput) (*coreissue.Issue, error) {
+// UpdateIssueInSpace updates only provided fields. Returns (nil, nil) if not found
+// or not owned by the given space.
+func (s *Store) UpdateIssueInSpace(ctx context.Context, issueID, spaceID string, in coreissue.UpdateInput) (*coreissue.Issue, error) {
 	issue, err := s.GetIssue(ctx, issueID)
 	if err != nil || issue == nil {
 		return nil, err
 	}
-	if issue.TeamID != teamID {
+	if issue.SpaceID != spaceID {
 		return nil, nil
 	}
 	return s.updateIssue(ctx, issueID, in)

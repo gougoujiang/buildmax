@@ -6,7 +6,7 @@ import (
 	"time"
 
 	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 )
@@ -20,7 +20,7 @@ const notFoundMessage = "artifact not found"
 // leave the server.
 type artifactResponse struct {
 	ID            string `json:"id"`
-	TeamID        string `json:"team_id"`
+	SpaceID       string `json:"space_id"`
 	Filename      string `json:"filename"`
 	MediaType     string `json:"media_type"`
 	SizeBytes     int64  `json:"size_bytes"`
@@ -55,7 +55,7 @@ type artifactListResponse struct {
 func toResponse(a *coreartifact.Artifact) artifactResponse {
 	out := artifactResponse{
 		ID:            a.ID,
-		TeamID:        a.TeamID,
+		SpaceID:       a.SpaceID,
 		Filename:      a.Filename,
 		MediaType:     a.MediaType,
 		SizeBytes:     a.SizeBytes,
@@ -85,11 +85,11 @@ func (h *Handler) service(w http.ResponseWriter) (*artifactsvc.Service, bool) {
 	return h.cfg.Artifacts, true
 }
 
-// teamCaller is the preamble of the two team-scoped routes: the caller is
-// active and in the team the path names, and only then is the capability
+// spaceCaller is the preamble of the two space-scoped routes: the caller is
+// active and in the space the path names, and only then is the capability
 // reported.
-func (h *Handler) teamCaller(w http.ResponseWriter, r *http.Request) (userID, teamID string, svc *artifactsvc.Service, ok bool) {
-	userID, teamID, ok = h.guard().UserAndPathTeam(w, r, h.cfg.Teams, "teams not configured")
+func (h *Handler) spaceCaller(w http.ResponseWriter, r *http.Request) (userID, spaceID string, svc *artifactsvc.Service, ok bool) {
+	userID, spaceID, ok = h.guard().UserAndPathSpace(w, r, h.cfg.Spaces, "spaces not configured")
 	if !ok {
 		return "", "", nil, false
 	}
@@ -97,11 +97,11 @@ func (h *Handler) teamCaller(w http.ResponseWriter, r *http.Request) (userID, te
 	if !ok {
 		return "", "", nil, false
 	}
-	return userID, teamID, svc, true
+	return userID, spaceID, svc, true
 }
 
 // resolve finds the artifact an ID names and authorizes the caller against the
-// team the record says owns it.
+// space the record says owns it.
 //
 // Absent, tombstoned, and not-yours are answered identically on purpose: the
 // three are the same fact to anyone who should not have it.
@@ -130,24 +130,24 @@ func (h *Handler) resolve(w http.ResponseWriter, r *http.Request) (*coreartifact
 		httputil.WriteInternalError(w, err, "handler error", "handler", "artifact", "artifact_id", artifactID)
 		return nil, "", false
 	}
-	if !h.guard().MemberOfResourceTeam(w, r, userID, rec.TeamID, notFoundMessage) {
+	if !h.guard().MemberOfResourceSpace(w, r, userID, rec.SpaceID, notFoundMessage) {
 		return nil, "", false
 	}
 	return rec, userID, true
 }
 
 func (h *Handler) listArtifactsHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, svc, ok := h.teamCaller(w, r)
+	_, spaceID, svc, ok := h.spaceCaller(w, r)
 	if !ok {
 		return
 	}
 	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", 50, 200)
-	items, total, err := svc.List(r.Context(), teamID, limit, offset)
+	items, total, err := svc.List(r.Context(), spaceID, limit, offset)
 	if err != nil {
 		if httputil.WriteServiceError(w, err) {
 			return
 		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "list_artifacts", "team_id", teamID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "list_artifacts", "space_id", spaceID)
 		return
 	}
 	out := make([]artifactResponse, len(items))
@@ -174,7 +174,7 @@ func (h *Handler) deleteArtifactHandler(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	role, ok := h.guard().TeamRole(w, r, userID, rec.TeamID)
+	role, ok := h.guard().SpaceRole(w, r, userID, rec.SpaceID)
 	if !ok {
 		return
 	}
@@ -197,11 +197,11 @@ func (h *Handler) deleteArtifactHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 // mayDelete implements the first-slice policy: anyone may remove what they
-// uploaded themselves, and an admin or owner may remove anything the team
+// uploaded themselves, and an admin or owner may remove anything the space
 // holds. A member cannot delete a colleague's file, and cannot delete what a
 // run produced, because neither is theirs to withdraw.
 func mayDelete(role, userID string, rec *coreartifact.Artifact) bool {
-	if role == coreteam.RoleAdmin || role == coreteam.RoleOwner {
+	if role == corespace.RoleAdmin || role == corespace.RoleOwner {
 		return true
 	}
 	return rec.CreatedByType == coreartifact.CreatorUser && rec.CreatedByID == userID && userID != ""

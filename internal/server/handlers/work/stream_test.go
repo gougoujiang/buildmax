@@ -10,8 +10,8 @@ import (
 	"time"
 
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -20,7 +20,7 @@ import (
 const (
 	streamTestSecret = "test-secret"
 	streamTestUser   = "user-1"
-	streamTestTeam   = "tm_personal_user1"
+	streamTestSpace  = "tm_personal_user1"
 	streamTestConv   = "conv-1"
 	streamTestTask   = "task-1"
 )
@@ -31,15 +31,15 @@ func openTaskStream(t *testing.T, drain <-chan struct{}) *http.Response {
 	t.Helper()
 	h := New(Config{
 		JWTSecret: streamTestSecret,
-		Teams: &mock.MockTeamStore{
-			Teams:   []coreteam.Team{{ID: streamTestTeam, Name: "My Space", PersonalForUserID: util.Ptr(streamTestUser), CreatedBy: streamTestUser}},
-			Members: []coreteam.Member{{TeamID: streamTestTeam, UserID: streamTestUser, Role: coreteam.RoleOwner}},
+		Spaces: &mock.MockSpaceStore{
+			Spaces:  []corespace.Space{{ID: streamTestSpace, Name: "My Space", PersonalForUserID: util.Ptr(streamTestUser), CreatedBy: streamTestUser}},
+			Members: []corespace.Member{{SpaceID: streamTestSpace, UserID: streamTestUser, Role: corespace.RoleOwner}},
 		},
 		Conversations: &mock.MockConversationStore{
-			Conversations: []coreconv.Conversation{{ID: streamTestConv, UserID: streamTestUser, TeamID: streamTestTeam, Channel: "portal", CreatedBy: streamTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
+			Conversations: []coreconv.Conversation{{ID: streamTestConv, UserID: streamTestUser, SpaceID: streamTestSpace, Channel: "portal", CreatedBy: streamTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
 		Tasks: &mock.MockTaskStore{
-			List: []coretask.Task{{ID: streamTestTask, ConversationID: streamTestConv, TeamID: streamTestTeam, Status: "RUNNING", Input: "in", CreatedBy: streamTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
+			List: []coretask.Task{{ID: streamTestTask, ConversationID: streamTestConv, SpaceID: streamTestSpace, Status: "RUNNING", Input: "in", CreatedBy: streamTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
 		Drain: drain,
 	})
@@ -54,7 +54,7 @@ func openTaskStream(t *testing.T, drain <-chan struct{}) *http.Response {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL+"/api/teams/"+streamTestTeam+"/tasks/"+streamTestTask+"/stream", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL+"/api/spaces/"+streamTestSpace+"/tasks/"+streamTestTask+"/stream", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

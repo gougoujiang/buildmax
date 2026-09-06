@@ -19,8 +19,8 @@ type llmCallRow struct {
 	PublicID     string  `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_llm_call_public_id;not null"`
 	ClientCallID *string `gorm:"type:varchar(128);uniqueIndex:idx_llm_call_client,priority:2"`
 
-	// A call is attributed to a person, not a team: a foreground call belongs to
-	// no team, and a run's team is reached through task_run_id. The composite
+	// A call is attributed to a person, not a space: a foreground call belongs to
+	// no space, and a run's space is reached through task_run_id. The composite
 	// unique index leads with user_id, which is both the idempotency scope and
 	// the column usage is grouped by.
 	UserID    *uint64 `gorm:"column:user_id;uniqueIndex:idx_llm_call_client,priority:1"`
@@ -59,7 +59,7 @@ type llmCallRow struct {
 	// The rates that applied when this call ran, in nano-currency-units per
 	// million tokens. They are a snapshot rather than a reference to the
 	// catalog: a model's price changes, and recomputing an old call from the
-	// new rates would rewrite what a team already spent. An empty Currency
+	// new rates would rewrite what a space already spent. An empty Currency
 	// means the model was unpriced at the time, which is not the same fact as
 	// a call that cost nothing.
 	// Column names pinned for the same reason as on llm_model: the naming
@@ -320,8 +320,8 @@ func (s *Store) GetLLMCallByClientID(ctx context.Context, userID, clientCallID s
 
 // ListLLMCallsByTaskRun returns one run's calls, oldest first.
 //
-// A run belongs to exactly one team, so authorizing the run authorizes every
-// row this returns. The caller establishes that before asking; there is no team
+// A run belongs to exactly one space, so authorizing the run authorizes every
+// row this returns. The caller establishes that before asking; there is no space
 // column here to filter on afterwards.
 func (s *Store) ListLLMCallsByTaskRun(ctx context.Context, taskRunID string) ([]coregw.Call, error) {
 	runKey, err := lookupKey(ctx, s.db, "task_run", taskRunID)

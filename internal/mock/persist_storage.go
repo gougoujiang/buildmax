@@ -11,9 +11,9 @@ import (
 // MockPersistStorage is an in-memory blob.PersistStorage for tests. Only the
 // run-global half is backed by a map; the home-file methods satisfy the
 // interface and are inert, because the handlers that need this mock read run
-// state, not team files.
+// state, not space files.
 type MockPersistStorage struct {
-	// RunGlobal is keyed by teamID/taskID/taskRunID/relPath.
+	// RunGlobal is keyed by spaceID/taskID/taskRunID/relPath.
 	RunGlobal map[string][]byte
 	// RunArtifacts uses the same key shape.
 	RunArtifacts map[string][]byte
@@ -28,7 +28,7 @@ func NewMockPersistStorage() *MockPersistStorage {
 }
 
 func runObjectKey(ref blob.RunObjectRef) string {
-	return ref.TeamID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
+	return ref.SpaceID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
 }
 
 func (m *MockPersistStorage) PutRunGlobal(_ context.Context, ref blob.RunObjectRef, r io.Reader) error {

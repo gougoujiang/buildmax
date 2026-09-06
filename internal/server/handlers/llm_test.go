@@ -12,7 +12,7 @@ import (
 
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	"github.com/gougoujiang/buildmax/internal/infra/llmwire"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
@@ -22,7 +22,7 @@ import (
 const (
 	llmTestSecret = "test-llm-secret"
 	llmTestUser   = "u_llm"
-	llmTestTeam   = "tm_llm"
+	llmTestSpace  = "tm_llm"
 )
 
 // llmStubClient answers every call the same way.
@@ -80,8 +80,8 @@ func (l *llmStubLedger) GetLLMCallByClientID(context.Context, string, string) (*
 }
 
 // ListLLMCallsByTaskRun returns whatever the test staged, filtered by run the
-// way the real store does. The team is authorized by the handler before this is
-// reached, so there is nothing team-shaped to filter on here.
+// way the real store does. The space is authorized by the handler before this is
+// reached, so there is nothing space-shaped to filter on here.
 func (l *llmStubLedger) ListLLMCallsByTaskRun(_ context.Context, taskRunID string) ([]coregw.Call, error) {
 	if l.listErr != nil {
 		return nil, l.listErr
@@ -95,20 +95,20 @@ func (l *llmStubLedger) ListLLMCallsByTaskRun(_ context.Context, taskRunID strin
 	return out, nil
 }
 
-// llmDenyQuota refuses every team.
+// llmDenyQuota refuses every space.
 type llmDenyQuota struct{}
 
 func (llmDenyQuota) Check(context.Context, string, int, int) (bool, string, error) {
 	return false, "quota exceeded: token limit", nil
 }
 
-func llmTestTeamStore() *mock.MockTeamStore {
-	return &mock.MockTeamStore{
-		Teams: []coreteam.Team{
-			{ID: llmTestTeam, Name: "LLM Team", CreatedBy: llmTestUser, CreatedAt: time.Now().UTC()},
+func llmTestSpaceStore() *mock.MockSpaceStore {
+	return &mock.MockSpaceStore{
+		Spaces: []corespace.Space{
+			{ID: llmTestSpace, Name: "LLM Space", CreatedBy: llmTestUser, CreatedAt: time.Now().UTC()},
 		},
-		Members: []coreteam.Member{
-			{TeamID: llmTestTeam, UserID: llmTestUser, Role: coreteam.RoleOwner, CreatedAt: time.Now().UTC()},
+		Members: []corespace.Member{
+			{SpaceID: llmTestSpace, UserID: llmTestUser, Role: corespace.RoleOwner, CreatedAt: time.Now().UTC()},
 		},
 	}
 }
@@ -146,7 +146,7 @@ func llmRequest(t *testing.T, method, path, body string, gateway *llmgateway.Ser
 	t.Helper()
 	h := NewHandler(Config{
 		JWTSecret:  llmTestSecret,
-		TeamStore:  llmTestTeamStore(),
+		SpaceStore: llmTestSpaceStore(),
 		LLMGateway: gateway,
 	})
 	mux := http.NewServeMux()
@@ -327,17 +327,17 @@ func TestLLMCompletionsHidesProviderDetail(t *testing.T) {
 
 // TestLLMCompletionsAcceptsAnySignedInUser records the authorization this route
 // actually has: being signed in. Every catalog model is available to every user
-// of the deployment, so belonging to no team is not a reason to refuse — see
+// of the deployment, so belonging to no space is not a reason to refuse — see
 // docs/design/client-modes.md section 5.
 //
-// A foreground call is also metered against no team, which is why quota does not
-// appear in this route's tests; the worker route carries a run's team and is
+// A foreground call is also metered against no space, which is why quota does not
+// appear in this route's tests; the worker route carries a run's space and is
 // where quota is enforced.
 func TestLLMCompletionsAcceptsAnySignedInUser(t *testing.T) {
 	svc := llmTestService(t, &llmStubClient{content: "hi"}, llmDenyQuota{})
 	h := NewHandler(Config{
 		JWTSecret:  llmTestSecret,
-		TeamStore:  llmTestTeamStore(),
+		SpaceStore: llmTestSpaceStore(),
 		LLMGateway: svc,
 	})
 	mux := http.NewServeMux()
@@ -349,7 +349,7 @@ func TestLLMCompletionsAcceptsAnySignedInUser(t *testing.T) {
 	mux.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("a signed-in user in no team was refused: %d %s", rec.Code, rec.Body)
+		t.Fatalf("a signed-in user in no space was refused: %d %s", rec.Code, rec.Body)
 	}
 }
 

@@ -21,19 +21,19 @@ func auditSearchMux(t *testing.T) (*http.ServeMux, *mock.MockAuditStore) {
 	grants.GrantForTest(adminUser, coreidentity.SystemRoleAdmin)
 
 	audits := &mock.MockAuditStore{Events: []coreaudit.Event{
-		// Deployment-scoped: no team-scoped reader can ever see these.
+		// Deployment-scoped: no space-scoped reader can ever see these.
 		{ID: "ae_1", ActorType: coreaudit.ActorUser, ActorID: "u_alice", Action: coreaudit.UserLogin, CreatedAt: time.Unix(100, 0).UTC()},
 		{ID: "ae_2", ActorType: coreaudit.ActorSystem, ActorID: coreaudit.ActorOperator, Action: coreaudit.SystemAdminGranted, TargetID: "u_bob", CreatedAt: time.Unix(200, 0).UTC()},
-		// Team-scoped, in two different teams.
-		{ID: "ae_3", TeamID: "tm_one", ActorType: coreaudit.ActorUser, ActorID: "u_alice", Action: coreaudit.TeamMemberAdded, CreatedAt: time.Unix(300, 0).UTC()},
-		{ID: "ae_4", TeamID: "tm_two", ActorType: coreaudit.ActorUser, ActorID: "u_carol", Action: coreaudit.AccessDenied, CreatedAt: time.Unix(400, 0).UTC()},
+		// Space-scoped, in two different spaces.
+		{ID: "ae_3", SpaceID: "tm_one", ActorType: coreaudit.ActorUser, ActorID: "u_alice", Action: coreaudit.SpaceMemberAdded, CreatedAt: time.Unix(300, 0).UTC()},
+		{ID: "ae_4", SpaceID: "tm_two", ActorType: coreaudit.ActorUser, ActorID: "u_carol", Action: coreaudit.AccessDenied, CreatedAt: time.Unix(400, 0).UTC()},
 	}}
 
 	h := New(Config{
 		JWTSecret: testSecret,
 		Grants:    grants,
 		Users:     users,
-		Teams:     &mock.MockTeamStore{},
+		Spaces:    &mock.MockSpaceStore{},
 		Audits:    audits,
 		Audit:     audit.NewRecorder(audits),
 	})
@@ -55,10 +55,10 @@ func searchAudit(t *testing.T, mux *http.ServeMux, query string) AdminAuditEvent
 	return out
 }
 
-// TestAdminAuditSearchSeesWhatTheTeamRouteCannot is the reason this route
-// exists. A login and a grant have no team, so the team-scoped read can never
+// TestAdminAuditSearchSeesWhatTheSpaceRouteCannot is the reason this route
+// exists. A login and a grant have no space, so the space-scoped read can never
 // return them however it is called.
-func TestAdminAuditSearchSeesWhatTheTeamRouteCannot(t *testing.T) {
+func TestAdminAuditSearchSeesWhatTheSpaceRouteCannot(t *testing.T) {
 	mux, audits := auditSearchMux(t)
 
 	all := searchAudit(t, mux, "")
@@ -66,14 +66,14 @@ func TestAdminAuditSearchSeesWhatTheTeamRouteCannot(t *testing.T) {
 		t.Errorf("unfiltered search returned %d of 4", all.Total)
 	}
 
-	// The same store, asked the team-scoped question, cannot reach the
+	// The same store, asked the space-scoped question, cannot reach the
 	// deployment-scoped events at all.
-	teamOnly, _, err := audits.ListAuditEvents(t.Context(), "tm_one", 50, 0)
+	spaceOnly, _, err := audits.ListAuditEvents(t.Context(), "tm_one", 50, 0)
 	if err != nil {
 		t.Fatalf("ListAuditEvents: %v", err)
 	}
-	if len(teamOnly) != 1 || teamOnly[0].ID != "ae_3" {
-		t.Errorf("the team-scoped read should see only its own team: %+v", teamOnly)
+	if len(spaceOnly) != 1 || spaceOnly[0].ID != "ae_3" {
+		t.Errorf("the space-scoped read should see only its own space: %+v", spaceOnly)
 	}
 }
 
@@ -91,15 +91,15 @@ func TestAdminAuditSearchFilters(t *testing.T) {
 		query string
 		want  []string
 	}{
-		{"by team", "?team_id=tm_two", []string{"ae_4"}},
-		{"by actor across teams", "?actor_id=u_alice", []string{"ae_1", "ae_3"}},
+		{"by space", "?space_id=tm_two", []string{"ae_4"}},
+		{"by actor across spaces", "?actor_id=u_alice", []string{"ae_1", "ae_3"}},
 		{"by action", "?action=" + coreaudit.SystemAdminGranted, []string{"ae_2"}},
 		{"since", "?since=" + rfc3339(300), []string{"ae_3", "ae_4"}},
 		{"until", "?until=" + rfc3339(300), []string{"ae_1", "ae_2"}},
 		{"a window", "?since=" + rfc3339(200) + "&until=" + rfc3339(400), []string{"ae_2", "ae_3"}},
-		// The events no team-scoped reader can see, asked for on purpose. An
-		// empty team_id already means "any team", so this needs its own word.
-		{"deployment-scoped only", "?team_id=none", []string{"ae_1", "ae_2"}},
+		// The events no space-scoped reader can see, asked for on purpose. An
+		// empty space_id already means "any space", so this needs its own word.
+		{"deployment-scoped only", "?space_id=none", []string{"ae_1", "ae_2"}},
 		{"a filter matching nothing", "?actor_id=u_nobody", nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -131,7 +131,7 @@ func TestAdminAuditSearchIgnoresAMalformedTimestamp(t *testing.T) {
 }
 
 // TestAdminAuditSearchCarriesNoContent: the trail holds who did what to which
-// object, and searching it must not become a way to read across teams.
+// object, and searching it must not become a way to read across spaces.
 func TestAdminAuditSearchCarriesNoContent(t *testing.T) {
 	mux, _ := auditSearchMux(t)
 	rec := adminRequestAs(t, mux, adminCase{"GET", "/api/admin/audit-events"}, adminUser)

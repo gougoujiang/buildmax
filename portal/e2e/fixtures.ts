@@ -28,11 +28,11 @@ export function tagged(name: string): string {
 
 export interface Session {
   token: string
-  teamId: string
+  spaceId: string
   /** Origin the API answers on, which is not always the one serving the Portal. */
   apiBase: string
-  /** Team-scoped API prefix, which is what nearly every call needs. */
-  team: string
+  /** Space-scoped API prefix, which is what nearly every call needs. */
+  space: string
 }
 
 /**
@@ -50,20 +50,20 @@ export interface Session {
  * correct on both without restating the precedence in `lib/api/client.ts`.
  */
 export async function session(page: Page): Promise<Session> {
-  const teamsRequest = page.waitForRequest((req) => /\/api\/teams(\?|$)/.test(req.url()))
+  const spacesRequest = page.waitForRequest((req) => /\/api\/spaces(\?|$)/.test(req.url()))
   await page.goto("/")
-  const url = (await teamsRequest).url()
-  const apiBase = url.slice(0, url.indexOf("/api/teams"))
+  const url = (await spacesRequest).url()
+  const apiBase = url.slice(0, url.indexOf("/api/spaces"))
 
-  // The team is stored only after `GET /api/teams` answers, so this waits for
+  // The space is stored only after `GET /api/spaces` answers, so this waits for
   // the app to settle rather than reading straight after navigation.
   const handle = await page.waitForFunction(() => {
     const token = localStorage.getItem("buildmax_token")
-    const teamId = localStorage.getItem("buildmax_current_team")
-    return token && teamId ? { token, teamId } : null
+    const spaceId = localStorage.getItem("buildmax_current_space")
+    return token && spaceId ? { token, spaceId } : null
   })
-  const { token, teamId } = await handle.jsonValue()
-  return { token, teamId, apiBase, team: `${apiBase}/api/teams/${encodeURIComponent(teamId)}` }
+  const { token, spaceId } = await handle.jsonValue()
+  return { token, spaceId, apiBase, space: `${apiBase}/api/spaces/${encodeURIComponent(spaceId)}` }
 }
 
 export async function getJSON<T>(page: Page, path: string, session: Session): Promise<T> {
@@ -92,9 +92,9 @@ export async function patchJSON<T>(page: Page, path: string, session: Session, b
   return res.json() as Promise<T>
 }
 
-/** Upload one small text file to the team's storage. */
+/** Upload one small text file to the space's storage. */
 export async function uploadFile(page: Page, session: Session, name: string, content: string): Promise<void> {
-  const res = await page.request.post(`${session.apiBase}/api/teams/${encodeURIComponent(session.teamId)}/upload`, {
+  const res = await page.request.post(`${session.apiBase}/api/spaces/${encodeURIComponent(session.spaceId)}/upload`, {
     headers: { Authorization: `Bearer ${session.token}` },
     multipart: {
       files: { name, mimeType: "text/plain", buffer: Buffer.from(content) },
@@ -111,6 +111,6 @@ export async function uploadFile(page: Page, session: Session, name: string, con
  * keeps it: most of these resources have no delete route. Printing the ids is
  * what turns "the smoke account accumulates things" into a one-line cleanup.
  */
-export function reportLeftovers(teamId: string, resources: string[]): void {
-  console.log(`[e2e] run ${RUN_ID} left in team ${teamId}: ${resources.join(", ")}`)
+export function reportLeftovers(spaceId: string, resources: string[]): void {
+  console.log(`[e2e] run ${RUN_ID} left in space ${spaceId}: ${resources.join(", ")}`)
 }

@@ -13,19 +13,19 @@ import (
 // tombstone, the expiry, and the purge are all conditional UPDATEs whose whole
 // contract is which of two concurrent callers the server lets win.
 
-// newTestArtifact stores one artifact row for teamID and registers its removal.
-func newTestArtifact(t *testing.T, s *Store, teamID string, size int64, expiresAt *time.Time) string {
+// newTestArtifact stores one artifact row for spaceID and registers its removal.
+func newTestArtifact(t *testing.T, s *Store, spaceID string, size int64, expiresAt *time.Time) string {
 	t.Helper()
 	ctx := t.Context()
 	id := testPublicID(t)
 	rec, err := s.CreateArtifact(ctx, coreartifact.CreateInput{
-		TeamID:        teamID,
+		SpaceID:       spaceID,
 		ArtifactID:    id,
 		Filename:      "report.md",
 		MediaType:     "text/markdown",
 		SizeBytes:     size,
 		SHA256:        "abc",
-		StorageKey:    "teams/x/artifacts/" + id + "/content",
+		StorageKey:    "spaces/x/artifacts/" + id + "/content",
 		CreatedByType: coreartifact.CreatorUser,
 		CreatedByID:   "u_1",
 		SourceType:    coreartifact.SourceUserUpload,
@@ -56,10 +56,10 @@ func getArtifact(t *testing.T, s *Store, id string) *coreartifact.Artifact {
 // storage key stay, which is what lets retention find the bytes afterwards.
 func TestSoftDeleteHidesTheArtifactAndKeepsItsKey(t *testing.T) {
 	s, ctx := newTestStore(t)
-	teamID := newTestTeam(t, s, newTestUser(t, s, "artifact-tombstone"))
-	id := newTestArtifact(t, s, teamID, 100, nil)
+	spaceID := newTestSpace(t, s, newTestUser(t, s, "artifact-tombstone"))
+	id := newTestArtifact(t, s, spaceID, 100, nil)
 
-	if _, total, err := s.ListArtifactsByTeam(ctx, teamID, 50, 0); err != nil || total != 1 {
+	if _, total, err := s.ListArtifactsBySpace(ctx, spaceID, 50, 0); err != nil || total != 1 {
 		t.Fatalf("before delete: total=%d err=%v, want 1", total, err)
 	}
 
@@ -70,7 +70,7 @@ func TestSoftDeleteHidesTheArtifactAndKeepsItsKey(t *testing.T) {
 
 	// Gone from the listing, still readable by id: the caller has to be able to
 	// tell "deleted" from "never existed" to answer either one correctly.
-	if _, total, err := s.ListArtifactsByTeam(ctx, teamID, 50, 0); err != nil || total != 0 {
+	if _, total, err := s.ListArtifactsBySpace(ctx, spaceID, 50, 0); err != nil || total != 0 {
 		t.Fatalf("after delete: total=%d err=%v, want 0", total, err)
 	}
 	rec := getArtifact(t, s, id)
@@ -90,8 +90,8 @@ func TestSoftDeleteHidesTheArtifactAndKeepsItsKey(t *testing.T) {
 // read-then-write makes this fail.
 func TestSoftDeleteAdmitsOneOfTwoDeletes(t *testing.T) {
 	s, ctx := newTestStore(t)
-	teamID := newTestTeam(t, s, newTestUser(t, s, "artifact-race"))
-	id := newTestArtifact(t, s, teamID, 100, nil)
+	spaceID := newTestSpace(t, s, newTestUser(t, s, "artifact-race"))
+	id := newTestArtifact(t, s, spaceID, 100, nil)
 
 	now := time.Now().UTC()
 	first, err := s.SoftDeleteArtifact(ctx, id, now)
@@ -107,60 +107,60 @@ func TestSoftDeleteAdmitsOneOfTwoDeletes(t *testing.T) {
 	}
 }
 
-// A tombstone releases the bytes for the team's allowance whether or not the
+// A tombstone releases the bytes for the space's allowance whether or not the
 // sweep has reclaimed them yet. Charging for storage the deployment has merely
 // not got around to sweeping would make a quota depend on sweep timing.
-func TestTeamArtifactBytesCountsOnlyLiveArtifacts(t *testing.T) {
+func TestSpaceArtifactBytesCountsOnlyLiveArtifacts(t *testing.T) {
 	s, ctx := newTestStore(t)
-	teamID := newTestTeam(t, s, newTestUser(t, s, "artifact-bytes"))
+	spaceID := newTestSpace(t, s, newTestUser(t, s, "artifact-bytes"))
 
-	if held, err := s.TeamArtifactBytes(ctx, teamID); err != nil || held != 0 {
-		t.Fatalf("empty team: held=%d err=%v, want 0", held, err)
+	if held, err := s.SpaceArtifactBytes(ctx, spaceID); err != nil || held != 0 {
+		t.Fatalf("empty space: held=%d err=%v, want 0", held, err)
 	}
 
-	keep := newTestArtifact(t, s, teamID, 100, nil)
-	drop := newTestArtifact(t, s, teamID, 250, nil)
-	if held, err := s.TeamArtifactBytes(ctx, teamID); err != nil || held != 350 {
+	keep := newTestArtifact(t, s, spaceID, 100, nil)
+	drop := newTestArtifact(t, s, spaceID, 250, nil)
+	if held, err := s.SpaceArtifactBytes(ctx, spaceID); err != nil || held != 350 {
 		t.Fatalf("held=%d err=%v, want 350", held, err)
 	}
 
 	if _, err := s.SoftDeleteArtifact(ctx, drop, time.Now().UTC()); err != nil {
 		t.Fatalf("SoftDeleteArtifact: %v", err)
 	}
-	if held, err := s.TeamArtifactBytes(ctx, teamID); err != nil || held != 100 {
+	if held, err := s.SpaceArtifactBytes(ctx, spaceID); err != nil || held != 100 {
 		t.Fatalf("after delete: held=%d err=%v, want 100", held, err)
 	}
-	// Another team's artifact is not this team's storage.
-	otherTeam := newTestTeam(t, s, newTestUser(t, s, "artifact-bytes-other"))
-	newTestArtifact(t, s, otherTeam, 999, nil)
-	if held, err := s.TeamArtifactBytes(ctx, teamID); err != nil || held != 100 {
-		t.Fatalf("cross-team leak: held=%d err=%v, want 100", held, err)
+	// Another space's artifact is not this space's storage.
+	otherSpace := newTestSpace(t, s, newTestUser(t, s, "artifact-bytes-other"))
+	newTestArtifact(t, s, otherSpace, 999, nil)
+	if held, err := s.SpaceArtifactBytes(ctx, spaceID); err != nil || held != 100 {
+		t.Fatalf("cross-space leak: held=%d err=%v, want 100", held, err)
 	}
 	_ = keep
 }
 
 func TestExpireArtifactsTakesOnlyWhatRanOut(t *testing.T) {
 	s, ctx := newTestStore(t)
-	teamID := newTestTeam(t, s, newTestUser(t, s, "artifact-expire"))
+	spaceID := newTestSpace(t, s, newTestUser(t, s, "artifact-expire"))
 	now := time.Now().UTC()
 
 	past := now.Add(-time.Hour)
 	future := now.Add(time.Hour)
-	expired := newTestArtifact(t, s, teamID, 10, &past)
-	later := newTestArtifact(t, s, teamID, 10, &future)
-	never := newTestArtifact(t, s, teamID, 10, nil)
+	expired := newTestArtifact(t, s, spaceID, 10, &past)
+	later := newTestArtifact(t, s, spaceID, 10, &future)
+	never := newTestArtifact(t, s, spaceID, 10, nil)
 
 	gone, err := s.ExpireArtifacts(ctx, now, 100)
 	if err != nil {
 		t.Fatalf("ExpireArtifacts: %v", err)
 	}
-	// Other tests may leave rows behind, so assert on this team's artifacts
+	// Other tests may leave rows behind, so assert on this space's artifacts
 	// rather than on the batch's total size.
 	took := map[string]bool{}
 	for _, it := range gone {
 		took[it.ArtifactID] = true
-		if it.TeamID == "" {
-			t.Fatalf("expiry of %s carries no team, so it cannot be recorded", it.ArtifactID)
+		if it.SpaceID == "" {
+			t.Fatalf("expiry of %s carries no space, so it cannot be recorded", it.ArtifactID)
 		}
 	}
 	if !took[expired] {
@@ -193,11 +193,11 @@ func TestExpireArtifactsTakesOnlyWhatRanOut(t *testing.T) {
 // and clearing the key is what takes it out of the set.
 func TestPurgeableAndMarkPurgedWalkTheArtifactThroughRetention(t *testing.T) {
 	s, ctx := newTestStore(t)
-	teamID := newTestTeam(t, s, newTestUser(t, s, "artifact-purge"))
+	spaceID := newTestSpace(t, s, newTestUser(t, s, "artifact-purge"))
 	now := time.Now().UTC()
 
-	live := newTestArtifact(t, s, teamID, 100, nil)
-	dead := newTestArtifact(t, s, teamID, 100, nil)
+	live := newTestArtifact(t, s, spaceID, 100, nil)
+	dead := newTestArtifact(t, s, spaceID, 100, nil)
 	if _, err := s.SoftDeleteArtifact(ctx, dead, now.Add(-time.Hour)); err != nil {
 		t.Fatalf("SoftDeleteArtifact: %v", err)
 	}
@@ -219,8 +219,8 @@ func TestPurgeableAndMarkPurgedWalkTheArtifactThroughRetention(t *testing.T) {
 	}
 	// The size travels with it so the sweep can report the bytes it reclaimed
 	// after the row no longer says where they were.
-	if it.SizeBytes != 100 || it.TeamID == "" {
-		t.Fatalf("purgeable = %+v, want its size and team", it)
+	if it.SizeBytes != 100 || it.SpaceID == "" {
+		t.Fatalf("purgeable = %+v, want its size and space", it)
 	}
 
 	// A tombstone inside the grace period is not yet due.

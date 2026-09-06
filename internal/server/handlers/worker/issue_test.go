@@ -15,7 +15,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
-const issueWorkerTeam = "tm_llm"
+const issueWorkerSpace = "tm_llm"
 
 // issueWorkerMux wires a run whose task names an issue, plus a parent issue
 // with one child and one comment already on the thread.
@@ -24,11 +24,11 @@ func issueWorkerMux(t *testing.T, comments *mock.MockIssueCommentStore) (*http.S
 	agentID := "a_1"
 	issueID := "i_1"
 	run := coretask.Run{ID: "run-1", TaskID: "task-1", Status: "RUNNING", CreatedAt: time.Unix(1, 0).UTC()}
-	task := coretask.Task{ID: "task-1", ConversationID: "conv-1", TeamID: issueWorkerTeam, CreatedBy: "u1", IssueID: &issueID, AgentID: &agentID}
+	task := coretask.Task{ID: "task-1", ConversationID: "conv-1", SpaceID: issueWorkerSpace, CreatedBy: "u1", IssueID: &issueID, AgentID: &agentID}
 	issues := &mock.MockIssueStore{
 		Issues: []coreissue.Issue{
-			{ID: issueID, UserID: "u1", TeamID: issueWorkerTeam, Title: "Ship the importer", Description: "Import the bundle", Status: coreissue.StatusInProgress, Version: 1},
-			{ID: "i_child", UserID: "u1", TeamID: issueWorkerTeam, Title: "Write the adapter", Status: coreissue.StatusTodo, ParentIssueID: util.Ptr(issueID), Version: 1},
+			{ID: issueID, UserID: "u1", SpaceID: issueWorkerSpace, Title: "Ship the importer", Description: "Import the bundle", Status: coreissue.StatusInProgress, Version: 1},
+			{ID: "i_child", UserID: "u1", SpaceID: issueWorkerSpace, Title: "Write the adapter", Status: coreissue.StatusTodo, ParentIssueID: util.Ptr(issueID), Version: 1},
 		},
 	}
 	h := New(Config{
@@ -89,7 +89,7 @@ func TestGetRunIssue(t *testing.T) {
 }
 
 // A thread longer than the window returns its tail and says how much it left
-// out, rather than paging the agent through a team's history.
+// out, rather than paging the agent through a space's history.
 func TestGetRunIssueBoundsTheThread(t *testing.T) {
 	comments := &mock.MockIssueCommentStore{}
 	mux, _ := issueWorkerMux(t, comments)
@@ -149,7 +149,7 @@ func TestPostRunIssueComment(t *testing.T) {
 // A run whose task names no issue is refused rather than served someone else's.
 func TestRunIssueRoutesRefuseARunWithNoIssue(t *testing.T) {
 	run := coretask.Run{ID: "run-1", TaskID: "task-1", Status: "RUNNING", CreatedAt: time.Unix(1, 0).UTC()}
-	task := coretask.Task{ID: "task-1", ConversationID: "conv-1", TeamID: issueWorkerTeam, CreatedBy: "u1"}
+	task := coretask.Task{ID: "task-1", ConversationID: "conv-1", SpaceID: issueWorkerSpace, CreatedBy: "u1"}
 	h := New(Config{
 		JWTSecret: workerTestSecret,
 		TaskRuns:  &mock.MockTaskRunStore{Runs: []coretask.Run{run}, TaskList: []coretask.Task{task}},

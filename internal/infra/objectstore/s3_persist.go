@@ -21,8 +21,8 @@ func NewS3PersistStorage(client S3Client, bucket, prefix string) *S3PersistStora
 }
 
 // Put writes one file at relPath.
-func (s *S3PersistStorage) Put(ctx context.Context, teamID string, relPath string, r io.Reader) error {
-	key, err := PersistObjectKey(s.prefix, teamID, relPath)
+func (s *S3PersistStorage) Put(ctx context.Context, spaceID string, relPath string, r io.Reader) error {
+	key, err := PersistObjectKey(s.prefix, spaceID, relPath)
 	if err != nil {
 		return err
 	}
@@ -30,17 +30,17 @@ func (s *S3PersistStorage) Put(ctx context.Context, teamID string, relPath strin
 }
 
 // Get reads one file. Callers can use errors.Is(err, apierr.ErrNotFound) if the client returns a sentinel.
-func (s *S3PersistStorage) Get(ctx context.Context, teamID string, relPath string) ([]byte, error) {
-	key, err := PersistObjectKey(s.prefix, teamID, relPath)
+func (s *S3PersistStorage) Get(ctx context.Context, spaceID string, relPath string) ([]byte, error) {
+	key, err := PersistObjectKey(s.prefix, spaceID, relPath)
 	if err != nil {
 		return nil, err
 	}
 	return s.client.GetObject(ctx, s.bucket, key)
 }
 
-// ListFiles returns all file relative paths under the team persist root.
-func (s *S3PersistStorage) ListFiles(ctx context.Context, teamID string) ([]string, error) {
-	listPrefix := PersistPrefix(s.prefix, teamID)
+// ListFiles returns all file relative paths under the space persist root.
+func (s *S3PersistStorage) ListFiles(ctx context.Context, spaceID string) ([]string, error) {
+	listPrefix := PersistPrefix(s.prefix, spaceID)
 	keys, err := s.client.ListObjectKeys(ctx, s.bucket, listPrefix)
 	if err != nil {
 		return nil, err
@@ -61,7 +61,7 @@ func (s *S3PersistStorage) ListFiles(ctx context.Context, teamID string) ([]stri
 
 // PutRunGlobal writes one file under the task run global key space.
 func (s *S3PersistStorage) PutRunGlobal(ctx context.Context, ref RunObjectRef, r io.Reader) error {
-	key, err := RunGlobalObjectKey(s.prefix, ref.TeamID, ref.TaskID, ref.TaskRunID, ref.RelPath)
+	key, err := RunGlobalObjectKey(s.prefix, ref.SpaceID, ref.TaskID, ref.TaskRunID, ref.RelPath)
 	if err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func (s *S3PersistStorage) PutRunGlobal(ctx context.Context, ref RunObjectRef, r
 
 // GetRunGlobal reads one file from the task run global key space. Returns apierr.ErrNotFound if the object does not exist.
 func (s *S3PersistStorage) GetRunGlobal(ctx context.Context, ref RunObjectRef) ([]byte, error) {
-	key, err := RunGlobalObjectKey(s.prefix, ref.TeamID, ref.TaskID, ref.TaskRunID, ref.RelPath)
+	key, err := RunGlobalObjectKey(s.prefix, ref.SpaceID, ref.TaskID, ref.TaskRunID, ref.RelPath)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func (s *S3PersistStorage) GetRunGlobal(ctx context.Context, ref RunObjectRef) (
 
 // PutRunArtifacts writes one file under the task run artifacts key space (prefix/.../tasks/taskID/taskRunID/artifacts/relPath).
 func (s *S3PersistStorage) PutRunArtifacts(ctx context.Context, ref RunObjectRef, r io.Reader) error {
-	key, err := RunArtifactsObjectKey(s.prefix, ref.TeamID, ref.TaskID, ref.TaskRunID, ref.RelPath)
+	key, err := RunArtifactsObjectKey(s.prefix, ref.SpaceID, ref.TaskID, ref.TaskRunID, ref.RelPath)
 	if err != nil {
 		return err
 	}
@@ -88,7 +88,7 @@ func (s *S3PersistStorage) PutRunArtifacts(ctx context.Context, ref RunObjectRef
 
 // GetRunArtifacts reads one file from the task run artifacts key space. Returns apierr.ErrNotFound if the object does not exist.
 func (s *S3PersistStorage) GetRunArtifacts(ctx context.Context, ref RunObjectRef) ([]byte, error) {
-	key, err := RunArtifactsObjectKey(s.prefix, ref.TeamID, ref.TaskID, ref.TaskRunID, ref.RelPath)
+	key, err := RunArtifactsObjectKey(s.prefix, ref.SpaceID, ref.TaskID, ref.TaskRunID, ref.RelPath)
 	if err != nil {
 		return nil, err
 	}
@@ -96,13 +96,13 @@ func (s *S3PersistStorage) GetRunArtifacts(ctx context.Context, ref RunObjectRef
 }
 
 // MaterializeToDir downloads all persistent files into dstDir.
-func (s *S3PersistStorage) MaterializeToDir(ctx context.Context, teamID string, dstDir string) error {
-	keys, err := s.ListFiles(ctx, teamID)
+func (s *S3PersistStorage) MaterializeToDir(ctx context.Context, spaceID string, dstDir string) error {
+	keys, err := s.ListFiles(ctx, spaceID)
 	if err != nil {
 		return err
 	}
 	for _, rel := range keys {
-		data, err := s.Get(ctx, teamID, rel)
+		data, err := s.Get(ctx, spaceID, rel)
 		if err != nil {
 			return err
 		}

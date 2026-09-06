@@ -15,8 +15,8 @@ import (
 func newIssueCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "issue",
-		Short: "See the team work assigned to you",
-		Long: "Receive team work from the BuildMax server you are signed in to,\n" +
+		Short: "See the space work assigned to you",
+		Long: "Receive space work from the BuildMax server you are signed in to,\n" +
 			"do it here, and say where it got to.\n\n" +
 			"That is the whole scope: list what you were given, read one, work it\n" +
 			"with `buildmax --issue`, and move its status when you are done. The\n" +
@@ -32,11 +32,11 @@ func newIssueCommand() *cobra.Command {
 func newIssueListCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List the issues assigned to you, across every team you are in",
+		Short: "List the issues assigned to you, across every space you are in",
 		RunE:  runIssueList,
 	}
 	cmd.Flags().String("status", "", "only issues with this status: todo, in_progress, or done")
-	cmd.Flags().Int("limit", 50, "most issues to list per team")
+	cmd.Flags().Int("limit", 50, "most issues to list per space")
 	return cmd
 }
 
@@ -46,7 +46,7 @@ func runIssueList(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("read credentials: %w", err)
 	}
 	if !info.LoggedIn || info.ServerURL == "" {
-		return fmt.Errorf("not signed in: run `buildmax login` to see the work a team assigned you")
+		return fmt.Errorf("not signed in: run `buildmax login` to see the work a space assigned you")
 	}
 	status, _ := cmd.Flags().GetString("status")
 	if status != "" && !isKnownIssueStatus(status) {
@@ -60,7 +60,7 @@ func runIssueList(cmd *cobra.Command, _ []string) error {
 	}
 	issues, problems := client.NewClient(info.ServerURL).ListAssignedIssues(cmd.Context(), token, status, limit)
 	// Problems are printed before the list rather than swallowed: an inbox that
-	// quietly omits a team is worse than one that says which team it could not
+	// quietly omits a space is worse than one that says which space it could not
 	// read.
 	for _, problem := range problems {
 		fmt.Fprintf(cmd.ErrOrStderr(), "warning: %v\n", problem)
@@ -78,9 +78,9 @@ func runIssueList(cmd *cobra.Command, _ []string) error {
 
 func printAssignedIssues(cmd *cobra.Command, issues []client.AssignedIssue) {
 	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "ISSUE\tSTATUS\tTEAM\tTITLE")
+	fmt.Fprintln(w, "ISSUE\tSTATUS\tSPACE\tTITLE")
 	for _, item := range issues {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", item.Issue.ID, item.Issue.Status, item.TeamName, oneLine(item.Issue.Title))
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", item.Issue.ID, item.Issue.Status, item.SpaceName, oneLine(item.Issue.Title))
 	}
 	_ = w.Flush()
 }
@@ -105,23 +105,23 @@ func isKnownIssueStatus(status string) bool {
 }
 
 // issueSessionNotice says what a session working an Issue is about to do with
-// team data, before it does any of it.
+// space data, before it does any of it.
 //
-// The proposal's rule is that the server, the team, the Issue, and where the
+// The proposal's rule is that the server, the space, the Issue, and where the
 // model sends prompts are visible before work crosses a boundary — not
 // reconstructable afterwards from a tool call. A person who did not intend to
-// hand a team's issue to a personal model should learn that here.
+// hand a space's issue to a personal model should learn that here.
 func issueSessionNotice(session *auth.IssueSession, source auth.ModelSource) string {
 	if session == nil {
 		return ""
 	}
-	team := session.TeamName
-	if team == "" {
-		team = session.TeamID
+	space := session.SpaceName
+	if space == "" {
+		space = session.SpaceID
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "Working issue %s — %s (%s) in team %s on %s.\n",
-		session.Issue.ID, oneLine(session.Issue.Title), session.Issue.Status, team, session.ServerURL)
+	fmt.Fprintf(&b, "Working issue %s — %s (%s) in space %s on %s.\n",
+		session.Issue.ID, oneLine(session.Issue.Title), session.Issue.Status, space, session.ServerURL)
 	b.WriteString("The agent can read that issue and post a report on it. Its status, assignee, and sub-issues stay yours to change.\n")
 	if source.ServerURL != "" {
 		fmt.Fprintf(&b, "Prompts go to %s.\n", source.ServerURL)
@@ -145,7 +145,7 @@ func newIssueStatusCommand() *cobra.Command {
 		Use:   "status <issue-id> <todo|in_progress|done>",
 		Short: "Move an issue's status",
 		Long: "Moves an issue's status on the server.\n\n" +
-			"This is a person's action on purpose. Status is what the team reads to\n" +
+			"This is a person's action on purpose. Status is what the space reads to\n" +
 			"plan around, and `done` means someone accepted the work — so an agent\n" +
 			"working the issue can say it believes the work is finished, and you\n" +
 			"decide.\n\n" +
@@ -179,20 +179,20 @@ func runIssueShow(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	c := client.NewClient(serverURL)
-	team, issue, err := c.FindIssue(cmd.Context(), token, args[0])
+	space, issue, err := c.FindIssue(cmd.Context(), token, args[0])
 	if err != nil {
 		return err
 	}
 	out := cmd.OutOrStdout()
 	fmt.Fprintf(out, "%s  %s\n", issue.ID, issue.Title)
-	fmt.Fprintf(out, "%s in team %s\n", issue.Status, team.Name)
+	fmt.Fprintf(out, "%s in space %s\n", issue.Status, space.Name)
 	if issue.AssigneeKind != nil && issue.AssigneeID != nil {
 		fmt.Fprintf(out, "assigned to %s %s\n", *issue.AssigneeKind, *issue.AssigneeID)
 	}
 	if strings.TrimSpace(issue.Description) != "" {
 		fmt.Fprintf(out, "\n%s\n", strings.TrimSpace(issue.Description))
 	}
-	children, comments, omitted, err := c.IssueThread(cmd.Context(), token, team.ID, issue.ID)
+	children, comments, omitted, err := c.IssueThread(cmd.Context(), token, space.ID, issue.ID)
 	if err != nil {
 		// The issue itself printed. Saying the rest could not be read beats
 		// showing an issue that looks like it has no discussion.
@@ -245,7 +245,7 @@ func runIssueStatus(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	c := client.NewClient(serverURL)
-	team, issue, err := c.FindIssue(cmd.Context(), token, issueID)
+	space, issue, err := c.FindIssue(cmd.Context(), token, issueID)
 	if err != nil {
 		return err
 	}
@@ -253,7 +253,7 @@ func runIssueStatus(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(cmd.OutOrStdout(), "%s is already %s.\n", issue.ID, status)
 		return nil
 	}
-	updated, err := c.SetIssueStatus(cmd.Context(), token, team.ID, issue.ID, status, issue.Version)
+	updated, err := c.SetIssueStatus(cmd.Context(), token, space.ID, issue.ID, status, issue.Version)
 	if err != nil {
 		return fmt.Errorf("set status: %w", err)
 	}

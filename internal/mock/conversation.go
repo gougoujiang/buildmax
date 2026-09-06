@@ -15,14 +15,14 @@ type MockConversationStore struct {
 }
 
 func (m *MockConversationStore) CreateConversation(_ context.Context, userID, channel, createdBy string) (*coreconv.Conversation, error) {
-	return m.CreateConversationInTeam(context.Background(), "tm_personal", userID, channel, createdBy)
+	return m.CreateConversationInSpace(context.Background(), "tm_personal", userID, channel, createdBy)
 }
 
-func (m *MockConversationStore) CreateConversationInTeam(_ context.Context, teamID, userID, channel, createdBy string) (*coreconv.Conversation, error) {
+func (m *MockConversationStore) CreateConversationInSpace(_ context.Context, spaceID, userID, channel, createdBy string) (*coreconv.Conversation, error) {
 	conv := coreconv.Conversation{
 		ID:        fmt.Sprintf("v_%d", len(m.Conversations)+1),
 		UserID:    userID,
-		TeamID:    teamID,
+		SpaceID:   spaceID,
 		Channel:   channel,
 		CreatedBy: createdBy,
 		CreatedAt: time.Now().UTC(),
@@ -57,10 +57,10 @@ func (m *MockConversationStore) ListConversationsByUser(_ context.Context, userI
 	return out[offset : offset+limit], total, nil
 }
 
-func (m *MockConversationStore) ListConversationsByTeam(_ context.Context, teamID string, limit, offset int) ([]coreconv.Conversation, int, error) {
+func (m *MockConversationStore) ListConversationsBySpace(_ context.Context, spaceID string, limit, offset int) ([]coreconv.Conversation, int, error) {
 	var out []coreconv.Conversation
 	for _, conv := range m.Conversations {
-		if conv.TeamID == teamID {
+		if conv.SpaceID == spaceID {
 			out = append(out, conv)
 		}
 	}

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 )
 
 type mockStorageReader struct {
@@ -15,14 +15,14 @@ type mockStorageReader struct {
 	err  error
 }
 
-func (m *mockStorageReader) TeamArtifactBytes(_ context.Context, _ string) (int64, error) {
+func (m *mockStorageReader) SpaceArtifactBytes(_ context.Context, _ string) (int64, error) {
 	return m.held, m.err
 }
 
 // storageService builds a service whose only interesting dimension is storage.
 func storageService(held int64, max int64) *Service {
 	return &Service{
-		TeamStore:     &mockTeamStore{team: &coreteam.Team{ID: "tm_1", QuotaTier: "pro"}},
+		SpaceStore:    &mockSpaceStore{space: &corespace.Space{ID: "tm_1", QuotaTier: "pro"}},
 		UsageReader:   &mockUsageReader{},
 		TierStore:     &mockTierStore{tier: &corequota.Tier{TierName: "pro", MaxStorageBytes: max, PeriodDays: 30}},
 		StorageReader: &mockStorageReader{held: held},
@@ -41,7 +41,7 @@ func TestCheckStorageAllowsUnderTheLimit(t *testing.T) {
 }
 
 // The file that would cross the line is refused, not the one after it: the
-// check is on what the team would hold, not on what it already holds.
+// check is on what the space would hold, not on what it already holds.
 func TestCheckStorageDeniesTheUploadThatWouldCross(t *testing.T) {
 	allowed, reason, err := storageService(900, 1000).CheckStorage(context.Background(), "tm_1", 200)
 	if err != nil {
@@ -96,11 +96,11 @@ func TestCheckStorageAllowsWithoutAReader(t *testing.T) {
 	}
 }
 
-func TestCheckStorageAllowsAnUnknownTeamOrTier(t *testing.T) {
-	noTeam := storageService(0, 1000)
-	noTeam.TeamStore = &mockTeamStore{team: nil}
-	if allowed, _, _ := noTeam.CheckStorage(context.Background(), "tm_x", 1); !allowed {
-		t.Error("refused an upload for a team with no record")
+func TestCheckStorageAllowsAnUnknownSpaceOrTier(t *testing.T) {
+	noSpace := storageService(0, 1000)
+	noSpace.SpaceStore = &mockSpaceStore{space: nil}
+	if allowed, _, _ := noSpace.CheckStorage(context.Background(), "tm_x", 1); !allowed {
+		t.Error("refused an upload for a space with no record")
 	}
 
 	noTier := storageService(0, 1000)
@@ -141,7 +141,7 @@ func TestGetUsageReportsStorage(t *testing.T) {
 }
 
 // Absent, not zero: a deployment with no artifact storage holds no bytes in a
-// way that is different from a team that has uploaded nothing.
+// way that is different from a space that has uploaded nothing.
 func TestGetUsageOmitsStorageWithoutAReader(t *testing.T) {
 	c := storageService(0, 1000)
 	c.StorageReader = nil

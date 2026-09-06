@@ -97,7 +97,7 @@ func (c *bootstrapCatalog) List(ctx context.Context) ([]llmgateway.Target, error
 	return out, nil
 }
 
-// buildLLMRouting assembles the catalog, team policy, and router.
+// buildLLMRouting assembles the catalog, space policy, and router.
 //
 // It returns nil when the deployment has neither a database nor a conversation
 // model, which leaves Tier 1 unwired exactly as before the gateway existed.

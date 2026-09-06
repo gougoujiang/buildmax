@@ -8,15 +8,15 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 )
 
-// TeamUsageInWindow returns run count and total tokens for the team in [since, until].
-// Runs: task_runs where the task's team = teamID and run created_at in window.
-// Tokens: sum of run prompt+completion tokens for those runs, plus task title tokens for tasks created in the team in window.
+// SpaceUsageInWindow returns run count and total tokens for the space in [since, until].
+// Runs: task_runs where the task's space = spaceID and run created_at in window.
+// Tokens: sum of run prompt+completion tokens for those runs, plus task title tokens for tasks created in the space in window.
 //
-// The team's handle is resolved once, at the top. Everything after it is a
+// The space's handle is resolved once, at the top. Everything after it is a
 // numeric comparison: this is the hottest aggregation in the deployment and it
 // no longer touches a string.
-func (s *Store) TeamUsageInWindow(ctx context.Context, teamID string, since, until time.Time) (runCount, totalTokens int, err error) {
-	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
+func (s *Store) SpaceUsageInWindow(ctx context.Context, spaceID string, since, until time.Time) (runCount, totalTokens int, err error) {
+	spaceKey, err := lookupKey(ctx, s.db, "space", spaceID)
 	if errors.Is(err, apierr.ErrNotFound) {
 		return 0, 0, nil
 	}
@@ -26,7 +26,7 @@ func (s *Store) TeamUsageInWindow(ctx context.Context, teamID string, since, unt
 
 	var runCnt int64
 	err = s.db.WithContext(ctx).Model(&taskRunRow{}).
-		Joins("INNER JOIN task ON task.id = task_run.task_id AND task.team_id = ?", teamKey).
+		Joins("INNER JOIN task ON task.id = task_run.task_id AND task.space_id = ?", spaceKey).
 		Where("task_run.created_at >= ? AND task_run.created_at <= ?", since, until).
 		Count(&runCnt).Error
 	if err != nil {
@@ -37,19 +37,19 @@ func (s *Store) TeamUsageInWindow(ctx context.Context, teamID string, since, unt
 	var runTokens int
 	err = s.db.WithContext(ctx).Model(&taskRunRow{}).
 		Select("COALESCE(SUM(COALESCE(prompt_tokens, 0) + COALESCE(completion_tokens, 0)), 0)").
-		Joins("INNER JOIN task ON task.id = task_run.task_id AND task.team_id = ?", teamKey).
+		Joins("INNER JOIN task ON task.id = task_run.task_id AND task.space_id = ?", spaceKey).
 		Where("task_run.created_at >= ? AND task_run.created_at <= ?", since, until).
 		Scan(&runTokens).Error
 	if err != nil {
 		return runCount, 0, err
 	}
 
-	// Title generation is billed to the team too: it is a model call the team's
+	// Title generation is billed to the space too: it is a model call the space's
 	// work caused, even though no run records it.
 	var titleTokens int
 	err = s.db.WithContext(ctx).Model(&taskRow{}).
 		Select("COALESCE(SUM(title_prompt_tokens + title_completion_tokens), 0)").
-		Where("team_id = ? AND created_at >= ? AND created_at <= ?", teamKey, since, until).
+		Where("space_id = ? AND created_at >= ? AND created_at <= ?", spaceKey, since, until).
 		Scan(&titleTokens).Error
 	if err != nil {
 		return runCount, runTokens, err

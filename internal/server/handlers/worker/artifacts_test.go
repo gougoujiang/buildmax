@@ -16,10 +16,10 @@ import (
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 )
 
-func artifactWorkerMux(t *testing.T, store *mock.MockArtifactStore, teamID string) *http.ServeMux {
+func artifactWorkerMux(t *testing.T, store *mock.MockArtifactStore, spaceID string) *http.ServeMux {
 	t.Helper()
 	run := coretask.Run{ID: "run-1", TaskID: "task-1", Status: "RUNNING", CreatedAt: time.Unix(1, 0).UTC()}
-	task := coretask.Task{ID: "task-1", ConversationID: "conv-1", TeamID: teamID, CreatedBy: "u1"}
+	task := coretask.Task{ID: "task-1", ConversationID: "conv-1", SpaceID: spaceID, CreatedBy: "u1"}
 	h := New(Config{
 		JWTSecret: workerTestSecret,
 		TaskRuns:  &mock.MockTaskRunStore{Runs: []coretask.Run{run}, TaskList: []coretask.Task{task}},
@@ -53,9 +53,9 @@ func workerUpload(t *testing.T, mux *http.ServeMux, path, token string) *httptes
 }
 
 // The run token names the run, the run names the task, and the task names the
-// team. A worker never says which team it is writing to, so a stolen token
+// space. A worker never says which space it is writing to, so a stolen token
 // cannot be pointed at another one.
-func TestWorkerArtifactTakesTheTeamFromTheRun(t *testing.T) {
+func TestWorkerArtifactTakesTheSpaceFromTheRun(t *testing.T) {
 	store := &mock.MockArtifactStore{}
 	mux := artifactWorkerMux(t, store, "tm_1")
 
@@ -65,7 +65,7 @@ func TestWorkerArtifactTakesTheTeamFromTheRun(t *testing.T) {
 	}
 	var out struct {
 		ArtifactID    string `json:"artifact_id"`
-		TeamID        string `json:"team_id"`
+		SpaceID       string `json:"space_id"`
 		SourceType    string `json:"source_type"`
 		SourceID      string `json:"source_id"`
 		CreatedByType string `json:"created_by_type"`
@@ -75,8 +75,8 @@ func TestWorkerArtifactTakesTheTeamFromTheRun(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
 	}
-	if out.TeamID != "tm_1" {
-		t.Errorf("team = %q, want the run's team", out.TeamID)
+	if out.SpaceID != "tm_1" {
+		t.Errorf("space = %q, want the run's space", out.SpaceID)
 	}
 	// An agent choosing to publish is a different fact from a run leaving files
 	// in its output directory, and the provenance has to say which happened.
@@ -116,9 +116,9 @@ func TestWorkerArtifactUnknownRunIsNotFound(t *testing.T) {
 	}
 }
 
-// A run with no team has nowhere to keep an artifact, and inventing one would
+// A run with no space has nowhere to keep an artifact, and inventing one would
 // put a file outside every authorization boundary the product has.
-func TestWorkerArtifactRefusesARunWithNoTeam(t *testing.T) {
+func TestWorkerArtifactRefusesARunWithNoSpace(t *testing.T) {
 	store := &mock.MockArtifactStore{}
 	mux := artifactWorkerMux(t, store, "")
 	if code := workerUpload(t, mux, "/api/worker/task-runs/run-1/artifacts", runTokenFor(t, "run-1", "task-1")).Code; code != http.StatusConflict {
@@ -131,7 +131,7 @@ func TestWorkerArtifactRefusesARunWithNoTeam(t *testing.T) {
 
 func TestWorkerArtifactUnconfiguredDeploymentRefuses(t *testing.T) {
 	run := coretask.Run{ID: "run-1", TaskID: "task-1", Status: "RUNNING", CreatedAt: time.Unix(1, 0).UTC()}
-	task := coretask.Task{ID: "task-1", TeamID: "tm_1", CreatedBy: "u1"}
+	task := coretask.Task{ID: "task-1", SpaceID: "tm_1", CreatedBy: "u1"}
 	h := New(Config{
 		JWTSecret: workerTestSecret,
 		TaskRuns:  &mock.MockTaskRunStore{Runs: []coretask.Run{run}, TaskList: []coretask.Task{task}},

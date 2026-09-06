@@ -13,7 +13,7 @@ import (
 // mounted read-only into the Server, with a pointer to the one new writes use.
 // It holds a set rather than a single key so key_id versioning is real and a
 // KEK rotation can rewrap existing rows without touching ciphertext. See
-// docs/design/team-secrets.md §9.1. The KEK is never taken from an environment
+// docs/design/space-secrets.md §9.1. The KEK is never taken from an environment
 // variable.
 type kekFileProvider struct {
 	keys    map[string][]byte

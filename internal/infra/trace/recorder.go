@@ -46,9 +46,9 @@ type Meta struct {
 	Sources agent.ContextSources
 	// Plugins is the plugin inventory active for this run.
 	Plugins []plugin.Provenance
-	// SecretValues are this run's materialized Team Secret values, redacted from
+	// SecretValues are this run's materialized Space Secret values, redacted from
 	// every record's free-text fields so a durable trace does not carry them.
-	// Empty when the run consumes no Secret. See docs/design/team-secrets.md §12.
+	// Empty when the run consumes no Secret. See docs/design/space-secrets.md §12.
 	SecretValues []string
 }
 

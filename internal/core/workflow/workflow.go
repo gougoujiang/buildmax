@@ -26,10 +26,10 @@ const (
 	StepRunStatusBlocked   = "blocked"
 )
 
-// Workflow is a reusable team-scoped execution plan.
+// Workflow is a reusable space-scoped execution plan.
 type Workflow struct {
 	ID          string `json:"id"`
-	TeamID      string `json:"team_id"`
+	SpaceID     string `json:"space_id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Definition  string `json:"definition"`
@@ -163,10 +163,10 @@ type UpdateStepRunInput struct {
 
 // Store provides workflow and workflow execution persistence.
 type Store interface {
-	ListWorkflowsByTeam(ctx context.Context, teamID string) ([]Workflow, error)
-	CreateWorkflow(ctx context.Context, teamID, createdBy, name, description, definition string) (*Workflow, error)
+	ListWorkflowsBySpace(ctx context.Context, spaceID string) ([]Workflow, error)
+	CreateWorkflow(ctx context.Context, spaceID, createdBy, name, description, definition string) (*Workflow, error)
 	GetWorkflow(ctx context.Context, workflowID string) (*Workflow, error)
-	UpdateWorkflow(ctx context.Context, workflowID, teamID string, in UpdateInput) (*Workflow, error)
+	UpdateWorkflow(ctx context.Context, workflowID, spaceID string, in UpdateInput) (*Workflow, error)
 	CreateWorkflowRun(ctx context.Context, in CreateRunInput) (*Run, error)
 	ListWorkflowRunsByWorkflow(ctx context.Context, workflowID string, limit, offset int) ([]Run, int, error)
 	ListWorkflowRunsByIssue(ctx context.Context, issueID string, limit, offset int) ([]Run, int, error)

@@ -1,7 +1,7 @@
 package work
 
 import (
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	"net/http"
 	"time"
 
@@ -52,10 +52,10 @@ func issueCommentToResponse(comment coreissue.Comment) issueCommentResponse {
 }
 
 // resolveCommentIssue authorizes a comment request through its issue, which is
-// what owns the team. A comment carries no team of its own, so every route
+// what owns the space. A comment carries no space of its own, so every route
 // starts here.
-func (h *Handler) resolveCommentIssue(w http.ResponseWriter, r *http.Request) (userID, teamID, issueID string, ok bool) {
-	userID, teamID, ok = h.guard().UserAndPathTeam(w, r, h.cfg.Issues, "issues not configured")
+func (h *Handler) resolveCommentIssue(w http.ResponseWriter, r *http.Request) (userID, spaceID, issueID string, ok bool) {
+	userID, spaceID, ok = h.guard().UserAndPathSpace(w, r, h.cfg.Issues, "issues not configured")
 	if !ok {
 		return "", "", "", false
 	}
@@ -71,11 +71,11 @@ func (h *Handler) resolveCommentIssue(w http.ResponseWriter, r *http.Request) (u
 		httputil.WriteInternalError(w, err, "handler error", "handler", "resolve_comment_issue", "issue_id", issueID)
 		return "", "", "", false
 	}
-	if found == nil || found.TeamID != teamID {
+	if found == nil || found.SpaceID != spaceID {
 		httputil.WriteJSONError(w, http.StatusNotFound, "issue not found")
 		return "", "", "", false
 	}
-	return userID, teamID, issueID, true
+	return userID, spaceID, issueID, true
 }
 
 func (h *Handler) listIssueCommentsHandler(w http.ResponseWriter, r *http.Request) {
@@ -100,11 +100,11 @@ func (h *Handler) listIssueCommentsHandler(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) createIssueCommentHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, issueID, ok := h.resolveCommentIssue(w, r)
+	userID, spaceID, issueID, ok := h.resolveCommentIssue(w, r)
 	if !ok {
 		return
 	}
-	if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionCommentIssue); !ok {
+	if _, ok := h.guard().SpaceAction(w, r, userID, spaceID, corespace.ActionCommentIssue); !ok {
 		return
 	}
 	var req issueCommentRequest
@@ -168,7 +168,7 @@ func (h *Handler) patchIssueCommentHandler(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) deleteIssueCommentHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, issueID, ok := h.resolveCommentIssue(w, r)
+	userID, spaceID, issueID, ok := h.resolveCommentIssue(w, r)
 	if !ok {
 		return
 	}
@@ -182,7 +182,7 @@ func (h *Handler) deleteIssueCommentHandler(w http.ResponseWriter, r *http.Reque
 		IssueID:     issueID,
 		CommentID:   commentID,
 		UserID:      userID,
-		CanModerate: h.guard().MemberAllows(r.Context(), userID, teamID, coreteam.ActionModerateIssueComments),
+		CanModerate: h.guard().MemberAllows(r.Context(), userID, spaceID, corespace.ActionModerateIssueComments),
 	})
 	if err != nil {
 		if h.writeIssueServiceError(w, err) {

@@ -11,7 +11,7 @@ import (
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 )
 
-// teamAuditExport drives the team-scoped export as one user.
+// spaceAuditExport drives the space-scoped export as one user.
 //
 // It builds its own mux rather than borrowing the authorization matrix's,
 // because this test is about what the response body contains and the matrix's
@@ -58,7 +58,7 @@ func TestAdminAuditExportCarriesEveryEvent(t *testing.T) {
 func TestAdminAuditExportHonoursTheSameFilters(t *testing.T) {
 	mux, _ := auditSearchMux(t)
 
-	rec := exportBody(t, mux, "?format=jsonl&team_id=tm_one")
+	rec := exportBody(t, mux, "?format=jsonl&space_id=tm_one")
 
 	var lines []coreaudit.Event
 	for line := range strings.SplitSeq(strings.TrimSpace(rec.Body.String()), "\n") {
@@ -74,17 +74,17 @@ func TestAdminAuditExportHonoursTheSameFilters(t *testing.T) {
 	if len(lines) != 1 {
 		t.Fatalf("exported %d events, want the 1 in tm_one", len(lines))
 	}
-	if lines[0].TeamID != "tm_one" {
-		t.Errorf("exported an event from %q", lines[0].TeamID)
+	if lines[0].SpaceID != "tm_one" {
+		t.Errorf("exported an event from %q", lines[0].SpaceID)
 	}
 }
 
-// team_id=none is the only way to reach the events that have no team at all,
+// space_id=none is the only way to reach the events that have no space at all,
 // and the export has to spell it the same way the search does.
-func TestAdminAuditExportReachesTheEventsWithNoTeam(t *testing.T) {
+func TestAdminAuditExportReachesTheEventsWithNoSpace(t *testing.T) {
 	mux, _ := auditSearchMux(t)
 
-	rec := exportBody(t, mux, "?format=jsonl&team_id=none")
+	rec := exportBody(t, mux, "?format=jsonl&space_id=none")
 
 	count := 0
 	for line := range strings.SplitSeq(strings.TrimSpace(rec.Body.String()), "\n") {
@@ -95,8 +95,8 @@ func TestAdminAuditExportReachesTheEventsWithNoTeam(t *testing.T) {
 		if err := json.Unmarshal([]byte(line), &event); err != nil {
 			t.Fatalf("parse jsonl: %v", err)
 		}
-		if event.TeamID != "" {
-			t.Errorf("team_id=none returned an event scoped to %q", event.TeamID)
+		if event.SpaceID != "" {
+			t.Errorf("space_id=none returned an event scoped to %q", event.SpaceID)
 		}
 		count++
 	}
@@ -129,17 +129,17 @@ func TestAdminAuditExportIsItselfRecorded(t *testing.T) {
 	}
 }
 
-// An export narrowed to one team is recorded in that team's trail too, so its
+// An export narrowed to one space is recorded in that space's trail too, so its
 // owner can see that the deployment read their record.
-func TestAdminAuditExportOfOneTeamIsVisibleToThatTeam(t *testing.T) {
+func TestAdminAuditExportOfOneSpaceIsVisibleToThatSpace(t *testing.T) {
 	mux, audits := auditSearchMux(t)
 
-	exportBody(t, mux, "?format=csv&team_id=tm_one")
+	exportBody(t, mux, "?format=csv&space_id=tm_one")
 
 	for _, event := range audits.Events {
 		if event.Action == coreaudit.EventsExported {
-			if event.TeamID != "tm_one" {
-				t.Errorf("recorded against team %q, want tm_one", event.TeamID)
+			if event.SpaceID != "tm_one" {
+				t.Errorf("recorded against space %q, want tm_one", event.SpaceID)
 			}
 			return
 		}
@@ -177,5 +177,5 @@ func TestAuditExportCSVWritesReadableTimes(t *testing.T) {
 	}
 }
 
-// The team-scoped export must never become a way to read another team's trail,
+// The space-scoped export must never become a way to read another space's trail,
 // however the request is spelled.

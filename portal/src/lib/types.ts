@@ -1,6 +1,6 @@
 // --- Entity types ---
 
-/** Team-owned Agent execution thread. Backend: Task. */
+/** Space-owned Agent execution thread. Backend: Task. */
 export interface Task {
   id: string
   conversationId?: string
@@ -44,7 +44,7 @@ export type Route =
       name: "space"
       section?: "overview" | "members" | "plugins" | "security" | "secrets" | "audit" | "memberNew"
     }
-  | { name: "admin"; section?: "overview" | "accounts" | "teams" | "models" | "plugins" | "audit" }
+  | { name: "admin"; section?: "overview" | "accounts" | "spaces" | "models" | "plugins" | "audit" }
   | { name: "workflows" }
   | { name: "workflow"; workflowId: string }
   | { name: "workflowRun"; workflowRunId: string }
@@ -112,7 +112,7 @@ export interface Issue {
 
 export interface Workflow {
   id: string
-  teamId: string
+  spaceId: string
   name: string
   description: string
   definition: string

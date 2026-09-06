@@ -26,7 +26,7 @@ func (m *MockArtifactStore) CreateArtifact(_ context.Context, in coreartifact.Cr
 	defer m.mu.Unlock()
 	rec := coreartifact.Artifact{
 		ID:            in.ArtifactID,
-		TeamID:        in.TeamID,
+		SpaceID:       in.SpaceID,
 		Filename:      in.Filename,
 		MediaType:     in.MediaType,
 		SizeBytes:     in.SizeBytes,
@@ -57,12 +57,12 @@ func (m *MockArtifactStore) GetArtifact(_ context.Context, artifactID string) (*
 	return nil, nil
 }
 
-func (m *MockArtifactStore) ListArtifactsByTeam(_ context.Context, teamID string, limit, offset int) ([]coreartifact.Artifact, int, error) {
+func (m *MockArtifactStore) ListArtifactsBySpace(_ context.Context, spaceID string, limit, offset int) ([]coreartifact.Artifact, int, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var live []coreartifact.Artifact
 	for i := range m.items {
-		if m.items[i].TeamID == teamID && m.items[i].DeletedAt == nil {
+		if m.items[i].SpaceID == spaceID && m.items[i].DeletedAt == nil {
 			live = append(live, m.items[i])
 		}
 	}
@@ -100,12 +100,12 @@ func (m *MockArtifactStore) SoftDeleteArtifact(_ context.Context, artifactID str
 	return false, nil
 }
 
-func (m *MockArtifactStore) TeamArtifactBytes(_ context.Context, teamID string) (int64, error) {
+func (m *MockArtifactStore) SpaceArtifactBytes(_ context.Context, spaceID string) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var total int64
 	for i := range m.items {
-		if m.items[i].TeamID == teamID && m.items[i].DeletedAt == nil {
+		if m.items[i].SpaceID == spaceID && m.items[i].DeletedAt == nil {
 			total += m.items[i].SizeBytes
 		}
 	}
@@ -129,7 +129,7 @@ func (m *MockArtifactStore) ExpireArtifacts(_ context.Context, now time.Time, li
 		}
 		at := now
 		it.DeletedAt = &at
-		out = append(out, coreartifact.Expired{ArtifactID: it.ID, TeamID: it.TeamID})
+		out = append(out, coreartifact.Expired{ArtifactID: it.ID, SpaceID: it.SpaceID})
 	}
 	return out, nil
 }
@@ -150,7 +150,7 @@ func (m *MockArtifactStore) PurgeableArtifacts(_ context.Context, before time.Ti
 			continue
 		}
 		out = append(out, coreartifact.Purgeable{
-			ArtifactID: it.ID, TeamID: it.TeamID, SizeBytes: it.SizeBytes,
+			ArtifactID: it.ID, SpaceID: it.SpaceID, SizeBytes: it.SizeBytes,
 		})
 	}
 	return out, nil

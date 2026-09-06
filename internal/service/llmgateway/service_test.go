@@ -126,14 +126,14 @@ func (l *fakeLedger) only(t *testing.T) (coregw.Call, coregw.CallOutcome) {
 	return call, l.outcomes[call.ID]
 }
 
-// denyQuota refuses every team.
+// denyQuota refuses every space.
 type denyQuota struct{ reason string }
 
 func (q denyQuota) Check(context.Context, string, int, int) (bool, string, error) {
 	return false, q.reason, nil
 }
 
-// allowQuota accepts every team and records that it was asked.
+// allowQuota accepts every space and records that it was asked.
 type allowQuota struct{ calls int }
 
 func (q *allowQuota) Check(context.Context, string, int, int) (bool, string, error) {
@@ -168,7 +168,7 @@ func serviceWith(t *testing.T, client cllm.LLMClient, ledger coregw.CallStore, q
 func userRequest() llmgateway.CompleteRequest {
 	userID := "u_one"
 	return llmgateway.CompleteRequest{
-		TeamID:   "tm_one",
+		SpaceID:  "tm_one",
 		UserID:   &userID,
 		Surface:  coregw.CallSurfaceCLI,
 		Messages: []cllm.Message{{Role: "user", Content: "hello"}},
@@ -293,7 +293,7 @@ func TestCompleteRefusesOverQuota(t *testing.T) {
 }
 
 // A store that cannot answer must not be read as "no limit": serving the call
-// would spend a team's allowance on a deployment that cannot see it.
+// would spend a space's allowance on a deployment that cannot see it.
 func TestCompleteRefusesWhenQuotaCannotBeRead(t *testing.T) {
 	ledger := newFakeLedger()
 	boom := errors.New("quota store unreachable")
@@ -352,7 +352,7 @@ func TestCompleteValidatesRequest(t *testing.T) {
 		req  llmgateway.CompleteRequest
 		want error
 	}{
-		{name: "no messages", req: llmgateway.CompleteRequest{TeamID: "tm_one"}, want: llmgateway.ErrMessagesRequired},
+		{name: "no messages", req: llmgateway.CompleteRequest{SpaceID: "tm_one"}, want: llmgateway.ErrMessagesRequired},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -578,7 +578,7 @@ func TestErrorClassFor(t *testing.T) {
 }
 
 // The rates are copied onto the ledger row when the call is accepted, not
-// looked up when someone reads it back. A catalog price changes; what a team
+// looked up when someone reads it back. A catalog price changes; what a space
 // spent last month does not, and a spend report recomputed from today's rates
 // would restate an invoice that has already been paid.
 func TestCompleteSnapshotsTheTargetRates(t *testing.T) {
@@ -644,18 +644,18 @@ func TestCompleteLeavesAnUnpricedTargetUnpriced(t *testing.T) {
 	}
 }
 
-// Two teams granted the same approved model share one provider credential, and
+// Two spaces granted the same approved model share one provider credential, and
 // therefore one provider cache bucket unless something separates them. The
-// scope is that separator, and it comes from the resolved team rather than from
+// scope is that separator, and it comes from the resolved space rather than from
 // the request: a caller that could name its own scope could aim at another
-// team's bucket.
-func TestCompleteScopesTheCacheBucketByTeam(t *testing.T) {
+// space's bucket.
+func TestCompleteScopesTheCacheBucketBySpace(t *testing.T) {
 	client := &profileClient{}
 	catalog, err := llmgateway.NewStaticCatalog([]llmgateway.Target{validTarget()})
 	if err != nil {
 		t.Fatalf("NewStaticCatalog: %v", err)
 	}
-	// Two teams, one catalog model, therefore one credential between them.
+	// Two spaces, one catalog model, therefore one credential between them.
 	svc := &llmgateway.Service{
 		Router: &llmgateway.Router{
 			Resolver: &llmgateway.Resolver{Catalog: catalog, DefaultModel: "Fast"},
@@ -665,12 +665,12 @@ func TestCompleteScopesTheCacheBucketByTeam(t *testing.T) {
 	}
 
 	first := userRequest()
-	first.TeamID = "tm_one"
+	first.SpaceID = "tm_one"
 	if _, err := svc.Complete(context.Background(), first); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
 	second := userRequest()
-	second.TeamID = "tm_two"
+	second.SpaceID = "tm_two"
 	if _, err := svc.Complete(context.Background(), second); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
@@ -679,10 +679,10 @@ func TestCompleteScopesTheCacheBucketByTeam(t *testing.T) {
 		t.Fatalf("saw %d calls, want 2", len(client.scopes))
 	}
 	if client.scopes[0] == client.scopes[1] {
-		t.Errorf("two teams shared a cache scope: %q", client.scopes[0])
+		t.Errorf("two spaces shared a cache scope: %q", client.scopes[0])
 	}
 	if client.scopes[0] != "tm_one" || client.scopes[1] != "tm_two" {
-		t.Errorf("scopes = %v, want the resolved teams", client.scopes)
+		t.Errorf("scopes = %v, want the resolved spaces", client.scopes)
 	}
 }
 

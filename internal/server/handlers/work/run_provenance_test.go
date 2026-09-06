@@ -10,8 +10,8 @@ import (
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -30,12 +30,12 @@ func newProvenanceFixture(t *testing.T, run coretask.Run, task coretask.Task) pr
 	messages := &mock.MockConversationMessageStore{}
 	h := New(Config{
 		JWTSecret: provenanceSecret,
-		Teams: &mock.MockTeamStore{
-			Teams:   []coreteam.Team{{ID: "tm_1", Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
-			Members: []coreteam.Member{{TeamID: "tm_1", UserID: "u1", Role: coreteam.RoleOwner}},
+		Spaces: &mock.MockSpaceStore{
+			Spaces:  []corespace.Space{{ID: "tm_1", Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
+			Members: []corespace.Member{{SpaceID: "tm_1", UserID: "u1", Role: corespace.RoleOwner}},
 		},
 		Conversations: &mock.MockConversationStore{
-			Conversations: []coreconv.Conversation{{ID: "conv1", UserID: "u1", TeamID: "tm_1", Channel: "portal", CreatedBy: "u1"}},
+			Conversations: []coreconv.Conversation{{ID: "conv1", UserID: "u1", SpaceID: "tm_1", Channel: "portal", CreatedBy: "u1"}},
 		},
 		Tasks:    &mock.MockTaskStore{List: []coretask.Task{task}},
 		TaskRuns: &mock.MockTaskRunStore{Runs: []coretask.Run{run}, TaskList: []coretask.Task{task}},
@@ -48,7 +48,7 @@ func newProvenanceFixture(t *testing.T, run coretask.Run, task coretask.Task) pr
 
 func (f provenanceFixture) get(t *testing.T, taskRunID string) (int, RunProvenanceResponse) {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodGet, "/api/teams/tm_1/task-runs/"+taskRunID, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/spaces/tm_1/task-runs/"+taskRunID, nil)
 	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", provenanceSecret))
 	rec := httptest.NewRecorder()
 	f.mux.ServeHTTP(rec, req)
@@ -62,7 +62,7 @@ func (f provenanceFixture) get(t *testing.T, taskRunID string) (int, RunProvenan
 }
 
 func provenanceTask() coretask.Task {
-	return coretask.Task{ID: "tk_1", ConversationID: "conv1", TeamID: "tm_1", Status: "SUCCEEDED", Input: "x", CreatedBy: "u1"}
+	return coretask.Task{ID: "tk_1", ConversationID: "conv1", SpaceID: "tm_1", Status: "SUCCEEDED", Input: "x", CreatedBy: "u1"}
 }
 
 // The route exists so the instruction a worker was given can be read next to
@@ -172,13 +172,13 @@ func TestRunProvenanceIgnoresAMessageFromAnotherConversation(t *testing.T) {
 	}
 }
 
-// The run belongs to a team, and a stranger to that team cannot read where it
+// The run belongs to a space, and a stranger to that space cannot read where it
 // came from any more than what it produced.
-func TestRunProvenanceRefusesAnotherTeam(t *testing.T) {
+func TestRunProvenanceRefusesAnotherSpace(t *testing.T) {
 	run := coretask.Run{ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED", CreatedAt: time.Unix(1000, 0).UTC()}
 	f := newProvenanceFixture(t, run, provenanceTask())
 
-	req := httptest.NewRequest(http.MethodGet, "/api/teams/tm_other/task-runs/tr_1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/spaces/tm_other/task-runs/tr_1", nil)
 	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", provenanceSecret))
 	rec := httptest.NewRecorder()
 	f.mux.ServeHTTP(rec, req)
@@ -200,7 +200,7 @@ func TestRunProvenanceNamesTheAgentRevisionThatRan(t *testing.T) {
 	task.AgentID = util.Ptr("ag_1")
 	f := newProvenanceFixture(t, run, task)
 	f.handler.cfg.Agents = &mock.MockAgentStore{Agents: []agentdef.Agent{
-		{ID: "ag_1", TeamID: "tm_1", Name: "Reviewer", Revision: 5},
+		{ID: "ag_1", SpaceID: "tm_1", Name: "Reviewer", Revision: 5},
 	}}
 
 	_, out := f.get(t, "tr_1")
@@ -225,10 +225,10 @@ func TestRunProvenanceNamesTheSpaceInstructionsRevisionThatRan(t *testing.T) {
 	revision := 2
 	run := coretask.Run{
 		ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED",
-		TeamAgentInstructionsRevision: &revision, CreatedAt: time.Unix(1000, 0).UTC(),
+		SpaceAgentInstructionsRevision: &revision, CreatedAt: time.Unix(1000, 0).UTC(),
 	}
 	f := newProvenanceFixture(t, run, provenanceTask())
-	f.handler.cfg.Teams.(*mock.MockTeamStore).Teams[0].AgentInstructionsRevision = 5
+	f.handler.cfg.Spaces.(*mock.MockSpaceStore).Spaces[0].AgentInstructionsRevision = 5
 
 	_, out := f.get(t, "tr_1")
 	if out.SpaceInstructions == nil {
@@ -251,7 +251,7 @@ func TestRunProvenanceNamesADeletedAgent(t *testing.T) {
 	task.AgentID = util.Ptr("ag_1")
 	f := newProvenanceFixture(t, run, task)
 	f.handler.cfg.Agents = &mock.MockAgentStore{Agents: []agentdef.Agent{
-		{ID: "ag_1", TeamID: "tm_1", Name: "Retired", Revision: 1, DeletedAt: util.Ptr(time.Unix(9, 0).UTC())},
+		{ID: "ag_1", SpaceID: "tm_1", Name: "Retired", Revision: 1, DeletedAt: util.Ptr(time.Unix(9, 0).UTC())},
 	}}
 
 	_, out := f.get(t, "tr_1")

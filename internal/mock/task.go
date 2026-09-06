@@ -86,13 +86,13 @@ func (m *MockTaskStore) ListTasksByIssue(_ context.Context, issueID string, limi
 	return filtered[offset:end], total, nil
 }
 
-func (m *MockTaskStore) ListTasksByAgent(_ context.Context, teamID, agentID string, limit, offset int) ([]coretask.Task, int, error) {
+func (m *MockTaskStore) ListTasksByAgent(_ context.Context, spaceID, agentID string, limit, offset int) ([]coretask.Task, int, error) {
 	if m.ListErr != nil {
 		return nil, 0, m.ListErr
 	}
 	var filtered []coretask.Task
 	for _, task := range m.List {
-		if task.TeamID == teamID && task.AgentID != nil && *task.AgentID == agentID {
+		if task.SpaceID == spaceID && task.AgentID != nil && *task.AgentID == agentID {
 			filtered = append(filtered, task)
 		}
 	}
@@ -127,7 +127,7 @@ func (m *MockTaskStore) CreateTask(_ context.Context, in *coretask.CreateInput) 
 	task := &coretask.Task{
 		ID:             taskID,
 		ConversationID: in.ConversationID,
-		TeamID:         in.TeamID,
+		SpaceID:        in.SpaceID,
 		Status:         "PENDING",
 		Input:          in.Input,
 		Title:          in.Title,

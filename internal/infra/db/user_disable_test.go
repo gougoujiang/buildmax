@@ -33,9 +33,9 @@ func createTestUser(t *testing.T, s *Store, ctx context.Context) *coreidentity.U
 		t.Fatalf("CreateUser: %v", err)
 	}
 	t.Cleanup(func() {
-		if personal, _ := s.GetPersonalTeamByUser(ctx, user.ID); personal != nil {
-			_ = s.db.WithContext(ctx).Delete(&teamMemberRow{}, "team_id = ?", personal.ID)
-			_ = s.db.WithContext(ctx).Delete(&teamRow{}, "team_id = ?", personal.ID)
+		if personal, _ := s.GetPersonalSpaceByUser(ctx, user.ID); personal != nil {
+			_ = s.db.WithContext(ctx).Delete(&spaceMemberRow{}, "space_id = ?", personal.ID)
+			_ = s.db.WithContext(ctx).Delete(&spaceRow{}, "space_id = ?", personal.ID)
 		}
 		_ = s.db.WithContext(ctx).Delete(&userRefreshTokenRow{}, "user_id = ?", user.ID)
 		_ = s.db.WithContext(ctx).Delete(&userRow{}, "user_id = ?", user.ID)

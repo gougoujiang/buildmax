@@ -15,7 +15,7 @@ import (
 // was for.
 const testSecret = "matrix-secret"
 
-const matrixTeam = "tm_matrix"
+const matrixSpace = "tm_matrix"
 
 func adminRequestAs(t *testing.T, mux *http.ServeMux, c adminCase, userID string) *httptest.ResponseRecorder {
 	t.Helper()

@@ -7,10 +7,10 @@ package artifact
 // took this type from the storage package would depend on an implementation,
 // and a storage adapter that took it from the service would depend on a caller.
 //
-// TeamID is here because it partitions the key space, not because callers
-// address an artifact by team: an artifact is reached by its opaque ID, and the
-// service that holds the record supplies the team it belongs to.
+// SpaceID is here because it partitions the key space, not because callers
+// address an artifact by space: an artifact is reached by its opaque ID, and the
+// service that holds the record supplies the space it belongs to.
 type Ref struct {
-	TeamID     string
+	SpaceID    string
 	ArtifactID string
 }

@@ -17,15 +17,15 @@ type AdminAuditEventsResponse struct {
 
 // listAdminAuditEventsHandler serves GET /api/admin/audit-events.
 //
-// This is the read the team-scoped route cannot do. A login, a grant, and an
-// account action have no team, so ListAuditEvents can never return them —
-// which is also why that method stays: a team owner asks a narrower question,
-// and handing that reader the wider method is how a team-scoped route quietly
+// This is the read the space-scoped route cannot do. A login, a grant, and an
+// account action have no space, so ListAuditEvents can never return them —
+// which is also why that method stays: a space owner asks a narrower question,
+// and handing that reader the wider method is how a space-scoped route quietly
 // acquires a deployment-scoped answer.
 //
 // The response carries what the event already holds and nothing more. There is
 // no prompt, no request body, and no resolution of target ids into content:
-// searching the trail must not become a way to read across teams.
+// searching the trail must not become a way to read across spaces.
 func (h *Handler) listAdminAuditEventsHandler(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.guard().SystemAdmin(w, r); !ok {
 		return
@@ -59,11 +59,11 @@ func (h *Handler) exportAdminAuditEventsHandler(w http.ResponseWriter, r *http.R
 		return store.ExportAuditEvents(ctx, filter, after, limit)
 	}
 	written, truncated := auditexport.Stream(w, r, page, "audit-deployment")
-	// An export narrowed to one team is recorded in that team's trail as well,
-	// so a team owner can see that the deployment read their record. An
-	// unfiltered one has no team to name and stays deployment-scoped.
+	// An export narrowed to one space is recorded in that space's trail as well,
+	// so a space owner can see that the deployment read their record. An
+	// unfiltered one has no space to name and stays deployment-scoped.
 	h.cfg.Audit.Record(r.Context(), coreaudit.Event{
-		TeamID:     filter.TeamID,
+		SpaceID:    filter.SpaceID,
 		ActorType:  coreaudit.ActorUser,
 		ActorID:    adminID,
 		Action:     coreaudit.EventsExported,

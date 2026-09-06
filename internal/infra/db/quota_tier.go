@@ -13,7 +13,7 @@ type quotaTierRow struct {
 	TierName           string `gorm:"column:tier_name;primaryKey;type:varchar(64)"`
 	MaxRunsPerPeriod   int    `gorm:"column:max_runs_per_period;not null"`
 	MaxTokensPerPeriod int    `gorm:"column:max_tokens_per_period;not null"`
-	// MaxStorageBytes caps what a team's live artifacts may hold. Zero is no
+	// MaxStorageBytes caps what a space's live artifacts may hold. Zero is no
 	// limit, which is what an existing deployment gets when the column appears
 	// underneath it -- a storage policy nobody chose must not arrive with a
 	// schema change. PeriodDays does not apply: this is a stock, not a rate.

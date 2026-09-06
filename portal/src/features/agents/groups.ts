@@ -13,7 +13,7 @@ export const AGENT_GROUP_META: FormModalGroup[] = [
     id: "sandbox",
     title: "Sandbox access",
     description:
-      "Restrict what this agent's runs can reach. Leave on the team default unless this agent needs something different.",
+      "Restrict what this agent's runs can reach. Leave on the space default unless this agent needs something different.",
   },
   {
     id: "plugins",
@@ -24,7 +24,7 @@ export const AGENT_GROUP_META: FormModalGroup[] = [
   {
     id: "secrets",
     title: "Secrets",
-    description: "Grant Team Secrets to this agent's runs as environment variables.",
+    description: "Grant Space Secrets to this agent's runs as environment variables.",
   },
 ]
 

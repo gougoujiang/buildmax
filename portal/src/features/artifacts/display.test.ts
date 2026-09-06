@@ -5,7 +5,7 @@ import { artifactLabel, formatSize, mayDelete, sourceLabel } from "./display"
 function artifact(overrides: Partial<ApiArtifact> = {}): ApiArtifact {
   return {
     id: "gsyt7at6cjfr33d73mta",
-    team_id: "t_1",
+    space_id: "t_1",
     filename: "report.md",
     media_type: "text/markdown",
     size_bytes: 100,
@@ -64,7 +64,7 @@ describe("sourceLabel", () => {
  * makes a member think they cannot clean up their own upload.
  */
 describe("mayDelete", () => {
-  it.each(["admin", "owner"])("lets an %s remove anything the team holds", (role) => {
+  it.each(["admin", "owner"])("lets an %s remove anything the space holds", (role) => {
     const agentMade = artifact({ created_by_type: "agent", created_by_id: "ag_9" })
     expect(mayDelete(agentMade, "u_1", role)).toBe(true)
   })

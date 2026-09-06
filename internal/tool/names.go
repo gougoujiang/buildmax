@@ -30,7 +30,7 @@ const (
 	// The Issue tools are registered only where the run is working one Issue
 	// and can reach it -- a worker run started from an Issue, or a logged-in
 	// local session linked to one -- and never inside subagents, which report
-	// to their parent rather than to a team's thread. Both are scoped to that
+	// to their parent rather than to a space's thread. Both are scoped to that
 	// one Issue when they are built; neither takes an issue id. See
 	// docs/design/issue-agent-access.md.
 	ToolNameGetIssue      = "GetIssue"

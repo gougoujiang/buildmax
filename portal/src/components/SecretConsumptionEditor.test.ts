@@ -5,7 +5,7 @@ import { consumptionHealthCount, grantHealth } from "./SecretConsumptionEditor"
 function secret(over: Partial<ApiSecret>): ApiSecret {
   return {
     id: "sec_1",
-    team_id: "tm_1",
+    space_id: "tm_1",
     name: "gh",
     description: "",
     provider: "embedded",

@@ -75,7 +75,7 @@ func TestCipher_WrongAADFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Same deployment and secret, different team: a ciphertext moved to another
+	// Same deployment and secret, different space: a ciphertext moved to another
 	// owner must not open.
 	if _, err := c.Open(sealed, []byte("d|tm_2|sec_1")); err == nil {
 		t.Fatal("opened under mismatched AAD")

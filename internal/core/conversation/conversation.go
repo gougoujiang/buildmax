@@ -9,7 +9,7 @@ import (
 type Conversation struct {
 	ID        string    `json:"id"`
 	UserID    string    `json:"user_id"`
-	TeamID    string    `json:"team_id,omitempty"`
+	SpaceID   string    `json:"space_id,omitempty"`
 	Channel   string    `json:"channel"`
 	Title     string    `json:"title,omitempty"`
 	CreatedBy string    `json:"created_by"`
@@ -55,10 +55,10 @@ type AppendInput struct {
 // Store provides Tier 1 conversation persistence. Conversations are user-scoped.
 type Store interface {
 	CreateConversation(ctx context.Context, userID, channel, createdBy string) (*Conversation, error)
-	CreateConversationInTeam(ctx context.Context, teamID, userID, channel, createdBy string) (*Conversation, error)
+	CreateConversationInSpace(ctx context.Context, spaceID, userID, channel, createdBy string) (*Conversation, error)
 	GetConversation(ctx context.Context, conversationID string) (*Conversation, error)
 	ListConversationsByUser(ctx context.Context, userID string, limit, offset int) ([]Conversation, int, error)
-	ListConversationsByTeam(ctx context.Context, teamID string, limit, offset int) ([]Conversation, int, error)
+	ListConversationsBySpace(ctx context.Context, spaceID string, limit, offset int) ([]Conversation, int, error)
 	UpdateConversationTitle(ctx context.Context, conversationID, title string) error
 }
 

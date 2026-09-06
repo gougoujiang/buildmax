@@ -137,7 +137,7 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 		slog.Error("update login meta failed", "err", result.LoginMetaErr, "handler", "login", "user_id", result.User.ID)
 	}
 	// Recorded after the login succeeds, so the trail holds sessions that were
-	// actually issued rather than attempts. A login has no team.
+	// actually issued rather than attempts. A login has no space.
 	h.cfg.Audit.Record(r.Context(), coreaudit.Event{
 		ActorType:  coreaudit.ActorUser,
 		ActorID:    result.User.ID,

@@ -9,7 +9,7 @@ import (
 // TestWorkerEnv_WithholdsServerOnlyCredentials is the point of the whole
 // mechanism. A worker executes model-chosen shell commands; the JWT signing
 // secret would let one mint a token for any user, and the database password
-// would give it every team's data. internal/bootstrap/worker.go reads neither.
+// would give it every space's data. internal/bootstrap/worker.go reads neither.
 func TestWorkerEnv_WithholdsServerOnlyCredentials(t *testing.T) {
 	withheld := []string{
 		EnvKeyBuildmaxJWTSecret,

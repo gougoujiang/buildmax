@@ -12,7 +12,7 @@ import (
 //
 // The credential arrives as a query parameter rather than a header because a
 // browser cannot set one on a WebSocket upgrade. Everything after "who is this
-// and which team" belongs to internal/server/websocket.
+// and which space" belongs to internal/server/websocket.
 func (h *Handler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request) {
 	// A socket opened now would be hijacked past the shutdown that is already
 	// running, and its first turn refused anyway. The Portal reconnects with
@@ -31,18 +31,18 @@ func (h *Handler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	if h.cfg.TeamStore == nil {
-		http.Error(w, "teams not configured", http.StatusServiceUnavailable)
+	if h.cfg.SpaceStore == nil {
+		http.Error(w, "spaces not configured", http.StatusServiceUnavailable)
 		return
 	}
-	teamID, ok := httputil.PathValue(w, r, "team_id")
+	spaceID, ok := httputil.PathValue(w, r, "space_id")
 	if !ok {
 		return
 	}
-	if _, teamID, ok = h.guard().ExplicitTeam(w, r, userID, teamID); !ok {
+	if _, spaceID, ok = h.guard().ExplicitSpace(w, r, userID, spaceID); !ok {
 		return
 	}
-	wsconn.Serve(w, r, userID, teamID, h.connDeps())
+	wsconn.Serve(w, r, userID, spaceID, h.connDeps())
 }
 
 func (h *Handler) connDeps() wsconn.ConnDeps {

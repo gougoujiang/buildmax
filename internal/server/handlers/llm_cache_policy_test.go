@@ -38,7 +38,7 @@ func (c *profileRecordingClient) ChatCompletionStreaming(_ context.Context, req 
 
 func (c *profileRecordingClient) ContextWindow() int { return 0 }
 
-// profileServer serves the team completion route against a recording client.
+// profileServer serves the space completion route against a recording client.
 func profileServer(t *testing.T, client cllm.LLMClient) *httptest.Server {
 	t.Helper()
 	target := llmgateway.Target{
@@ -64,7 +64,7 @@ func profileServer(t *testing.T, client cllm.LLMClient) *httptest.Server {
 		},
 		Ledger: &llmStubLedger{},
 	}
-	h := NewHandler(Config{JWTSecret: llmTestSecret, TeamStore: llmTestTeamStore(), LLMGateway: svc})
+	h := NewHandler(Config{JWTSecret: llmTestSecret, SpaceStore: llmTestSpaceStore(), LLMGateway: svc})
 	mux := http.NewServeMux()
 	h.Register(mux)
 	server := httptest.NewServer(mux)
@@ -75,7 +75,7 @@ func profileServer(t *testing.T, client cllm.LLMClient) *httptest.Server {
 // What a caller says the call is for has to survive the route, because it is
 // the only thing the gateway has to decide caching with. A profile dropped here
 // would silently turn every managed agent turn into an uncached one.
-func TestTeamCompletionCarriesTheCallProfile(t *testing.T) {
+func TestSpaceCompletionCarriesTheCallProfile(t *testing.T) {
 	for _, profile := range []cllm.CallProfile{
 		cllm.ProfileAgentTurn, cllm.ProfileTitle, cllm.ProfileCompaction, cllm.ProfileProbe,
 	} {
@@ -103,7 +103,7 @@ func TestTeamCompletionCarriesTheCallProfile(t *testing.T) {
 // A client that predates the field sends none, and the gateway then has no
 // evidence that anything will read the prefix back. It is left absent rather
 // than promoted to a default: a claim nobody made must not become one.
-func TestTeamCompletionAcceptsAnAbsentProfile(t *testing.T) {
+func TestSpaceCompletionAcceptsAnAbsentProfile(t *testing.T) {
 	client := &profileRecordingClient{}
 	server := profileServer(t, client)
 
@@ -118,7 +118,7 @@ func TestTeamCompletionAcceptsAnAbsentProfile(t *testing.T) {
 
 // A profile this build does not know is refused rather than absorbed. A newer
 // client must not believe it asked for one thing and be charged for another.
-func TestTeamCompletionRefusesAnUnknownProfile(t *testing.T) {
+func TestSpaceCompletionRefusesAnUnknownProfile(t *testing.T) {
 	client := &profileRecordingClient{}
 	server := profileServer(t, client)
 
@@ -144,7 +144,7 @@ func TestTeamCompletionRefusesAnUnknownProfile(t *testing.T) {
 // wire contract has no field for any of them, and an unknown field is refused
 // rather than ignored. Without this a local client could spend the operator's
 // money on retention the operator never chose.
-func TestTeamCompletionRefusesACachePolicy(t *testing.T) {
+func TestSpaceCompletionRefusesACachePolicy(t *testing.T) {
 	client := &profileRecordingClient{}
 	server := profileServer(t, client)
 

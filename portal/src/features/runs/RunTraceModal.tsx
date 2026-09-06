@@ -20,7 +20,7 @@ import { describeBoundary, formatDuration, runElapsed } from "./summary"
 
 interface RunTraceModalProps {
   open: boolean
-  teamId: string | null
+  spaceId: string | null
   token: string | null
   taskRunId: string | null
   onClose: () => void
@@ -186,7 +186,7 @@ function SpendCallRow({ call }: { call: ApiTaskRunLLMCall }) {
  *
  * This is a different record from the trace above it. The trace is what the
  * agent did, written by the run itself; this is the governance ledger, written
- * by the server as it served each call — the same rows a team's quota is
+ * by the server as it served each call — the same rows a space's quota is
  * computed from. When the two disagree about how many calls a run made, that
  * gap is the point: it means the run reached a provider the server never saw.
  */
@@ -423,7 +423,7 @@ function OriginSection({
  * RunTraceModal answers where a run came from, what it used, touched, spent,
  * why it ended, and what confined it.
  */
-export function RunTraceModal({ open, teamId, token, taskRunId, onClose }: RunTraceModalProps) {
+export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunTraceModalProps) {
   const [trace, setTrace] = useState<ApiTaskRunTrace | null>(null)
   const [provenance, setProvenance] = useState<ApiRunProvenance | null>(null)
   const [provenanceError, setProvenanceError] = useState<string | null>(null)
@@ -433,7 +433,7 @@ export function RunTraceModal({ open, teamId, token, taskRunId, onClose }: RunTr
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!open || !teamId || !token || !taskRunId) {
+    if (!open || !spaceId || !token || !taskRunId) {
       return
     }
     let cancelled = false
@@ -448,7 +448,7 @@ export function RunTraceModal({ open, teamId, token, taskRunId, onClose }: RunTr
     // The two records are fetched together and fail apart. A run whose trace
     // expired from storage still has a ledger, and a deployment that accounts
     // no managed calls still has a trace — neither absence may hide the other.
-    const traceRequest = getTaskRunTrace(teamId, taskRunId, token)
+    const traceRequest = getTaskRunTrace(spaceId, taskRunId, token)
       .then((result) => {
         if (!cancelled) setTrace(result)
       })
@@ -458,7 +458,7 @@ export function RunTraceModal({ open, teamId, token, taskRunId, onClose }: RunTr
         // pass its message through instead of substituting a generic failure.
         if (!cancelled) setError(getErrorMessage(err, "Failed to load this run's trace"))
       })
-    const callsRequest = listTaskRunLLMCalls(teamId, taskRunId, token)
+    const callsRequest = listTaskRunLLMCalls(spaceId, taskRunId, token)
       .then((result) => {
         if (!cancelled) setCalls(result)
       })
@@ -468,7 +468,7 @@ export function RunTraceModal({ open, teamId, token, taskRunId, onClose }: RunTr
         }
       })
 
-    const provenanceRequest = getTaskRunProvenance(teamId, taskRunId, token)
+    const provenanceRequest = getTaskRunProvenance(spaceId, taskRunId, token)
       .then((result) => {
         if (!cancelled) setProvenance(result)
       })
@@ -484,7 +484,7 @@ export function RunTraceModal({ open, teamId, token, taskRunId, onClose }: RunTr
     return () => {
       cancelled = true
     }
-  }, [open, teamId, token, taskRunId])
+  }, [open, spaceId, token, taskRunId])
 
   return (
     <BaseModal

@@ -5,7 +5,7 @@ import { getRunOutputContent, listRunOutputFiles, type RunOutputFile } from "../
 
 interface TaskFilesModalProps {
   open: boolean
-  teamId: string | null
+  spaceId: string | null
   token: string | null
   taskRunId: string | null
   onClose: () => void
@@ -18,7 +18,7 @@ interface TaskFilesModalProps {
  * the list first and fetches a file only when someone asks for it: a run may
  * have written something large, and opening the card should not download it.
  */
-export function TaskFilesModal({ open, teamId, token, taskRunId, onClose }: TaskFilesModalProps) {
+export function TaskFilesModal({ open, spaceId, token, taskRunId, onClose }: TaskFilesModalProps) {
   const [files, setFiles] = useState<RunOutputFile[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [content, setContent] = useState("")
@@ -26,14 +26,14 @@ export function TaskFilesModal({ open, teamId, token, taskRunId, onClose }: Task
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (!open || !teamId || !token || !taskRunId) return
+    if (!open || !spaceId || !token || !taskRunId) return
     let cancelled = false
     setFiles([])
     setSelected(null)
     setContent("")
     setError(null)
     setLoading(true)
-    listRunOutputFiles(teamId, taskRunId, token)
+    listRunOutputFiles(spaceId, taskRunId, token)
       .then((list) => {
         if (cancelled) return
         setFiles(list)
@@ -48,14 +48,14 @@ export function TaskFilesModal({ open, teamId, token, taskRunId, onClose }: Task
     return () => {
       cancelled = true
     }
-  }, [open, teamId, token, taskRunId])
+  }, [open, spaceId, token, taskRunId])
 
   useEffect(() => {
-    if (!open || !teamId || !token || !taskRunId || !selected) return
+    if (!open || !spaceId || !token || !taskRunId || !selected) return
     let cancelled = false
     setContent("")
     setError(null)
-    getRunOutputContent(teamId, taskRunId, token, selected)
+    getRunOutputContent(spaceId, taskRunId, token, selected)
       .then((text) => {
         if (!cancelled) setContent(text)
       })
@@ -65,7 +65,7 @@ export function TaskFilesModal({ open, teamId, token, taskRunId, onClose }: Task
     return () => {
       cancelled = true
     }
-  }, [open, teamId, token, taskRunId, selected])
+  }, [open, spaceId, token, taskRunId, selected])
 
   return (
     <BaseModal

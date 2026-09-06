@@ -121,7 +121,7 @@ func (s *Scheduler) WithUserStore(users coreidentity.UserStore) *Scheduler {
 // creatorIsDisabled reports whether the account that asked for this run has
 // been disabled since it was queued.
 //
-// A store failure answers false. Refusing to run a team's work because the user
+// A store failure answers false. Refusing to run a space's work because the user
 // table was briefly unreachable would turn a database blip into lost work,
 // which is a worse failure than one run starting for an account disabled a
 // moment ago — the run's own credential is scoped to that run and expiring, and
@@ -300,7 +300,7 @@ func (s *Scheduler) dispatch(ctx context.Context, run coretask.Run, runToken str
 // runTokenFor builds this run's gateway credential from server state.
 //
 // Returns "" when the deployment mints none. The claims come from the task, not
-// from the run alone, because the team and the owner are what the gateway
+// from the run alone, because the space and the owner are what the gateway
 // authorizes against and only the task carries them.
 func (s *Scheduler) runTokenFor(ctx context.Context, run *coretask.Run) (string, error) {
 	if s.mintRunToken == nil {
@@ -315,7 +315,7 @@ func (s *Scheduler) runTokenFor(ctx context.Context, run *coretask.Run) (string,
 	}
 	return s.mintRunToken(authtoken.RunClaims{
 		UserID:    task.CreatedBy,
-		TeamID:    task.TeamID,
+		SpaceID:   task.SpaceID,
 		TaskRunID: run.ID,
 		TaskID:    task.ID,
 	})

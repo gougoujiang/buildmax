@@ -18,7 +18,7 @@ import {
   updateWorkflow,
 } from "../../features/workflows"
 import { RevisionHistory } from "../../components/RevisionHistory"
-import { useTeam } from "../../contexts/TeamContext"
+import { useSpace } from "../../contexts/SpaceContext"
 
 interface WorkflowStepDraft {
   step_id: string
@@ -72,7 +72,7 @@ function buildDefaultStep(agentId = "", index = 0): WorkflowStepDraft {
 }
 
 export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
-  const { currentTeamId, currentUserRole } = useTeam()
+  const { currentSpaceId, currentUserRole } = useSpace()
   const [agents, setAgents] = useState<Agent[]>([])
   const [workflow, setWorkflow] = useState<Workflow | null>(null)
   const [runs, setRuns] = useState<WorkflowRun[]>([])
@@ -99,7 +99,7 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
   }, [])
 
   const load = useCallback(async () => {
-    if (!token || !currentTeamId) {
+    if (!token || !currentSpaceId) {
       setAgents([])
       setWorkflow(null)
       setRuns([])
@@ -110,10 +110,10 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
     setError(null)
     try {
       const [workflowApi, runsApi, agentsApi, revisionsApi] = await Promise.all([
-        getWorkflow(currentTeamId, workflowId, token),
-        getWorkflowRuns(currentTeamId, workflowId, token),
-        getAgents(currentTeamId, token),
-        getWorkflowRevisions(currentTeamId, workflowId, token),
+        getWorkflow(currentSpaceId, workflowId, token),
+        getWorkflowRuns(currentSpaceId, workflowId, token),
+        getAgents(currentSpaceId, token),
+        getWorkflowRevisions(currentSpaceId, workflowId, token),
       ])
       const mappedWorkflow = apiWorkflowToWorkflow(workflowApi)
       const parsed = parseWorkflowDefinition(mappedWorkflow.definition)
@@ -132,28 +132,28 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
     } finally {
       setLoading(false)
     }
-  }, [token, currentTeamId, workflowId])
+  }, [token, currentSpaceId, workflowId])
 
   const loadRevisions = useCallback(() => {
-    if (!token || !currentTeamId) return
+    if (!token || !currentSpaceId) return
     setRevisionsLoading(true)
     setRevisionsError(null)
-    getWorkflowRevisions(currentTeamId, workflowId, token)
+    getWorkflowRevisions(currentSpaceId, workflowId, token)
       .then((res) => setRevisions(res.revisions.map(apiWorkflowRevisionToWorkflowRevision)))
       .catch((err) => setRevisionsError(getErrorMessage(err, "Failed to load history")))
       .finally(() => setRevisionsLoading(false))
-  }, [token, currentTeamId, workflowId])
+  }, [token, currentSpaceId, workflowId])
 
   useEffect(() => {
     void load()
   }, [load])
 
   function handleSave() {
-    if (!token || !currentTeamId || !workflow || !canManageWorkflows) return
+    if (!token || !currentSpaceId || !workflow || !canManageWorkflows) return
     setSaving(true)
     setError(null)
     updateWorkflow(
-      currentTeamId,
+      currentSpaceId,
       workflow.id,
       { name: name.trim(), description, definition: definition.trim(), status },
       token,
@@ -175,10 +175,10 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
   }
 
   function handleRestoreRevision(revision: number) {
-    if (!token || !currentTeamId || !workflow || !canManageWorkflows) return
+    if (!token || !currentSpaceId || !workflow || !canManageWorkflows) return
     setRevisionsError(null)
     setRestoringRevision(revision)
-    restoreWorkflowRevision(currentTeamId, workflow.id, revision, token)
+    restoreWorkflowRevision(currentSpaceId, workflow.id, revision, token)
       .then((restored) => {
         const mapped = apiWorkflowToWorkflow(restored)
         const parsed = parseWorkflowDefinition(mapped.definition)
@@ -196,10 +196,10 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
   }
 
   function handleRunWorkflow() {
-    if (!token || !currentTeamId || !workflow) return
+    if (!token || !currentSpaceId || !workflow) return
     setRunning(true)
     setError(null)
-    runWorkflow(currentTeamId, workflow.id, token)
+    runWorkflow(currentSpaceId, workflow.id, token)
       .then((detail) => {
         const mappedRun = apiWorkflowRunToWorkflowRun(detail.run)
         setRuns((prev) => [mappedRun, ...prev.filter((run) => run.id !== mappedRun.id)])

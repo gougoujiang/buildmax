@@ -191,7 +191,7 @@ func TestGatewayErrorsAreClassified(t *testing.T) {
 		{
 			name:     "unknown alias",
 			status:   http.StatusBadRequest,
-			body:     `{"error":"model is not available to this team","code":"unknown_alias"}`,
+			body:     `{"error":"model is not available to this space","code":"unknown_alias"}`,
 			wantCode: "unknown_alias",
 		},
 		{
@@ -377,7 +377,7 @@ func TestStreamingRefusalBeforeAnyOutputIsAPlainError(t *testing.T) {
 	}
 }
 
-func TestClientRequiresServerAndTeam(t *testing.T) {
+func TestClientRequiresServerAndSpace(t *testing.T) {
 	client := llmremote.NewClient(llmremote.Config{Token: "tok"})
 	if _, err := client.ChatCompletionBlocking(context.Background(),
 		cllm.Request{Messages: []cllm.Message{{Role: "user"}}}); err == nil {

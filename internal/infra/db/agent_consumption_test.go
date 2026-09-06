@@ -19,19 +19,19 @@ func TestAgentStore_SecretConsumptionRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	userID, teamID := secretTestTeam(t, s, "agent-consumption@example.com")
+	userID, spaceID := secretTestSpace(t, s, "agent-consumption@example.com")
 
 	cons := agentdef.SecretConsumption{Env: []agentdef.SecretEnvGrant{
 		{Secret: "sec_gh", Item: "token", EnvName: "GH_TOKEN"},
 		{Secret: "sec_aws", Prefix: "AWS_"},
 	}}
-	created, err := s.CreateAgentInTeam(ctx, agentdef.CreateInput{
-		TeamID: teamID,
-		UserID: userID,
-		Def:    agentdef.Definition{Name: "deployer", SecretConsumption: cons},
+	created, err := s.CreateAgentInSpace(ctx, agentdef.CreateInput{
+		SpaceID: spaceID,
+		UserID:  userID,
+		Def:     agentdef.Definition{Name: "deployer", SecretConsumption: cons},
 	})
 	if err != nil {
-		t.Fatalf("CreateAgentInTeam: %v", err)
+		t.Fatalf("CreateAgentInSpace: %v", err)
 	}
 	t.Cleanup(func() {
 		s.db.Where("agent_id IN (SELECT id FROM agent WHERE public_id = ?)", created.ID).Delete(&agentRevisionRow{})
@@ -61,12 +61,12 @@ func TestAgentStore_SecretConsumptionRoundTrip(t *testing.T) {
 		{Secret: "sec_aws", Prefix: "AWS_"},
 		{Secret: "sec_gh", Item: "token", EnvName: "GH_TOKEN"},
 	}}
-	afterNoop, err := s.UpdateAgentInTeam(ctx, agentdef.UpdateInput{
-		AgentID: created.ID, TeamID: teamID, UpdatedBy: userID,
+	afterNoop, err := s.UpdateAgentInSpace(ctx, agentdef.UpdateInput{
+		AgentID: created.ID, SpaceID: spaceID, UpdatedBy: userID,
 		Def: agentdef.Definition{Name: "deployer", SecretConsumption: reordered},
 	})
 	if err != nil {
-		t.Fatalf("UpdateAgentInTeam (no-op): %v", err)
+		t.Fatalf("UpdateAgentInSpace (no-op): %v", err)
 	}
 	if afterNoop.Revision != 1 {
 		t.Fatalf("reordering appended a revision: now at %d", afterNoop.Revision)
@@ -77,12 +77,12 @@ func TestAgentStore_SecretConsumptionRoundTrip(t *testing.T) {
 	changed := agentdef.SecretConsumption{Env: []agentdef.SecretEnvGrant{
 		{Secret: "sec_gh", Item: "token", EnvName: "GITHUB_TOKEN"},
 	}}
-	after, err := s.UpdateAgentInTeam(ctx, agentdef.UpdateInput{
-		AgentID: created.ID, TeamID: teamID, UpdatedBy: userID,
+	after, err := s.UpdateAgentInSpace(ctx, agentdef.UpdateInput{
+		AgentID: created.ID, SpaceID: spaceID, UpdatedBy: userID,
 		Def: agentdef.Definition{Name: "deployer", SecretConsumption: changed},
 	})
 	if err != nil {
-		t.Fatalf("UpdateAgentInTeam: %v", err)
+		t.Fatalf("UpdateAgentInSpace: %v", err)
 	}
 	if after.Revision != 2 || !after.SecretConsumption.Equal(changed) {
 		t.Fatalf("after change: rev=%d cons=%+v", after.Revision, after.SecretConsumption)

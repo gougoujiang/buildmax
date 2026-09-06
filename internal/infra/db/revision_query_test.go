@@ -29,17 +29,17 @@ func revisionTestStore(t *testing.T) (*Store, context.Context) {
 func TestAgentRevisionsPageNewestFirst(t *testing.T) {
 	s, ctx := revisionTestStore(t)
 	userID := newTestUser(t, s, "revision")
-	teamID := newTestTeam(t, s, userID)
+	spaceID := newTestSpace(t, s, userID)
 
-	agent, err := s.CreateAgentInTeam(ctx, agentdef.CreateInput{TeamID: teamID, UserID: userID,
+	agent, err := s.CreateAgentInSpace(ctx, agentdef.CreateInput{SpaceID: spaceID, UserID: userID,
 		Def: agentdef.Definition{Name: "first", Description: "d", Instructions: "i"}})
 	if err != nil {
-		t.Fatalf("CreateAgentInTeam: %v", err)
+		t.Fatalf("CreateAgentInSpace: %v", err)
 	}
 	for _, name := range []string{"second", "third"} {
-		if _, err := s.UpdateAgentInTeam(ctx, agentdef.UpdateInput{AgentID: agent.ID, TeamID: teamID, UpdatedBy: userID,
+		if _, err := s.UpdateAgentInSpace(ctx, agentdef.UpdateInput{AgentID: agent.ID, SpaceID: spaceID, UpdatedBy: userID,
 			Def: agentdef.Definition{Name: name, Description: "d", Instructions: "i"}}); err != nil {
-			t.Fatalf("UpdateAgentInTeam %s: %v", name, err)
+			t.Fatalf("UpdateAgentInSpace %s: %v", name, err)
 		}
 	}
 
@@ -72,12 +72,12 @@ func TestAgentRevisionsPageNewestFirst(t *testing.T) {
 func TestAgentModelPersistsAndVersions(t *testing.T) {
 	s, ctx := revisionTestStore(t)
 	userID := newTestUser(t, s, "agentmodel")
-	teamID := newTestTeam(t, s, userID)
+	spaceID := newTestSpace(t, s, userID)
 
-	created, err := s.CreateAgentInTeam(ctx, agentdef.CreateInput{TeamID: teamID, UserID: userID,
+	created, err := s.CreateAgentInSpace(ctx, agentdef.CreateInput{SpaceID: spaceID, UserID: userID,
 		Def: agentdef.Definition{Name: "picker", Description: "d", Instructions: "i", Model: "Fast"}})
 	if err != nil {
-		t.Fatalf("CreateAgentInTeam: %v", err)
+		t.Fatalf("CreateAgentInSpace: %v", err)
 	}
 	if created.Model != "Fast" {
 		t.Fatalf("created model = %q, want Fast", created.Model)
@@ -91,9 +91,9 @@ func TestAgentModelPersistsAndVersions(t *testing.T) {
 		t.Errorf("read-back model = %q, want Fast", got.Model)
 	}
 
-	if _, err := s.UpdateAgentInTeam(ctx, agentdef.UpdateInput{AgentID: created.ID, TeamID: teamID, UpdatedBy: userID,
+	if _, err := s.UpdateAgentInSpace(ctx, agentdef.UpdateInput{AgentID: created.ID, SpaceID: spaceID, UpdatedBy: userID,
 		Def: agentdef.Definition{Name: "picker", Description: "d", Instructions: "i", Model: "Deep"}}); err != nil {
-		t.Fatalf("UpdateAgentInTeam: %v", err)
+		t.Fatalf("UpdateAgentInSpace: %v", err)
 	}
 
 	first, err := s.GetAgentRevision(ctx, created.ID, 1)
@@ -115,12 +115,12 @@ func TestAgentModelPersistsAndVersions(t *testing.T) {
 func TestGetAgentRevisionReportsMissingAsNil(t *testing.T) {
 	s, ctx := revisionTestStore(t)
 	userID := newTestUser(t, s, "revision")
-	teamID := newTestTeam(t, s, userID)
+	spaceID := newTestSpace(t, s, userID)
 
-	agent, err := s.CreateAgentInTeam(ctx, agentdef.CreateInput{TeamID: teamID, UserID: userID,
+	agent, err := s.CreateAgentInSpace(ctx, agentdef.CreateInput{SpaceID: spaceID, UserID: userID,
 		Def: agentdef.Definition{Name: "only", Description: "d", Instructions: "i"}})
 	if err != nil {
-		t.Fatalf("CreateAgentInTeam: %v", err)
+		t.Fatalf("CreateAgentInSpace: %v", err)
 	}
 
 	got, err := s.GetAgentRevision(ctx, agent.ID, agent.Revision)
@@ -144,9 +144,9 @@ func TestGetAgentRevisionReportsMissingAsNil(t *testing.T) {
 func TestWorkflowRevisionsUseTheSameQueryShape(t *testing.T) {
 	s, ctx := revisionTestStore(t)
 	userID := newTestUser(t, s, "revision")
-	teamID := newTestTeam(t, s, userID)
+	spaceID := newTestSpace(t, s, userID)
 
-	wf, err := s.CreateWorkflow(ctx, teamID, userID, "wf", "d", `{"steps":[]}`)
+	wf, err := s.CreateWorkflow(ctx, spaceID, userID, "wf", "d", `{"steps":[]}`)
 	if err != nil {
 		t.Fatalf("CreateWorkflow: %v", err)
 	}

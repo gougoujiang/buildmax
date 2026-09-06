@@ -10,7 +10,7 @@ import (
 	coresecret "github.com/gougoujiang/buildmax/internal/core/secret"
 )
 
-// SecretLookup answers what Secret consumption validation needs: a team's
+// SecretLookup answers what Secret consumption validation needs: a space's
 // Secret and its item names. It is an interface, and not the secret store
 // itself, for the reason PluginSelection is one: an agent edit needs one
 // question answered and must not depend on secret cryptography or lifecycle.
@@ -18,7 +18,7 @@ type SecretLookup interface {
 	GetSecret(ctx context.Context, id string) (*coresecret.Secret, error)
 }
 
-// validateConsumption checks an agent's Secret consumption against the team's
+// validateConsumption checks an agent's Secret consumption against the space's
 // live Secrets before the definition is stored -- refused while somebody is
 // watching a create/update, the same as a plugin selection or a sandbox tier.
 // The run resolves values again from the pinned revision; this catches a config
@@ -26,7 +26,7 @@ type SecretLookup interface {
 //
 // It names the Secret handle, item, or variable in a failure, never a value --
 // there is no value here to leak, and the message is for whoever is editing.
-func (s *Service) validateConsumption(ctx context.Context, teamID string, c agentdef.SecretConsumption) error {
+func (s *Service) validateConsumption(ctx context.Context, spaceID string, c agentdef.SecretConsumption) error {
 	if c.IsEmpty() {
 		return nil
 	}
@@ -42,14 +42,14 @@ func (s *Service) validateConsumption(ctx context.Context, teamID string, c agen
 		sec, err := s.Secrets.GetSecret(ctx, g.Secret)
 		if err != nil {
 			if errors.Is(err, apierr.ErrNotFound) {
-				return notInTeam(g.Secret)
+				return notInSpace(g.Secret)
 			}
 			return err
 		}
-		// Not-found rather than forbidden for another team's Secret: the answer
+		// Not-found rather than forbidden for another space's Secret: the answer
 		// must not confirm that a Secret exists elsewhere.
-		if sec.TeamID != teamID {
-			return notInTeam(g.Secret)
+		if sec.SpaceID != spaceID {
+			return notInSpace(g.Secret)
 		}
 		if sec.State == coresecret.StateDestroyed {
 			return apierr.New(apierr.KindInvalid, "secret consumption: secret "+g.Secret+" is destroyed")
@@ -71,8 +71,8 @@ func (s *Service) validateConsumption(ctx context.Context, teamID string, c agen
 	return nil
 }
 
-func notInTeam(secretID string) error {
-	return apierr.New(apierr.KindInvalid, "secret consumption: secret "+secretID+" is not in this team")
+func notInSpace(secretID string) error {
+	return apierr.New(apierr.KindInvalid, "secret consumption: secret "+secretID+" is not in this space")
 }
 
 // resolveGrantEnvNames returns the environment variable names one grant sets,

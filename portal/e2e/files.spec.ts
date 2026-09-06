@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test"
 import { RUN_ID, reportLeftovers, session, uploadFile } from "./fixtures"
 
 /**
- * Team storage has a browser half that nothing below the UI exercises.
+ * Space storage has a browser half that nothing below the UI exercises.
  *
  * The API smoke uploads a file and reads it back through the API, which proves
  * storage works and says nothing about whether a person can find the file. The
@@ -17,7 +17,7 @@ test("an uploaded file is listed and readable in Explore", async ({ page }) => {
   const current = await session(page)
   const name = `explorer-probe-${RUN_ID}.txt`
   await uploadFile(page, current, name, CONTENT)
-  reportLeftovers(current.teamId, [`file ${name}`])
+  reportLeftovers(current.spaceId, [`file ${name}`])
 
   // Straight to the URL: a view reachable only by clicking cannot be linked,
   // and the specs beside this one hold routing to the same rule.

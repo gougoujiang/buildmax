@@ -19,13 +19,13 @@ const workerSurface = "worker"
 // POST /api/worker/task-runs/{task_run_id}/llm/completions.
 //
 // It exists so a worker can use operator-approved models without holding an
-// upstream provider credential. Every attribution — user, team, task, run —
+// upstream provider credential. Every attribution — user, space, task, run —
 // comes from the run token the server minted at dispatch; the only thing taken
 // from the worker is the prompt it wants answered.
 //
 // Server state is still consulted, but as verification rather than derivation.
 // A call is accepted only while the run is executing, so a token that outlives
-// its run cannot go on spending a team's quota, and the run's team must match
+// its run cannot go on spending a space's quota, and the run's space must match
 // the token's, so a token and a reassigned run cannot disagree silently.
 func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Request) {
 	taskRunID, ok := httputil.PathValue(w, r, "task_run_id")
@@ -54,7 +54,7 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 	if !requireRunning(w, run.Status) {
 		return
 	}
-	if task.TeamID != claims.TeamID {
+	if task.SpaceID != claims.SpaceID {
 		httputil.WriteJSONError(w, http.StatusForbidden, "this run token does not authorize that task run")
 		return
 	}
@@ -75,7 +75,7 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// The user is recorded as well as the team. A task run belongs to whoever
+	// The user is recorded as well as the space. A task run belongs to whoever
 	// created it, and a ledger that only says "some worker" cannot answer whose
 	// work spent the tokens.
 	userID := claims.UserID
@@ -85,7 +85,7 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 	cmd := llmgateway.CompleteRequest{
-		TeamID:       claims.TeamID,
+		SpaceID:      claims.SpaceID,
 		UserID:       &userID,
 		TaskRunID:    &run.ID,
 		TaskID:       &task.ID,
@@ -101,13 +101,13 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	if req.Stream {
-		llmhttp.Stream(w, r, h.cfg.Gateway, cmd, claims.TeamID)
+		llmhttp.Stream(w, r, h.cfg.Gateway, cmd, claims.SpaceID)
 		return
 	}
 
 	result, err := h.cfg.Gateway.Complete(r.Context(), cmd)
 	if err != nil {
-		llmhttp.WriteError(w, err, "worker_llm_completions", claims.TeamID)
+		llmhttp.WriteError(w, err, "worker_llm_completions", claims.SpaceID)
 		return
 	}
 

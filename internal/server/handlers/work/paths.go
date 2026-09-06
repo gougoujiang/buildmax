@@ -37,7 +37,7 @@ func (h *Handler) readRunGlobal(ctx context.Context, task *coretask.Task, taskRu
 	}
 	if h.cfg.PersistStorage != nil {
 		data, err := h.cfg.PersistStorage.GetRunGlobal(ctx, blob.RunObjectRef{
-			TeamID: task.TeamID, TaskID: task.ID, TaskRunID: taskRunID, RelPath: clean,
+			SpaceID: task.SpaceID, TaskID: task.ID, TaskRunID: taskRunID, RelPath: clean,
 		})
 		if err == nil {
 			return data, nil
@@ -56,7 +56,7 @@ func (h *Handler) readRunGlobal(ctx context.Context, task *coretask.Task, taskRu
 func (h *Handler) runGlobalPath(task *coretask.Task, taskRunID, cleanRelPath string) string {
 	return filepath.Join(
 		h.workspacesDir(),
-		task.TeamID,
+		task.SpaceID,
 		"tasks", task.ID,
 		taskRunID,
 		"global",

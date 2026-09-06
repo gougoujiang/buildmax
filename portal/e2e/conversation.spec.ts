@@ -7,7 +7,7 @@ import { postJSON, reportLeftovers, session } from "./fixtures"
  *
  * `useConversationDetail` sends the message with `ws.send("conversation.message")`
  * and draws the reply from `conversation.message.delta` frames. Both halves ride
- * the socket the Portal opens at `GET /api/teams/{id}/ws`, which means the
+ * the socket the Portal opens at `GET /api/spaces/{id}/ws`, which means the
  * published bundle's client, the deployment's handling of the upgrade, the
  * bearer token on the socket, and Tier 1's streaming all have to cooperate
  * before a single character appears.
@@ -38,11 +38,11 @@ test("a conversation turn crosses the deployment's WebSocket in both directions"
   const current = await session(page)
   const conversation = await postJSON<{ conversation_id: string }>(
     page,
-    `${current.team}/conversations`,
+    `${current.space}/conversations`,
     current,
     { channel: "portal" }
   )
-  reportLeftovers(current.teamId, [`conversation ${conversation.conversation_id}`])
+  reportLeftovers(current.spaceId, [`conversation ${conversation.conversation_id}`])
 
   await page.goto(`/#/conversation/${conversation.conversation_id}`)
   // By role: the section around the composer is labelled "Send a message", and

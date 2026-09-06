@@ -5,7 +5,7 @@ import { getJSON, session } from "./fixtures"
 /**
  * The space overview is where an operator reads the deployment's own settings
  * back: which quota tier this server was configured with, and how much of it
- * the team has spent.
+ * the space has spent.
  *
  * None of it is a Portal decision. `default_quota_tier` is a line in the
  * deployment's `server.yaml`, and the counts are what the server totalled over
@@ -28,13 +28,13 @@ interface Usage {
 
 /** The value cell of one overview row, addressed by its exact term. */
 function summaryValue(page: Page, term: string): Locator {
-  const rows = page.locator(".team-settings-page__summary > div")
+  const rows = page.locator(".space-settings-page__summary > div")
   return rows.filter({ has: page.locator("dt", { hasText: new RegExp(`^${term}$`) }) }).locator("dd")
 }
 
 test("the space overview reports the deployment's quota tier and what it counted", async ({ page }) => {
   const current = await session(page)
-  const usage = await getJSON<Usage>(page, `${current.team}/usage`, current)
+  const usage = await getJSON<Usage>(page, `${current.space}/usage`, current)
 
   // Reachable by URL, not only by clicking through the tabs: a section an
   // operator cannot link to is one they cannot send to a colleague.
@@ -49,7 +49,7 @@ test("the space overview reports the deployment's quota tier and what it counted
 
   // The limit half is the part that has to have crossed the wire. Rendered
   // without one, this cell silently drops to a bare count, which reads as a
-  // team with no quota rather than as a deployment that failed to report it.
+  // space with no quota rather than as a deployment that failed to report it.
   expect(usage.max_runs_per_period, "the deployment reported no run limit").toBeGreaterThan(0)
   await expect(summaryValue(page, "Runs this period")).toHaveText(
     `${usage.run_count} / ${usage.max_runs_per_period}`

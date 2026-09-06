@@ -1,7 +1,7 @@
-// Package secret implements the cryptography behind Team Secrets: envelope
+// Package secret implements the cryptography behind Space Secrets: envelope
 // encryption of a Secret's item map, and the key-encryption-key providers that
 // wrap the per-write data keys. It is the only place that touches plaintext
-// item bytes and key material. See docs/design/team-secrets.md §9.
+// item bytes and key material. See docs/design/space-secrets.md §9.
 package secret
 
 import (
@@ -23,7 +23,7 @@ const dekSize = 32
 // KEKProvider wraps and unwraps a data-encryption key. The DEK never persists
 // in the clear; only its wrapped form and the id of the KEK that wrapped it
 // are stored. Implementations: a mounted key file (kekFileProvider), and later
-// a cloud KMS or Vault transit key. See docs/design/team-secrets.md §9.1.
+// a cloud KMS or Vault transit key. See docs/design/space-secrets.md §9.1.
 type KEKProvider interface {
 	// Wrap seals dek and returns the wrapped bytes plus the id of the KEK
 	// used, which unwrap needs to select the right key after a rotation.
@@ -45,7 +45,7 @@ func NewCipher(kek KEKProvider) *Cipher { return &Cipher{kek: kek} }
 var _ coresecret.Sealer = (*Cipher)(nil)
 
 // Seal encrypts items into a Sealed blob. aad is bound into the ciphertext, so
-// a blob authenticated for one deployment/team/secret fails to open under
+// a blob authenticated for one deployment/space/secret fails to open under
 // another -- the caller passes the associated data that names those.
 func (c *Cipher) Seal(items coresecret.Items, aad []byte) (coresecret.Sealed, error) {
 	plaintext, err := json.Marshal(map[string]string(items))

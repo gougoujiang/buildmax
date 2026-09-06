@@ -21,8 +21,8 @@ var ErrArchived = errors.New("this plugin is archived and accepts no new release
 
 // Plugin is a catalog entry: the stable identity releases are published under.
 //
-// The entry belongs to the deployment rather than to a team, so it carries no
-// team. Publishing is a System Administrator action; see
+// The entry belongs to the deployment rather than to a space, so it carries no
+// space. Publishing is a System Administrator action; see
 // docs/design/plugin-marketplace.md §7.1.
 type Plugin struct {
 	// Name is the manifest name, unique in the deployment, and the slug every

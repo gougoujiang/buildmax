@@ -40,33 +40,33 @@ const (
 	// retired at once. It is separate from user.logout, which is a person
 	// ending their own.
 	SessionsRevoked = "user.sessions_revoked"
-	// TeamMemberAdded and TeamMemberRemoved record changes to who
-	// can reach a team's resources.
-	TeamMemberAdded   = "team.member_added"
-	TeamMemberRemoved = "team.member_removed"
-	// TeamMemberInvited, InvitationAccepted, InvitationRevoked, and
+	// SpaceMemberAdded and SpaceMemberRemoved record changes to who
+	// can reach a space's resources.
+	SpaceMemberAdded   = "space.member_added"
+	SpaceMemberRemoved = "space.member_removed"
+	// SpaceMemberInvited, InvitationAccepted, InvitationRevoked, and
 	// InvitationExpired record a pending membership offer's whole life. Unlike
 	// a failed login, an invitation names a specific, already-resolved account
 	// before anyone acts on it, so every outcome is worth recording -- see
-	// docs/design/team-membership-lifecycle.md §5.1 and §8.
-	TeamMemberInvited  = "team.member_invited"
-	InvitationAccepted = "team.invitation_accepted"
-	InvitationRevoked  = "team.invitation_revoked"
-	InvitationExpired  = "team.invitation_expired"
+	// docs/design/space-membership-lifecycle.md §5.1 and §8.
+	SpaceMemberInvited = "space.member_invited"
+	InvitationAccepted = "space.invitation_accepted"
+	InvitationRevoked  = "space.invitation_revoked"
+	InvitationExpired  = "space.invitation_expired"
 	// MemberRoleChanged and OwnershipTransferred record promotion, demotion,
 	// and the transfer that results from setting a target's role to owner.
 	// Transfer gets its own action distinct from a role change, even though it
 	// is implemented as one call, because an investigation asking "did
 	// ownership ever move" should not have to infer it from two
 	// member_role_changed rows. See
-	// docs/design/team-membership-lifecycle.md §5.2-§5.3, §8 M3.
-	MemberRoleChanged    = "team.member_role_changed"
-	OwnershipTransferred = "team.ownership_transferred"
-	// TeamMemberLoginCodeIssued is distinct from the deployment-scoped
-	// user.login_code_issued so a reader of the team's own trail (owner-only)
+	// docs/design/space-membership-lifecycle.md §5.2-§5.3, §8 M3.
+	MemberRoleChanged    = "space.member_role_changed"
+	OwnershipTransferred = "space.ownership_transferred"
+	// SpaceMemberLoginCodeIssued is distinct from the deployment-scoped
+	// user.login_code_issued so a reader of the space's own trail (owner-only)
 	// sees it without needing system_admin visibility into the deployment-wide
-	// trail. See docs/design/team-membership-lifecycle.md §5.4, §8 M4.
-	TeamMemberLoginCodeIssued = "team.member_login_code_issued"
+	// trail. See docs/design/space-membership-lifecycle.md §5.4, §8 M4.
+	SpaceMemberLoginCodeIssued = "space.member_login_code_issued"
 	// ModelCreated, ModelEnabled, and ModelDisabled record
 	// changes to which models a deployment will call. The catalog holds
 	// provider credentials, so a change to it is a change to what the
@@ -76,11 +76,11 @@ const (
 	ModelDisabled = "llm_model.disabled"
 	// AccessDenied records a refused request. This is the one action
 	// written on failure rather than success: a denial is what shows someone
-	// probing at a boundary. TeamID is empty when the refused route was
-	// deployment-scoped rather than team-scoped.
+	// probing at a boundary. SpaceID is empty when the refused route was
+	// deployment-scoped rather than space-scoped.
 	AccessDenied = "access.denied"
 	// SystemAdminGranted and SystemAdminRevoked record deployment
-	// authority changing hands. They are not team-scoped, so TeamID is empty.
+	// authority changing hands. They are not space-scoped, so SpaceID is empty.
 	//
 	// These are the two actions in this list where a dropped write costs the
 	// most: a grant that was made and not recorded is exactly what an
@@ -90,7 +90,7 @@ const (
 	SystemAdminGranted = "system.admin_granted"
 	SystemAdminRevoked = "system.admin_revoked"
 	// ArtifactCreated and ArtifactDeleted record a durable file
-	// entering and leaving a team's keeping. They are metadata-only by
+	// entering and leaving a space's keeping. They are metadata-only by
 	// construction: the target is the artifact ID, and neither the storage key, the
 	// content, nor an uploader-supplied description belongs in the trail.
 	ArtifactCreated = "artifact.created"
@@ -124,21 +124,21 @@ const (
 	PluginPublished  = "plugin.published"
 	PluginYanked     = "plugin.yanked"
 
-	// A team activating a release is the record that answers "why did this run
+	// A space activating a release is the record that answers "why did this run
 	// have this capability". The pin moves and the suspension are separate
-	// actions because each is a different decision about a team's runs.
-	PluginActivated    = "plugin.activated"
-	PluginPinMoved     = "plugin.pin_moved"
-	PluginSuspended    = "plugin.suspended"
-	PluginResumed      = "plugin.resumed"
-	TeamPluginCuration = "team.plugin_curation_set"
-	// TeamSandboxDefaultsSet records a team's default sandbox tiers changing --
+	// actions because each is a different decision about a space's runs.
+	PluginActivated     = "plugin.activated"
+	PluginPinMoved      = "plugin.pin_moved"
+	PluginSuspended     = "plugin.suspended"
+	PluginResumed       = "plugin.resumed"
+	SpacePluginCuration = "space.plugin_curation_set"
+	// SpaceSandboxDefaultsSet records a space's default sandbox tiers changing --
 	// the tiers an agent that declares neither inherits. See
 	// docs/design/agent-sandbox-policy.md §9 M3.
-	TeamSandboxDefaultsSet = "team.sandbox_defaults_set"
-	// TeamAgentInstructionsSet records a change to the shared prompt layer.
+	SpaceSandboxDefaultsSet = "space.sandbox_defaults_set"
+	// SpaceAgentInstructionsSet records a change to the shared prompt layer.
 	// The event carries only the revision, never the user-authored text.
-	TeamAgentInstructionsSet = "team.agent_instructions_set"
+	SpaceAgentInstructionsSet = "space.agent_instructions_set"
 	// EventsExported records the trail itself being read out in bulk.
 	// Reading every recorded action is a sensitive action, and an export that
 	// left no trace would be the one way to consult the record without
@@ -153,13 +153,13 @@ const (
 	// table it deletes from is deliberate — the event survives its own sweep
 	// until the window moves past it, and by then a later one says the same.
 	EventsPruned = "audit.pruned"
-	// QuotaThresholdReached records a team crossing a share of its quota,
+	// QuotaThresholdReached records a space crossing a share of its quota,
 	// and QuotaExceeded records work being refused because the limit was
 	// reached. The first is a warning nobody was blocked by; the second is the
 	// block. They are separate actions because they call for different
 	// responses — one is a heads-up, the other is work not happening.
 	//
-	// Both are written at most once per limit per period, so a team that keeps
+	// Both are written at most once per limit per period, so a space that keeps
 	// submitting does not turn its own trail into a log of retries.
 	QuotaThresholdReached = "quota.threshold_reached"
 	QuotaExceeded         = "quota.exceeded"
@@ -187,8 +187,8 @@ const (
 // with a different retention answer.
 type Event struct {
 	ID string `json:"id"`
-	// TeamID is empty for actions that are not team-scoped, such as a login.
-	TeamID     string `json:"team_id,omitempty"`
+	// SpaceID is empty for actions that are not space-scoped, such as a login.
+	SpaceID    string `json:"space_id,omitempty"`
 	ActorType  string `json:"actor_type"`
 	ActorID    string `json:"actor_id"`
 	Action     string `json:"action"`
@@ -208,15 +208,15 @@ type Event struct {
 // adding a text query would invite a `Detail LIKE` scan over a column whose
 // whole purpose is to stay small and structured.
 type Filter struct {
-	// TeamID matches events scoped to one team. It does not match the events
-	// that have no team, such as a login or a grant — see WithoutTeam.
-	TeamID string
-	// WithoutTeam matches only the deployment-scoped events. It exists because
-	// an empty TeamID already means "any team", so there would otherwise be no
-	// way to ask for the ones a team-scoped reader can never see.
-	WithoutTeam bool
-	ActorID     string
-	Action      string
+	// SpaceID matches events scoped to one space. It does not match the events
+	// that have no space, such as a login or a grant — see WithoutSpace.
+	SpaceID string
+	// WithoutSpace matches only the deployment-scoped events. It exists because
+	// an empty SpaceID already means "any space", so there would otherwise be no
+	// way to ask for the ones a space-scoped reader can never see.
+	WithoutSpace bool
+	ActorID      string
+	Action       string
 	// Since and Until bound created_at, inclusive and exclusive respectively.
 	// Zero means unbounded.
 	Since time.Time
@@ -273,23 +273,23 @@ type Writer interface {
 // unable to reach it.
 type Store interface {
 	Writer
-	// ListAuditEvents returns a team's events, newest first.
+	// ListAuditEvents returns a space's events, newest first.
 	//
 	// It stays alongside SearchAuditEvents rather than being replaced by it:
-	// a team owner asks a narrower question, and giving that reader the wider
-	// method is how a team-scoped route acquires a deployment-scoped answer.
-	ListAuditEvents(ctx context.Context, teamID string, limit, offset int) ([]Event, int, error)
-	// SearchAuditEvents returns events across every team, newest first. It is
+	// a space owner asks a narrower question, and giving that reader the wider
+	// method is how a space-scoped route acquires a deployment-scoped answer.
+	ListAuditEvents(ctx context.Context, spaceID string, limit, offset int) ([]Event, int, error)
+	// SearchAuditEvents returns events across every space, newest first. It is
 	// the deployment-scoped read, and only /api/admin routes may reach it.
 	SearchAuditEvents(ctx context.Context, filter Filter, limit, offset int) ([]Event, int, error)
-	// ExportTeamAuditEvents returns one page of a team's events, newest first,
+	// ExportSpaceAuditEvents returns one page of a space's events, newest first,
 	// continuing from after. It answers the same question as ListAuditEvents
 	// and differs only in how it pages, because an export walks the whole
 	// trail rather than showing the first screen of it.
-	ExportTeamAuditEvents(ctx context.Context, teamID string, after Cursor, limit int) ([]Event, error)
+	ExportSpaceAuditEvents(ctx context.Context, spaceID string, after Cursor, limit int) ([]Event, error)
 	// ExportAuditEvents is the deployment-scoped counterpart, and the same rule
 	// applies as for SearchAuditEvents: only /api/admin routes may reach it.
-	// The pair stays split for the reason ListAuditEvents gives — a team-scoped
+	// The pair stays split for the reason ListAuditEvents gives — a space-scoped
 	// route that can name its own filter is a route that can widen it.
 	ExportAuditEvents(ctx context.Context, filter Filter, after Cursor, limit int) ([]Event, error)
 }

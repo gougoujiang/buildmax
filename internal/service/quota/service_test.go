@@ -8,47 +8,47 @@ import (
 
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 )
 
-type mockTeamStore struct {
-	team *coreteam.Team
-	err  error
+type mockSpaceStore struct {
+	space *corespace.Space
+	err   error
 }
 
-func (m *mockTeamStore) GetTeam(_ context.Context, _ string) (*coreteam.Team, error) {
-	return m.team, m.err
+func (m *mockSpaceStore) GetSpace(_ context.Context, _ string) (*corespace.Space, error) {
+	return m.space, m.err
 }
 
-func (m *mockTeamStore) GetPersonalTeamByUser(_ context.Context, _ string) (*coreteam.Team, error) {
+func (m *mockSpaceStore) GetPersonalSpaceByUser(_ context.Context, _ string) (*corespace.Space, error) {
 	return nil, nil
 }
 
-func (m *mockTeamStore) ListTeamsByUser(_ context.Context, _ string) ([]coreteam.Team, error) {
+func (m *mockSpaceStore) ListSpacesByUser(_ context.Context, _ string) ([]corespace.Space, error) {
 	return nil, nil
 }
 
-func (m *mockTeamStore) CreateTeam(_ context.Context, _, _, _ string) (*coreteam.Team, error) {
+func (m *mockSpaceStore) CreateSpace(_ context.Context, _, _, _ string) (*corespace.Space, error) {
 	return nil, nil
 }
 
-func (m *mockTeamStore) AddTeamMember(_ context.Context, _, _, _ string) (*coreteam.Member, error) {
+func (m *mockSpaceStore) AddSpaceMember(_ context.Context, _, _, _ string) (*corespace.Member, error) {
 	return nil, nil
 }
 
-func (m *mockTeamStore) RemoveTeamMember(_ context.Context, _, _ string) error {
+func (m *mockSpaceStore) RemoveSpaceMember(_ context.Context, _, _ string) error {
 	return nil
 }
 
-func (m *mockTeamStore) ListAllTeams(_ context.Context, _ string, _, _ int) ([]coreteam.Team, int, error) {
+func (m *mockSpaceStore) ListAllSpaces(_ context.Context, _ string, _, _ int) ([]corespace.Space, int, error) {
 	return nil, 0, nil
 }
 
-func (m *mockTeamStore) CountTeamMembers(_ context.Context, _ []string) (map[string]int, error) {
+func (m *mockSpaceStore) CountSpaceMembers(_ context.Context, _ []string) (map[string]int, error) {
 	return nil, nil
 }
 
-func (m *mockTeamStore) ListTeamMembers(_ context.Context, _ string) ([]coreteam.Member, error) {
+func (m *mockSpaceStore) ListSpaceMembers(_ context.Context, _ string) ([]corespace.Member, error) {
 	return nil, nil
 }
 
@@ -57,7 +57,7 @@ type mockUsageReader struct {
 	err                   error
 }
 
-func (m *mockUsageReader) TeamUsageInWindow(_ context.Context, _ string, _, _ time.Time) (runCount, totalTokens int, err error) {
+func (m *mockUsageReader) SpaceUsageInWindow(_ context.Context, _ string, _, _ time.Time) (runCount, totalTokens int, err error) {
 	return m.runCount, m.totalTokens, m.err
 }
 
@@ -70,22 +70,22 @@ func (m *mockTierStore) GetQuotaTier(_ context.Context, _ string) (*corequota.Ti
 	return m.tier, m.err
 }
 
-func TestCheck_NoTeam_Allows(t *testing.T) {
+func TestCheck_NoSpace_Allows(t *testing.T) {
 	c := &Service{
-		TeamStore:   &mockTeamStore{team: nil},
+		SpaceStore:  &mockSpaceStore{space: nil},
 		UsageReader: &mockUsageReader{},
 		TierStore:   &mockTierStore{},
 		DefaultTier: "free_trial",
 	}
 	allowed, _, _ := c.Check(context.Background(), "tm_any", 1, 0)
 	if !allowed {
-		t.Error("Check: expected allow when team is nil")
+		t.Error("Check: expected allow when space is nil")
 	}
 }
 
 func TestCheck_UnknownTier_Allows(t *testing.T) {
 	c := &Service{
-		TeamStore:   &mockTeamStore{team: &coreteam.Team{ID: "tm_1", QuotaTier: "unknown"}},
+		SpaceStore:  &mockSpaceStore{space: &corespace.Space{ID: "tm_1", QuotaTier: "unknown"}},
 		UsageReader: &mockUsageReader{runCount: 0, totalTokens: 0},
 		TierStore:   &mockTierStore{tier: nil},
 		DefaultTier: "free_trial",
@@ -98,7 +98,7 @@ func TestCheck_UnknownTier_Allows(t *testing.T) {
 
 func TestCheck_RunLimitExceeded_Denies(t *testing.T) {
 	c := &Service{
-		TeamStore:   &mockTeamStore{team: &coreteam.Team{ID: "tm_1", QuotaTier: "free_trial"}},
+		SpaceStore:  &mockSpaceStore{space: &corespace.Space{ID: "tm_1", QuotaTier: "free_trial"}},
 		UsageReader: &mockUsageReader{runCount: 10, totalTokens: 0},
 		TierStore:   &mockTierStore{tier: &corequota.Tier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
@@ -114,7 +114,7 @@ func TestCheck_RunLimitExceeded_Denies(t *testing.T) {
 
 func TestCheck_TokenLimitExceeded_Denies(t *testing.T) {
 	c := &Service{
-		TeamStore:   &mockTeamStore{team: &coreteam.Team{ID: "tm_1", QuotaTier: "free_trial"}},
+		SpaceStore:  &mockSpaceStore{space: &corespace.Space{ID: "tm_1", QuotaTier: "free_trial"}},
 		UsageReader: &mockUsageReader{runCount: 0, totalTokens: 100000},
 		TierStore:   &mockTierStore{tier: &corequota.Tier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
@@ -130,7 +130,7 @@ func TestCheck_TokenLimitExceeded_Denies(t *testing.T) {
 
 func TestCheck_UnderLimit_Allows(t *testing.T) {
 	c := &Service{
-		TeamStore:   &mockTeamStore{team: &coreteam.Team{ID: "tm_1", QuotaTier: "free_trial"}},
+		SpaceStore:  &mockSpaceStore{space: &corespace.Space{ID: "tm_1", QuotaTier: "free_trial"}},
 		UsageReader: &mockUsageReader{runCount: 5, totalTokens: 50000},
 		TierStore:   &mockTierStore{tier: &corequota.Tier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
@@ -144,9 +144,9 @@ func TestCheck_UnderLimit_Allows(t *testing.T) {
 	}
 }
 
-func TestCheck_EmptyTeamTier_UsesDefault(t *testing.T) {
+func TestCheck_EmptySpaceTier_UsesDefault(t *testing.T) {
 	c := &Service{
-		TeamStore:   &mockTeamStore{team: &coreteam.Team{ID: "tm_1", QuotaTier: ""}},
+		SpaceStore:  &mockSpaceStore{space: &corespace.Space{ID: "tm_1", QuotaTier: ""}},
 		UsageReader: &mockUsageReader{runCount: 10, totalTokens: 0},
 		TierStore:   &mockTierStore{tier: &corequota.Tier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
@@ -157,47 +157,47 @@ func TestCheck_EmptyTeamTier_UsesDefault(t *testing.T) {
 	}
 }
 
-func (m *mockTeamStore) SetTeamPluginCuration(_ context.Context, _ string, _ coreplugin.Curation) error {
+func (m *mockSpaceStore) SetSpacePluginCuration(_ context.Context, _ string, _ coreplugin.Curation) error {
 	return nil
 }
 
-func (m *mockTeamStore) SetTeamSandboxDefaults(_ context.Context, _, _, _ string) error {
+func (m *mockSpaceStore) SetSpaceSandboxDefaults(_ context.Context, _, _, _ string) error {
 	return nil
 }
 
-func (m *mockTeamStore) SetTeamAgentInstructions(_ context.Context, _, _ string) error {
+func (m *mockSpaceStore) SetSpaceAgentInstructions(_ context.Context, _, _ string) error {
 	return nil
 }
 
-func (m *mockTeamStore) CreateInvitation(_ context.Context, _, _, _, _ string, _ time.Time) (*coreteam.Invitation, error) {
+func (m *mockSpaceStore) CreateInvitation(_ context.Context, _, _, _, _ string, _ time.Time) (*corespace.Invitation, error) {
 	return nil, nil
 }
 
-func (m *mockTeamStore) GetInvitation(_ context.Context, _ string) (*coreteam.Invitation, error) {
+func (m *mockSpaceStore) GetInvitation(_ context.Context, _ string) (*corespace.Invitation, error) {
 	return nil, nil
 }
 
-func (m *mockTeamStore) ListPendingInvitationsByTeam(_ context.Context, _ string, _ time.Time) ([]coreteam.Invitation, error) {
+func (m *mockSpaceStore) ListPendingInvitationsBySpace(_ context.Context, _ string, _ time.Time) ([]corespace.Invitation, error) {
 	return nil, nil
 }
 
-func (m *mockTeamStore) ListPendingInvitationsByUser(_ context.Context, _ string, _ time.Time) ([]coreteam.Invitation, error) {
+func (m *mockSpaceStore) ListPendingInvitationsByUser(_ context.Context, _ string, _ time.Time) ([]corespace.Invitation, error) {
 	return nil, nil
 }
 
-func (m *mockTeamStore) AcceptInvitation(_ context.Context, _ string, _ time.Time) (*coreteam.Invitation, error) {
+func (m *mockSpaceStore) AcceptInvitation(_ context.Context, _ string, _ time.Time) (*corespace.Invitation, error) {
 	return nil, nil
 }
 
-func (m *mockTeamStore) RevokeInvitation(_ context.Context, _ string, _ time.Time) error {
+func (m *mockSpaceStore) RevokeInvitation(_ context.Context, _ string, _ time.Time) error {
 	return nil
 }
 
-func (m *mockTeamStore) TransferOwnership(_ context.Context, _, _, _ string) error {
+func (m *mockSpaceStore) TransferOwnership(_ context.Context, _, _, _ string) error {
 	return nil
 }
 
-// A store that cannot answer is not a team without a limit. Every one of these
+// A store that cannot answer is not a space without a limit. Every one of these
 // used to return "allowed", so a deployment whose database was unreachable
 // served unmetered work and recorded nothing about having done so.
 func TestCheckReportsAReadItCouldNotMake(t *testing.T) {
@@ -207,20 +207,20 @@ func TestCheckReportsAReadItCouldNotMake(t *testing.T) {
 		name string
 		svc  *Service
 	}{
-		{"team read fails", &Service{
-			TeamStore:   &mockTeamStore{err: boom},
+		{"space read fails", &Service{
+			SpaceStore:  &mockSpaceStore{err: boom},
 			UsageReader: &mockUsageReader{},
 			TierStore:   &mockTierStore{tier: tier},
 			DefaultTier: "free_trial",
 		}},
 		{"tier read fails", &Service{
-			TeamStore:   &mockTeamStore{team: &coreteam.Team{ID: "tm_1", QuotaTier: "free_trial"}},
+			SpaceStore:  &mockSpaceStore{space: &corespace.Space{ID: "tm_1", QuotaTier: "free_trial"}},
 			UsageReader: &mockUsageReader{},
 			TierStore:   &mockTierStore{err: boom},
 			DefaultTier: "free_trial",
 		}},
 		{"usage aggregation fails", &Service{
-			TeamStore:   &mockTeamStore{team: &coreteam.Team{ID: "tm_1", QuotaTier: "free_trial"}},
+			SpaceStore:  &mockSpaceStore{space: &corespace.Space{ID: "tm_1", QuotaTier: "free_trial"}},
 			UsageReader: &mockUsageReader{err: boom},
 			TierStore:   &mockTierStore{tier: tier},
 			DefaultTier: "free_trial",
@@ -243,7 +243,7 @@ func TestCheckReportsAReadItCouldNotMake(t *testing.T) {
 func TestGetUsageReportsAReadItCouldNotMake(t *testing.T) {
 	boom := errors.New("database unreachable")
 	c := &Service{
-		TeamStore:   &mockTeamStore{err: boom},
+		SpaceStore:  &mockSpaceStore{err: boom},
 		UsageReader: &mockUsageReader{},
 		TierStore:   &mockTierStore{},
 		DefaultTier: "free_trial",

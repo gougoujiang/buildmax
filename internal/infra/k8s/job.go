@@ -179,7 +179,7 @@ const workerSeccompProfilePath = "buildmax/worker-bwrap.json"
 // podSecurityContext confines the worker pod.
 //
 // A worker executes model-chosen shell commands, so the pod is treated as
-// running untrusted code even though the team that submitted the task is
+// running untrusted code even though the space that submitted the task is
 // trusted: the prompt, the repository content, and the tool output that steer
 // those commands are not. The containment this pod relies on is bwrap's own
 // sandboxing of that worker's Bash commands, confined to the run's own

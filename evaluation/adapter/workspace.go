@@ -97,7 +97,7 @@ func copyFile(src, dst string, mode fs.FileMode) error {
 //
 // The two surfaces differ, and the difference is the product's, not this
 // package's: a CLI run is given the workspace directly, while a worker
-// materializes the team's persistent files into a `home` subdirectory of the
+// materializes the space's persistent files into a `home` subdirectory of the
 // run directory it works in. Anything that has to agree with a real run about
 // where a file will be — preflight above all — asks here rather than assuming
 // the CLI's layout.
@@ -113,7 +113,7 @@ func MaterializedRoot(workspace string, surface contract.Surface) string {
 }
 
 // workerStateDir is the subdirectory of a run's workspace that a worker
-// materializes the team's persistent files into. It mirrors
+// materializes the space's persistent files into. It mirrors
 // taskrun.RuntimeTaskRunHomeDir.
 const workerStateDir = "home"
 

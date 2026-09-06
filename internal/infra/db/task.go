@@ -16,11 +16,11 @@ import (
 type taskRow struct {
 	ID       uint64 `gorm:"primaryKey;autoIncrement"`
 	PublicID string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_task_public_id;not null"`
-	// The team index carries created_at: a team's task list is always ordered
+	// The space index carries created_at: a space's task list is always ordered
 	// by it, and the single-column index the string model left could not serve
 	// the sort.
 	ConversationID        *uint64    `gorm:"column:conversation_id;index"`
-	TeamID                uint64     `gorm:"column:team_id;not null;index:idx_task_team_created,priority:1"`
+	SpaceID               uint64     `gorm:"column:space_id;not null;index:idx_task_space_created,priority:1"`
 	IssueID               *uint64    `gorm:"column:issue_id;index"`
 	Status                string     `gorm:"type:varchar(32);not null"`
 	Input                 string     `gorm:"type:text;not null"`
@@ -29,7 +29,7 @@ type taskRow struct {
 	TitleCompletionTokens int        `gorm:""`
 	Output                *string    `gorm:"type:text"`
 	CreatedBy             uint64     `gorm:"column:created_by;not null"`
-	CreatedAt             time.Time  `gorm:"autoCreateTime;index:idx_task_team_created,priority:2"`
+	CreatedAt             time.Time  `gorm:"autoCreateTime;index:idx_task_space_created,priority:2"`
 	StartedAt             *time.Time `gorm:""`
 	EndedAt               *time.Time `gorm:""`
 	ErrorMessage          *string    `gorm:"type:text"`
@@ -45,7 +45,7 @@ func (taskRow) TableName() string { return "task" }
 type taskReadRow struct {
 	Row                  taskRow `gorm:"embedded"`
 	ConversationPublicID *string `gorm:"column:conversation_public_id"`
-	TeamPublicID         string  `gorm:"column:team_public_id"`
+	SpacePublicID        string  `gorm:"column:space_public_id"`
 	CreatedByPublicID    string  `gorm:"column:created_by_public_id"`
 	LastRunPublicID      *string `gorm:"column:last_run_public_id"`
 	IssuePublicID        *string `gorm:"column:issue_public_id"`
@@ -57,11 +57,11 @@ type taskReadRow struct {
 // Every join is a primary-key lookup, which is what keeps a listing one query.
 func (s *Store) taskSelect(ctx context.Context) *gorm.DB {
 	return s.db.WithContext(ctx).Model(&taskRow{}).
-		Select("task.*, c.public_id AS conversation_public_id, t.public_id AS team_public_id, " +
+		Select("task.*, c.public_id AS conversation_public_id, t.public_id AS space_public_id, " +
 			"cb.public_id AS created_by_public_id, lr.public_id AS last_run_public_id, " +
 			"i.public_id AS issue_public_id, a.public_id AS agent_public_id").
 		Joins("LEFT JOIN conversation c ON c.id = task.conversation_id").
-		Joins("INNER JOIN team t ON t.id = task.team_id").
+		Joins("INNER JOIN space t ON t.id = task.space_id").
 		Joins("INNER JOIN `user` cb ON cb.id = task.created_by").
 		Joins("LEFT JOIN task_run lr ON lr.id = task.last_run_id").
 		Joins("LEFT JOIN issue i ON i.id = task.issue_id").
@@ -75,7 +75,7 @@ func toTask(row *taskReadRow) *coretask.Task {
 	out := &coretask.Task{
 		ID:                    row.Row.PublicID,
 		ConversationID:        derefPublicID(row.ConversationPublicID),
-		TeamID:                row.TeamPublicID,
+		SpaceID:               row.SpacePublicID,
 		Status:                row.Row.Status,
 		Input:                 row.Row.Input,
 		Title:                 row.Row.Title,
@@ -181,10 +181,10 @@ func (s *Store) ListTasksByIssue(ctx context.Context, issueID string, limit, off
 	return toTasks(list), int(total), err
 }
 
-// ListTasksByAgent returns a team's threads for one agent, newest first.
-func (s *Store) ListTasksByAgent(ctx context.Context, teamID, agentID string, limit, offset int) ([]coretask.Task, int, error) {
+// ListTasksByAgent returns a space's threads for one agent, newest first.
+func (s *Store) ListTasksByAgent(ctx context.Context, spaceID, agentID string, limit, offset int) ([]coretask.Task, int, error) {
 	limit, offset = capPage(limit, offset)
-	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
+	spaceKey, err := lookupKey(ctx, s.db, "space", spaceID)
 	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, 0, nil
 	}
@@ -200,12 +200,12 @@ func (s *Store) ListTasksByAgent(ctx context.Context, teamID, agentID string, li
 	}
 	var total int64
 	if err := s.db.WithContext(ctx).Model(&taskRow{}).
-		Where("team_id = ? AND agent_id = ?", teamKey, agentKey).Count(&total).Error; err != nil {
+		Where("space_id = ? AND agent_id = ?", spaceKey, agentKey).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	var list []taskReadRow
 	err = s.taskSelect(ctx).
-		Where("task.team_id = ? AND task.agent_id = ?", teamKey, agentKey).
+		Where("task.space_id = ? AND task.agent_id = ?", spaceKey, agentKey).
 		Order("task.created_at DESC").Limit(limit).Offset(offset).Find(&list).Error
 	return toTasks(list), int(total), err
 }
@@ -268,11 +268,11 @@ func (s *Store) CreateTask(ctx context.Context, in *coretask.CreateInput) (*core
 		SandboxFilesystemTier: in.InitialRunSandboxFilesystemTier,
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		teamKey, err := lookupKey(ctx, tx, "team", in.TeamID)
+		spaceKey, err := lookupKey(ctx, tx, "space", in.SpaceID)
 		if err != nil {
 			return err
 		}
-		taskDB.TeamID = teamKey
+		taskDB.SpaceID = spaceKey
 		if in.ConversationID != "" {
 			var conv conversationRow
 			convID, ok := util.CanonicalPublicID(in.ConversationID)
@@ -282,7 +282,7 @@ func (s *Store) CreateTask(ctx context.Context, in *coretask.CreateInput) (*core
 			if err := tx.Where("public_id = ?", convID).First(&conv).Error; err != nil {
 				return err
 			}
-			if conv.TeamID != teamKey {
+			if conv.SpaceID != spaceKey {
 				return apierr.ErrNotFound
 			}
 			taskDB.ConversationID = &conv.ID
@@ -333,7 +333,7 @@ func (s *Store) CreateTask(ctx context.Context, in *coretask.CreateInput) (*core
 	return toTask(&taskReadRow{
 		Row:                  *taskDB,
 		ConversationPublicID: optionalCanonicalPublicID(&in.ConversationID),
-		TeamPublicID:         canonicalPublicID(in.TeamID),
+		SpacePublicID:        canonicalPublicID(in.SpaceID),
 		CreatedByPublicID:    canonicalPublicID(in.CreatedBy),
 		LastRunPublicID:      &runDB.PublicID,
 		IssuePublicID:        optionalCanonicalPublicID(in.IssueID),

@@ -24,7 +24,7 @@ type conversationListResponse struct {
 type conversationResponse struct {
 	ID        string    `json:"id"`
 	UserID    string    `json:"user_id"`
-	TeamID    string    `json:"team_id,omitempty"`
+	SpaceID   string    `json:"space_id,omitempty"`
 	Channel   string    `json:"channel"`
 	Title     string    `json:"title,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
@@ -186,14 +186,14 @@ func (h *Handler) runConversationTurn(w http.ResponseWriter, r *http.Request, in
 }
 
 func (h *Handler) listConversationsHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Conversations, "conversations not configured")
+	userID, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Conversations, "conversations not configured")
 	if !ok {
 		return
 	}
 	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.ListPageDefault, httputil.ListPageMax)
-	list, total, err := h.cfg.Conversations.ListConversationsByTeam(r.Context(), teamID, limit, offset)
+	list, total, err := h.cfg.Conversations.ListConversationsBySpace(r.Context(), spaceID, limit, offset)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "list_conversations", "user_id", userID, "team_id", teamID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "list_conversations", "user_id", userID, "space_id", spaceID)
 		return
 	}
 	out := make([]conversationResponse, len(list))
@@ -201,7 +201,7 @@ func (h *Handler) listConversationsHandler(w http.ResponseWriter, r *http.Reques
 		out[i] = conversationResponse{
 			ID:        list[i].ID,
 			UserID:    list[i].UserID,
-			TeamID:    list[i].TeamID,
+			SpaceID:   list[i].SpaceID,
 			Channel:   list[i].Channel,
 			Title:     list[i].Title,
 			CreatedAt: list[i].CreatedAt,
@@ -212,7 +212,7 @@ func (h *Handler) listConversationsHandler(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Conversations, "conversations not configured")
+	userID, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Conversations, "conversations not configured")
 	if !ok {
 		return
 	}
@@ -235,9 +235,9 @@ func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Reque
 			"unknown channel "+req.Channel+": use one of "+strings.Join(convchannel.ValidChannels(), ", "))
 		return
 	}
-	conv, err := h.cfg.Conversations.CreateConversationInTeam(r.Context(), teamID, userID, req.Channel, userID)
+	conv, err := h.cfg.Conversations.CreateConversationInSpace(r.Context(), spaceID, userID, req.Channel, userID)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "create_conversation", "user_id", userID, "team_id", teamID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "create_conversation", "user_id", userID, "space_id", spaceID)
 		return
 	}
 	if req.Message == "" || h.cfg.ConversationLLM == nil {
@@ -271,7 +271,7 @@ func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *Handler) getConversationMessagesHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Conversations, "conversations not configured")
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Conversations, "conversations not configured")
 	if !ok {
 		return
 	}
@@ -290,7 +290,7 @@ func (h *Handler) getConversationMessagesHandler(w http.ResponseWriter, r *http.
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_conversation", "conversation_id", conversationID)
 		return
 	}
-	if conv == nil || conv.TeamID != teamID {
+	if conv == nil || conv.SpaceID != spaceID {
 		httputil.WriteJSONError(w, http.StatusNotFound, "conversation not found")
 		return
 	}
@@ -316,7 +316,7 @@ func (h *Handler) getConversationMessagesHandler(w http.ResponseWriter, r *http.
 }
 
 func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Conversations, "conversations not configured")
+	userID, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Conversations, "conversations not configured")
 	if !ok {
 		return
 	}
@@ -324,7 +324,7 @@ func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	conv, ok := h.getConversationForTeam(w, r, teamID, conversationID)
+	conv, ok := h.getConversationForSpace(w, r, spaceID, conversationID)
 	if !ok {
 		return
 	}
@@ -364,7 +364,7 @@ func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.R
 	}
 }
 
-func (h *Handler) getConversationForTeam(w http.ResponseWriter, r *http.Request, teamID, conversationID string) (*coreconv.Conversation, bool) {
+func (h *Handler) getConversationForSpace(w http.ResponseWriter, r *http.Request, spaceID, conversationID string) (*coreconv.Conversation, bool) {
 	if !httputil.RequireStore(w, h.cfg.Conversations, "conversations not configured") {
 		return nil, false
 	}
@@ -373,7 +373,7 @@ func (h *Handler) getConversationForTeam(w http.ResponseWriter, r *http.Request,
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_conversation", "conversation_id", conversationID)
 		return nil, false
 	}
-	if conv == nil || conv.TeamID != teamID {
+	if conv == nil || conv.SpaceID != spaceID {
 		httputil.WriteJSONError(w, http.StatusNotFound, "conversation not found")
 		return nil, false
 	}

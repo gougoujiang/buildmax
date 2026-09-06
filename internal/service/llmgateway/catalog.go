@@ -1,7 +1,7 @@
 // Package llmgateway resolves a model name to an operator-approved upstream
 // target. It owns the model catalog and the capability contract.
 //
-// Models are global to a deployment: the alias layer and per-team model policy
+// Models are global to a deployment: the alias layer and per-space model policy
 // this package once carried are withdrawn, so a name resolves the same way for
 // every caller. See docs/design/client-modes.md section 6.
 //
@@ -26,7 +26,7 @@ import (
 // process wiring resolves separately, so a resolved target can be compared,
 // listed, and mentioned in diagnostics without leaking provider access.
 type Target struct {
-	// ID is the opaque catalog identifier referenced by team policy.
+	// ID is the opaque catalog identifier referenced by space policy.
 	ID string
 	// Name is the operator-facing display name.
 	Name string
@@ -52,7 +52,7 @@ type Target struct {
 	// calls ask the upstream to cache the stable prefix of a request, and for
 	// how long. They are carried as plain strings for the same reason the
 	// provider constants above are redefined here — this package resolves what
-	// a team may call without depending on how a process reads configuration.
+	// a space may call without depending on how a process reads configuration.
 	// A managed caller never supplies either: the operator's target does.
 	CacheMode string
 	CacheTTL  string

@@ -66,10 +66,10 @@ func (m *MockAgentStore) ListAgentsByUser(_ context.Context, userID string) ([]a
 	return out, nil
 }
 
-func (m *MockAgentStore) ListAgentsByTeam(_ context.Context, teamID string) ([]agentdef.Agent, error) {
+func (m *MockAgentStore) ListAgentsBySpace(_ context.Context, spaceID string) ([]agentdef.Agent, error) {
 	var out []agentdef.Agent
 	for _, a := range m.Agents {
-		if a.DeletedAt == nil && a.TeamID == teamID {
+		if a.DeletedAt == nil && a.SpaceID == spaceID {
 			out = append(out, a)
 		}
 	}
@@ -94,15 +94,15 @@ func (m *MockAgentStore) GetAgentIncludingDeleted(_ context.Context, agentID str
 	return nil, nil
 }
 
-func (m *MockAgentStore) CreateAgentInTeam(_ context.Context, in agentdef.CreateInput) (*agentdef.Agent, error) {
-	teamID := in.TeamID
-	if teamID == "" {
-		teamID = "tm_personal"
+func (m *MockAgentStore) CreateAgentInSpace(_ context.Context, in agentdef.CreateInput) (*agentdef.Agent, error) {
+	spaceID := in.SpaceID
+	if spaceID == "" {
+		spaceID = "tm_personal"
 	}
 	a := agentdef.Agent{
 		ID:                    fmt.Sprintf("a_%d", len(m.Agents)+1),
 		UserID:                in.UserID,
-		TeamID:                teamID,
+		SpaceID:               spaceID,
 		Name:                  in.Def.Name,
 		Description:           in.Def.Description,
 		Instructions:          in.Def.Instructions,
@@ -119,9 +119,9 @@ func (m *MockAgentStore) CreateAgentInTeam(_ context.Context, in agentdef.Create
 	return created, nil
 }
 
-func (m *MockAgentStore) UpdateAgentInTeam(_ context.Context, in agentdef.UpdateInput) (*agentdef.Agent, error) {
+func (m *MockAgentStore) UpdateAgentInSpace(_ context.Context, in agentdef.UpdateInput) (*agentdef.Agent, error) {
 	for i := range m.Agents {
-		if m.Agents[i].ID == in.AgentID && m.Agents[i].TeamID == in.TeamID && m.Agents[i].DeletedAt == nil {
+		if m.Agents[i].ID == in.AgentID && m.Agents[i].SpaceID == in.SpaceID && m.Agents[i].DeletedAt == nil {
 			return m.updateAgentAt(i, in.UpdatedBy, in.Def), nil
 		}
 	}
@@ -157,9 +157,9 @@ func (m *MockAgentStore) DeleteAgent(_ context.Context, agentID, userID string) 
 	return apierr.ErrNotFound
 }
 
-func (m *MockAgentStore) DeleteAgentInTeam(_ context.Context, agentID, teamID string) error {
+func (m *MockAgentStore) DeleteAgentInSpace(_ context.Context, agentID, spaceID string) error {
 	for i := range m.Agents {
-		if m.Agents[i].ID == agentID && m.Agents[i].TeamID == teamID && m.Agents[i].DeletedAt == nil {
+		if m.Agents[i].ID == agentID && m.Agents[i].SpaceID == spaceID && m.Agents[i].DeletedAt == nil {
 			m.Agents[i].DeletedAt = util.Ptr(time.Now().UTC())
 			return nil
 		}

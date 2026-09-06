@@ -336,8 +336,8 @@ func openStore(ctx context.Context, db_ config.ServerDBConfig) (*db.Store, error
 // blobStorage is what one deployment stores and where.
 //
 // The four are separate key spaces rather than one bucket with four names: a
-// team's mutable home, the reproducible output a run leaves, the durable
-// artifacts the team keeps, and plugin packages.
+// space's mutable home, the reproducible output a run leaves, the durable
+// artifacts the space keeps, and plugin packages.
 type blobStorage struct {
 	persist   blob.PersistStorage
 	runOutput blob.RunOutputStorage
@@ -353,24 +353,24 @@ func buildBlobStorage(ctx context.Context, sc config.ServerStorageConfig, worksp
 	if err != nil {
 		return blobStorage{}, err
 	}
-	persistRoot := func(teamID string) string {
-		return config.PersistentWorkspaceDir(workspacesDir, teamID)
+	persistRoot := func(spaceID string) string {
+		return config.PersistentWorkspaceDir(workspacesDir, spaceID)
 	}
 	persistStorage, err := BuildPersistStorage(wsCfg, persistRoot, s3Client)
 	if err != nil {
 		return blobStorage{}, fmt.Errorf("persist storage: %w", err)
 	}
-	runOutputRoot := func(teamID, taskID, taskRunID string) string {
-		return config.RunOutputDir(workspacesDir, teamID, taskID, taskRunID)
+	runOutputRoot := func(spaceID, taskID, taskRunID string) string {
+		return config.RunOutputDir(workspacesDir, spaceID, taskID, taskRunID)
 	}
 	runOutputStorage, err := BuildRunOutputStorage(wsCfg, runOutputRoot, s3Client)
 	if err != nil {
 		return blobStorage{}, fmt.Errorf("run output storage: %w", err)
 	}
-	// Under "teams" so it cannot collide with the run-output tree above or with
-	// a team's home directory.
-	artifactRoot := func(teamID, artifactID string) string {
-		return filepath.Join(workspacesDir, "teams", teamID, "artifacts", artifactID)
+	// Under "spaces" so it cannot collide with the run-output tree above or with
+	// a space's home directory.
+	artifactRoot := func(spaceID, artifactID string) string {
+		return filepath.Join(workspacesDir, "spaces", spaceID, "artifacts", artifactID)
 	}
 	artifactStorage, err := BuildArtifactStorage(wsCfg, artifactRoot, s3Client)
 	if err != nil {
@@ -401,27 +401,27 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 	pluginService := &pluginsvc.Service{
 		Catalog:     st,
 		Activations: st,
-		Teams:       st,
+		Spaces:      st,
 		Packages:    storage.packages,
 		KeyPrefix:   storage.packageKeyPrefix,
 		Audit:       audit.NewRecorder(st),
 	}
 	quotaService := &quota.Service{
-		TeamStore:   st,
+		SpaceStore:  st,
 		UsageReader: st,
 		TierStore:   st,
 		// The stock dimension. Runs and tokens come from UsageReader over a
 		// window; bytes held have no window and are read straight from what
-		// the team's live artifacts add up to.
+		// the space's live artifacts add up to.
 		StorageReader: st,
 		DefaultTier:   sc.DefaultQuotaTier,
-		// So a team admin can see that the team approached or hit its limits
+		// So a space admin can see that the space approached or hit its limits
 		// without anyone having to notice a 429 in a log.
 		Audit: st,
 	}
-	// The Team Secret feature is on only when a KEK file is configured. When it
+	// The Space Secret feature is on only when a KEK file is configured. When it
 	// is, a KEK that will not load fails startup rather than leaving the values
-	// silently unreadable -- see docs/design/team-secrets.md §9.1.
+	// silently unreadable -- see docs/design/space-secrets.md §9.1.
 	var secretStore coresecret.Store
 	var secretService *secretsvc.Service
 	if sc.Secret.KEKFile != "" {
@@ -461,7 +461,7 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			LoginCodeStore:      st,
 			PasswordStore:       st,
 			RefreshTokenStore:   st,
-			TeamStore:           st,
+			SpaceStore:          st,
 			WorkflowStore:       st,
 			AgentStore:          st,
 			IssueStore:          st,
@@ -517,12 +517,12 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 // process, and exposes the managed gateway to authenticated clients.
 //
 // The server resolves a catalog target it owns for its own inference: it does
-// not call its own HTTP listener and is not subject to team model policy.
-// readinessProbeTeam is a team id no team can have, so the storage probe reads
+// not call its own HTTP listener and is not subject to space model policy.
+// readinessProbeSpace is a space id no space can have, so the storage probe reads
 // nothing real. It exercises the configured backend — reachability,
 // credentials, and bucket or directory access — without depending on any
 // tenant's data existing.
-const readinessProbeTeam = "_readiness_probe"
+const readinessProbeSpace = "_readiness_probe"
 
 // readinessChecks are the dependencies the server cannot serve traffic without.
 //
@@ -569,7 +569,7 @@ func readinessChecks(st *db.Store, persist blob.PersistStorage) []httpserver.Rea
 		{
 			Name: "object_storage",
 			Probe: func(ctx context.Context) error {
-				_, err := persist.ListFiles(ctx, readinessProbeTeam)
+				_, err := persist.ListFiles(ctx, readinessProbeSpace)
 				return err
 			},
 		},

@@ -7,13 +7,13 @@ import (
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 )
 
 var (
 	ErrIssuesNotConfigured = apierr.New(apierr.KindNotConfigured, "issues not configured")
-	ErrTeamsNotConfigured  = apierr.New(apierr.KindNotConfigured, "teams not configured")
+	ErrSpacesNotConfigured = apierr.New(apierr.KindNotConfigured, "spaces not configured")
 	ErrTitleRequired       = apierr.New(apierr.KindInvalid, "title required")
 	ErrInvalidStatus       = apierr.New(apierr.KindInvalid, "invalid status")
 	ErrInvalidAssigneeKind = apierr.New(apierr.KindInvalid, "invalid assignee_kind")
@@ -29,7 +29,7 @@ var (
 	ErrWorkflowNotFound       = apierr.New(apierr.KindInvalid, "workflow not found")
 	ErrWorkflowNotPublished   = apierr.New(apierr.KindInvalid, "workflow not published")
 	// ErrParentNotFound covers both a parent that does not exist and one that
-	// belongs to another team. The two are reported identically on purpose:
+	// belongs to another space. The two are reported identically on purpose:
 	// distinguishing them would confirm that an issue ID exists somewhere the
 	// caller cannot see, and issue IDs are what Portal puts in URLs.
 	ErrParentNotFound   = apierr.New(apierr.KindInvalid, "parent issue not found")
@@ -42,13 +42,13 @@ type Service struct {
 	Issues    coreissue.Store
 	Comments  coreissue.CommentStore
 	Agents    agentdef.Store
-	Teams     coreteam.Store
+	Spaces    corespace.Store
 	Workflows coreworkflow.Store
 }
 
 type CreateIssueCmd struct {
 	UserID        string
-	TeamID        string
+	SpaceID       string
 	Title         string
 	Description   string
 	ParentIssueID *string
@@ -56,7 +56,7 @@ type CreateIssueCmd struct {
 
 type UpdateIssueCmd struct {
 	UserID  string
-	TeamID  string
+	SpaceID string
 	IssueID string
 	// IfVersion is the Version the caller read. See coreissue.UpdateInput.
 	IfVersion     uint64
@@ -75,14 +75,14 @@ func (s *Service) CreateIssue(ctx context.Context, cmd CreateIssueCmd) (*coreiss
 	if cmd.Title == "" {
 		return nil, ErrTitleRequired
 	}
-	if cmd.TeamID == "" {
-		return nil, ErrTeamsNotConfigured
+	if cmd.SpaceID == "" {
+		return nil, ErrSpacesNotConfigured
 	}
-	parent, err := s.normalizeParent(ctx, cmd.TeamID, "", cmd.ParentIssueID)
+	parent, err := s.normalizeParent(ctx, cmd.SpaceID, "", cmd.ParentIssueID)
 	if err != nil {
 		return nil, err
 	}
-	return s.Issues.CreateIssueInTeam(ctx, cmd.TeamID, cmd.UserID, coreissue.CreateInput{
+	return s.Issues.CreateIssueInSpace(ctx, cmd.SpaceID, cmd.UserID, coreissue.CreateInput{
 		Title:         cmd.Title,
 		Description:   cmd.Description,
 		ParentIssueID: parent,
@@ -99,16 +99,16 @@ func (s *Service) UpdateIssue(ctx context.Context, cmd UpdateIssueCmd) (*coreiss
 	if cmd.Status != nil && !isValidStatus(*cmd.Status) {
 		return nil, ErrInvalidStatus
 	}
-	if cmd.TeamID == "" {
-		return nil, ErrTeamsNotConfigured
+	if cmd.SpaceID == "" {
+		return nil, ErrSpacesNotConfigured
 	}
-	if err := s.validateAssignee(ctx, cmd.TeamID, cmd.UserID, cmd.AssigneeKind, cmd.AssigneeID); err != nil {
+	if err := s.validateAssignee(ctx, cmd.SpaceID, cmd.UserID, cmd.AssigneeKind, cmd.AssigneeID); err != nil {
 		return nil, err
 	}
 	parent := cmd.ParentIssueID
 	if parent != nil {
 		var err error
-		if parent, err = s.normalizeParent(ctx, cmd.TeamID, cmd.IssueID, cmd.ParentIssueID); err != nil {
+		if parent, err = s.normalizeParent(ctx, cmd.SpaceID, cmd.IssueID, cmd.ParentIssueID); err != nil {
 			return nil, err
 		}
 		// normalizeParent returns nil for a cleared parent; the store needs an
@@ -117,7 +117,7 @@ func (s *Service) UpdateIssue(ctx context.Context, cmd UpdateIssueCmd) (*coreiss
 			parent = new(string)
 		}
 	}
-	issue, err := s.Issues.UpdateIssueInTeam(ctx, cmd.IssueID, cmd.TeamID, coreissue.UpdateInput{
+	issue, err := s.Issues.UpdateIssueInSpace(ctx, cmd.IssueID, cmd.SpaceID, coreissue.UpdateInput{
 		IfVersion:     cmd.IfVersion,
 		Title:         cmd.Title,
 		Description:   cmd.Description,
@@ -140,7 +140,7 @@ func (s *Service) UpdateIssue(ctx context.Context, cmd UpdateIssueCmd) (*coreiss
 //
 // childID is the issue being reparented, or "" when the child does not exist
 // yet. A new issue cannot have children, so only the update path checks H3.
-func (s *Service) normalizeParent(ctx context.Context, teamID, childID string, parentIssueID *string) (*string, error) {
+func (s *Service) normalizeParent(ctx context.Context, spaceID, childID string, parentIssueID *string) (*string, error) {
 	if parentIssueID == nil || *parentIssueID == "" {
 		return nil, nil
 	}
@@ -152,8 +152,8 @@ func (s *Service) normalizeParent(ctx context.Context, teamID, childID string, p
 	if err != nil {
 		return nil, err
 	}
-	// H1: the parent must exist and belong to the same team.
-	if parent == nil || parent.TeamID != teamID {
+	// H1: the parent must exist and belong to the same space.
+	if parent == nil || parent.SpaceID != spaceID {
 		return nil, ErrParentNotFound
 	}
 	// H2: the hierarchy is two levels deep, so the parent must be top-level.
@@ -182,7 +182,7 @@ func isValidStatus(status string) bool {
 	}
 }
 
-func (s *Service) validateAssignee(ctx context.Context, teamID, userID string, kind, id *string) error {
+func (s *Service) validateAssignee(ctx context.Context, spaceID, userID string, kind, id *string) error {
 	if kind == nil && id == nil {
 		return nil
 	}
@@ -194,10 +194,10 @@ func (s *Service) validateAssignee(ctx context.Context, teamID, userID string, k
 	}
 	switch *kind {
 	case coreissue.AssigneePerson:
-		if s.Teams == nil {
-			return ErrTeamsNotConfigured
+		if s.Spaces == nil {
+			return ErrSpacesNotConfigured
 		}
-		members, err := s.Teams.ListTeamMembers(ctx, teamID)
+		members, err := s.Spaces.ListSpaceMembers(ctx, spaceID)
 		if err != nil {
 			return err
 		}
@@ -218,7 +218,7 @@ func (s *Service) validateAssignee(ctx context.Context, teamID, userID string, k
 		if err != nil {
 			return err
 		}
-		if agent == nil || agent.TeamID != teamID {
+		if agent == nil || agent.SpaceID != spaceID {
 			return ErrAgentNotFound
 		}
 		return nil
@@ -233,7 +233,7 @@ func (s *Service) validateAssignee(ctx context.Context, teamID, userID string, k
 		if err != nil {
 			return err
 		}
-		if workflow == nil || workflow.TeamID != teamID {
+		if workflow == nil || workflow.SpaceID != spaceID {
 			return ErrWorkflowNotFound
 		}
 		if workflow.Status != coreworkflow.StatusPublished {
@@ -253,11 +253,11 @@ type Counts struct {
 	Comments     int
 }
 
-// GetIssue resolves an issue the team owns.
+// GetIssue resolves an issue the space owns.
 //
-// An issue belonging to another team reads as not found rather than forbidden,
+// An issue belonging to another space reads as not found rather than forbidden,
 // so the answer does not confirm that an id exists elsewhere.
-func (s *Service) GetIssue(ctx context.Context, teamID, issueID string) (*coreissue.Issue, error) {
+func (s *Service) GetIssue(ctx context.Context, spaceID, issueID string) (*coreissue.Issue, error) {
 	if s.Issues == nil {
 		return nil, ErrIssuesNotConfigured
 	}
@@ -265,27 +265,27 @@ func (s *Service) GetIssue(ctx context.Context, teamID, issueID string) (*coreis
 	if err != nil {
 		return nil, err
 	}
-	if found == nil || found.TeamID != teamID {
+	if found == nil || found.SpaceID != spaceID {
 		return nil, ErrIssueNotFound
 	}
 	return found, nil
 }
 
 // ListChildren returns one issue's sub-issues, oldest first, after checking the
-// parent belongs to the team. Callers that already hold the parent still go
-// through here: the team check is the authorization, not a convenience.
-func (s *Service) ListChildren(ctx context.Context, teamID, issueID string) ([]coreissue.Issue, error) {
-	if _, err := s.GetIssue(ctx, teamID, issueID); err != nil {
+// parent belongs to the space. Callers that already hold the parent still go
+// through here: the space check is the authorization, not a convenience.
+func (s *Service) ListChildren(ctx context.Context, spaceID, issueID string) ([]coreissue.Issue, error) {
+	if _, err := s.GetIssue(ctx, spaceID, issueID); err != nil {
 		return nil, err
 	}
 	return s.Issues.ListIssueChildren(ctx, issueID)
 }
 
-func (s *Service) ListIssues(ctx context.Context, teamID string, filter coreissue.ListFilter, limit, offset int) ([]coreissue.Issue, int, error) {
+func (s *Service) ListIssues(ctx context.Context, spaceID string, filter coreissue.ListFilter, limit, offset int) ([]coreissue.Issue, int, error) {
 	if s.Issues == nil {
 		return nil, 0, ErrIssuesNotConfigured
 	}
-	return s.Issues.ListIssuesByTeam(ctx, teamID, filter, limit, offset)
+	return s.Issues.ListIssuesBySpace(ctx, spaceID, filter, limit, offset)
 }
 
 // CountsFor loads the derived counts for a page of issues with one grouped

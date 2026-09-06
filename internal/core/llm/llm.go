@@ -197,7 +197,7 @@ type Request struct {
 	// It exists because a provider cache key is a routing hint, not an
 	// authorization boundary: two callers sharing one credential share a bucket
 	// unless something separates them. For managed inference the gateway sets
-	// it from the authenticated team, so one team's prefix cannot be bucketed
+	// it from the authenticated space, so one space's prefix cannot be bucketed
 	// with another's. It is never accepted from a client, never persisted, and
 	// never logged — it is an input to a hash and nothing else.
 	CacheScope string

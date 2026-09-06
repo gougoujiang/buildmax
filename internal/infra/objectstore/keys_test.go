@@ -56,7 +56,7 @@ func TestRunOutputResultKey(t *testing.T) {
 	if key != "workspaces/tm1/tasks/task1/run1/artifacts/result.md" {
 		t.Errorf("got %q", key)
 	}
-	key = runOutputResultKey(runKeyScope{Prefix: "workspaces", TeamID: "tm1", TaskID: "task1", TaskRunID: "run1"})
+	key = runOutputResultKey(runKeyScope{Prefix: "workspaces", SpaceID: "tm1", TaskID: "task1", TaskRunID: "run1"})
 	if key != "workspaces/tm1/tasks/task1/run1/artifacts/result.md" {
 		t.Errorf("runOutputResultKey got %q", key)
 	}

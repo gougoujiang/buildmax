@@ -39,21 +39,21 @@ type TokenFunc func(serverURL string) (string, error)
 // docs/design/unified-artifacts.md section 7.1.
 type artifactPublisher struct {
 	ServerURL string
-	// TeamID is optional. Empty means the server keeps the artifact in the
-	// caller's personal team, which is what a client that has never been asked
-	// to choose a team should get.
-	TeamID string
-	Token  TokenFunc
-	HTTP   *http.Client
+	// SpaceID is optional. Empty means the server keeps the artifact in the
+	// caller's personal space, which is what a client that has never been asked
+	// to choose a space should get.
+	SpaceID string
+	Token   TokenFunc
+	HTTP    *http.Client
 }
 
 // NewArtifactPublisher returns a publisher, or nil when this surface has no
 // server to reach. Returning nil is what leaves the tool unregistered.
-func NewArtifactPublisher(serverURL, teamID string, token TokenFunc) tool.ArtifactPublisher {
+func NewArtifactPublisher(serverURL, spaceID string, token TokenFunc) tool.ArtifactPublisher {
 	if serverURL == "" || token == nil {
 		return nil
 	}
-	return &artifactPublisher{ServerURL: serverURL, TeamID: teamID, Token: token}
+	return &artifactPublisher{ServerURL: serverURL, SpaceID: spaceID, Token: token}
 }
 
 // PublishArtifact implements tool.ArtifactPublisher.
@@ -63,8 +63,8 @@ func (p *artifactPublisher) PublishArtifact(ctx context.Context, in tool.Artifac
 		return tool.PublishedArtifact{}, err
 	}
 	query := url.Values{}
-	if p.TeamID != "" {
-		query.Set("team_id", p.TeamID)
+	if p.SpaceID != "" {
+		query.Set("space_id", p.SpaceID)
 	}
 	if in.Title != "" {
 		query.Set("title", in.Title)

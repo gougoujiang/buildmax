@@ -77,15 +77,15 @@ func (f *fakePersistStorage) MaterializeToDir(ctx context.Context, workspaceID, 
 }
 
 func (f *fakePersistStorage) PutRunGlobal(ctx context.Context, ref blob.RunObjectRef, r io.Reader) error {
-	key := ref.TeamID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
+	key := ref.SpaceID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	data, _ := io.ReadAll(r)
 	f.taskGlobal[key] = data
 	return nil
 }
 
 // taskGlobalRelPaths returns the set of relPaths uploaded for one task run.
-func (f *fakePersistStorage) taskGlobalRelPaths(teamID, taskID, taskRunID string) []string {
-	prefix := teamID + "/" + taskID + "/" + taskRunID + "/"
+func (f *fakePersistStorage) taskGlobalRelPaths(spaceID, taskID, taskRunID string) []string {
+	prefix := spaceID + "/" + taskID + "/" + taskRunID + "/"
 	var out []string
 	for k := range f.taskGlobal {
 		if len(k) > len(prefix) && k[:len(prefix)] == prefix {
@@ -96,7 +96,7 @@ func (f *fakePersistStorage) taskGlobalRelPaths(teamID, taskID, taskRunID string
 }
 
 func (f *fakePersistStorage) GetRunGlobal(ctx context.Context, ref blob.RunObjectRef) ([]byte, error) {
-	key := ref.TeamID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
+	key := ref.SpaceID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	data, ok := f.taskGlobal[key]
 	if !ok {
 		return nil, apierr.ErrNotFound
@@ -105,7 +105,7 @@ func (f *fakePersistStorage) GetRunGlobal(ctx context.Context, ref blob.RunObjec
 }
 
 func (f *fakePersistStorage) PutRunArtifacts(ctx context.Context, ref blob.RunObjectRef, r io.Reader) error {
-	key := ref.TeamID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/artifacts/" + ref.RelPath
+	key := ref.SpaceID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/artifacts/" + ref.RelPath
 	data, _ := io.ReadAll(r)
 	if f.taskGlobal == nil {
 		f.taskGlobal = make(map[string][]byte)
@@ -115,7 +115,7 @@ func (f *fakePersistStorage) PutRunArtifacts(ctx context.Context, ref blob.RunOb
 }
 
 func (f *fakePersistStorage) GetRunArtifacts(ctx context.Context, ref blob.RunObjectRef) ([]byte, error) {
-	key := ref.TeamID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/artifacts/" + ref.RelPath
+	key := ref.SpaceID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/artifacts/" + ref.RelPath
 	data, ok := f.taskGlobal[key]
 	if !ok {
 		return nil, apierr.ErrNotFound
@@ -180,7 +180,7 @@ func TestUploadTaskGlobal_UploadsPresentFiles(t *testing.T) {
 	}
 
 	fake := newFakePersistStorage()
-	uploadTaskGlobal(ctx, globalDir, RunScope{TeamID: "tm1", TaskID: "task1", TaskRunID: "run1"}, fake, "")
+	uploadTaskGlobal(ctx, globalDir, RunScope{SpaceID: "tm1", TaskID: "task1", TaskRunID: "run1"}, fake, "")
 
 	got := fake.taskGlobalRelPaths("tm1", "task1", "run1")
 	if len(got) != 5 {
@@ -210,17 +210,17 @@ func TestUploadTaskGlobal_SkipsMissingFiles(t *testing.T) {
 	globalDir := t.TempDir()
 	// Empty global dir: no files created
 	fake := newFakePersistStorage()
-	uploadTaskGlobal(ctx, globalDir, RunScope{TeamID: "tm1", TaskID: "task1", TaskRunID: "run1"}, fake, "")
+	uploadTaskGlobal(ctx, globalDir, RunScope{SpaceID: "tm1", TaskID: "task1", TaskRunID: "run1"}, fake, "")
 	got := fake.taskGlobalRelPaths("tm1", "task1", "run1")
 	if len(got) != 0 {
 		t.Errorf("want 0 uploads for empty dir, got %v", got)
 	}
 }
 
-func TestPrepareRunWorkspace_MaterializesTeamFiles(t *testing.T) {
+func TestPrepareRunWorkspace_MaterializesSpaceFiles(t *testing.T) {
 	ctx := context.Background()
 	persist := newFakePersistStorage()
-	if err := persist.Put(ctx, "tm_shared", "shared.txt", bytes.NewReader([]byte("team"))); err != nil {
+	if err := persist.Put(ctx, "tm_shared", "shared.txt", bytes.NewReader([]byte("space"))); err != nil {
 		t.Fatal(err)
 	}
 	if err := persist.Put(ctx, "u_creator", "private.txt", bytes.NewReader([]byte("user"))); err != nil {
@@ -237,7 +237,7 @@ func TestPrepareRunWorkspace_MaterializesTeamFiles(t *testing.T) {
 	task := &coretask.Task{
 		ID:             "t1",
 		ConversationID: "c1",
-		TeamID:         "tm_shared",
+		SpaceID:        "tm_shared",
 		CreatedBy:      "u_creator",
 	}
 	run := &coretask.Run{ID: "r1"}
@@ -246,18 +246,18 @@ func TestPrepareRunWorkspace_MaterializesTeamFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	teamData, err := os.ReadFile(filepath.Join(dirs.runHome, "shared.txt"))
+	spaceData, err := os.ReadFile(filepath.Join(dirs.runHome, "shared.txt"))
 	if err != nil {
 		t.Fatalf("read shared file: %v", err)
 	}
-	if string(teamData) != "team" {
-		t.Fatalf("shared file = %q, want %q", teamData, "team")
+	if string(spaceData) != "space" {
+		t.Fatalf("shared file = %q, want %q", spaceData, "space")
 	}
 	if _, err := os.Stat(filepath.Join(dirs.runHome, "private.txt")); !os.IsNotExist(err) {
 		t.Fatalf("private creator file should not be materialized, stat err = %v", err)
 	}
 
-	// The run's OS HOME exists and is empty: it must not inherit team files
+	// The run's OS HOME exists and is empty: it must not inherit space files
 	// (those go to runHome) or anything from a previous run.
 	entries, err := os.ReadDir(dirs.runOSHome)
 	if err != nil {
@@ -269,7 +269,7 @@ func TestPrepareRunWorkspace_MaterializesTeamFiles(t *testing.T) {
 }
 
 // TestResolveRunDirs_OSHomeIsRunPrivate pins that the OS HOME is a dedicated
-// per-run directory, distinct from the team home and BUILDMAX_HOME, so one
+// per-run directory, distinct from the space home and BUILDMAX_HOME, so one
 // run's tool state cannot leak into another and rendered credential files do
 // not land among uploaded files.
 func TestResolveRunDirs_OSHomeIsRunPrivate(t *testing.T) {
@@ -314,7 +314,7 @@ func TestTraceRelPath_MatchesUploadedKey(t *testing.T) {
 	}
 
 	fake := newFakePersistStorage()
-	scope := RunScope{TeamID: "tm1", TaskID: "task1", TaskRunID: "run1"}
+	scope := RunScope{SpaceID: "tm1", TaskID: "task1", TaskRunID: "run1"}
 	uploadTaskGlobal(ctx, globalDir, scope, fake, recorded)
 	uploaded := fake.taskGlobalRelPaths("tm1", "task1", "run1")
 	for _, p := range uploaded {
@@ -355,13 +355,13 @@ func TestRestoreSessionFromPreviousRun_RoundTripsTheBundle(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(bundle, "history.jsonl"), []byte("{\"type\":\"history\"}\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	scope := RunScope{TeamID: "tm1", TaskID: "task1", TaskRunID: "run1"}
+	scope := RunScope{SpaceID: "tm1", TaskID: "task1", TaskRunID: "run1"}
 	uploadTaskGlobal(ctx, prevDir, scope, fake, "")
 
 	nextDir := t.TempDir()
 	sessionID, previousRun, currentRun := "sid-1", "run1", "run2"
 	restoreSessionFromPreviousRun(ctx,
-		&coretask.Task{TeamID: "tm1", ID: "task1", SessionID: &sessionID, LastRunID: &currentRun},
+		&coretask.Task{SpaceID: "tm1", ID: "task1", SessionID: &sessionID, LastRunID: &currentRun},
 		&coretask.Run{ID: currentRun, PreviousTaskRunID: &previousRun}, nextDir, fake)
 
 	for _, name := range sessionBundleFiles {
@@ -391,7 +391,7 @@ func TestContinueRunSendsRestoredHistoryToModel(t *testing.T) {
 	}
 	persist := newFakePersistStorage()
 	sessionID := "sid-continue"
-	task := &coretask.Task{ID: "task1", TeamID: "tm1", SessionID: &sessionID}
+	task := &coretask.Task{ID: "task1", SpaceID: "tm1", SessionID: &sessionID}
 
 	firstRun := &coretask.Run{ID: "run1", Input: "remember the code word: albatross"}
 	firstDirs := testRunDirs(t)
@@ -399,7 +399,7 @@ func TestContinueRunSendsRestoredHistoryToModel(t *testing.T) {
 		sessionID, nil, model, ManagedInference{}, nil, "", "", nil, nil, "", "", nil); err != nil {
 		t.Fatalf("first run: %v", err)
 	}
-	uploadTaskGlobal(ctx, firstDirs.runGlobal, RunScope{TeamID: task.TeamID, TaskID: task.ID, TaskRunID: firstRun.ID}, persist, "")
+	uploadTaskGlobal(ctx, firstDirs.runGlobal, RunScope{SpaceID: task.SpaceID, TaskID: task.ID, TaskRunID: firstRun.ID}, persist, "")
 
 	secondRun := &coretask.Run{ID: "run2", PreviousTaskRunID: &firstRun.ID, Input: "what was the code word?"}
 	secondDirs := testRunDirs(t)
@@ -451,13 +451,13 @@ func TestRestoreSessionFromPreviousRun_PartialBundleRestoresNothing(t *testing.T
 	if err := os.WriteFile(filepath.Join(bundle, "history.jsonl"), []byte("{}\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	scope := RunScope{TeamID: "tm1", TaskID: "task1", TaskRunID: "run1"}
+	scope := RunScope{SpaceID: "tm1", TaskID: "task1", TaskRunID: "run1"}
 	uploadTaskGlobal(ctx, prevDir, scope, fake, "")
 
 	nextDir := t.TempDir()
 	sessionID, previousRun := "sid-1", "run1"
 	restoreSessionFromPreviousRun(ctx,
-		&coretask.Task{TeamID: "tm1", ID: "task1", SessionID: &sessionID},
+		&coretask.Task{SpaceID: "tm1", ID: "task1", SessionID: &sessionID},
 		&coretask.Run{ID: "run2", PreviousTaskRunID: &previousRun}, nextDir, fake)
 
 	if _, err := os.Stat(filepath.Join(nextDir, "sessions", "sid-1")); !os.IsNotExist(err) {

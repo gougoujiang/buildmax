@@ -1,4 +1,4 @@
-// Package objectstore provides pluggable blob storage for team workspace files and task-run artifacts.
+// Package objectstore provides pluggable blob storage for space workspace files and task-run artifacts.
 package objectstore
 
 import (
@@ -7,29 +7,29 @@ import (
 )
 
 type RunObjectRef struct {
-	TeamID    string
+	SpaceID   string
 	TaskID    string
 	TaskRunID string
 	RelPath   string
 }
 
 type RunRef struct {
-	TeamID    string
+	SpaceID   string
 	TaskID    string
 	TaskRunID string
 }
 
-// HomeStorage reads and writes persistent team home files (Put/Get/ListFiles/MaterializeToDir).
-// Key space: <prefix>/<teamID>/home/<relPath>.
+// HomeStorage reads and writes persistent space home files (Put/Get/ListFiles/MaterializeToDir).
+// Key space: <prefix>/<spaceID>/home/<relPath>.
 type HomeStorage interface {
-	Put(ctx context.Context, teamID string, relPath string, r io.Reader) error
-	Get(ctx context.Context, teamID string, relPath string) ([]byte, error)
-	ListFiles(ctx context.Context, teamID string) ([]string, error)
-	MaterializeToDir(ctx context.Context, teamID string, dstDir string) error
+	Put(ctx context.Context, spaceID string, relPath string, r io.Reader) error
+	Get(ctx context.Context, spaceID string, relPath string) ([]byte, error)
+	ListFiles(ctx context.Context, spaceID string) ([]string, error)
+	MaterializeToDir(ctx context.Context, spaceID string, dstDir string) error
 }
 
 // RunStorage reads and writes run-scoped files: the task run global dir (BUILDMAX_HOME state)
-// and the task run artifacts dir. Key space: <teamID>/tasks/<taskID>/<runID>/{global,artifacts}/.
+// and the task run artifacts dir. Key space: <spaceID>/tasks/<taskID>/<runID>/{global,artifacts}/.
 // For local-FS deployments these files live on worker disk; all methods are no-ops or return apierr.ErrNotFound.
 type RunStorage interface {
 	PutRunGlobal(ctx context.Context, ref RunObjectRef, r io.Reader) error
@@ -45,7 +45,7 @@ type PersistStorage interface {
 	RunStorage
 }
 
-// RunOutputStorage reads/writes run output files in the task run's team-owned
+// RunOutputStorage reads/writes run output files in the task run's space-owned
 // artifact namespace. One namespace exists per task run.
 // PutResult/GetResult are for result.md. PutRunOutputFile/GetRunOutputFile support multiple files per run.
 type RunOutputStorage interface {

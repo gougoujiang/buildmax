@@ -9,20 +9,20 @@ import {
 } from "./shared"
 import { navigate } from "../../router"
 import { SpaceAuditSection } from "../../features/audit"
-import { TeamPlugins } from "../../features/teamPlugins"
-import { TeamSandboxDefaults } from "../../features/teamSandbox"
-import { TeamSecrets } from "../../features/teamSecrets"
-import { TeamAgentInstructions } from "../../features/teamInstructions"
+import { SpacePlugins } from "../../features/spacePlugins"
+import { SpaceSandboxDefaults } from "../../features/spaceSandbox"
+import { SpaceSecrets } from "../../features/spaceSecrets"
+import { SpaceAgentInstructions } from "../../features/spaceInstructions"
 import { useAuth } from "../../contexts/AuthContext"
-import { useTeam } from "../../contexts/TeamContext"
+import { useSpace } from "../../contexts/SpaceContext"
 
 export function SpaceSettings({ section }: { section: SpaceSection }) {
   const [inviteOpen, setInviteOpen] = useState(section === "memberNew")
   const {
     user,
-    teamUsage,
+    spaceUsage,
     members,
-    teamUsageLoading,
+    spaceUsageLoading,
     membersLoading,
     pageError,
     email,
@@ -42,7 +42,7 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
     currentUserIsOwner,
     currentUserRole,
     isPersonalSpace,
-    currentTeamName,
+    currentSpaceName,
     setEmail,
     setInviteRole,
     handleInviteMember,
@@ -53,7 +53,7 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
     handleIssueLoginCode,
   } = useSettingsData()
   const { token } = useAuth()
-  const { currentTeamId } = useTeam()
+  const { currentSpaceId } = useSpace()
 
   useEffect(() => {
     setInviteOpen(section === "memberNew")
@@ -122,17 +122,17 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
         {section === "overview" ? (
           <>
             <SpaceOverviewSection
-              currentTeamName={currentTeamName}
+              currentSpaceName={currentSpaceName}
               isPersonalSpace={isPersonalSpace}
               loadingMembers={membersLoading}
-              loadingUsage={teamUsageLoading}
+              loadingUsage={spaceUsageLoading}
               members={members}
-              usage={teamUsage}
+              usage={spaceUsage}
               currentUserRole={currentUserMember?.role ?? null}
             />
-            <TeamAgentInstructions
+            <SpaceAgentInstructions
               token={token}
-              teamId={currentTeamId}
+              spaceId={currentSpaceId}
               canManage={
                 currentUserMember?.role === "owner" || currentUserMember?.role === "admin"
               }
@@ -140,38 +140,38 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
           </>
         ) : null}
         {section === "plugins" ? (
-          <TeamPlugins
+          <SpacePlugins
             token={token}
-            teamId={currentTeamId}
+            spaceId={currentSpaceId}
             // Changing an activation is owner-or-admin, the authority the
-            // team's other shared automation already needs. Reading is not.
+            // space's other shared automation already needs. Reading is not.
             canManage={
               currentUserMember?.role === "owner" || currentUserMember?.role === "admin"
             }
           />
         ) : null}
         {section === "security" ? (
-          <TeamSandboxDefaults
+          <SpaceSandboxDefaults
             token={token}
-            teamId={currentTeamId}
+            spaceId={currentSpaceId}
             canManage={
               currentUserMember?.role === "owner" || currentUserMember?.role === "admin"
             }
           />
         ) : null}
         {section === "secrets" ? (
-          <TeamSecrets
+          <SpaceSecrets
             token={token}
-            teamId={currentTeamId}
+            spaceId={currentSpaceId}
             // Secrets are owner-only: value authority stays with the owner
-            // until BuildMax has finer team grants. See
-            // docs/design/team-secrets.md §10.
+            // until BuildMax has finer space grants. See
+            // docs/design/space-secrets.md §10.
             canManage={currentUserMember?.role === "owner"}
           />
         ) : null}
         {section === "audit" ? (
           <SpaceAuditSection
-            teamId={currentTeamId}
+            spaceId={currentSpaceId}
             token={token}
             currentUserIsOwner={currentUserIsOwner}
             currentUserId={user?.id}
@@ -179,7 +179,7 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
         ) : null}
         {section === "members" ? (
           <SpaceMembersSection
-            currentTeamName={currentTeamName}
+            currentSpaceName={currentSpaceName}
             currentUserIsOwner={currentUserIsOwner}
             currentUserRole={currentUserRole}
             loadingMembers={membersLoading}
@@ -205,7 +205,7 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
       <SpaceInviteMemberDialog
         open={inviteOpen}
         onClose={closeInviteDialog}
-        currentTeamName={currentTeamName}
+        currentSpaceName={currentSpaceName}
         currentUserRole={currentUserRole}
         saving={savingInvite}
         email={email}

@@ -4,7 +4,7 @@ import { getErrorMessage } from "../../lib/errorMessage"
 import { downloadAuthenticated } from "../../lib/download"
 import { navigate } from "../../router"
 import { useAuth } from "../../contexts/AuthContext"
-import { useTeam } from "../../contexts/TeamContext"
+import { useSpace } from "../../contexts/SpaceContext"
 import {
   artifactContentUrl,
   artifactLabel,
@@ -29,7 +29,7 @@ const PAGE_SIZE = 50
  */
 export function Artifacts() {
   const { token, user } = useAuth()
-  const { currentTeamId, currentUserRole } = useTeam()
+  const { currentSpaceId, currentUserRole } = useSpace()
   const [items, setItems] = useState<ApiArtifact[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -40,10 +40,10 @@ export function Artifacts() {
 
   const load = useCallback(
     (offset: number) => {
-      if (!currentTeamId || !token) return
+      if (!currentSpaceId || !token) return
       setLoading(true)
       setError(null)
-      listArtifacts(currentTeamId, token, { limit: PAGE_SIZE, offset })
+      listArtifacts(currentSpaceId, token, { limit: PAGE_SIZE, offset })
         .then((res) => {
           setItems((prev) => (offset === 0 ? res.items : [...prev, ...res.items]))
           setTotal(res.total)
@@ -51,7 +51,7 @@ export function Artifacts() {
         .catch((err) => setError(getErrorMessage(err, "Failed to load artifacts")))
         .finally(() => setLoading(false))
     },
-    [currentTeamId, token]
+    [currentSpaceId, token]
   )
 
   useEffect(() => {
@@ -62,11 +62,11 @@ export function Artifacts() {
     const file = event.target.files?.[0]
     // Cleared straight away so choosing the same file twice still fires.
     event.target.value = ""
-    if (!file || !currentTeamId || !token) return
+    if (!file || !currentSpaceId || !token) return
     setUploading(true)
     setError(null)
     try {
-      await uploadArtifact(currentTeamId, token, file)
+      await uploadArtifact(currentSpaceId, token, file)
       load(0)
     } catch (err) {
       setError(getErrorMessage(err, "Upload failed"))
@@ -121,7 +121,7 @@ export function Artifacts() {
             type="button"
             className="page-activity__action-btn"
             onClick={() => fileInput.current?.click()}
-            disabled={uploading || !currentTeamId}
+            disabled={uploading || !currentSpaceId}
           >
             {uploading ? "Uploading…" : "Upload a file"}
           </button>

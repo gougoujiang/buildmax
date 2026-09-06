@@ -18,8 +18,8 @@ import (
 
 // Plugin resolution happens here, in the route where a worker claims its run,
 // beside the agent revision that already resolves there. The server resolves
-// and the worker never does: a worker reading its team's activations would be a
-// run token reading team state.
+// and the worker never does: a worker reading its space's activations would be a
+// run token reading space state.
 //
 // Resolving late is safe because an activation names an exact version and
 // digest. Publishing a release changes nothing until somebody moves a pin, so
@@ -31,11 +31,11 @@ import (
 // this run will materialize.
 //
 // The second return is the reason a run cannot proceed. A named plugin whose
-// team has no enabled activation is not skipped: an agent that names a plugin
+// space has no enabled activation is not skipped: an agent that names a plugin
 // has declared it needs one, and a background run that quietly does less than
 // its definition says is acted on by somebody who was not watching it.
 func (h *Handler) resolvePluginPins(r *http.Request, run *coretask.Run, task *coretask.Task, agent *agentdef.Agent) (pins []coreplugin.Pin, refusal string) {
-	// Already resolved. A worker polls this route while it runs, and a team
+	// Already resolved. A worker polls this route while it runs, and a space
 	// moving a pin mid-run must not change what the run was given — the same
 	// rule, and the same reason, as the agent revision's first-write-wins.
 	if len(run.PluginPins) > 0 {
@@ -49,14 +49,14 @@ func (h *Handler) resolvePluginPins(r *http.Request, run *coretask.Run, task *co
 	}
 	out := make([]coreplugin.Pin, 0, len(agent.Plugins))
 	for _, name := range agent.Plugins {
-		activation, err := h.cfg.Activations.GetPluginActivation(r.Context(), task.TeamID, name)
+		activation, err := h.cfg.Activations.GetPluginActivation(r.Context(), task.SpaceID, name)
 		if err != nil {
 			componentLog().Error("worker handler: activation lookup failed",
 				"task_id", task.ID, "plugin_name", name, "err", err)
-			return nil, fmt.Sprintf("could not read this team's activation of plugin %q", name)
+			return nil, fmt.Sprintf("could not read this space's activation of plugin %q", name)
 		}
 		if activation == nil {
-			return nil, fmt.Sprintf("this agent names plugin %q, which this team has not activated", name)
+			return nil, fmt.Sprintf("this agent names plugin %q, which this space has not activated", name)
 		}
 		if !activation.Enabled {
 			return nil, fmt.Sprintf("this agent names plugin %q, whose activation is suspended", name)
@@ -114,7 +114,7 @@ func (h *Handler) downloadPluginPackage(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// The recorded pins are the authorization. They were resolved when this run
-	// claimed itself, so a team activation changed since then cannot widen what
+	// claimed itself, so a space activation changed since then cannot widen what
 	// the run may fetch, and a package the run was never pinned to reads as not
 	// found rather than as forbidden.
 	pin, found := findPin(run.PluginPins, name, version)
@@ -133,7 +133,7 @@ func (h *Handler) downloadPluginPackage(w http.ResponseWriter, r *http.Request) 
 	}
 	// A yanked release stays downloadable here with no acknowledgement, unlike
 	// the user route: yank withdraws a release from default selection and does
-	// not reach into a team's activation, so a run pinned to one must still run.
+	// not reach into a space's activation, so a run pinned to one must still run.
 	body, size, err := h.cfg.Plugins.OpenPackage(r.Context(), *release)
 	if err != nil {
 		if errors.Is(err, apierr.ErrNotFound) {

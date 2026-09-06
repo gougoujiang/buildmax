@@ -20,7 +20,7 @@ func TestTaskRunLivenessQueries(t *testing.T) {
 		t.Fatalf("CreateConversation: %v", err)
 	}
 	task, err := s.CreateTask(ctx, &coretask.CreateInput{
-		TeamID:         conv.TeamID,
+		SpaceID:        conv.SpaceID,
 		ConversationID: conv.ID,
 		Input:          "input",
 		CreatedBy:      user,

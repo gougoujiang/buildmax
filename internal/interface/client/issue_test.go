@@ -11,13 +11,13 @@ import (
 	"github.com/gougoujiang/buildmax/internal/tool"
 )
 
-// The inbox asks each team the same question and keeps the team alongside each
-// issue, because a local surface has no current team to put back later.
-func TestListAssignedIssuesCarriesTheTeam(t *testing.T) {
+// The inbox asks each space the same question and keeps the space alongside each
+// issue, because a local surface has no current space to put back later.
+func TestListAssignedIssuesCarriesTheSpace(t *testing.T) {
 	var asked []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.URL.Path == "/api/teams":
+		case r.URL.Path == "/api/spaces":
 			_, _ = w.Write([]byte(`[{"id":"tm_1","name":"Platform"},{"id":"tm_2","name":"Data"}]`))
 		case strings.HasSuffix(r.URL.Path, "/issues"):
 			asked = append(asked, r.URL.Path+"?"+r.URL.RawQuery)
@@ -39,11 +39,11 @@ func TestListAssignedIssuesCarriesTheTeam(t *testing.T) {
 	if len(issues) != 1 || issues[0].Issue.ID != "i_1" {
 		t.Fatalf("issues = %+v", issues)
 	}
-	if issues[0].TeamID != "tm_1" || issues[0].TeamName != "Platform" {
-		t.Fatalf("team lost: %+v", issues[0])
+	if issues[0].SpaceID != "tm_1" || issues[0].SpaceName != "Platform" {
+		t.Fatalf("space lost: %+v", issues[0])
 	}
 	if len(asked) != 2 {
-		t.Fatalf("asked %d teams, want 2: %v", len(asked), asked)
+		t.Fatalf("asked %d spaces, want 2: %v", len(asked), asked)
 	}
 	for _, url := range asked {
 		if !strings.Contains(url, "assignee=me") || !strings.Contains(url, "status=todo") {
@@ -52,12 +52,12 @@ func TestListAssignedIssuesCarriesTheTeam(t *testing.T) {
 	}
 }
 
-// One unreadable team must not empty the inbox. The caller is told which team
+// One unreadable space must not empty the inbox. The caller is told which space
 // failed and still sees the rest.
-func TestListAssignedIssuesSkipsATeamItCannotRead(t *testing.T) {
+func TestListAssignedIssuesSkipsASpaceItCannotRead(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.URL.Path == "/api/teams":
+		case r.URL.Path == "/api/spaces":
 			_, _ = w.Write([]byte(`[{"id":"tm_1","name":"Platform"},{"id":"tm_gone","name":"Archived"}]`))
 		case strings.Contains(r.URL.Path, "tm_gone"):
 			w.WriteHeader(http.StatusForbidden)
@@ -70,16 +70,16 @@ func TestListAssignedIssuesSkipsATeamItCannotRead(t *testing.T) {
 
 	issues, problems := NewClient(srv.URL).ListAssignedIssues(t.Context(), "tok", "", 0)
 	if len(issues) != 1 {
-		t.Fatalf("one team failing emptied the inbox: %+v", issues)
+		t.Fatalf("one space failing emptied the inbox: %+v", issues)
 	}
 	if len(problems) != 1 || !strings.Contains(problems[0].Error(), "Archived") {
-		t.Fatalf("problems = %v, want one naming the team", problems)
+		t.Fatalf("problems = %v, want one naming the space", problems)
 	}
 }
 
-// A server that cannot even list teams has no inbox to show, and says so rather
+// A server that cannot even list spaces has no inbox to show, and says so rather
 // than reporting an empty one.
-func TestListAssignedIssuesReportsATeamListingFailure(t *testing.T) {
+func TestListAssignedIssuesReportsASpaceListingFailure(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = w.Write([]byte(`{"error":"token expired"}`))
@@ -90,7 +90,7 @@ func TestListAssignedIssuesReportsATeamListingFailure(t *testing.T) {
 	if len(issues) != 0 || len(problems) != 1 {
 		t.Fatalf("issues = %v, problems = %v", issues, problems)
 	}
-	if !strings.Contains(problems[0].Error(), "list teams") {
+	if !strings.Contains(problems[0].Error(), "list spaces") {
 		t.Fatalf("problem does not say what failed: %v", problems[0])
 	}
 }
@@ -171,12 +171,12 @@ func TestLocalIssueClientReadsTheIssueChildrenAndThread(t *testing.T) {
 // than tools that fail on every call.
 func TestNewIssueClientRefusesAnIncompleteScope(t *testing.T) {
 	token := func(string) (string, error) { return "tok", nil }
-	for _, tc := range []struct{ name, server, team, issue string }{
+	for _, tc := range []struct{ name, server, space, issue string }{
 		{"no server", "", "tm_1", "i_1"},
-		{"no team", "https://s", "", "i_1"},
+		{"no space", "https://s", "", "i_1"},
 		{"no issue", "https://s", "tm_1", ""},
 	} {
-		if got := NewIssueClient(tc.server, tc.team, tc.issue, token); got != nil {
+		if got := NewIssueClient(tc.server, tc.space, tc.issue, token); got != nil {
 			t.Errorf("%s: got a client anyway", tc.name)
 		}
 	}
@@ -224,12 +224,12 @@ func TestSetIssueStatusSurfacesAConflict(t *testing.T) {
 	}
 }
 
-// FindIssue returns the issue with the team, because every caller needs it
+// FindIssue returns the issue with the space, because every caller needs it
 // next -- to print it, or to read the version an update has to carry.
-func TestFindIssueReturnsTheIssueWithItsTeam(t *testing.T) {
+func TestFindIssueReturnsTheIssueWithItsSpace(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.URL.Path == "/api/teams":
+		case r.URL.Path == "/api/spaces":
 			_, _ = w.Write([]byte(`[{"id":"tm_1","name":"Platform"},{"id":"tm_2","name":"Data"}]`))
 		case strings.Contains(r.URL.Path, "tm_2"):
 			_, _ = w.Write([]byte(`{"id":"i_1","title":"Ship it","status":"todo","version":3}`))
@@ -240,21 +240,21 @@ func TestFindIssueReturnsTheIssueWithItsTeam(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	team, issue, err := NewClient(srv.URL).FindIssue(t.Context(), "tok", "i_1")
+	space, issue, err := NewClient(srv.URL).FindIssue(t.Context(), "tok", "i_1")
 	if err != nil {
 		t.Fatalf("FindIssue: %v", err)
 	}
-	if team.ID != "tm_2" || team.Name != "Data" {
-		t.Fatalf("team = %+v", team)
+	if space.ID != "tm_2" || space.Name != "Data" {
+		t.Fatalf("space = %+v", space)
 	}
 	if issue.Version != 3 {
 		t.Fatalf("version = %d, want 3", issue.Version)
 	}
 }
 
-func TestFindIssueSaysWhenNoTeamHasIt(t *testing.T) {
+func TestFindIssueSaysWhenNoSpaceHasIt(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/teams" {
+		if r.URL.Path == "/api/spaces" {
 			_, _ = w.Write([]byte(`[{"id":"tm_1","name":"Platform"}]`))
 			return
 		}
@@ -263,6 +263,6 @@ func TestFindIssueSaysWhenNoTeamHasIt(t *testing.T) {
 	}))
 	defer srv.Close()
 	if _, _, err := NewClient(srv.URL).FindIssue(t.Context(), "tok", "i_nope"); err == nil {
-		t.Fatal("a missing issue resolved to a team")
+		t.Fatal("a missing issue resolved to a space")
 	}
 }

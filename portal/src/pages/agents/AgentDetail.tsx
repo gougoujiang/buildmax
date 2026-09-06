@@ -14,8 +14,8 @@ import {
   type AgentDefinitionInput,
 } from "../../features/agents"
 import { createAgentTask, listAgentTasks } from "../../features/tasks"
-import { listSecrets } from "../../features/teamSecrets/api"
-import { listActivations } from "../../features/teamPlugins/api"
+import { listSecrets } from "../../features/spaceSecrets/api"
+import { listActivations } from "../../features/spacePlugins/api"
 import { listPlugins } from "../../features/plugins/api"
 import { nameablePlugins } from "../../features/plugins/nameablePlugins"
 import { runStatusLabel, runStatusTone, taskRunFailed, taskRunFinished } from "../../features/conversations/thread"
@@ -25,7 +25,7 @@ import { RevisionHistory } from "../../components/RevisionHistory"
 import { RunAgentModal } from "../../components/RunAgentModal"
 import { consumptionHealthCount } from "../../components/SecretConsumptionEditor"
 import { useApp } from "../../contexts/AppContext"
-import { useTeam } from "../../contexts/TeamContext"
+import { useSpace } from "../../contexts/SpaceContext"
 
 interface AgentDetailProps {
   token: string | null
@@ -42,7 +42,7 @@ const TABS: { id: Tab; label: string }[] = [
 ]
 
 export function AgentDetail({ token, agentId }: AgentDetailProps) {
-  const { currentTeamId, currentUserRole } = useTeam()
+  const { currentSpaceId, currentUserRole } = useSpace()
   const { setEntityLabel } = useApp()
   const canManage = currentUserRole === "owner" || currentUserRole === "admin"
 
@@ -67,7 +67,7 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
   const [restoringRevision, setRestoringRevision] = useState<number | null>(null)
 
   const load = useCallback(async () => {
-    if (!token || !currentTeamId) {
+    if (!token || !currentSpaceId) {
       setAgent(null)
       setLoading(false)
       return
@@ -76,9 +76,9 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
     setError(null)
     try {
       const [agentApi, tasksApi, revisionsApi] = await Promise.all([
-        getAgent(currentTeamId, agentId, token),
-        listAgentTasks(currentTeamId, agentId, token),
-        getAgentRevisions(currentTeamId, agentId, token),
+        getAgent(currentSpaceId, agentId, token),
+        listAgentTasks(currentSpaceId, agentId, token),
+        getAgentRevisions(currentSpaceId, agentId, token),
       ])
       setAgent(apiAgentToAgent(agentApi))
       setTasks(tasksApi.tasks)
@@ -88,7 +88,7 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
     } finally {
       setLoading(false)
     }
-  }, [token, currentTeamId, agentId])
+  }, [token, currentSpaceId, agentId])
 
   useEffect(() => {
     void load()
@@ -104,16 +104,16 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
   // health check. Only owners/admins may list them; a member gets empty options
   // rather than a blocked page.
   useEffect(() => {
-    if (!token || !currentTeamId || !canManage) {
+    if (!token || !currentSpaceId || !canManage) {
       setSecrets([])
       setAvailablePlugins([])
       return
     }
-    listSecrets(token, currentTeamId)
+    listSecrets(token, currentSpaceId)
       .then((res) => setSecrets(res.secrets ?? []))
       .catch(() => setSecrets([]))
     Promise.all([
-      listActivations(token, currentTeamId).catch(() => null),
+      listActivations(token, currentSpaceId).catch(() => null),
       listPlugins(token).catch(() => null),
     ])
       .then(([activations, catalog]) =>
@@ -121,28 +121,28 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
       )
       .catch(() => setAvailablePlugins([]))
     // The model catalog is deployment-wide, so it is fetched independently of
-    // the team-scoped plugin and secret options; an empty list leaves the
+    // the space-scoped plugin and secret options; an empty list leaves the
     // picker at just the deployment default.
     listAgentModels(token)
       .then(setAvailableModels)
       .catch(() => setAvailableModels([]))
-  }, [token, currentTeamId, canManage])
+  }, [token, currentSpaceId, canManage])
 
   const loadRevisions = useCallback(() => {
-    if (!token || !currentTeamId) return
+    if (!token || !currentSpaceId) return
     setRevisionsLoading(true)
     setRevisionsError(null)
-    getAgentRevisions(currentTeamId, agentId, token)
+    getAgentRevisions(currentSpaceId, agentId, token)
       .then((res) => setRevisions(res.revisions.map(apiAgentRevisionToAgentRevision)))
       .catch((err) => setRevisionsError(getErrorMessage(err, "Failed to load history")))
       .finally(() => setRevisionsLoading(false))
-  }, [token, currentTeamId, agentId])
+  }, [token, currentSpaceId, agentId])
 
   function handleSave(definition: AgentDefinitionInput) {
-    if (!token || !currentTeamId || !agent) return
+    if (!token || !currentSpaceId || !agent) return
     setSaving(true)
     setSaveError(null)
-    updateAgent(currentTeamId, agent.id, definition, token)
+    updateAgent(currentSpaceId, agent.id, definition, token)
       .then((updated) => {
         setAgent(apiAgentToAgent(updated))
         loadRevisions()
@@ -152,10 +152,10 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
   }
 
   function handleDelete() {
-    if (!token || !currentTeamId || !agent) return
+    if (!token || !currentSpaceId || !agent) return
     setDeleting(true)
     setSaveError(null)
-    deleteAgent(currentTeamId, agent.id, token)
+    deleteAgent(currentSpaceId, agent.id, token)
       .then(() => navigate({ name: "agents" }))
       .catch((err) => {
         setSaveError(getErrorMessage(err, "Failed to delete agent"))
@@ -164,10 +164,10 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
   }
 
   function handleRestoreRevision(revision: number) {
-    if (!token || !currentTeamId || !agent) return
+    if (!token || !currentSpaceId || !agent) return
     setRevisionsError(null)
     setRestoringRevision(revision)
-    restoreAgentRevision(currentTeamId, agent.id, revision, token)
+    restoreAgentRevision(currentSpaceId, agent.id, revision, token)
       .then((restored) => {
         setAgent(apiAgentToAgent(restored))
         loadRevisions()
@@ -177,10 +177,10 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
   }
 
   function handleStartRun(input: string) {
-    if (!token || !currentTeamId || !agent) return
+    if (!token || !currentSpaceId || !agent) return
     setStarting(true)
     setRunError(null)
-    createAgentTask(currentTeamId, agent.id, input, token)
+    createAgentTask(currentSpaceId, agent.id, input, token)
       .then((created) => {
         setRunOpen(false)
         navigate({ name: "task", taskId: created.id })

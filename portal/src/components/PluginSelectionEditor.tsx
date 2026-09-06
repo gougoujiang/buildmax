@@ -1,6 +1,6 @@
 /**
  * Editor for the catalog plugins an agent loads for its background runs. It is
- * a checklist, not a text field, so the agent can only name plugins the team
+ * a checklist, not a text field, so the agent can only name plugins the space
  * can actually use: `available` is the nameable set (see nameablePlugins).
  *
  * A plugin already on the agent but no longer nameable (an activation was
@@ -15,7 +15,7 @@ interface PluginSelectionEditorProps {
 }
 
 export function PluginSelectionEditor({ value, onChange, available }: PluginSelectionEditorProps) {
-  // Union of what the team offers and what the agent already names, sorted, so
+  // Union of what the space offers and what the agent already names, sorted, so
   // a stale name stays visible instead of vanishing from the list.
   const names = [...new Set([...available, ...value])].sort()
   const availableSet = new Set(available)
@@ -32,8 +32,8 @@ export function PluginSelectionEditor({ value, onChange, available }: PluginSele
   if (names.length === 0) {
     return (
       <p className="modal__hint">
-        No plugins are available to this team yet. A team owner can activate plugins, or open the
-        catalog, under Team settings.
+        No plugins are available to this space yet. A space owner can activate plugins, or open the
+        catalog, under Space settings.
       </p>
     )
   }
@@ -52,7 +52,7 @@ export function PluginSelectionEditor({ value, onChange, available }: PluginSele
             />
             <span className="agent-plugins__name">{name}</span>
             {stale ? (
-              <span className="agent-plugins__note">not available to this team</span>
+              <span className="agent-plugins__note">not available to this space</span>
             ) : null}
           </label>
         )

@@ -6,11 +6,11 @@ import (
 )
 
 // alwaysDenyExact lists BuildMax's own process credentials, which must never
-// reach a sandboxed child and are never allow-listable. A Team Secret grant can
+// reach a sandboxed child and are never allow-listable. A Space Secret grant can
 // re-admit a secret-shaped name (see ScrubEnvList's allowed set), but not one
 // of these: the run token, the JWT signing secret, and the deployment provider
 // key are the deployment's own authority, not a value a run is ever granted.
-// See docs/design/team-secrets.md §13.1.
+// See docs/design/space-secrets.md §13.1.
 var alwaysDenyExact = []string{
 	"BUILDMAX_API_KEY",
 	"BUILDMAX_RUN_TOKEN",

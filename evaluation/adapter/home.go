@@ -77,7 +77,7 @@ func WriteHome(dir string, subject contract.SubjectManifest, cred ModelAccess) e
 		return fmt.Errorf("subject %q names no model target", subject.Name)
 	}
 	if subject.Model.Transport == "buildmax" {
-		// A managed-gateway subject needs a server URL, a team, and a login the
+		// A managed-gateway subject needs a server URL, a space, and a login the
 		// CLI adapter has no way to establish. Refusing is better than writing
 		// a direct entry that quietly measures a different transport than the
 		// manifest claims.

@@ -24,7 +24,7 @@ func TestToPluginActivationCarriesThePin(t *testing.T) {
 			Enabled:    true,
 			Origin:     string(coreplugin.ActivationAutomatic),
 		},
-		TeamPublicID:        "gsyt7at6cjfr33d73mtc",
+		SpacePublicID:       "gsyt7at6cjfr33d73mtc",
 		ActivatedByPublicID: "gsyt7at6cjfr33d73mtd",
 		UpdatedByPublicID:   &updatedBy,
 	})
@@ -34,7 +34,7 @@ func TestToPluginActivationCarriesThePin(t *testing.T) {
 	if got.Origin != coreplugin.ActivationAutomatic {
 		t.Errorf("origin = %q, want automatic", got.Origin)
 	}
-	if got.TeamID == "" || got.ActivatedBy == "" || got.UpdatedBy != updatedBy {
+	if got.SpaceID == "" || got.ActivatedBy == "" || got.UpdatedBy != updatedBy {
 		t.Errorf("a handle was dropped: %+v", got)
 	}
 }
@@ -53,13 +53,13 @@ func TestToPluginActivationToleratesNoUpdater(t *testing.T) {
 func TestPluginActivationLifecycle(t *testing.T) {
 	s, ctx := newTestStore(t)
 	owner := newTestUser(t, s, "activation-owner")
-	team, err := s.CreateTeam(ctx, "activation team", owner, "")
+	space, err := s.CreateSpace(ctx, "activation space", owner, "")
 	if err != nil {
-		t.Fatalf("CreateTeam: %v", err)
+		t.Fatalf("CreateSpace: %v", err)
 	}
 
 	activated, err := s.ActivatePlugin(ctx, coreplugin.ActivateInput{
-		TeamID:     team.ID,
+		SpaceID:    space.ID,
 		PluginName: "code-review",
 		Version:    "1.0.0",
 		Digest:     "sha256:one",
@@ -73,16 +73,16 @@ func TestPluginActivationLifecycle(t *testing.T) {
 		t.Fatalf("unexpected activation: %+v", activated)
 	}
 
-	// One row per team and plugin: a second activation is a pin move.
+	// One row per space and plugin: a second activation is a pin move.
 	if _, err := s.ActivatePlugin(ctx, coreplugin.ActivateInput{
-		TeamID: team.ID, PluginName: "code-review", Version: "2.0.0",
+		SpaceID: space.ID, PluginName: "code-review", Version: "2.0.0",
 		Digest: "sha256:two", Origin: coreplugin.ActivationCurated, ActorID: owner,
 	}); !errors.Is(err, coreplugin.ErrAlreadyActivated) {
 		t.Fatalf("second activation err = %v, want ErrPluginAlreadyActivated", err)
 	}
 
 	moved, err := s.MovePluginActivationPin(ctx, coreplugin.MovePinInput{
-		TeamID: team.ID, PluginName: "code-review", Version: "2.0.0",
+		SpaceID: space.ID, PluginName: "code-review", Version: "2.0.0",
 		Digest: "sha256:two", ActorID: owner,
 	})
 	if err != nil {
@@ -93,7 +93,7 @@ func TestPluginActivationLifecycle(t *testing.T) {
 	}
 
 	// Suspension keeps the pin; that is why it is a flag and not a delete.
-	suspended, err := s.SetPluginActivationEnabled(ctx, team.ID, "code-review", false, owner)
+	suspended, err := s.SetPluginActivationEnabled(ctx, space.ID, "code-review", false, owner)
 	if err != nil {
 		t.Fatalf("SetPluginActivationEnabled: %v", err)
 	}
@@ -102,11 +102,11 @@ func TestPluginActivationLifecycle(t *testing.T) {
 	}
 
 	// Suspending an already suspended activation is not "not found".
-	if _, err := s.SetPluginActivationEnabled(ctx, team.ID, "code-review", false, owner); err != nil {
+	if _, err := s.SetPluginActivationEnabled(ctx, space.ID, "code-review", false, owner); err != nil {
 		t.Fatalf("re-suspend: %v", err)
 	}
 
-	listed, err := s.ListPluginActivations(ctx, team.ID)
+	listed, err := s.ListPluginActivations(ctx, space.ID)
 	if err != nil {
 		t.Fatalf("ListPluginActivations: %v", err)
 	}
@@ -115,83 +115,83 @@ func TestPluginActivationLifecycle(t *testing.T) {
 	}
 
 	if _, err := s.MovePluginActivationPin(ctx, coreplugin.MovePinInput{
-		TeamID: team.ID, PluginName: "absent", Version: "1.0.0", Digest: "sha256:x", ActorID: owner,
+		SpaceID: space.ID, PluginName: "absent", Version: "1.0.0", Digest: "sha256:x", ActorID: owner,
 	}); !errors.Is(err, apierr.ErrNotFound) {
 		t.Fatalf("moving an absent activation err = %v, want ErrNotFound", err)
 	}
 }
 
-func TestSetTeamPluginCurationRoundTrips(t *testing.T) {
+func TestSetSpacePluginCurationRoundTrips(t *testing.T) {
 	s, ctx := newTestStore(t)
 	owner := newTestUser(t, s, "curation-owner")
-	team, err := s.CreateTeam(ctx, "curation team", owner, "")
+	space, err := s.CreateSpace(ctx, "curation space", owner, "")
 	if err != nil {
-		t.Fatalf("CreateTeam: %v", err)
+		t.Fatalf("CreateSpace: %v", err)
 	}
-	if team.PluginCuration != coreplugin.CurationOpen {
-		t.Errorf("a new team's mode = %q, want open by default", team.PluginCuration)
+	if space.PluginCuration != coreplugin.CurationOpen {
+		t.Errorf("a new space's mode = %q, want open by default", space.PluginCuration)
 	}
 
-	if err := s.SetTeamPluginCuration(ctx, team.ID, coreplugin.CurationCurated); err != nil {
-		t.Fatalf("SetTeamPluginCuration: %v", err)
+	if err := s.SetSpacePluginCuration(ctx, space.ID, coreplugin.CurationCurated); err != nil {
+		t.Fatalf("SetSpacePluginCuration: %v", err)
 	}
-	got, err := s.GetTeam(ctx, team.ID)
+	got, err := s.GetSpace(ctx, space.ID)
 	if err != nil {
-		t.Fatalf("GetTeam: %v", err)
+		t.Fatalf("GetSpace: %v", err)
 	}
 	if got.PluginCuration != coreplugin.CurationCurated {
 		t.Errorf("mode = %q, want curated", got.PluginCuration)
 	}
 }
 
-func TestSetTeamSandboxDefaultsRoundTrips(t *testing.T) {
+func TestSetSpaceSandboxDefaultsRoundTrips(t *testing.T) {
 	s, ctx := newTestStore(t)
 	owner := newTestUser(t, s, "sandbox-defaults-owner")
-	team, err := s.CreateTeam(ctx, "sandbox defaults team", owner, "")
+	space, err := s.CreateSpace(ctx, "sandbox defaults space", owner, "")
 	if err != nil {
-		t.Fatalf("CreateTeam: %v", err)
+		t.Fatalf("CreateSpace: %v", err)
 	}
-	if team.DefaultSandboxNetworkTier != "" || team.DefaultSandboxFilesystemTier != "" {
-		t.Errorf("a new team's defaults = %q/%q, want empty", team.DefaultSandboxNetworkTier, team.DefaultSandboxFilesystemTier)
+	if space.DefaultSandboxNetworkTier != "" || space.DefaultSandboxFilesystemTier != "" {
+		t.Errorf("a new space's defaults = %q/%q, want empty", space.DefaultSandboxNetworkTier, space.DefaultSandboxFilesystemTier)
 	}
 
-	if err := s.SetTeamSandboxDefaults(ctx, team.ID, "registries", "workspace_plus_shared_read"); err != nil {
-		t.Fatalf("SetTeamSandboxDefaults: %v", err)
+	if err := s.SetSpaceSandboxDefaults(ctx, space.ID, "registries", "workspace_plus_shared_read"); err != nil {
+		t.Fatalf("SetSpaceSandboxDefaults: %v", err)
 	}
-	got, err := s.GetTeam(ctx, team.ID)
+	got, err := s.GetSpace(ctx, space.ID)
 	if err != nil {
-		t.Fatalf("GetTeam: %v", err)
+		t.Fatalf("GetSpace: %v", err)
 	}
 	if got.DefaultSandboxNetworkTier != "registries" || got.DefaultSandboxFilesystemTier != "workspace_plus_shared_read" {
 		t.Errorf("defaults = %q/%q, want registries/workspace_plus_shared_read", got.DefaultSandboxNetworkTier, got.DefaultSandboxFilesystemTier)
 	}
 }
 
-func TestSetTeamAgentInstructionsAdvancesOnlyOnChange(t *testing.T) {
+func TestSetSpaceAgentInstructionsAdvancesOnlyOnChange(t *testing.T) {
 	s, ctx := newTestStore(t)
 	owner := newTestUser(t, s, "agent-instructions-owner")
-	team, err := s.CreateTeam(ctx, "agent instructions team", owner, "")
+	space, err := s.CreateSpace(ctx, "agent instructions space", owner, "")
 	if err != nil {
-		t.Fatalf("CreateTeam: %v", err)
+		t.Fatalf("CreateSpace: %v", err)
 	}
 
-	if err := s.SetTeamAgentInstructions(ctx, team.ID, "Use British English."); err != nil {
-		t.Fatalf("SetTeamAgentInstructions: %v", err)
+	if err := s.SetSpaceAgentInstructions(ctx, space.ID, "Use British English."); err != nil {
+		t.Fatalf("SetSpaceAgentInstructions: %v", err)
 	}
-	got, err := s.GetTeam(ctx, team.ID)
+	got, err := s.GetSpace(ctx, space.ID)
 	if err != nil {
-		t.Fatalf("GetTeam: %v", err)
+		t.Fatalf("GetSpace: %v", err)
 	}
 	if got.AgentInstructions != "Use British English." || got.AgentInstructionsRevision != 1 {
 		t.Fatalf("instructions = %q at revision %d, want first revision", got.AgentInstructions, got.AgentInstructionsRevision)
 	}
 
-	if err := s.SetTeamAgentInstructions(ctx, team.ID, "Use British English."); err != nil {
-		t.Fatalf("repeat SetTeamAgentInstructions: %v", err)
+	if err := s.SetSpaceAgentInstructions(ctx, space.ID, "Use British English."); err != nil {
+		t.Fatalf("repeat SetSpaceAgentInstructions: %v", err)
 	}
-	got, err = s.GetTeam(ctx, team.ID)
+	got, err = s.GetSpace(ctx, space.ID)
 	if err != nil {
-		t.Fatalf("GetTeam after repeat: %v", err)
+		t.Fatalf("GetSpace after repeat: %v", err)
 	}
 	if got.AgentInstructionsRevision != 1 {
 		t.Errorf("unchanged text advanced revision to %d, want 1", got.AgentInstructionsRevision)

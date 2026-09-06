@@ -26,10 +26,10 @@ const (
 
 // Conn manages a single WebSocket connection for one authenticated user.
 type Conn struct {
-	conn   *gws.Conn
-	deps   ConnDeps
-	userID string
-	teamID string
+	conn    *gws.Conn
+	deps    ConnDeps
+	userID  string
+	spaceID string
 
 	writeCh chan []byte
 	closed  chan struct{}
@@ -106,9 +106,9 @@ type Turner interface {
 }
 
 // Serve upgrades an authenticated request and runs the connection until it
-// closes. The caller has already decided who this is and which team they are
+// closes. The caller has already decided who this is and which space they are
 // in; this package does not repeat that.
-func Serve(w http.ResponseWriter, r *http.Request, userID, teamID string, deps ConnDeps) {
+func Serve(w http.ResponseWriter, r *http.Request, userID, spaceID string, deps ConnDeps) {
 	upgrader := gws.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
 			if deps.CORSOrigin == "" || deps.CORSOrigin == "*" {
@@ -129,7 +129,7 @@ func Serve(w http.ResponseWriter, r *http.Request, userID, teamID string, deps C
 		conn:    conn,
 		deps:    deps,
 		userID:  userID,
-		teamID:  teamID,
+		spaceID: spaceID,
 		writeCh: make(chan []byte, wsWriteChSize),
 		closed:  make(chan struct{}),
 		cancel:  cancel,
@@ -260,7 +260,7 @@ func (wc *Conn) handleConversationCreate(ctx context.Context, p ConversationCrea
 	if channel == "" {
 		channel = "portal"
 	}
-	conv, err := wc.deps.Conversations.CreateConversationInTeam(ctx, wc.teamID, wc.userID, channel, wc.userID)
+	conv, err := wc.deps.Conversations.CreateConversationInSpace(ctx, wc.spaceID, wc.userID, channel, wc.userID)
 	if err != nil {
 		componentLog().Error("create conversation", "err", err, "user_id", wc.userID)
 		wc.sendEvent(TypeConversationError, ConversationError{Error: "failed to create conversation"})
@@ -295,7 +295,7 @@ func (wc *Conn) handleConversationMessage(ctx context.Context, p ConversationMes
 		})
 		return
 	}
-	if conv == nil || conv.TeamID != wc.teamID {
+	if conv == nil || conv.SpaceID != wc.spaceID {
 		wc.sendEvent(TypeConversationError, ConversationError{
 			ConversationID: p.ConversationID,
 			Error:          "conversation not found",

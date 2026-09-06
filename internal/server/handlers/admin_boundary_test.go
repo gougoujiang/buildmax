@@ -2,7 +2,7 @@ package handlers
 
 // What an administrator still cannot do, and what disabling still stops.
 //
-// Each of these drives an admin route and then a team-scoped, login, or webhook
+// Each of these drives an admin route and then a space-scoped, login, or webhook
 // route, so it spans two packages. They live with the routes that must stay
 // shut rather than with the ones that grant, because that is the side a
 // regression would appear on.
@@ -19,7 +19,7 @@ import (
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 
 	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -27,11 +27,11 @@ import (
 
 const (
 	adminUser      = "u_boundary_admin"
-	boundaryTeam   = "tm_boundary"
+	boundarySpace  = "tm_boundary"
 	boundarySecret = "boundary-secret"
 )
 
-// boundaryFixture registers the whole surface -- admin routes and team routes on
+// boundaryFixture registers the whole surface -- admin routes and space routes on
 // one mux -- because that is the only way to assert that passing through one
 // does not open the other.
 type boundaryFixture struct {
@@ -55,18 +55,18 @@ func newBoundaryFixture(t *testing.T) *boundaryFixture {
 	codes := &mock.MockLoginCodeStore{}
 	keys := &mock.MockUserWebhookKeyStore{}
 
-	// A team the administrator is not a member of. Membership, not the grant,
+	// A space the administrator is not a member of. Membership, not the grant,
 	// is what these routes must ask for.
-	teams := &mock.MockTeamStore{
-		Teams:   []coreteam.Team{{ID: boundaryTeam, Name: "Boundary", CreatedBy: target.ID}},
-		Members: []coreteam.Member{{TeamID: boundaryTeam, UserID: target.ID, Role: coreteam.RoleOwner}},
+	spaces := &mock.MockSpaceStore{
+		Spaces:  []corespace.Space{{ID: boundarySpace, Name: "Boundary", CreatedBy: target.ID}},
+		Members: []corespace.Member{{SpaceID: boundarySpace, UserID: target.ID, Role: corespace.RoleOwner}},
 	}
 
 	h := NewHandler(Config{
 		JWTSecret:           boundarySecret,
 		UserStore:           users,
 		SystemGrantStore:    grants,
-		TeamStore:           teams,
+		SpaceStore:          spaces,
 		AuditStore:          audits,
 		UserWebhookKeyStore: keys,
 		LoginCodeStore:      codes,
@@ -96,12 +96,12 @@ func (f *boundaryFixture) do(t *testing.T, method, path, userID, body string) *h
 	return rec
 }
 
-func TestAdminTeamRoutesAreNotAWayIntoATeam(t *testing.T) {
+func TestAdminSpaceRoutesAreNotAWayIntoASpace(t *testing.T) {
 	f := newBoundaryFixture(t)
 	for _, path := range []string{
-		"/api/teams/tm_shared/issues",
-		"/api/teams/tm_shared/conversations",
-		"/api/teams/tm_shared/audit-events",
+		"/api/spaces/tm_shared/issues",
+		"/api/spaces/tm_shared/conversations",
+		"/api/spaces/tm_shared/audit-events",
 	} {
 		if got := f.do(t, "GET", path, adminUser, "").Code; got != http.StatusForbidden {
 			t.Errorf("%s for a non-member administrator got %d, want 403", path, got)
@@ -129,7 +129,7 @@ func TestDisableStopsTheAccessTokenOnTheNextRequest(t *testing.T) {
 	if !strings.Contains(after.Body.String(), "account_disabled") {
 		t.Errorf("the refusal should say why, got %s", after.Body.String())
 	}
-	work := f.do(t, "GET", "/api/teams/"+boundaryTeam+"/issues", f.target.ID, "")
+	work := f.do(t, "GET", "/api/spaces/"+boundarySpace+"/issues", f.target.ID, "")
 	if work.Code != http.StatusForbidden {
 		t.Errorf("a disabled account reached the work surface with %d, want 403: %s", work.Code, work.Body.String())
 	}
@@ -178,14 +178,14 @@ func TestDisabledAccountCannotLogIn(t *testing.T) {
 // account holds, so disabling refuses it too — without revoking the key, so
 // enabling brings the integration back.
 
-func TestSystemGrantIsNotATeamKey(t *testing.T) {
+func TestSystemGrantIsNotASpaceKey(t *testing.T) {
 	grants := &mock.MockSystemGrantStore{}
 	grants.GrantForTest(adminUser, coreidentity.SystemRoleAdmin)
 
 	mux := matrixMuxWithGrants(t, grants)
-	for _, c := range teamRoutes {
+	for _, c := range spaceRoutes {
 		t.Run(c.method+" "+c.path, func(t *testing.T) {
-			if got := requestAs(t, mux, c, matrixTeam, adminUser); got != http.StatusForbidden {
+			if got := requestAs(t, mux, c, matrixSpace, adminUser); got != http.StatusForbidden {
 				t.Errorf("a system administrator who is not a member got %d, want 403", got)
 			}
 		})
@@ -193,7 +193,7 @@ func TestSystemGrantIsNotATeamKey(t *testing.T) {
 }
 
 // TestAdminDenialIsRecorded: a refused admin request is written to the trail
-// with no team, because the route was not team-scoped. A denial is what shows
+// with no space, because the route was not space-scoped. A denial is what shows
 // someone probing at a boundary, and an admin boundary is worth seeing probed.
 
 // TestDisabledAccountCannotLogIn covers the front door, and the reason the

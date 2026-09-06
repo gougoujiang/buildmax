@@ -13,29 +13,29 @@ import (
 
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 )
 
 // Every route under /api/admin is deployment-scoped, and a system grant is the
 // only thing that opens one. These tests drive real requests for each kind of
-// caller, for the same reason the team matrix does: the check lives in a
+// caller, for the same reason the space matrix does: the check lives in a
 // handler helper rather than in one middleware, so a route that forgets to call
 // it is not a compile error.
 //
 // The case that matters most is not any single route — it is
-// TestSystemGrantIsNotATeamKey below. See docs/design/system-administration.md
+// TestSystemGrantIsNotASpaceKey below. See docs/design/system-administration.md
 // sections 4 and 11.
 
 // errStoreUnavailable stands in for a database that is not answering.
 var errStoreUnavailable = errors.New("grant store unavailable")
 
 const (
-	adminUser      = "u_sysadmin"
-	adminRevoked   = "u_was_admin"
-	adminTeamOwner = "u_team_owner"
-	adminOrdinary  = "u_ordinary"
+	adminUser       = "u_sysadmin"
+	adminRevoked    = "u_was_admin"
+	adminSpaceOwner = "u_space_owner"
+	adminOrdinary   = "u_ordinary"
 )
 
 // adminCase is one deployment-scoped route.
@@ -63,8 +63,8 @@ var adminRoutes = []adminCase{
 	{"GET", "/api/admin/config"},
 	{"GET", "/api/admin/audit-events"},
 	{"GET", "/api/admin/audit-events/export"},
-	{"GET", "/api/admin/teams"},
-	{"GET", "/api/admin/teams/{team_id}"},
+	{"GET", "/api/admin/spaces"},
+	{"GET", "/api/admin/spaces/{space_id}"},
 	{"GET", "/api/admin/llm/models"},
 	{"POST", "/api/admin/llm/models/{model_id}/enable"},
 	{"POST", "/api/admin/llm/models/{model_id}/disable"},
@@ -91,21 +91,21 @@ func adminMux(t *testing.T) (*http.ServeMux, *mock.MockAuditStore) {
 	grants.Grants[1].RevokedAt = &revokedAt
 
 	audits := &mock.MockAuditStore{}
-	teams := &mock.MockTeamStore{
-		Teams: []coreteam.Team{{ID: matrixTeam, Name: "Matrix", CreatedBy: adminTeamOwner}},
-		Members: []coreteam.Member{
-			{TeamID: matrixTeam, UserID: adminTeamOwner, Role: coreteam.RoleOwner},
+	spaces := &mock.MockSpaceStore{
+		Spaces: []corespace.Space{{ID: matrixSpace, Name: "Matrix", CreatedBy: adminSpaceOwner}},
+		Members: []corespace.Member{
+			{SpaceID: matrixSpace, UserID: adminSpaceOwner, Role: corespace.RoleOwner},
 		},
 	}
 	users := &mock.MockUserStore{}
 	// The admin himself must exist, or requireActiveUser cannot tell an
 	// enabled account from an absent one.
 	seedUser(t, users, adminUser, "admin@example.com")
-	seedUser(t, users, adminTeamOwner, "owner@example.com")
+	seedUser(t, users, adminSpaceOwner, "owner@example.com")
 	h := New(Config{
 		JWTSecret:     testSecret,
 		Grants:        grants,
-		Teams:         teams,
+		Spaces:        spaces,
 		Users:         users,
 		LoginCodes:    &mock.MockLoginCodeStore{},
 		RefreshTokens: &mock.MockRefreshTokenStore{},
@@ -138,7 +138,7 @@ func seedUser(t *testing.T, users *mock.MockUserStore, userID, email string) *co
 }
 
 // TestSystemAuthzMatrix drives every admin route as a system administrator, a
-// team owner with no grant, an ordinary user, a user whose grant was revoked,
+// space owner with no grant, an ordinary user, a user whose grant was revoked,
 // and an anonymous caller.
 func TestSystemAuthzMatrix(t *testing.T) {
 	mux, _ := adminMux(t)
@@ -148,10 +148,10 @@ func TestSystemAuthzMatrix(t *testing.T) {
 			if got := adminRequestAs(t, mux, c, adminUser).Code; got == http.StatusForbidden || got == http.StatusUnauthorized {
 				t.Errorf("a system administrator got %d, want the handler to run", got)
 			}
-			// A team owner is the caller this boundary exists to refuse.
-			// Owning a team says nothing about the deployment.
-			if got := adminRequestAs(t, mux, c, adminTeamOwner).Code; got != http.StatusForbidden {
-				t.Errorf("a team owner got %d, want 403", got)
+			// A space owner is the caller this boundary exists to refuse.
+			// Owning a space says nothing about the deployment.
+			if got := adminRequestAs(t, mux, c, adminSpaceOwner).Code; got != http.StatusForbidden {
+				t.Errorf("a space owner got %d, want 403", got)
 			}
 			if got := adminRequestAs(t, mux, c, adminOrdinary).Code; got != http.StatusForbidden {
 				t.Errorf("an ordinary user got %d, want 403", got)
@@ -169,26 +169,26 @@ func TestSystemAuthzMatrix(t *testing.T) {
 	}
 }
 
-// TestSystemGrantIsNotATeamKey is the assertion that makes the principals table
+// TestSystemGrantIsNotASpaceKey is the assertion that makes the principals table
 // in the design true.
 //
-// A system administrator with no membership drives the team-scoped routes and
+// A system administrator with no membership drives the space-scoped routes and
 // is refused by every one of them. If anybody ever proposes consulting the
-// grant inside authorizeTeamAction, this is the test that fails, and the reason
+// grant inside authorizeSpaceAction, this is the test that fails, and the reason
 // it exists is that the failure would otherwise be silent: an administrator
-// would quietly acquire read access to every team's prompts, artifacts, and
+// would quietly acquire read access to every space's prompts, artifacts, and
 // traces, and no route would look different.
 func TestAdminDenialIsRecorded(t *testing.T) {
 	mux, audits := adminMux(t)
 
-	if got := adminRequestAs(t, mux, adminRoutes[0], adminTeamOwner).Code; got != http.StatusForbidden {
-		t.Fatalf("setup: team owner got %d, want 403", got)
+	if got := adminRequestAs(t, mux, adminRoutes[0], adminSpaceOwner).Code; got != http.StatusForbidden {
+		t.Fatalf("setup: space owner got %d, want 403", got)
 	}
 	if len(audits.Events) != 1 {
 		t.Fatalf("got %d events, want 1: %+v", len(audits.Events), audits.Events)
 	}
 	e := audits.Events[0]
-	if e.Action != coreaudit.AccessDenied || e.ActorID != adminTeamOwner || e.TeamID != "" || e.TargetType != "route" {
+	if e.Action != coreaudit.AccessDenied || e.ActorID != adminSpaceOwner || e.SpaceID != "" || e.TargetType != "route" {
 		t.Errorf("denial event wrong: %+v", e)
 	}
 	if !strings.Contains(e.TargetID, "/api/admin/me") {
@@ -215,7 +215,7 @@ func TestAdminRouteFailsClosedOnStoreError(t *testing.T) {
 	h := New(Config{
 		JWTSecret: testSecret,
 		Grants:    grants,
-		Teams:     &mock.MockTeamStore{},
+		Spaces:    &mock.MockSpaceStore{},
 		Audits:    &mock.MockAuditStore{},
 	})
 	mux := http.NewServeMux()
@@ -233,7 +233,7 @@ func TestAdminRouteFailsClosedOnStoreError(t *testing.T) {
 func TestAdminRouteWithoutAStoreDoesNotLeakToAnonymousCallers(t *testing.T) {
 	h := New(Config{
 		JWTSecret: testSecret,
-		Teams:     &mock.MockTeamStore{},
+		Spaces:    &mock.MockSpaceStore{},
 		Audits:    &mock.MockAuditStore{},
 	})
 	mux := http.NewServeMux()

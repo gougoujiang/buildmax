@@ -8,7 +8,7 @@ import {
 } from "../../lib/api/mappers"
 import { getWorkflow, getWorkflowRunDetail } from "../../features/workflows"
 import { navigate } from "../../router"
-import { useTeam } from "../../contexts/TeamContext"
+import { useSpace } from "../../contexts/SpaceContext"
 
 interface WorkflowRunDetailProps {
   token: string | null
@@ -16,7 +16,7 @@ interface WorkflowRunDetailProps {
 }
 
 export function WorkflowRunDetail({ token, workflowRunId }: WorkflowRunDetailProps) {
-  const { currentTeamId } = useTeam()
+  const { currentSpaceId } = useSpace()
   const [workflow, setWorkflow] = useState<Workflow | null>(null)
   const [run, setRun] = useState<WorkflowRun | null>(null)
   const [steps, setSteps] = useState<WorkflowStepRun[]>([])
@@ -26,7 +26,7 @@ export function WorkflowRunDetail({ token, workflowRunId }: WorkflowRunDetailPro
   const [lastRefreshedAt, setLastRefreshedAt] = useState<number | null>(null)
 
   const load = useCallback(async (background = false) => {
-    if (!token || !currentTeamId) {
+    if (!token || !currentSpaceId) {
       setWorkflow(null)
       setRun(null)
       setSteps([])
@@ -41,11 +41,11 @@ export function WorkflowRunDetail({ token, workflowRunId }: WorkflowRunDetailPro
       setError(null)
     }
     try {
-      const detail = await getWorkflowRunDetail(currentTeamId, workflowRunId, token)
+      const detail = await getWorkflowRunDetail(currentSpaceId, workflowRunId, token)
       const mappedRun = apiWorkflowRunToWorkflowRun(detail.run)
       setRun(mappedRun)
       setSteps(detail.steps.map(apiWorkflowStepRunToWorkflowStepRun))
-      const workflowApi = await getWorkflow(currentTeamId, detail.run.workflow_id, token)
+      const workflowApi = await getWorkflow(currentSpaceId, detail.run.workflow_id, token)
       setWorkflow(apiWorkflowToWorkflow(workflowApi))
       setLastRefreshedAt(Date.now())
     } catch (err) {
@@ -59,7 +59,7 @@ export function WorkflowRunDetail({ token, workflowRunId }: WorkflowRunDetailPro
         setLoading(false)
       }
     }
-  }, [token, currentTeamId, workflowRunId])
+  }, [token, currentSpaceId, workflowRunId])
 
   useEffect(() => {
     void load()

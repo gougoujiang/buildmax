@@ -1,7 +1,7 @@
 // Package systemadmin owns who holds a deployment-scoped role.
 //
 // A system grant is the only authority in this system that is not scoped to a
-// team, so both edges that change one are worth recording and neither may
+// space, so both edges that change one are worth recording and neither may
 // invent its own rules about it. What differs between them is authority, not
 // procedure: the shell reached the machine and its database credentials, the
 // route carries a session and an existing grant.

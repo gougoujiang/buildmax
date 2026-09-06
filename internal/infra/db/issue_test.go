@@ -50,8 +50,8 @@ func TestCreatedIssueCarriesTheVersionItWasWrittenWith(t *testing.T) {
 	if !got.CreatedAt.Equal(row.CreatedAt) || !got.UpdatedAt.Equal(row.UpdatedAt) {
 		t.Errorf("timestamps = %s/%s, want %s/%s", got.CreatedAt, got.UpdatedAt, row.CreatedAt, row.UpdatedAt)
 	}
-	if got.TeamID != "tm_1" || got.CreatedBy != "us_1" || got.UserID != "us_1" {
-		t.Errorf("ownership = team %q, created by %q, user %q", got.TeamID, got.CreatedBy, got.UserID)
+	if got.SpaceID != "tm_1" || got.CreatedBy != "us_1" || got.UserID != "us_1" {
+		t.Errorf("ownership = space %q, created by %q, user %q", got.SpaceID, got.CreatedBy, got.UserID)
 	}
 	if got.ParentIssueID == nil || *got.ParentIssueID != "is_parent" {
 		t.Errorf("parent = %v, want is_parent", got.ParentIssueID)

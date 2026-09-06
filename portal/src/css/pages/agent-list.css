@@ -181,7 +181,7 @@
 }
 
 /* Plugin picker inside the agent dialog's Plugins group: a compact checklist of
-   the plugins this team can name. */
+   the plugins this space can name. */
 .agent-plugins {
   display: flex;
   flex-direction: column;

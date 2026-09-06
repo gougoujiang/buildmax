@@ -7,14 +7,14 @@ import (
 
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	"github.com/gougoujiang/buildmax/internal/mock"
 )
 
 func alertingService(runs, tokens int, maxRuns, maxTokens int) (*Service, *mock.MockAuditStore) {
 	audits := &mock.MockAuditStore{}
 	return &Service{
-		TeamStore:   &mockTeamStore{team: &coreteam.Team{ID: "tm_1", QuotaTier: "free_trial"}},
+		SpaceStore:  &mockSpaceStore{space: &corespace.Space{ID: "tm_1", QuotaTier: "free_trial"}},
 		UsageReader: &mockUsageReader{runCount: runs, totalTokens: tokens},
 		TierStore: &mockTierStore{tier: &corequota.Tier{
 			TierName:           "free_trial",
@@ -35,7 +35,7 @@ func actions(audits *mock.MockAuditStore) []string {
 	return out
 }
 
-// A team that is about to start having work refused should hear about it
+// A space that is about to start having work refused should hear about it
 // before the refusals, not after. The crossing is only visible on the
 // admission path: usage is a rolling window, so there is no period boundary a
 // sweep could notice it at.
@@ -56,7 +56,7 @@ func TestCheckRecordsCrossingTheThreshold(t *testing.T) {
 		t.Errorf("detail = %q, want it to name the limit", event.Detail)
 	}
 	// The actor is the deployment, not whoever submitted the work that tipped
-	// the total over. A quota is the team's, and naming the last member to
+	// the total over. A quota is the space's, and naming the last member to
 	// submit would read as blame for a shared budget.
 	if event.ActorType != coreaudit.ActorSystem {
 		t.Errorf("actor type = %q, want %q", event.ActorType, coreaudit.ActorSystem)
@@ -76,7 +76,7 @@ func TestCheckRecordsNothingWellInsideTheLimit(t *testing.T) {
 	}
 }
 
-// A team that keeps submitting at 90% must not turn its own trail into a log
+// A space that keeps submitting at 90% must not turn its own trail into a log
 // of retries. One warning per limit per period is the whole point.
 func TestCheckRecordsOneWarningPerLimitPerPeriod(t *testing.T) {
 	c, audits := alertingService(9, 0, 10, 100_000)
@@ -91,7 +91,7 @@ func TestCheckRecordsOneWarningPerLimitPerPeriod(t *testing.T) {
 	}
 }
 
-// The two limits are separate facts, and a team can be near one and nowhere
+// The two limits are separate facts, and a space can be near one and nowhere
 // near the other.
 func TestCheckRecordsEachLimitSeparately(t *testing.T) {
 	c, audits := alertingService(9, 95_000, 10, 100_000)
@@ -125,7 +125,7 @@ func TestCheckRecordsTheRefusal(t *testing.T) {
 	}
 }
 
-// Enforcement is the point; the record of it is what a team admin reads
+// Enforcement is the point; the record of it is what a space admin reads
 // afterwards. A deployment with no audit store must still enforce quota rather
 // than fail an admission because there was nowhere to write.
 func TestCheckEnforcesWithoutAnAuditStore(t *testing.T) {

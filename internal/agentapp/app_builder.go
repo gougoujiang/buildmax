@@ -40,7 +40,7 @@ func resolveAgentAppConfig(cfg AppConfig) (resolvedAgentAppConfig, error) {
 	if err != nil {
 		return resolvedAgentAppConfig{}, err
 	}
-	if err := ValidateInstructionLayers(cfg.TeamAgentInstructions, cfg.AdditionalSystemPrompt); err != nil {
+	if err := ValidateInstructionLayers(cfg.SpaceAgentInstructions, cfg.AdditionalSystemPrompt); err != nil {
 		return resolvedAgentAppConfig{}, err
 	}
 	settings, err := config.LoadSettings()
@@ -120,7 +120,7 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 		return nil, err
 	}
 	// This run's Secret grant names pass env scrubbing; BuildMax's own
-	// credentials never do, whatever is passed. See docs/design/team-secrets.md.
+	// credentials never do, whatever is passed. See docs/design/space-secrets.md.
 	sandboxManager.AllowEnvNames(cfg.SecretEnvNames)
 
 	app := &AgentApp{
@@ -138,7 +138,7 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 		policy:                      NewConfiguredPolicy(config.ResolvePermissions(resolved.settings.Tools), cfg.Policy),
 		additionalSystemPrompt:      cfg.AdditionalSystemPrompt,
 		additionalSystemPromptLayer: cfg.AdditionalSystemPromptLayer,
-		teamAgentInstructions:       cfg.TeamAgentInstructions,
+		spaceAgentInstructions:      cfg.SpaceAgentInstructions,
 		artifactPublisher:           cfg.ArtifactPublisher,
 		issueClient:                 cfg.IssueClient,
 		sandbox:                     agent.SandboxView(sandboxManager),

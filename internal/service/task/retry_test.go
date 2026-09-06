@@ -23,7 +23,7 @@ func retryFixture(status string) (*Service, *mock.MockTaskRunStore) {
 	runs := &mock.MockTaskRunStore{Runs: []coretask.Run{previous}}
 	tasks := &mock.MockTaskStore{List: []coretask.Task{{
 		ID:        "t_1",
-		TeamID:    "tm_1",
+		SpaceID:   "tm_1",
 		Status:    status,
 		Input:     "the task's original input",
 		LastRunID: util.Ptr("tr_1"),
@@ -102,7 +102,7 @@ func TestRetryRunRefusesWhileARunIsInFlight(t *testing.T) {
 // A task that has never run has nothing to repeat.
 func TestRetryRunRefusesATaskThatNeverRan(t *testing.T) {
 	svc := &Service{
-		Tasks:    &mock.MockTaskStore{List: []coretask.Task{{ID: "t_1", TeamID: "tm_1", Status: "PENDING"}}},
+		Tasks:    &mock.MockTaskStore{List: []coretask.Task{{ID: "t_1", SpaceID: "tm_1", Status: "PENDING"}}},
 		TaskRuns: &mock.MockTaskRunStore{},
 	}
 

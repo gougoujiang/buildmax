@@ -67,7 +67,7 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
       switch (route.section) {
         case "accounts":
           return "Accounts"
-        case "teams":
+        case "spaces":
           return "Spaces"
         case "models":
           return "Models"

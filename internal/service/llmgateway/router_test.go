@@ -343,7 +343,7 @@ func TestClientForTargetSharesTheClientCache(t *testing.T) {
 		t.Fatalf("ClientForTarget: %v", err)
 	}
 
-	// Server-owned inference and a team call on the same target must not open
+	// Server-owned inference and a space call on the same target must not open
 	// two clients, or the two paths can drift apart.
 	if byAlias.Client != byTarget.Client {
 		t.Error("alias and target resolution produced different clients")

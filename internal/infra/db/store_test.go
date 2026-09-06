@@ -12,8 +12,8 @@ import (
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -48,24 +48,24 @@ func newTestUser(t *testing.T, s *Store, label string) string {
 	return u.ID
 }
 
-// newTestTeam creates a team owned by userID and registers its removal.
-func newTestTeam(t *testing.T, s *Store, userID string) string {
+// newTestSpace creates a space owned by userID and registers its removal.
+func newTestSpace(t *testing.T, s *Store, userID string) string {
 	t.Helper()
 	ctx := context.Background()
-	team, err := s.CreateTeam(ctx, "Test "+testPublicID(t), userID, "")
+	space, err := s.CreateSpace(ctx, "Test "+testPublicID(t), userID, "")
 	if err != nil {
-		t.Fatalf("CreateTeam: %v", err)
+		t.Fatalf("CreateSpace: %v", err)
 	}
 	t.Cleanup(func() {
-		key, err := lookupKey(ctx, s.db, "team", team.ID)
+		key, err := lookupKey(ctx, s.db, "space", space.ID)
 		if err != nil {
 			return
 		}
 		db := s.db.WithContext(ctx)
-		_ = db.Delete(&teamMemberRow{}, "team_id = ?", key).Error
-		_ = db.Delete(&teamRow{}, "id = ?", key).Error
+		_ = db.Delete(&spaceMemberRow{}, "space_id = ?", key).Error
+		_ = db.Delete(&spaceRow{}, "id = ?", key).Error
 	})
-	return team.ID
+	return space.ID
 }
 
 // deleteTestUser removes an account and everything keyed to it. Nothing
@@ -87,8 +87,8 @@ func deleteTestUser(t *testing.T, s *Store, userID string) {
 		func() error { return db.Delete(&userRefreshTokenRow{}, "user_id = ?", key).Error },
 		func() error { return db.Delete(&userWebhookKeyRow{}, "user_id = ?", key).Error },
 		func() error { return db.Delete(&systemGrantRow{}, "user_id = ?", key).Error },
-		func() error { return db.Delete(&teamMemberRow{}, "user_id = ?", key).Error },
-		func() error { return db.Delete(&teamRow{}, "personal_for_user_id = ?", key).Error },
+		func() error { return db.Delete(&spaceMemberRow{}, "user_id = ?", key).Error },
+		func() error { return db.Delete(&spaceRow{}, "personal_for_user_id = ?", key).Error },
 		func() error { return db.Delete(&userRow{}, "id = ?", key).Error },
 	} {
 		if err := del(); err != nil {
@@ -139,29 +139,29 @@ func TestCreateUser(t *testing.T) {
 		t.Errorf("UserByEmail: got %+v", found)
 	}
 
-	team, err := s.GetPersonalTeamByUser(ctx, u.ID)
+	space, err := s.GetPersonalSpaceByUser(ctx, u.ID)
 	if err != nil {
-		t.Fatalf("GetPersonalTeamByUser: %v", err)
+		t.Fatalf("GetPersonalSpaceByUser: %v", err)
 	}
-	if team == nil {
-		t.Fatal("GetPersonalTeamByUser: got nil team")
+	if space == nil {
+		t.Fatal("GetPersonalSpaceByUser: got nil space")
 	}
-	if team.Name != coreteam.DefaultPersonalName {
-		t.Errorf("personal team name = %q, want %q", team.Name, coreteam.DefaultPersonalName)
+	if space.Name != corespace.DefaultPersonalName {
+		t.Errorf("personal space name = %q, want %q", space.Name, corespace.DefaultPersonalName)
 	}
-	if team.QuotaTier != "free_trial" {
-		t.Errorf("personal team quota_tier = %q, want %q", team.QuotaTier, "free_trial")
+	if space.QuotaTier != "free_trial" {
+		t.Errorf("personal space quota_tier = %q, want %q", space.QuotaTier, "free_trial")
 	}
 
-	members, err := s.ListTeamMembers(ctx, team.ID)
+	members, err := s.ListSpaceMembers(ctx, space.ID)
 	if err != nil {
-		t.Fatalf("ListTeamMembers: %v", err)
+		t.Fatalf("ListSpaceMembers: %v", err)
 	}
 	if len(members) != 1 {
-		t.Fatalf("ListTeamMembers: got %d members, want 1", len(members))
+		t.Fatalf("ListSpaceMembers: got %d members, want 1", len(members))
 	}
-	if members[0].UserID != u.ID || members[0].Role != coreteam.RoleOwner {
-		t.Errorf("team member = %+v", members[0])
+	if members[0].UserID != u.ID || members[0].Role != corespace.RoleOwner {
+		t.Errorf("space member = %+v", members[0])
 	}
 }
 
@@ -194,7 +194,7 @@ func TestCreateUser_DuplicateEmail(t *testing.T) {
 	}
 }
 
-func TestCreateTeam(t *testing.T) {
+func TestCreateSpace(t *testing.T) {
 	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
 	if dsn == "" {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
@@ -205,44 +205,44 @@ func TestCreateTeam(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	user, err := s.CreateUser(ctx, "team-owner-"+testPublicID(t)+"@example.com", "")
+	user, err := s.CreateUser(ctx, "space-owner-"+testPublicID(t)+"@example.com", "")
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
-	team, err := s.CreateTeam(ctx, "Ops", user.ID, "free_trial")
+	space, err := s.CreateSpace(ctx, "Ops", user.ID, "free_trial")
 	if err != nil {
-		t.Fatalf("CreateTeam: %v", err)
+		t.Fatalf("CreateSpace: %v", err)
 	}
 
 	defer func() {
-		if key, err := lookupKey(ctx, s.db, "team", team.ID); err == nil {
-			_ = s.db.WithContext(ctx).Delete(&teamMemberRow{}, "team_id = ?", key)
-			_ = s.db.WithContext(ctx).Delete(&teamRow{}, "id = ?", key)
+		if key, err := lookupKey(ctx, s.db, "space", space.ID); err == nil {
+			_ = s.db.WithContext(ctx).Delete(&spaceMemberRow{}, "space_id = ?", key)
+			_ = s.db.WithContext(ctx).Delete(&spaceRow{}, "id = ?", key)
 		}
 		deleteTestUser(t, s, user.ID)
 	}()
 
-	if team.ID == "" || team.Name != "Ops" || team.CreatedBy != user.ID {
-		t.Fatalf("created team = %+v", team)
+	if space.ID == "" || space.Name != "Ops" || space.CreatedBy != user.ID {
+		t.Fatalf("created space = %+v", space)
 	}
-	if team.QuotaTier != "free_trial" {
-		t.Fatalf("created team quota_tier = %q, want %q", team.QuotaTier, "free_trial")
+	if space.QuotaTier != "free_trial" {
+		t.Fatalf("created space quota_tier = %q, want %q", space.QuotaTier, "free_trial")
 	}
 
-	list, err := s.ListTeamsByUser(ctx, user.ID)
+	list, err := s.ListSpacesByUser(ctx, user.ID)
 	if err != nil {
-		t.Fatalf("ListTeamsByUser: %v", err)
+		t.Fatalf("ListSpacesByUser: %v", err)
 	}
 	if len(list) < 2 {
-		t.Fatalf("ListTeamsByUser: got %d teams, want at least 2", len(list))
+		t.Fatalf("ListSpacesByUser: got %d spaces, want at least 2", len(list))
 	}
 
-	members, err := s.ListTeamMembers(ctx, team.ID)
+	members, err := s.ListSpaceMembers(ctx, space.ID)
 	if err != nil {
-		t.Fatalf("ListTeamMembers: %v", err)
+		t.Fatalf("ListSpaceMembers: %v", err)
 	}
-	if len(members) != 1 || members[0].UserID != user.ID || members[0].Role != coreteam.RoleOwner {
-		t.Fatalf("team members = %+v", members)
+	if len(members) != 1 || members[0].UserID != user.ID || members[0].Role != corespace.RoleOwner {
+		t.Fatalf("space members = %+v", members)
 	}
 }
 
@@ -264,7 +264,7 @@ func TestTransitionTaskRun_ListRunOutputs(t *testing.T) {
 	defer func() {
 		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "public_id = ?", canonicalPublicID(conv.ID))
 	}()
-	task, err := s.CreateTask(ctx, &coretask.CreateInput{TeamID: conv.TeamID, ConversationID: conv.ID, Input: "input", Title: "", CreatedBy: runOutputUser})
+	task, err := s.CreateTask(ctx, &coretask.CreateInput{SpaceID: conv.SpaceID, ConversationID: conv.ID, Input: "input", Title: "", CreatedBy: runOutputUser})
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
@@ -352,7 +352,7 @@ func TestTaskRunProvenancePersistence(t *testing.T) {
 		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "public_id = ?", canonicalPublicID(conv.ID))
 	}()
 	task, err := s.CreateTask(ctx, &coretask.CreateInput{
-		TeamID:                  conv.TeamID,
+		SpaceID:                 conv.SpaceID,
 		ConversationID:          conv.ID,
 		Input:                   "initial input",
 		Title:                   "initial title",
@@ -455,7 +455,7 @@ func TestClaimTask(t *testing.T) {
 		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "public_id = ?", canonicalPublicID(conv.ID))
 		deleteTestUser(t, s, user.ID)
 	}()
-	task, err := s.CreateTask(ctx, &coretask.CreateInput{TeamID: conv.TeamID, ConversationID: conv.ID, Input: "input", Title: "", CreatedBy: user.ID})
+	task, err := s.CreateTask(ctx, &coretask.CreateInput{SpaceID: conv.SpaceID, ConversationID: conv.ID, Input: "input", Title: "", CreatedBy: user.ID})
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
@@ -463,8 +463,8 @@ func TestClaimTask(t *testing.T) {
 		_ = s.db.WithContext(ctx).Delete(&taskRunRow{}, "task_id = ?", task.ID)
 		_ = s.db.WithContext(ctx).Delete(&taskRow{}, "task_id = ?", task.ID)
 	}()
-	if task.TeamID != conv.TeamID {
-		t.Fatalf("task.TeamID = %q, want %q", task.TeamID, conv.TeamID)
+	if task.SpaceID != conv.SpaceID {
+		t.Fatalf("task.SpaceID = %q, want %q", task.SpaceID, conv.SpaceID)
 	}
 
 	// PENDING -> SCHEDULED: should update
@@ -543,7 +543,7 @@ func TestIssueStore_CreateListUpdate(t *testing.T) {
 		deleteTestUser(t, s, user.ID)
 	}()
 
-	if issue.ID == "" || issue.Status != coreissue.StatusTodo || issue.UserID != user.ID || issue.TeamID == "" {
+	if issue.ID == "" || issue.Status != coreissue.StatusTodo || issue.UserID != user.ID || issue.SpaceID == "" {
 		t.Fatalf("created issue = %+v", issue)
 	}
 
@@ -619,7 +619,7 @@ func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 		_ = s.db.WithContext(ctx).Where("public_id = ?", canonicalPublicID(conv.ID)).Delete(&conversationRow{})
 		deleteTestUser(t, s, user.ID)
 	}()
-	if conv.ID == "" || conv.UserID != user.ID || conv.TeamID == "" || conv.Channel != "portal" {
+	if conv.ID == "" || conv.UserID != user.ID || conv.SpaceID == "" || conv.Channel != "portal" {
 		t.Errorf("CreateConversation: got %+v", conv)
 	}
 

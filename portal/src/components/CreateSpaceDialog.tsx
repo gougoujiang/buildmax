@@ -1,8 +1,8 @@
 import { useState } from "react"
 import { BaseModal } from "@buildmax/gui"
 import { useAuth } from "../contexts/AuthContext"
-import { useTeam } from "../contexts/TeamContext"
-import { createTeam } from "../features/teams/api"
+import { useSpace } from "../contexts/SpaceContext"
+import { createSpace } from "../features/spaces/api"
 import { getErrorMessage } from "../lib/errorMessage"
 
 interface CreateSpaceDialogProps {
@@ -12,19 +12,19 @@ interface CreateSpaceDialogProps {
 
 export function CreateSpaceDialog({ open, onClose }: CreateSpaceDialogProps) {
   const { token } = useAuth()
-  const { refetchTeams } = useTeam()
-  const [teamName, setTeamName] = useState("")
+  const { refetchSpaces } = useSpace()
+  const [spaceName, setSpaceName] = useState("")
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   async function handleCreate() {
-    if (!token || !teamName.trim() || creating) return
+    if (!token || !spaceName.trim() || creating) return
     setCreating(true)
     setError(null)
     try {
-      const created = await createTeam({ name: teamName.trim() }, token)
-      setTeamName("")
-      await refetchTeams(created.id)
+      const created = await createSpace({ name: spaceName.trim() }, token)
+      setSpaceName("")
+      await refetchSpaces(created.id)
       onClose()
     } catch (err) {
       setError(getErrorMessage(err, "Failed to create space"))
@@ -40,21 +40,21 @@ export function CreateSpaceDialog({ open, onClose }: CreateSpaceDialogProps) {
       titleId="create-space-dialog-title"
       onClose={() => {
         if (creating) return
-        setTeamName("")
+        setSpaceName("")
         setError(null)
         onClose()
       }}
     >
       <div className="modal__body">
-        <div className="team-settings-page__dialog">
-          <p className="team-settings-page__muted">
+        <div className="space-settings-page__dialog">
+          <p className="space-settings-page__muted">
             Create a new shared space for agents, workflows, issues, and conversations.
           </p>
           <input
             className="issues-page__input"
             type="text"
-            value={teamName}
-            onChange={(e) => setTeamName(e.target.value)}
+            value={spaceName}
+            onChange={(e) => setSpaceName(e.target.value)}
             placeholder="e.g. Design, Ops, Research"
             autoFocus
           />
@@ -63,13 +63,13 @@ export function CreateSpaceDialog({ open, onClose }: CreateSpaceDialogProps) {
               {error}
             </p>
           ) : null}
-          <div className="team-settings-page__dialog-actions">
+          <div className="space-settings-page__dialog-actions">
             <button
               type="button"
-              className="team-settings-page__secondary-btn"
+              className="space-settings-page__secondary-btn"
               disabled={creating}
               onClick={() => {
-                setTeamName("")
+                setSpaceName("")
                 setError(null)
                 onClose()
               }}
@@ -79,7 +79,7 @@ export function CreateSpaceDialog({ open, onClose }: CreateSpaceDialogProps) {
             <button
               type="button"
               className="page-activity__action-btn"
-              disabled={creating || !teamName.trim()}
+              disabled={creating || !spaceName.trim()}
               onClick={() => void handleCreate()}
             >
               {creating ? "Creating..." : "Create Space"}

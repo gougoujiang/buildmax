@@ -320,7 +320,7 @@ func TestCacheQualification(t *testing.T) {
 	// implicitly — it would read with or without one. What proves the key is
 	// two calls sending byte-identical prompts under different scopes and the
 	// second one missing. If it hits instead, the key is being ignored, and two
-	// teams on one credential are sharing a cache the design says they must not.
+	// spaces on one credential are sharing a cache the design says they must not.
 	t.Run("the cache key isolates two scopes", func(t *testing.T) {
 		if capability.strategy != cacheStrategyOpenAIExplicit {
 			t.Skipf("provider %q sends no cache key", target.provider)
@@ -351,7 +351,7 @@ func TestCacheQualification(t *testing.T) {
 		other := scoped("tm_two")
 		if other.CacheReadTokens > 0 {
 			t.Errorf("a second scope read %d tokens of the first scope's entry; the cache key "+
-				"is not separating them, and two teams on one credential share a bucket",
+				"is not separating them, and two spaces on one credential share a bucket",
 				other.CacheReadTokens)
 		}
 		// And the original scope still reads its own, so isolation did not come

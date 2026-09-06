@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 )
@@ -23,7 +23,7 @@ const DisabledMessage = "account_disabled"
 type Guard struct {
 	JWTSecret string
 	Users     coreidentity.UserStore
-	Teams     coreteam.Store
+	Spaces    corespace.Store
 	Grants    coreidentity.SystemGrantStore
 	// Audit records refusals. Nil discards them, which is what a deployment
 	// without a database has.
@@ -36,8 +36,8 @@ type Guard struct {
 // signed JWT the server never stores, so it cannot be retired -- the only way
 // to stop honouring one is to check where the identity is resolved, and this is
 // the single funnel every authenticated route reaches. The cost is one
-// primary-key read per request, strictly less than the ListTeamMembers every
-// team-scoped route already does. Waiting out the token instead would make
+// primary-key read per request, strictly less than the ListSpaceMembers every
+// space-scoped route already does. Waiting out the token instead would make
 // "disable" mean "in about a week", which is not the feature.
 func (g *Guard) ActiveUser(w http.ResponseWriter, r *http.Request) (string, bool) {
 	userID, ok := UserIDFromRequest(r, g.JWTSecret)
@@ -76,127 +76,127 @@ func (g *Guard) UserAndStore(w http.ResponseWriter, r *http.Request, store any, 
 	return g.ActiveUser(w, r)
 }
 
-// UserAndPathTeam is the preamble of every team-scoped route: the store exists,
-// the caller is active, and they are in the team the path names.
-func (g *Guard) UserAndPathTeam(w http.ResponseWriter, r *http.Request, store any, unavailable string) (userID, teamID string, ok bool) {
+// UserAndPathSpace is the preamble of every space-scoped route: the store exists,
+// the caller is active, and they are in the space the path names.
+func (g *Guard) UserAndPathSpace(w http.ResponseWriter, r *http.Request, store any, unavailable string) (userID, spaceID string, ok bool) {
 	userID, ok = g.UserAndStore(w, r, store, unavailable)
 	if !ok {
 		return "", "", false
 	}
-	teamID, ok = httputil.PathValue(w, r, "team_id")
+	spaceID, ok = httputil.PathValue(w, r, "space_id")
 	if !ok {
 		return "", "", false
 	}
-	_, resolved, ok := g.ExplicitTeam(w, r, userID, teamID)
-	if !ok {
-		return "", "", false
-	}
-	return userID, resolved, true
-}
-
-// ExplicitTeam resolves the team a caller may act in, defaulting to their
-// personal team when the path named none.
-func (g *Guard) ExplicitTeam(w http.ResponseWriter, r *http.Request, userID, teamID string) (string, string, bool) {
-	if !httputil.RequireStore(w, g.Teams, "teams not configured") {
-		return "", "", false
-	}
-	resolved, ok := g.resolveTeamID(w, r, userID, teamID)
+	_, resolved, ok := g.ExplicitSpace(w, r, userID, spaceID)
 	if !ok {
 		return "", "", false
 	}
 	return userID, resolved, true
 }
 
-func (g *Guard) resolveTeamID(w http.ResponseWriter, r *http.Request, userID, explicit string) (string, bool) {
+// ExplicitSpace resolves the space a caller may act in, defaulting to their
+// personal space when the path named none.
+func (g *Guard) ExplicitSpace(w http.ResponseWriter, r *http.Request, userID, spaceID string) (string, string, bool) {
+	if !httputil.RequireStore(w, g.Spaces, "spaces not configured") {
+		return "", "", false
+	}
+	resolved, ok := g.resolveSpaceID(w, r, userID, spaceID)
+	if !ok {
+		return "", "", false
+	}
+	return userID, resolved, true
+}
+
+func (g *Guard) resolveSpaceID(w http.ResponseWriter, r *http.Request, userID, explicit string) (string, bool) {
 	if explicit == "" {
-		team, err := g.Teams.GetPersonalTeamByUser(r.Context(), userID)
+		space, err := g.Spaces.GetPersonalSpaceByUser(r.Context(), userID)
 		if err != nil {
-			httputil.WriteInternalError(w, err, "handler error", "handler", "resolve_current_team", "user_id", userID)
+			httputil.WriteInternalError(w, err, "handler error", "handler", "resolve_current_space", "user_id", userID)
 			return "", false
 		}
-		if team == nil {
-			httputil.WriteJSONError(w, http.StatusForbidden, "team not found")
+		if space == nil {
+			httputil.WriteJSONError(w, http.StatusForbidden, "space not found")
 			return "", false
 		}
-		return team.ID, true
+		return space.ID, true
 	}
-	teams, err := g.Teams.ListTeamsByUser(r.Context(), userID)
+	spaces, err := g.Spaces.ListSpacesByUser(r.Context(), userID)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "resolve_current_team", "user_id", userID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "resolve_current_space", "user_id", userID)
 		return "", false
 	}
-	for _, team := range teams {
-		if team.ID == explicit {
+	for _, space := range spaces {
+		if space.ID == explicit {
 			return explicit, true
 		}
 	}
-	httputil.WriteJSONError(w, http.StatusForbidden, "team not found")
+	httputil.WriteJSONError(w, http.StatusForbidden, "space not found")
 	return "", false
 }
 
-// UserAndDefaultTeam authorizes a route that does not name a team in its path.
+// UserAndDefaultSpace authorizes a route that does not name a space in its path.
 //
-// It exists for clients that have a server but have not chosen a team: a CLI or
-// Desktop session knows its login and nothing else. An explicit team_id is
+// It exists for clients that have a server but have not chosen a space: a CLI or
+// Desktop session knows its login and nothing else. An explicit space_id is
 // honoured and still checked for membership; an empty one resolves to the
-// caller's personal team, which is the private single-user case the product
+// caller's personal space, which is the private single-user case the product
 // already represents that way.
-func (g *Guard) UserAndDefaultTeam(w http.ResponseWriter, r *http.Request, explicitTeamID string) (userID, teamID string, ok bool) {
+func (g *Guard) UserAndDefaultSpace(w http.ResponseWriter, r *http.Request, explicitSpaceID string) (userID, spaceID string, ok bool) {
 	userID, ok = g.ActiveUser(w, r)
 	if !ok {
 		return "", "", false
 	}
-	_, resolved, ok := g.ExplicitTeam(w, r, userID, explicitTeamID)
+	_, resolved, ok := g.ExplicitSpace(w, r, userID, explicitSpaceID)
 	if !ok {
 		return "", "", false
 	}
 	return userID, resolved, true
 }
 
-// MemberOfResourceTeam authorizes a route addressed by a resource ID rather
-// than by a team, where the team comes from the record the ID names.
+// MemberOfResourceSpace authorizes a route addressed by a resource ID rather
+// than by a space, where the space comes from the record the ID names.
 //
-// It cannot reuse UserAndPathTeam, which takes the team from the request path;
-// here the caller has not said which team it is acting in, and must not be
+// It cannot reuse UserAndPathSpace, which takes the space from the request path;
+// here the caller has not said which space it is acting in, and must not be
 // allowed to. The refusal is deliberately the same 404 a missing record gets:
 // an opaque ID is an identifier and not a credential, and answering 403 would
 // make every such route an oracle for whether an ID exists. See
 // docs/design/unified-artifacts.md section 6.1.
-func (g *Guard) MemberOfResourceTeam(w http.ResponseWriter, r *http.Request, userID, teamID, notFound string) bool {
-	if !httputil.RequireStore(w, g.Teams, "teams not configured") {
+func (g *Guard) MemberOfResourceSpace(w http.ResponseWriter, r *http.Request, userID, spaceID, notFound string) bool {
+	if !httputil.RequireStore(w, g.Spaces, "spaces not configured") {
 		return false
 	}
-	role, ok := g.teamRole(w, r, userID, teamID)
+	role, ok := g.spaceRole(w, r, userID, spaceID)
 	if !ok {
 		return false
 	}
 	if role != "" {
 		return true
 	}
-	g.denied(r, userID, teamID, DeniedRouteName(r))
+	g.denied(r, userID, spaceID, DeniedRouteName(r))
 	httputil.WriteJSONError(w, http.StatusNotFound, notFound)
 	return false
 }
 
-// TeamRole reports the caller's role in the team, or "" when they are not a
+// SpaceRole reports the caller's role in the space, or "" when they are not a
 // member. It is for a route that has already established membership and needs
 // to know how much the member may do.
-func (g *Guard) TeamRole(w http.ResponseWriter, r *http.Request, userID, teamID string) (string, bool) {
-	return g.teamRole(w, r, userID, teamID)
+func (g *Guard) SpaceRole(w http.ResponseWriter, r *http.Request, userID, spaceID string) (string, bool) {
+	return g.spaceRole(w, r, userID, spaceID)
 }
 
-// teamRole reads membership from the team's side rather than the caller's.
-// ListTeamsByUser would answer membership but not role, and the role is what
+// spaceRole reads membership from the space's side rather than the caller's.
+// ListSpacesByUser would answer membership but not role, and the role is what
 // decides whether a member may delete someone else's work.
-func (g *Guard) teamRole(w http.ResponseWriter, r *http.Request, userID, teamID string) (string, bool) {
-	members, err := g.Teams.ListTeamMembers(r.Context(), teamID)
+func (g *Guard) spaceRole(w http.ResponseWriter, r *http.Request, userID, spaceID string) (string, bool) {
+	members, err := g.Spaces.ListSpaceMembers(r.Context(), spaceID)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "resolve_resource_team", "user_id", userID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "resolve_resource_space", "user_id", userID)
 		return "", false
 	}
 	for _, member := range members {
 		if member.UserID == userID {
-			return coreteam.EffectiveRole(member.Role), true
+			return corespace.EffectiveRole(member.Role), true
 		}
 	}
 	return "", true
@@ -204,8 +204,8 @@ func (g *Guard) teamRole(w http.ResponseWriter, r *http.Request, userID, teamID 
 
 // SystemAdmin authorizes a deployment-scoped route.
 //
-// Deliberately a sibling of TeamAction rather than a branch inside it. A system
-// grant is not an argument to a team check: an administrator reaching a team's
+// Deliberately a sibling of SpaceAction rather than a branch inside it. A system
+// grant is not an argument to a space check: an administrator reaching a space's
 // issues, artifacts, or traces passes the same membership test as anyone else.
 // Merging the two would make that boundary depend on nobody ever passing the
 // grant down -- see docs/design/system-administration.md section 5.2, and the
@@ -235,8 +235,8 @@ func (g *Guard) SystemAdmin(w http.ResponseWriter, r *http.Request) (string, boo
 			return userID, true
 		}
 	}
-	// Recorded with an empty team, because the route was not team-scoped. It is
-	// the same action a refused team request writes: a denial is what shows
+	// Recorded with an empty space, because the route was not space-scoped. It is
+	// the same action a refused space request writes: a denial is what shows
 	// someone probing at a boundary, and which boundary is in the target.
 	g.denied(r, userID, "", DeniedRouteName(r))
 	// 403 rather than 404. Hiding the existence of /api/admin is not achievable
@@ -247,11 +247,11 @@ func (g *Guard) SystemAdmin(w http.ResponseWriter, r *http.Request) (string, boo
 	return "", false
 }
 
-func (g *Guard) denied(r *http.Request, userID, teamID, target string) {
+func (g *Guard) denied(r *http.Request, userID, spaceID, target string) {
 	if g.Audit == nil {
 		return
 	}
-	g.Audit.Denied(r.Context(), userID, teamID, target)
+	g.Audit.Denied(r.Context(), userID, spaceID, target)
 }
 
 // DeniedRouteName names the refused route for the audit trail.

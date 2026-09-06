@@ -15,7 +15,7 @@ import WorkflowIcon from "../icons/workflow.svg?react"
 import AgentsIcon from "../icons/agents.svg?react"
 import ArtifactIcon from "../icons/artifact.svg?react"
 import { CreateSpaceDialog } from "../components/CreateSpaceDialog"
-import { useTeam } from "../contexts/TeamContext"
+import { useSpace } from "../contexts/SpaceContext"
 import { useAdminAccess } from "../features/admin"
 
 /** ASCII art for "BuildMax" (matches internal/tui/banner.go). */
@@ -55,11 +55,11 @@ export function Sidebar({
   user,
   onLogout,
 }: SidebarProps) {
-  const { teams, currentTeam, currentTeamId, loading: teamsLoading, setCurrentTeamId } = useTeam()
+  const { spaces, currentSpace, currentSpaceId, loading: spacesLoading, setCurrentSpaceId } = useSpace()
   const { isAdmin: isSystemAdmin } = useAdminAccess()
-  const showTeamSwitcher = teams.length > 1
-  const personalTeams = teams.filter((team) => Boolean(team.personalForUserId))
-  const sharedTeams = teams.filter((team) => !team.personalForUserId)
+  const showSpaceSwitcher = spaces.length > 1
+  const personalSpaces = spaces.filter((space) => Boolean(space.personalForUserId))
+  const sharedSpaces = spaces.filter((space) => !space.personalForUserId)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false)
@@ -112,17 +112,17 @@ export function Sidebar({
       <nav className="sidebar__nav" aria-label="Primary">
         <div className="sidebar__section">
           {!sidebarCollapsed ? (
-            <div className="sidebar__team-switcher">
-              <div className="sidebar__team-head">
+            <div className="sidebar__space-switcher">
+              <div className="sidebar__space-head">
                 <label
-                  className="sidebar__team-label"
-                  htmlFor={showTeamSwitcher ? "sidebar-team-select" : undefined}
+                  className="sidebar__space-label"
+                  htmlFor={showSpaceSwitcher ? "sidebar-space-select" : undefined}
                 >
                   Space
                 </label>
                 <button
                   type="button"
-                  className="sidebar__team-add"
+                  className="sidebar__space-add"
                   onClick={() => setCreateSpaceOpen(true)}
                   aria-label="Create a new space"
                   title="Create a new space"
@@ -130,42 +130,42 @@ export function Sidebar({
                   +
                 </button>
               </div>
-              {showTeamSwitcher ? (
+              {showSpaceSwitcher ? (
                 <select
-                  id="sidebar-team-select"
-                  className="sidebar__team-select"
-                  value={currentTeamId ?? ""}
-                  onChange={(e) => setCurrentTeamId(e.target.value)}
-                  disabled={teamsLoading}
+                  id="sidebar-space-select"
+                  className="sidebar__space-select"
+                  value={currentSpaceId ?? ""}
+                  onChange={(e) => setCurrentSpaceId(e.target.value)}
+                  disabled={spacesLoading}
                 >
-                  {personalTeams.length > 0 ? (
+                  {personalSpaces.length > 0 ? (
                     <optgroup label="Personal">
-                      {personalTeams.map((team) => (
-                        <option key={team.id} value={team.id}>
-                          {team.name}
+                      {personalSpaces.map((space) => (
+                        <option key={space.id} value={space.id}>
+                          {space.name}
                         </option>
                       ))}
                     </optgroup>
                   ) : null}
-                  {sharedTeams.length > 0 ? (
-                    <optgroup label="Teams">
-                      {sharedTeams.map((team) => (
-                        <option key={team.id} value={team.id}>
-                          {team.name}
+                  {sharedSpaces.length > 0 ? (
+                    <optgroup label="Spaces">
+                      {sharedSpaces.map((space) => (
+                        <option key={space.id} value={space.id}>
+                          {space.name}
                         </option>
                       ))}
                     </optgroup>
                   ) : null}
                 </select>
               ) : (
-                <div className="sidebar__team-display" aria-label="Current space">
-                  {currentTeam?.name ?? "My Space"}
+                <div className="sidebar__space-display" aria-label="Current space">
+                  {currentSpace?.name ?? "My Space"}
                 </div>
               )}
             </div>
           ) : (
-            <div className="sidebar__team-badge" title={currentTeam?.name ?? "Current space"}>
-              {(currentTeam?.name ?? "S").slice(0, 1).toUpperCase()}
+            <div className="sidebar__space-badge" title={currentSpace?.name ?? "Current space"}>
+              {(currentSpace?.name ?? "S").slice(0, 1).toUpperCase()}
             </div>
           )}
           <button
@@ -236,11 +236,11 @@ export function Sidebar({
               </div>
             </div>
             <div className="sidebar__user-menu-divider" role="separator" />
-            {!sidebarCollapsed && currentTeam ? (
+            {!sidebarCollapsed && currentSpace ? (
               <>
-                <div className="sidebar__user-menu-team" role="none">
-                  <span className="sidebar__user-menu-team-label">Current space</span>
-                  <span className="sidebar__user-menu-team-name">{currentTeam.name}</span>
+                <div className="sidebar__user-menu-space" role="none">
+                  <span className="sidebar__user-menu-space-label">Current space</span>
+                  <span className="sidebar__user-menu-space-name">{currentSpace.name}</span>
                 </div>
                 <div className="sidebar__user-menu-divider" role="separator" />
               </>

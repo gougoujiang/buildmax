@@ -29,7 +29,7 @@ func TestCreateTaskRunPersistsSourceMessage(t *testing.T) {
 		t.Fatalf("AppendMessage: %v", err)
 	}
 	task, err := s.CreateTask(ctx, &coretask.CreateInput{
-		TeamID:                    conv.TeamID,
+		SpaceID:                   conv.SpaceID,
 		ConversationID:            conv.ID,
 		Input:                     "investigate the flaky test",
 		CreatedBy:                 user,
@@ -115,7 +115,7 @@ func TestCreateTaskRunWithoutASourceMessage(t *testing.T) {
 		t.Fatalf("NewPublicID: %v", err)
 	}
 	task, err := s.CreateTask(ctx, &coretask.CreateInput{
-		TeamID:                    conv.TeamID,
+		SpaceID:                   conv.SpaceID,
 		ConversationID:            conv.ID,
 		Input:                     "run the nightly sweep",
 		CreatedBy:                 user,
@@ -146,7 +146,7 @@ func TestTaskRunSpaceInstructionsRevisionIsFirstWriteWins(t *testing.T) {
 		t.Fatalf("CreateConversation: %v", err)
 	}
 	task, err := s.CreateTask(ctx, &coretask.CreateInput{
-		TeamID: conv.TeamID, ConversationID: conv.ID, Input: "run", CreatedBy: user,
+		SpaceID: conv.SpaceID, ConversationID: conv.ID, Input: "run", CreatedBy: user,
 	})
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
@@ -159,17 +159,17 @@ func TestTaskRunSpaceInstructionsRevisionIsFirstWriteWins(t *testing.T) {
 		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "public_id = ?", conv.ID).Error
 	})
 
-	if err := s.RecordTaskRunTeamAgentInstructionsRevision(ctx, *task.LastRunID, 0); err != nil {
+	if err := s.RecordTaskRunSpaceAgentInstructionsRevision(ctx, *task.LastRunID, 0); err != nil {
 		t.Fatalf("record revision 0: %v", err)
 	}
-	if err := s.RecordTaskRunTeamAgentInstructionsRevision(ctx, *task.LastRunID, 2); err != nil {
+	if err := s.RecordTaskRunSpaceAgentInstructionsRevision(ctx, *task.LastRunID, 2); err != nil {
 		t.Fatalf("record later revision: %v", err)
 	}
 	got, err := s.GetTaskRun(ctx, *task.LastRunID)
 	if err != nil {
 		t.Fatalf("GetTaskRun: %v", err)
 	}
-	if got.TeamAgentInstructionsRevision == nil || *got.TeamAgentInstructionsRevision != 0 {
-		t.Fatalf("team instructions revision = %v, want first write 0", got.TeamAgentInstructionsRevision)
+	if got.SpaceAgentInstructionsRevision == nil || *got.SpaceAgentInstructionsRevision != 0 {
+		t.Fatalf("space instructions revision = %v, want first write 0", got.SpaceAgentInstructionsRevision)
 	}
 }

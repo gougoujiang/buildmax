@@ -152,26 +152,26 @@ export function OutputsList({ outputs, token, onOpenFull, onOpenConversation, on
 
 interface OutputViewerModalProps {
   open: boolean
-  teamId: string | null
+  spaceId: string | null
   token: string | null
   output: IssueOutput | null
   onClose: () => void
 }
 
-export function OutputViewerModal({ open, teamId, token, output, onClose }: OutputViewerModalProps) {
+export function OutputViewerModal({ open, spaceId, token, output, onClose }: OutputViewerModalProps) {
   const [content, setContent] = useState<string>("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!open || !output || !teamId || !token || !output.source.taskRunId) {
+    if (!open || !output || !spaceId || !token || !output.source.taskRunId) {
       return
     }
     let cancelled = false
     setLoading(true)
     setError(null)
     setContent("")
-    getRunOutputContent(teamId, output.source.taskRunId, token, output.relativePath)
+    getRunOutputContent(spaceId, output.source.taskRunId, token, output.relativePath)
       .then((text) => {
         if (!cancelled) setContent(text)
       })
@@ -184,7 +184,7 @@ export function OutputViewerModal({ open, teamId, token, output, onClose }: Outp
     return () => {
       cancelled = true
     }
-  }, [open, output, teamId, token])
+  }, [open, output, spaceId, token])
 
   if (!output) return null
 

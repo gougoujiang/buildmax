@@ -6,21 +6,21 @@ import { useFetch } from "../../../hooks/useFetch"
 import { getFileContent, getFileTree, uploadFiles } from "../api"
 
 interface UseFilesExplorerOptions {
-  teamId: string | null
+  spaceId: string | null
   token: string | null
 }
 
-export function useFilesExplorer({ teamId, token }: UseFilesExplorerOptions) {
+export function useFilesExplorer({ spaceId, token }: UseFilesExplorerOptions) {
   const {
     data: tree,
     loading: treeLoading,
     error: treeError,
     refetch: refetchTree,
   } = useFetch(
-    () => getFileTree(teamId!, token!),
-    [teamId, token],
+    () => getFileTree(spaceId!, token!),
+    [spaceId, token],
     {
-      enabled: !!(teamId && token),
+      enabled: !!(spaceId && token),
       errorMessage: (e) => getErrorMessage(e, "Failed to load files"),
     }
   )
@@ -38,10 +38,10 @@ export function useFilesExplorer({ teamId, token }: UseFilesExplorerOptions) {
     loading: fileLoading,
     error: fileError,
   } = useFetch(
-    () => getFileContent(teamId!, selectedFileId!, token!),
-    [teamId, selectedFileId, token],
+    () => getFileContent(spaceId!, selectedFileId!, token!),
+    [spaceId, selectedFileId, token],
     {
-      enabled: !!(teamId && token && selectedFileId),
+      enabled: !!(spaceId && token && selectedFileId),
       errorMessage: (e) => getErrorMessage(e, "Failed to load file"),
     }
   )
@@ -72,7 +72,7 @@ export function useFilesExplorer({ teamId, token }: UseFilesExplorerOptions) {
 
   const doUpload = useCallback(
     async (files: File[], paths?: string[], options?: { maxFiles?: number }) => {
-      if (!teamId || !token) {
+      if (!spaceId || !token) {
         setUploadMsg({ text: "Not authenticated", isError: true })
         return
       }
@@ -84,7 +84,7 @@ export function useFilesExplorer({ teamId, token }: UseFilesExplorerOptions) {
       setUploading(true)
       setUploadMsg(null)
       try {
-        const res = await uploadFiles(files, teamId, token, paths)
+        const res = await uploadFiles(files, spaceId, token, paths)
         setUploadMsg({ text: `Uploaded ${res.uploaded.length} file(s)`, isError: false })
         await refetchTree()
       } catch (err) {
@@ -93,7 +93,7 @@ export function useFilesExplorer({ teamId, token }: UseFilesExplorerOptions) {
         setUploading(false)
       }
     },
-    [teamId, token, refetchTree]
+    [spaceId, token, refetchTree]
   )
 
   const handleUpload = useCallback(

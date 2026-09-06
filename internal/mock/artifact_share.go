@@ -44,7 +44,7 @@ func (m *MockArtifactShareStore) CreateArtifactShare(_ context.Context, in corea
 	rec := coreartifact.ArtifactShare{
 		ShareID:       id,
 		ArtifactID:    in.ArtifactID,
-		TeamID:        in.TeamID,
+		SpaceID:       in.SpaceID,
 		CreatedByType: in.CreatedByType,
 		CreatedByID:   in.CreatedByID,
 		ExpiresAt:     in.ExpiresAt,

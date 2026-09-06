@@ -29,28 +29,28 @@ function statValue(page: Page, term: string): Locator {
 
 /** Seed an issue whose agent has run to completion, and return its issue id. */
 async function seedCompletedAgentRun(page: Page, session: Session): Promise<string> {
-  const team = session.team
+  const space = session.space
 
-  const agent = await postJSON<{ id: string }>(page, `${team}/agents`, session, {
+  const agent = await postJSON<{ id: string }>(page, `${space}/agents`, session, {
     name: tagged("Run trace probe"),
     description: "Created by the Portal browser tests.",
     instructions: "Reply with exactly: deployment smoke ok",
   })
-  const issue = await postJSON<{ id: string; version: number }>(page, `${team}/issues`, session, {
+  const issue = await postJSON<{ id: string; version: number }>(page, `${space}/issues`, session, {
     title: tagged("Run trace probe"),
     description: "Created by the Portal browser tests to exercise the run trace view.",
   })
-  reportLeftovers(session.teamId, [`agent ${agent.id}`, `issue ${issue.id}`])
+  reportLeftovers(session.spaceId, [`agent ${agent.id}`, `issue ${issue.id}`])
   // An agent run is refused unless the issue is assigned to an agent, so this
   // is a precondition of the next call rather than a separate assertion.
-  await patchJSON(page, `${team}/issues/${encodeURIComponent(issue.id)}`, session, {
+  await patchJSON(page, `${space}/issues/${encodeURIComponent(issue.id)}`, session, {
     version: issue.version,
     assignee_kind: "agent",
     assignee_id: agent.id,
   })
   const task = await postJSON<{ id: string }>(
     page,
-    `${team}/issues/${encodeURIComponent(issue.id)}/agent-runs`,
+    `${space}/issues/${encodeURIComponent(issue.id)}/agent-runs`,
     session,
     { input: "Reply with exactly: deployment smoke ok" }
   )
@@ -61,7 +61,7 @@ async function seedCompletedAgentRun(page: Page, session: Session): Promise<stri
   await expect
     .poll(
       async () => {
-        const res = await page.request.get(`${team}/tasks/${encodeURIComponent(task.id)}`, {
+        const res = await page.request.get(`${space}/tasks/${encodeURIComponent(task.id)}`, {
           headers: { Authorization: `Bearer ${session.token}` },
         })
         if (!res.ok()) return `HTTP ${res.status()}`

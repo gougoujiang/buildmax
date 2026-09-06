@@ -142,7 +142,7 @@ internal/
 │   │                   plus the catalog entry, its releases, and a team's
 │   │                   activations
 │   ├── subagent/       The subagent definition file shape and its frontmatter
-│   ├── team/           The Team, its members, its store, and the one
+│   ├── space/           The Team, its members, its store, and the one
 │   │                   role/action decision the HTTP guard and the team
 │   │                   service both enforce
 │   ├── artifact/       The Artifact: a file somebody chose to keep, its record,
@@ -202,7 +202,7 @@ internal/
 │   ├── plugininspect/  Sanitized inspection of what a plugin archive contributes
 │   ├── secret/         Team Secret lifecycle: validate items, seal them through
 │   │                   a Sealer, store metadata and sealed bytes; no reveal path
-│   ├── team/           Membership: who is in a team and who may change that
+│   ├── space/           Membership: who is in a team and who may change that
 │   ├── quota/          Team quota enforcement
 │   └── llmgateway/     Model catalog, name resolution, routing, and managed calls
 │
@@ -259,7 +259,7 @@ internal/
 │   │   ├── auditexport/  CSV export shared by the team and admin audit routes
 │   │   ├── llmhttp/    Managed gateway over HTTP, shared by the team and worker routes
 │   │   ├── runterminal/  Announces a finished run to whoever is watching
-│   │   ├── team/       What a team owns: members, agents, keys, usage, audit
+│   │   ├── space/       What a team owns: members, agents, keys, usage, audit
 │   │   ├── work/       Issues, workflows, tasks, conversations, and their runs
 │   │   └── worker/     Worker API; authenticates with a run token, not a session
 │   ├── access/         Who is calling, which team, and whether they may

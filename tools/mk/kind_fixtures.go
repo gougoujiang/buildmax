@@ -45,7 +45,7 @@ type fixtureIssue struct {
 }
 
 // kindFixtures seeds a small, deterministic, idempotent set of test data into a
-// running kind cluster: a couple of accounts (each with its personal team), and
+// running kind cluster: a couple of accounts (each with its personal space), and
 // for the first one an agent, a workflow that drives it, and issues spread
 // across every status with a comment thread. It exists so automated Portal
 // testing starts from populated list and detail views instead of the near-empty
@@ -73,7 +73,7 @@ func kindFixtures() error {
 
 	fmt.Printf("Seeding fixtures into %s (%s)\n", cluster, target.apiBase)
 
-	// Accounts come first, through the operator CLI, because a personal team is
+	// Accounts come first, through the operator CLI, because a personal space is
 	// created with the user and every other fixture hangs off it. "already has
 	// an account" is the idempotent success here, not a failure.
 	for _, email := range []string{"alice@buildmax.local", "bob@buildmax.local"} {
@@ -90,13 +90,13 @@ func kindFixtures() error {
 
 	// Alice carries the rich fixtures: an agent, a workflow that targets it, and
 	// a spread of issues. Bob exists so a second account with its own personal
-	// team and its own issues is present for boundary and list testing.
+	// space and its own issues is present for boundary and list testing.
 	if err := seedAliceFixtures(ctx, client, target); err != nil {
 		return fmt.Errorf("seed alice@buildmax.local: %w", err)
 	}
 	if err := seedIssues(ctx, client, target, "bob@buildmax.local", []fixtureIssue{
 		{title: "Triage inbound bug reports", description: "Weekly pass over new reports.", status: "in_progress"},
-		{title: "Draft Q3 roadmap", description: "Collect themes from the team.", status: "todo"},
+		{title: "Draft Q3 roadmap", description: "Collect themes from the space.", status: "todo"},
 	}); err != nil {
 		return fmt.Errorf("seed bob@buildmax.local: %w", err)
 	}
@@ -107,24 +107,24 @@ func kindFixtures() error {
 
 func seedAliceFixtures(ctx context.Context, client *http.Client, target smokeTarget) error {
 	const email = "alice@buildmax.local"
-	token, teamID, err := smokeSignIn(ctx, client, target, email)
+	token, spaceID, err := smokeSignIn(ctx, client, target, email)
 	if err != nil {
 		return err
 	}
 
-	agentID, err := ensureAgent(ctx, client, target, teamID, token, email,
+	agentID, err := ensureAgent(ctx, client, target, spaceID, token, email,
 		"Docs Writer",
 		"Turns merged changes into release notes.",
 		"You write concise, user-facing release notes from a list of changes.")
 	if err != nil {
 		return err
 	}
-	if err := ensureWorkflow(ctx, client, target, teamID, token, email,
+	if err := ensureWorkflow(ctx, client, target, spaceID, token, email,
 		"Release Notes", "Draft release notes for a milestone.", agentID); err != nil {
 		return err
 	}
 
-	return ensureIssues(ctx, client, target, teamID, token, email, []fixtureIssue{
+	return ensureIssues(ctx, client, target, spaceID, token, email, []fixtureIssue{
 		{title: "Set up CI pipeline", description: "Build, test, and lint on every PR.", status: "done"},
 		{title: "Fix flaky login test", description: "Times out under load; suspect a race.", status: "in_progress",
 			comments: []string{"Reproduced locally about one run in five.", "Narrowed it to the token refresh path."}},
@@ -134,15 +134,15 @@ func seedAliceFixtures(ctx context.Context, client *http.Client, target smokeTar
 }
 
 func seedIssues(ctx context.Context, client *http.Client, target smokeTarget, email string, specs []fixtureIssue) error {
-	token, teamID, err := smokeSignIn(ctx, client, target, email)
+	token, spaceID, err := smokeSignIn(ctx, client, target, email)
 	if err != nil {
 		return err
 	}
-	return ensureIssues(ctx, client, target, teamID, token, email, specs)
+	return ensureIssues(ctx, client, target, spaceID, token, email, specs)
 }
 
-func ensureIssues(ctx context.Context, client *http.Client, target smokeTarget, teamID, token, who string, specs []fixtureIssue) error {
-	base := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/issues"
+func ensureIssues(ctx context.Context, client *http.Client, target smokeTarget, spaceID, token, who string, specs []fixtureIssue) error {
+	base := target.apiBase + "/api/spaces/" + url.PathEscape(spaceID) + "/issues"
 	var existing fxIssueList
 	if err := requestJSON(ctx, client, http.MethodGet, base, token, nil, &existing, http.StatusOK); err != nil {
 		return err
@@ -176,7 +176,7 @@ func ensureIssues(ctx context.Context, client *http.Client, target smokeTarget, 
 		}
 
 		if len(spec.comments) > 0 {
-			if err := ensureComments(ctx, client, target, teamID, token, issue.ID, spec.comments); err != nil {
+			if err := ensureComments(ctx, client, target, spaceID, token, issue.ID, spec.comments); err != nil {
 				return err
 			}
 		}
@@ -187,8 +187,8 @@ func ensureIssues(ctx context.Context, client *http.Client, target smokeTarget, 
 // ensureComments adds the thread only when the issue has none. A comment carries
 // no natural key to match on, so "already has any comment" is the idempotency
 // signal — enough to keep reruns from stacking duplicate threads.
-func ensureComments(ctx context.Context, client *http.Client, target smokeTarget, teamID, token, issueID string, bodies []string) error {
-	base := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/issues/" + url.PathEscape(issueID) + "/comments"
+func ensureComments(ctx context.Context, client *http.Client, target smokeTarget, spaceID, token, issueID string, bodies []string) error {
+	base := target.apiBase + "/api/spaces/" + url.PathEscape(spaceID) + "/issues/" + url.PathEscape(issueID) + "/comments"
 	var existing struct {
 		Comments []struct {
 			ID string `json:"id"`
@@ -212,8 +212,8 @@ func ensureComments(ctx context.Context, client *http.Client, target smokeTarget
 	return nil
 }
 
-func ensureAgent(ctx context.Context, client *http.Client, target smokeTarget, teamID, token, who, name, description, instructions string) (string, error) {
-	base := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/agents"
+func ensureAgent(ctx context.Context, client *http.Client, target smokeTarget, spaceID, token, who, name, description, instructions string) (string, error) {
+	base := target.apiBase + "/api/spaces/" + url.PathEscape(spaceID) + "/agents"
 	var existing []fxAgent // the agent list is a bare JSON array
 	if err := requestJSON(ctx, client, http.MethodGet, base, token, nil, &existing, http.StatusOK); err != nil {
 		return "", err
@@ -233,8 +233,8 @@ func ensureAgent(ctx context.Context, client *http.Client, target smokeTarget, t
 	return created.ID, nil
 }
 
-func ensureWorkflow(ctx context.Context, client *http.Client, target smokeTarget, teamID, token, who, name, description, agentID string) error {
-	base := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/workflows"
+func ensureWorkflow(ctx context.Context, client *http.Client, target smokeTarget, spaceID, token, who, name, description, agentID string) error {
+	base := target.apiBase + "/api/spaces/" + url.PathEscape(spaceID) + "/workflows"
 	var existing fxWorkflowList
 	if err := requestJSON(ctx, client, http.MethodGet, base, token, nil, &existing, http.StatusOK); err != nil {
 		return err
@@ -246,7 +246,7 @@ func ensureWorkflow(ctx context.Context, client *http.Client, target smokeTarget
 		}
 	}
 	// One agent_task step is the minimum a definition will validate with, and it
-	// must target a real agent in this team — hence the agent is seeded first.
+	// must target a real agent in this space — hence the agent is seeded first.
 	def := fmt.Sprintf(`{"steps":[{"step_id":"draft","type":"agent_task","target_agent_id":%q,"prompt":"Draft the release notes from the merged changes."}]}`, agentID)
 	body := map[string]any{"name": name, "description": description, "definition": def}
 	var created fxWorkflow

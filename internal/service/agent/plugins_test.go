@@ -14,20 +14,20 @@ import (
 // and answers with what the caller set, which is all this package needs to know
 // about activation.
 type stubSelection struct {
-	gotTeam  string
+	gotSpace string
 	gotNames []string
 	gotActor string
 	err      error
 }
 
-func (s *stubSelection) ResolveSelection(_ context.Context, teamID string, names []string, actorID string) ([]coreplugin.Activation, error) {
-	s.gotTeam, s.gotNames, s.gotActor = teamID, names, actorID
+func (s *stubSelection) ResolveSelection(_ context.Context, spaceID string, names []string, actorID string) ([]coreplugin.Activation, error) {
+	s.gotSpace, s.gotNames, s.gotActor = spaceID, names, actorID
 	if s.err != nil {
 		return nil, s.err
 	}
 	out := make([]coreplugin.Activation, 0, len(names))
 	for _, n := range names {
-		out = append(out, coreplugin.Activation{TeamID: teamID, PluginName: n, Version: "1.0.0", Enabled: true})
+		out = append(out, coreplugin.Activation{SpaceID: spaceID, PluginName: n, Version: "1.0.0", Enabled: true})
 	}
 	return out, nil
 }
@@ -42,7 +42,7 @@ func TestCreateAgentStoresANormalizedSelection(t *testing.T) {
 	svc, _ := newAgentService(sel)
 
 	created, err := svc.CreateAgent(context.Background(), agent.CreateCmd{
-		TeamID: "tm_1", UserID: "u_1", Name: "Reviewer",
+		SpaceID: "tm_1", UserID: "u_1", Name: "Reviewer",
 		Plugins: []string{" code-review ", "audit", "code-review", "  "},
 	})
 	if err != nil {
@@ -52,22 +52,22 @@ func TestCreateAgentStoresANormalizedSelection(t *testing.T) {
 	if len(created.Plugins) != 2 || created.Plugins[0] != want[0] || created.Plugins[1] != want[1] {
 		t.Errorf("stored plugins = %v, want %v trimmed, deduplicated, and sorted", created.Plugins, want)
 	}
-	if sel.gotTeam != "tm_1" || sel.gotActor != "u_1" {
-		t.Errorf("resolution asked for team %q actor %q, want tm_1/u_1", sel.gotTeam, sel.gotActor)
+	if sel.gotSpace != "tm_1" || sel.gotActor != "u_1" {
+		t.Errorf("resolution asked for space %q actor %q, want tm_1/u_1", sel.gotSpace, sel.gotActor)
 	}
 	if len(sel.gotNames) != 2 {
 		t.Errorf("resolution saw %v, want the normalized set", sel.gotNames)
 	}
 }
 
-// An agent naming a plugin its team cannot use is refused while somebody is
+// An agent naming a plugin its space cannot use is refused while somebody is
 // watching, rather than saved and failed at the run.
 func TestCreateAgentRefusesAnUnresolvableSelection(t *testing.T) {
-	refusal := errors.New("this team has not activated this plugin")
+	refusal := errors.New("this space has not activated this plugin")
 	svc, store := newAgentService(&stubSelection{err: refusal})
 
 	_, err := svc.CreateAgent(context.Background(), agent.CreateCmd{
-		TeamID: "tm_1", UserID: "u_1", Name: "Reviewer", Plugins: []string{"code-review"},
+		SpaceID: "tm_1", UserID: "u_1", Name: "Reviewer", Plugins: []string{"code-review"},
 	})
 	if !errors.Is(err, refusal) {
 		t.Fatalf("err = %v, want the refusal", err)
@@ -83,7 +83,7 @@ func TestNamingAPluginWithoutTheServiceIsRefused(t *testing.T) {
 	svc, _ := newAgentService(nil)
 
 	_, err := svc.CreateAgent(context.Background(), agent.CreateCmd{
-		TeamID: "tm_1", UserID: "u_1", Name: "Reviewer", Plugins: []string{"code-review"},
+		SpaceID: "tm_1", UserID: "u_1", Name: "Reviewer", Plugins: []string{"code-review"},
 	})
 	if !errors.Is(err, agent.ErrPluginsNotConfigured) {
 		t.Fatalf("err = %v, want ErrPluginsNotConfigured", err)
@@ -95,7 +95,7 @@ func TestAnAgentNamingNoPluginNeedsNoService(t *testing.T) {
 	svc, _ := newAgentService(nil)
 
 	created, err := svc.CreateAgent(context.Background(), agent.CreateCmd{
-		TeamID: "tm_1", UserID: "u_1", Name: "Reviewer",
+		SpaceID: "tm_1", UserID: "u_1", Name: "Reviewer",
 	})
 	if err != nil {
 		t.Fatalf("CreateAgent: %v", err)
@@ -111,14 +111,14 @@ func TestUpdateRecordsAndClearsTheSelection(t *testing.T) {
 	svc, _ := newAgentService(&stubSelection{})
 	ctx := context.Background()
 	created, err := svc.CreateAgent(ctx, agent.CreateCmd{
-		TeamID: "tm_1", UserID: "u_1", Name: "Reviewer", Plugins: []string{"code-review"},
+		SpaceID: "tm_1", UserID: "u_1", Name: "Reviewer", Plugins: []string{"code-review"},
 	})
 	if err != nil {
 		t.Fatalf("CreateAgent: %v", err)
 	}
 
 	cleared, err := svc.UpdateAgent(ctx, agent.UpdateCmd{
-		TeamID: "tm_1", UserID: "u_1", AgentID: created.ID, Name: "Reviewer",
+		SpaceID: "tm_1", UserID: "u_1", AgentID: created.ID, Name: "Reviewer",
 	})
 	if err != nil {
 		t.Fatalf("UpdateAgent: %v", err)
@@ -148,13 +148,13 @@ func TestReorderingTheSameSelectionIsNotAnEdit(t *testing.T) {
 	svc, _ := newAgentService(&stubSelection{})
 	ctx := context.Background()
 	created, err := svc.CreateAgent(ctx, agent.CreateCmd{
-		TeamID: "tm_1", UserID: "u_1", Name: "Reviewer", Plugins: []string{"audit", "code-review"},
+		SpaceID: "tm_1", UserID: "u_1", Name: "Reviewer", Plugins: []string{"audit", "code-review"},
 	})
 	if err != nil {
 		t.Fatalf("CreateAgent: %v", err)
 	}
 	if _, err := svc.UpdateAgent(ctx, agent.UpdateCmd{
-		TeamID: "tm_1", UserID: "u_1", AgentID: created.ID, Name: "Reviewer",
+		SpaceID: "tm_1", UserID: "u_1", AgentID: created.ID, Name: "Reviewer",
 		Plugins: []string{"code-review", "audit"},
 	}); err != nil {
 		t.Fatalf("UpdateAgent: %v", err)
@@ -173,19 +173,19 @@ func TestRestoreBringsBackTheSelection(t *testing.T) {
 	svc, _ := newAgentService(&stubSelection{})
 	ctx := context.Background()
 	created, err := svc.CreateAgent(ctx, agent.CreateCmd{
-		TeamID: "tm_1", UserID: "u_1", Name: "Reviewer", Plugins: []string{"code-review"},
+		SpaceID: "tm_1", UserID: "u_1", Name: "Reviewer", Plugins: []string{"code-review"},
 	})
 	if err != nil {
 		t.Fatalf("CreateAgent: %v", err)
 	}
 	if _, err := svc.UpdateAgent(ctx, agent.UpdateCmd{
-		TeamID: "tm_1", UserID: "u_1", AgentID: created.ID, Name: "Reviewer",
+		SpaceID: "tm_1", UserID: "u_1", AgentID: created.ID, Name: "Reviewer",
 	}); err != nil {
 		t.Fatalf("UpdateAgent: %v", err)
 	}
 
 	restored, err := svc.RestoreRevision(ctx, agent.RestoreRevisionCmd{
-		TeamID: "tm_1", UserID: "u_1", AgentID: created.ID, Revision: 1,
+		SpaceID: "tm_1", UserID: "u_1", AgentID: created.ID, Revision: 1,
 	})
 	if err != nil {
 		t.Fatalf("RestoreRevision: %v", err)

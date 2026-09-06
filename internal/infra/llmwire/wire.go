@@ -23,13 +23,13 @@ const Version = "1"
 // Paths, relative to the server base URL.
 const (
 	// ModelsPath lists the models this deployment offers. Every model in the
-	// catalog is available to every signed-in user, so the path names no team.
+	// catalog is available to every signed-in user, so the path names no space.
 	ModelsPath = "/api/llm/models"
 	// CompletionsPath runs one managed call.
 	CompletionsPath = "/api/llm/completions"
 	// WorkerCompletionsPath runs one managed call on behalf of a task run.
-	// The team comes from the run rather than the path, so a worker cannot
-	// name a team it was not scheduled for.
+	// The space comes from the run rather than the path, so a worker cannot
+	// name a space it was not scheduled for.
 	WorkerCompletionsPath = "/api/worker/task-runs/%s/llm/completions"
 )
 
@@ -89,7 +89,7 @@ type Tool struct {
 	Parameters  json.RawMessage `json:"parameters,omitempty"`
 }
 
-// Metadata is correlation context. It is never authorization input: team and
+// Metadata is correlation context. It is never authorization input: space and
 // user identity come from authentication, not from here.
 type Metadata struct {
 	Surface   string  `json:"surface,omitempty"`

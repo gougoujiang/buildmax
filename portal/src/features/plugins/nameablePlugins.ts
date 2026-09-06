@@ -4,11 +4,11 @@ import type {
 } from "../../lib/api/types"
 
 /**
- * nameablePlugins returns the catalog plugin names an agent in this team may
+ * nameablePlugins returns the catalog plugin names an agent in this space may
  * name, sorted. It mirrors the server's rule (service/agent resolvePlugins):
  *
- *   - A curated team may name only its enabled activations.
- *   - An open team may name any non-archived catalog plugin; naming one
+ *   - A curated space may name only its enabled activations.
+ *   - An open space may name any non-archived catalog plugin; naming one
  *     activates it automatically.
  *
  * The frontend only offers valid choices; the server checks again and is the

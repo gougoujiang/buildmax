@@ -7,7 +7,7 @@ import (
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/mock"
 )
@@ -15,9 +15,9 @@ import (
 func TestCreateIssue_TitleRequired(t *testing.T) {
 	svc := &Service{Issues: &mock.MockIssueStore{}}
 	_, err := svc.CreateIssue(context.Background(), CreateIssueCmd{
-		UserID: "u1",
-		TeamID: "tm_1",
-		Title:  "",
+		UserID:  "u1",
+		SpaceID: "tm_1",
+		Title:   "",
 	})
 	if !errors.Is(err, ErrTitleRequired) {
 		t.Fatalf("err = %v, want %v", err, ErrTitleRequired)
@@ -27,14 +27,14 @@ func TestCreateIssue_TitleRequired(t *testing.T) {
 func TestUpdateIssue_InvalidStatus(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
-			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Version: 1}},
+			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", SpaceID: "tm_1", Version: 1}},
 		},
 	}
 	status := "blocked"
 	_, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
 		IfVersion: 1,
 		UserID:    "u1",
-		TeamID:    "tm_1",
+		SpaceID:   "tm_1",
 		IssueID:   "i_1",
 		Status:    &status,
 	})
@@ -46,16 +46,16 @@ func TestUpdateIssue_InvalidStatus(t *testing.T) {
 func TestUpdateIssue_AssignToPerson(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
-			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
+			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", SpaceID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
 		},
-		Teams: &mock.MockTeamStore{Members: []coreteam.Member{{TeamID: "tm_1", UserID: "u1", Role: coreteam.RoleOwner}}},
+		Spaces: &mock.MockSpaceStore{Members: []corespace.Member{{SpaceID: "tm_1", UserID: "u1", Role: corespace.RoleOwner}}},
 	}
 	kind := coreissue.AssigneePerson
 	id := "u1"
 	issue, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
 		IfVersion:    1,
 		UserID:       "u1",
-		TeamID:       "tm_1",
+		SpaceID:      "tm_1",
 		IssueID:      "i_1",
 		AssigneeKind: &kind,
 		AssigneeID:   &id,
@@ -71,10 +71,10 @@ func TestUpdateIssue_AssignToPerson(t *testing.T) {
 func TestUpdateIssue_AssignToAgent(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
-			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
+			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", SpaceID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
 		},
 		Agents: &mock.MockAgentStore{
-			Agents: []agentdef.Agent{{ID: "a_1", UserID: "u1", TeamID: "tm_1", Name: "Agent 1"}},
+			Agents: []agentdef.Agent{{ID: "a_1", UserID: "u1", SpaceID: "tm_1", Name: "Agent 1"}},
 		},
 	}
 	kind := coreissue.AssigneeAgent
@@ -82,7 +82,7 @@ func TestUpdateIssue_AssignToAgent(t *testing.T) {
 	issue, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
 		IfVersion:    1,
 		UserID:       "u1",
-		TeamID:       "tm_1",
+		SpaceID:      "tm_1",
 		IssueID:      "i_1",
 		AssigneeKind: &kind,
 		AssigneeID:   &id,
@@ -98,10 +98,10 @@ func TestUpdateIssue_AssignToAgent(t *testing.T) {
 func TestUpdateIssue_AssignToWrongAgent(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
-			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
+			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", SpaceID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
 		},
 		Agents: &mock.MockAgentStore{
-			Agents: []agentdef.Agent{{ID: "a_1", UserID: "u2", TeamID: "tm_2", Name: "Other Agent"}},
+			Agents: []agentdef.Agent{{ID: "a_1", UserID: "u2", SpaceID: "tm_2", Name: "Other Agent"}},
 		},
 	}
 	kind := coreissue.AssigneeAgent
@@ -109,7 +109,7 @@ func TestUpdateIssue_AssignToWrongAgent(t *testing.T) {
 	_, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
 		IfVersion:    1,
 		UserID:       "u1",
-		TeamID:       "tm_1",
+		SpaceID:      "tm_1",
 		IssueID:      "i_1",
 		AssigneeKind: &kind,
 		AssigneeID:   &id,
@@ -122,10 +122,10 @@ func TestUpdateIssue_AssignToWrongAgent(t *testing.T) {
 func TestUpdateIssue_AssignToWorkflow(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
-			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
+			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", SpaceID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
 		},
 		Workflows: &mock.MockWorkflowStore{
-			Workflows: []coreworkflow.Workflow{{ID: "w_1", TeamID: "tm_1", Name: "WF", Status: coreworkflow.StatusPublished}},
+			Workflows: []coreworkflow.Workflow{{ID: "w_1", SpaceID: "tm_1", Name: "WF", Status: coreworkflow.StatusPublished}},
 		},
 	}
 	kind := coreissue.AssigneeWorkflow
@@ -133,7 +133,7 @@ func TestUpdateIssue_AssignToWorkflow(t *testing.T) {
 	issue, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
 		IfVersion:    1,
 		UserID:       "u1",
-		TeamID:       "tm_1",
+		SpaceID:      "tm_1",
 		IssueID:      "i_1",
 		AssigneeKind: &kind,
 		AssigneeID:   &id,
@@ -149,10 +149,10 @@ func TestUpdateIssue_AssignToWorkflow(t *testing.T) {
 func TestUpdateIssue_AssignToUnpublishedWorkflow(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
-			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
+			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", SpaceID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
 		},
 		Workflows: &mock.MockWorkflowStore{
-			Workflows: []coreworkflow.Workflow{{ID: "w_1", TeamID: "tm_1", Name: "WF", Status: coreworkflow.StatusDraft}},
+			Workflows: []coreworkflow.Workflow{{ID: "w_1", SpaceID: "tm_1", Name: "WF", Status: coreworkflow.StatusDraft}},
 		},
 	}
 	kind := coreissue.AssigneeWorkflow
@@ -160,7 +160,7 @@ func TestUpdateIssue_AssignToUnpublishedWorkflow(t *testing.T) {
 	_, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
 		IfVersion:    1,
 		UserID:       "u1",
-		TeamID:       "tm_1",
+		SpaceID:      "tm_1",
 		IssueID:      "i_1",
 		AssigneeKind: &kind,
 		AssigneeID:   &id,
@@ -173,13 +173,13 @@ func TestUpdateIssue_AssignToUnpublishedWorkflow(t *testing.T) {
 func TestUpdateIssue_VersionRequired(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
-			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
+			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", SpaceID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
 		},
 	}
 	title := "Renamed"
 	_, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
 		UserID:  "u1",
-		TeamID:  "tm_1",
+		SpaceID: "tm_1",
 		IssueID: "i_1",
 		Title:   &title,
 	})
@@ -192,7 +192,7 @@ func TestUpdateIssue_VersionRequired(t *testing.T) {
 // the issue still holds what the first one said.
 func TestUpdateIssue_StaleVersionIsRefused(t *testing.T) {
 	store := &mock.MockIssueStore{
-		Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
+		Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", SpaceID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
 	}
 	svc := &Service{Issues: store}
 
@@ -200,7 +200,7 @@ func TestUpdateIssue_StaleVersionIsRefused(t *testing.T) {
 	updated, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
 		IfVersion: 1,
 		UserID:    "u1",
-		TeamID:    "tm_1",
+		SpaceID:   "tm_1",
 		IssueID:   "i_1",
 		Title:     &first,
 	})
@@ -215,7 +215,7 @@ func TestUpdateIssue_StaleVersionIsRefused(t *testing.T) {
 	if _, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
 		IfVersion: 1,
 		UserID:    "u1",
-		TeamID:    "tm_1",
+		SpaceID:   "tm_1",
 		IssueID:   "i_1",
 		Title:     &second,
 	}); !errors.Is(err, coreissue.ErrVersionConflict) {

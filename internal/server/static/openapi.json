@@ -24,7 +24,7 @@
           "id": {
             "type": "string"
           },
-          "team_id": {
+          "space_id": {
             "type": "string"
           },
           "name": {
@@ -74,7 +74,7 @@
         "type": "object",
         "properties": {
           "id": { "type": "string" },
-          "team_id": { "type": "string" },
+          "space_id": { "type": "string" },
           "conversation_id": { "type": "string" },
           "session_id": { "type": "string", "nullable": true },
           "status": { "type": "string" },
@@ -105,7 +105,7 @@
           "started_at": { "type": "string", "format": "date-time", "nullable": true },
           "ended_at": { "type": "string", "format": "date-time", "nullable": true },
           "agent_revision": { "type": "integer", "nullable": true },
-          "team_agent_instructions_revision": { "type": "integer", "nullable": true }
+          "space_agent_instructions_revision": { "type": "integer", "nullable": true }
         }
       },
       "Conversation": {
@@ -224,7 +224,7 @@
         }
       },
       "Error": {"type": "object", "properties": {"error": {"type": "string"}}, "required": ["error"]},
-      "Team": {
+      "Space": {
         "type": "object",
         "properties": {
           "id": {"type": "string"},
@@ -236,38 +236,38 @@
         },
         "required": ["id", "name", "created_by", "created_at", "updated_at"]
       },
-      "TeamMember": {
+      "SpaceMember": {
         "type": "object",
         "properties": {
-          "team_id": {"type": "string"},
+          "space_id": {"type": "string"},
           "user_id": {"type": "string"},
           "role": {"type": "string"},
           "created_at": {"type": "string", "format": "date-time"},
           "user_name": {"type": "string"},
           "user_email": {"type": "string"}
         },
-        "required": ["team_id", "user_id", "role", "created_at"]
+        "required": ["space_id", "user_id", "role", "created_at"]
       },
       "Invitation": {
         "type": "object",
-        "description": "A pending offer of team membership against an account that already exists. Never carries a code -- see docs/design/team-membership-lifecycle.md.",
+        "description": "A pending offer of space membership against an account that already exists. Never carries a code -- see docs/design/space-membership-lifecycle.md.",
         "properties": {
           "id": {"type": "string"},
-          "team_id": {"type": "string"},
+          "space_id": {"type": "string"},
           "user_id": {"type": "string"},
           "role": {"type": "string"},
           "invited_by": {"type": "string"},
           "expires_at": {"type": "string", "format": "date-time"},
           "created_at": {"type": "string", "format": "date-time"}
         },
-        "required": ["id", "team_id", "user_id", "role", "invited_by", "expires_at", "created_at"]
+        "required": ["id", "space_id", "user_id", "role", "invited_by", "expires_at", "created_at"]
       },
       "Issue": {
         "type": "object",
         "properties": {
           "id": {"type": "string"},
           "user_id": {"type": "string"},
-          "team_id": {"type": "string"},
+          "space_id": {"type": "string"},
           "parent_issue_id": {"type": "string"},
           "title": {"type": "string"},
           "description": {"type": "string"},
@@ -356,7 +356,7 @@
             "properties": {
               "id": {"type": "string"},
               "user_id": {"type": "string"},
-              "team_id": {"type": "string"},
+              "space_id": {"type": "string"},
               "parent_issue_id": {"type": "string"},
               "title": {"type": "string"},
               "description": {"type": "string"},
@@ -389,7 +389,7 @@
             "properties": {
               "id": {"type": "string"},
               "user_id": {"type": "string"},
-              "team_id": {"type": "string"},
+              "space_id": {"type": "string"},
               "parent_issue_id": {"type": "string"},
               "title": {"type": "string"},
               "description": {"type": "string"},
@@ -424,7 +424,7 @@
               "properties": {
                 "id": {"type": "string"},
                 "user_id": {"type": "string"},
-                "team_id": {"type": "string"},
+                "space_id": {"type": "string"},
                 "parent_issue_id": {"type": "string"},
                 "title": {"type": "string"},
                 "description": {"type": "string"},
@@ -457,7 +457,7 @@
             "type": "object",
             "properties": {
               "id": {"type": "string"},
-              "team_id": {"type": "string"},
+              "space_id": {"type": "string"},
               "name": {"type": "string"},
               "description": {"type": "string"},
               "definition": {"type": "string"},
@@ -469,7 +469,7 @@
             },
             "required": [
               "id",
-              "team_id",
+              "space_id",
               "name",
               "description",
               "definition",
@@ -639,7 +639,7 @@
         "type": "object",
         "properties": {
           "id": {"type": "string"},
-          "team_id": {"type": "string"},
+          "space_id": {"type": "string"},
           "name": {"type": "string"},
           "description": {"type": "string"},
           "definition": {"type": "string"},
@@ -651,7 +651,7 @@
         },
         "required": [
           "id",
-          "team_id",
+          "space_id",
           "name",
           "description",
           "definition",
@@ -871,14 +871,14 @@
             "properties": {
               "id": {"type": "string"},
               "conversation_id": {"type": "string"},
-              "team_id": {"type": "string"},
+              "space_id": {"type": "string"},
               "user_id": {"type": "string"},
               "session_id": {"type": "string"},
               "agent_instructions": {"type": "string"},
-              "team_agent_instructions": {"type": "string"},
-              "team_agent_instructions_revision": {"type": "integer"}
+              "space_agent_instructions": {"type": "string"},
+              "space_agent_instructions_revision": {"type": "integer"}
             },
-            "required": ["id", "conversation_id", "team_id", "user_id"]
+            "required": ["id", "conversation_id", "space_id", "user_id"]
           },
           "llm": {
             "type": "object",
@@ -1009,7 +1009,7 @@
         "type": "object",
         "properties": {
           "id": {"type": "string"},
-          "team_id": {"type": "string"},
+          "space_id": {"type": "string"},
           "plugin_name": {"type": "string"},
           "version": {"type": "string"},
           "digest": {"type": "string"},
@@ -1022,7 +1022,7 @@
         },
         "required": [
           "id",
-          "team_id",
+          "space_id",
           "plugin_name",
           "version",
           "digest",
@@ -1036,10 +1036,10 @@
     }
   },
   "paths": {
-    "/api/teams/{team_id}/secrets": {
+    "/api/spaces/{space_id}/secrets": {
       "parameters": [
         {
-          "name": "team_id",
+          "name": "space_id",
           "in": "path",
           "required": true,
           "schema": {
@@ -1048,7 +1048,7 @@
         }
       ],
       "get": {
-        "summary": "List the team's secrets (metadata only)",
+        "summary": "List the space's secrets (metadata only)",
         "security": [
           {
             "bearerAuth": []
@@ -1150,10 +1150,10 @@
         }
       }
     },
-    "/api/teams/{team_id}/secrets/{secret_id}": {
+    "/api/spaces/{space_id}/secrets/{secret_id}": {
       "parameters": [
         {
-          "name": "team_id",
+          "name": "space_id",
           "in": "path",
           "required": true,
           "schema": {
@@ -1280,10 +1280,10 @@
         }
       }
     },
-    "/api/teams/{team_id}/secrets/{secret_id}/state": {
+    "/api/spaces/{space_id}/secrets/{secret_id}/state": {
       "parameters": [
         {
-          "name": "team_id",
+          "name": "space_id",
           "in": "path",
           "required": true,
           "schema": {
@@ -1452,8 +1452,8 @@
     },
     "/api/invitations": {
       "get": {
-        "summary": "List the caller's own pending invitations, across every team",
-        "description": "Not team-scoped: it answers what is pending for the signed-in caller. See docs/design/team-membership-lifecycle.md.",
+        "summary": "List the caller's own pending invitations, across every space",
+        "description": "Not space-scoped: it answers what is pending for the signed-in caller. See docs/design/space-membership-lifecycle.md.",
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
@@ -1503,7 +1503,7 @@
     "/api/llm/completions": {
       "post": {
         "summary": "Run one managed model call, so a client needs no upstream provider credential",
-        "description": "Names a model from the deployment catalog; upstream endpoints, credentials, and provider model identifiers are never accepted or returned. Unknown request fields are rejected rather than ignored. With stream=true the response is text/event-stream carrying delta, result, and error events. A foreground call is attributed to the caller and metered against no team.",
+        "description": "Names a model from the deployment catalog; upstream endpoints, credentials, and provider model identifiers are never accepted or returned. Unknown request fields are rejected rather than ignored. With stream=true the response is text/event-stream carrying delta, result, and error events. A foreground call is attributed to the caller and metered against no space.",
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": { "description": "OK. A streamed call that fails after its first delta still answers 200 and reports the failure as an error event" },
@@ -1519,24 +1519,24 @@
     },
     "/api/worker/task-runs/{task_run_id}/llm/completions": {
       "post": {
-        "summary": "Run one managed model call on behalf of a task run, so a worker needs no upstream provider credential. Authenticated with the run token the scheduler minted for that run: user, team, task, and run all come from the credential, never from the request",
+        "summary": "Run one managed model call on behalf of a task run, so a worker needs no upstream provider credential. Authenticated with the run token the scheduler minted for that run: user, space, task, and run all come from the credential, never from the request",
         "parameters": [
           { "name": "task_run_id", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
           "200": { "description": "OK. Same body and streaming behaviour as the user route" },
-          "400": { "description": "Invalid request, unknown field, or a model the run's team may not use" },
+          "400": { "description": "Invalid request, unknown field, or a model the run's space may not use" },
           "401": { "description": "Missing, invalid, or expired run token" },
-          "403": { "description": "The run token authorizes a different task run, or a different team than the run's" },
+          "403": { "description": "The run token authorizes a different task run, or a different space than the run's" },
           "404": { "description": "No such task run" },
           "409": { "description": "The run is not executing, so no call is accepted for it" },
-          "429": { "description": "Team quota exceeded" }
+          "429": { "description": "Space quota exceeded" }
         }
       }
     },
-    "/api/teams/{team_id}/agents": {
+    "/api/spaces/{space_id}/agents": {
       "parameters": [
-        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
       ],
       "get": {
         "summary": "List agents",
@@ -1570,9 +1570,9 @@
         }
       }
     },
-    "/api/teams/{team_id}/agents/{agent_id}": {
+    "/api/spaces/{space_id}/agents/{agent_id}": {
       "parameters": [
-        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
       ],
       "get": {
         "summary": "Get agent",
@@ -1619,9 +1619,9 @@
         }
       }
     },
-    "/api/teams/{team_id}/agents/{agent_id}/tasks": {
+    "/api/spaces/{space_id}/agents/{agent_id}/tasks": {
       "parameters": [
-        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}},
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}},
         {"name": "agent_id", "in": "path", "required": true, "schema": {"type": "string"}}
       ],
       "get": {
@@ -1641,12 +1641,12 @@
         }
       }
     },
-    "/api/teams/{team_id}/files": {
+    "/api/spaces/{space_id}/files": {
       "get": {
-        "summary": "List team files",
+        "summary": "List space files",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
-          { "name": "team_id", "in": "path", "required": true, "schema": { "type": "string" } }
+          { "name": "space_id", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
           "200": {
@@ -1660,12 +1660,12 @@
         }
       }
     },
-    "/api/teams/{team_id}/files/{path}": {
+    "/api/spaces/{space_id}/files/{path}": {
       "get": {
         "summary": "Get file content",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
-          { "name": "team_id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "space_id", "in": "path", "required": true, "schema": { "type": "string" } },
           { "name": "path", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
@@ -1673,12 +1673,12 @@
         }
       }
     },
-    "/api/teams/{team_id}/upload": {
+    "/api/spaces/{space_id}/upload": {
       "post": {
         "summary": "Upload files",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
-          { "name": "team_id", "in": "path", "required": true, "schema": { "type": "string" } }
+          { "name": "space_id", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
           "200": { "description": "OK" }
@@ -1722,9 +1722,9 @@
         }
       }
     },
-    "/api/teams/{team_id}/conversations": {
+    "/api/spaces/{space_id}/conversations": {
       "parameters": [
-        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
       ],
       "get": {
         "summary": "List conversations",
@@ -1757,9 +1757,9 @@
         }
       }
     },
-    "/api/teams/{team_id}/conversations/{conversation_id}/messages": {
+    "/api/spaces/{space_id}/conversations/{conversation_id}/messages": {
       "parameters": [
-        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
       ],
       "get": {
         "summary": "List conversation messages",
@@ -1797,9 +1797,9 @@
         }
       }
     },
-    "/api/teams/{team_id}/conversations/{conversation_id}/tasks": {
+    "/api/spaces/{space_id}/conversations/{conversation_id}/tasks": {
       "parameters": [
-        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
       ],
       "get": {
         "summary": "List tasks in a conversation",
@@ -1839,12 +1839,12 @@
         }
       }
     },
-    "/api/teams/{team_id}/tasks": {
+    "/api/spaces/{space_id}/tasks": {
       "parameters": [
-        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
       ],
       "post": {
-        "summary": "Create a team-owned task and its initial run",
+        "summary": "Create a space-owned task and its initial run",
         "security": [{ "bearerAuth": [] }],
         "requestBody": {
           "required": true,
@@ -1853,9 +1853,9 @@
         "responses": {"201": {"description": "Created", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Task"}}}}}
       }
     },
-    "/api/teams/{team_id}/tasks/{task_id}": {
+    "/api/spaces/{space_id}/tasks/{task_id}": {
       "parameters": [
-        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
       ],
       "get": {
         "summary": "Get task",
@@ -1875,9 +1875,9 @@
         }
       }
     },
-    "/api/teams/{team_id}/tasks/{task_id}/runs": {
+    "/api/spaces/{space_id}/tasks/{task_id}/runs": {
       "parameters": [
-        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
       ],
       "get": {
         "summary": "List a task thread's runs",
@@ -1899,9 +1899,9 @@
         }
       }
     },
-    "/api/teams/{team_id}/tasks/{task_id}/cancel": {
+    "/api/spaces/{space_id}/tasks/{task_id}/cancel": {
       "parameters": [
-        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
       ],
       "post": {
         "summary": "Cancel the task's run",
@@ -1917,9 +1917,9 @@
         }
       }
     },
-    "/api/teams/{team_id}/tasks/{task_id}/retry": {
+    "/api/spaces/{space_id}/tasks/{task_id}/retry": {
       "parameters": [
-        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
       ],
       "post": {
         "summary": "Run the task's last run again",
@@ -1949,9 +1949,9 @@
         }
       }
     },
-    "/api/teams/{team_id}/tasks/{task_id}/conversation": {
+    "/api/spaces/{space_id}/tasks/{task_id}/conversation": {
       "parameters": [
-        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
       ],
       "get": {
         "summary": "Get task execution conversation",
@@ -1964,9 +1964,9 @@
         }
       }
     },
-    "/api/teams/{team_id}/tasks/{task_id}/stream": {
+    "/api/spaces/{space_id}/tasks/{task_id}/stream": {
       "parameters": [
-        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
       ],
       "get": {
         "summary": "Stream task run output",
@@ -1979,9 +1979,9 @@
         }
       }
     },
-    "/api/teams/{team_id}/tasks/{task_id}/artifacts": {
+    "/api/spaces/{space_id}/tasks/{task_id}/artifacts": {
       "parameters": [
-        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
       ],
       "get": {
         "summary": "List artifacts for a task",
@@ -2004,9 +2004,9 @@
         }
       }
     },
-    "/api/teams/{team_id}/task-runs/{task_run_id}/artifacts/items": {
+    "/api/spaces/{space_id}/task-runs/{task_run_id}/artifacts/items": {
       "parameters": [
-        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
       ],
       "get": {
         "summary": "List artifact files for a task run",
@@ -2029,9 +2029,9 @@
         }
       }
     },
-    "/api/teams/{team_id}/task-runs/{task_run_id}/artifacts/content": {
+    "/api/spaces/{space_id}/task-runs/{task_run_id}/artifacts/content": {
       "parameters": [
-        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
       ],
       "get": {
         "summary": "Get artifact file content",
@@ -2045,9 +2045,9 @@
         }
       }
     },
-    "/api/teams/{team_id}/task-runs/{task_run_id}/trace": {
+    "/api/spaces/{space_id}/task-runs/{task_run_id}/trace": {
       "parameters": [
-        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
       ],
       "get": {
         "summary": "Get a task run's trace summary",
@@ -2069,20 +2069,20 @@
         }
       }
     },
-    "/api/teams/{team_id}/task-runs/{task_run_id}/llm-calls": {
+    "/api/spaces/{space_id}/task-runs/{task_run_id}/llm-calls": {
       "parameters": [
-        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
       ],
       "get": {
         "summary": "List a task run's managed model calls",
-        "description": "What the run spent and on which approved alias, oldest first. An accounting record, not a transcript: prompts, tool arguments, and generated content are absent, and so is the catalog entry the alias resolved to, which is the operator's routing rather than the team's.",
+        "description": "What the run spent and on which approved alias, oldest first. An accounting record, not a transcript: prompts, tool arguments, and generated content are absent, and so is the catalog entry the alias resolved to, which is the operator's routing rather than the space's.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "name": "task_run_id", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
           "200": { "description": "OK. An empty array when the run made no managed calls, which is what a direct-mode run does" },
-          "404": { "description": "No such run for this team" },
+          "404": { "description": "No such run for this space" },
           "503": { "description": "This deployment records no managed calls" }
         }
       }
@@ -2185,7 +2185,7 @@
     },
     "/api/admin/users/{user_id}": {
       "get": {
-        "summary": "Show one account with its teams and grants",
+        "summary": "Show one account with its spaces and grants",
         "security": [{"bearerAuth": []}],
         "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "responses": {
@@ -2293,9 +2293,9 @@
         }
       }
     },
-    "/api/admin/teams": {
+    "/api/admin/spaces": {
       "get": {
-        "summary": "List every team in the deployment",
+        "summary": "List every space in the deployment",
         "security": [{"bearerAuth": []}],
         "parameters": [
           {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer"}},
@@ -2305,7 +2305,7 @@
             "in": "query",
             "required": false,
             "schema": {"type": "string"},
-            "description": "Substring match on team name"
+            "description": "Substring match on space name"
           }
         ],
         "responses": {
@@ -2316,7 +2316,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "teams": {"type": "array", "items": {"type": "object"}},
+                    "spaces": {"type": "array", "items": {"type": "object"}},
                     "total": {"type": "integer"}
                   }
                 }
@@ -2326,16 +2326,16 @@
         }
       }
     },
-    "/api/admin/teams/{team_id}": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/admin/spaces/{space_id}": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
-        "summary": "Show one team with its members",
+        "summary": "Show one space with its members",
         "security": [{"bearerAuth": []}],
-        "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "responses": {
           "200": {"description": "OK", "content": {"application/json": {"schema": {"type": "object"}}}},
           "404": {
-            "description": "Team not found",
+            "description": "Space not found",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
         }
@@ -2439,11 +2439,11 @@
           {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer"}},
           {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer"}},
           {
-            "name": "team_id",
+            "name": "space_id",
             "in": "query",
             "required": false,
             "schema": {"type": "string"},
-            "description": "\"none\" selects events belonging to no team"
+            "description": "\"none\" selects events belonging to no space"
           },
           {"name": "actor_id", "in": "query", "required": false, "schema": {"type": "string"}},
           {"name": "action", "in": "query", "required": false, "schema": {"type": "string"}},
@@ -2480,7 +2480,7 @@
             "schema": {"type": "string"},
             "description": "csv (default) or jsonl"
           },
-          {"name": "team_id", "in": "query", "required": false, "schema": {"type": "string"}},
+          {"name": "space_id", "in": "query", "required": false, "schema": {"type": "string"}},
           {"name": "actor_id", "in": "query", "required": false, "schema": {"type": "string"}},
           {"name": "action", "in": "query", "required": false, "schema": {"type": "string"}},
           {"name": "target_type", "in": "query", "required": false, "schema": {"type": "string"}},
@@ -2716,21 +2716,21 @@
         }
       }
     },
-    "/api/teams": {
+    "/api/spaces": {
       "get": {
-        "summary": "List the teams the caller belongs to",
+        "summary": "List the spaces the caller belongs to",
         "security": [{"bearerAuth": []}],
         "responses": {
           "200": {
             "description": "OK",
             "content": {
-              "application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Team"}}}
+              "application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Space"}}}
             }
           }
         }
       },
       "post": {
-        "summary": "Create a team",
+        "summary": "Create a space",
         "security": [{"bearerAuth": []}],
         "requestBody": {
           "required": true,
@@ -2741,7 +2741,7 @@
         "responses": {
           "201": {
             "description": "Created",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Team"}}}
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Space"}}}
           },
           "400": {
             "description": "name is required",
@@ -2750,23 +2750,23 @@
         }
       }
     },
-    "/api/teams/{team_id}/members": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/members": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
-        "summary": "List a team's members",
+        "summary": "List a space's members",
         "security": [{"bearerAuth": []}],
         "responses": {
           "200": {
             "description": "OK",
             "content": {
-              "application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/TeamMember"}}}
+              "application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/SpaceMember"}}}
             }
           }
         }
       }
     },
-    "/api/teams/{team_id}/members/{user_id}": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/members/{user_id}": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "delete": {
         "summary": "Remove a member",
         "security": [{"bearerAuth": []}],
@@ -2778,14 +2778,14 @@
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           },
           "404": {
-            "description": "Not a member of this team",
+            "description": "Not a member of this space",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
         }
       },
       "patch": {
         "summary": "Change a member's role",
-        "description": "Setting role to owner is ownership transfer: the caller is demoted to admin in the same call, unilaterally and immediately, not subject to the target's acceptance. See docs/design/team-membership-lifecycle.md.",
+        "description": "Setting role to owner is ownership transfer: the caller is demoted to admin in the same call, unilaterally and immediately, not subject to the target's acceptance. See docs/design/space-membership-lifecycle.md.",
         "security": [{"bearerAuth": []}],
         "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "requestBody": {
@@ -2804,7 +2804,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "team_id": {"type": "string"},
+                    "space_id": {"type": "string"},
                     "user_id": {"type": "string"},
                     "role": {"type": "string"}
                   }
@@ -2821,7 +2821,7 @@
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           },
           "404": {
-            "description": "Not a member of this team",
+            "description": "Not a member of this space",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           },
           "409": {
@@ -2831,11 +2831,11 @@
         }
       }
     },
-    "/api/teams/{team_id}/members/{user_id}/login-code": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/members/{user_id}/login-code": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "post": {
-        "summary": "Issue a login code for a locked-out member of the caller's own team",
-        "description": "Owner only. Does not replace the system_admin route in system-administration.md, which still recovers an owner who has no co-owner and no admin left in their own team -- this only removes the dependency on a system_admin existing at all for the common case of one member locked out of an otherwise healthy team. See docs/design/team-membership-lifecycle.md.",
+        "summary": "Issue a login code for a locked-out member of the caller's own space",
+        "description": "Owner only. Does not replace the system_admin route in system-administration.md, which still recovers an owner who has no co-owner and no admin left in their own space -- this only removes the dependency on a system_admin existing at all for the common case of one member locked out of an otherwise healthy space. See docs/design/space-membership-lifecycle.md.",
         "security": [{"bearerAuth": []}],
         "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "responses": {
@@ -2855,7 +2855,7 @@
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           },
           "404": {
-            "description": "Not a member of this team",
+            "description": "Not a member of this space",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           },
           "409": {
@@ -2865,10 +2865,10 @@
         }
       }
     },
-    "/api/teams/{team_id}/invitations": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/invitations": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
-        "summary": "List a team's pending invitations",
+        "summary": "List a space's pending invitations",
         "description": "Reading who has been invited is the same authority as sending or revoking an invitation: owner or admin.",
         "security": [{"bearerAuth": []}],
         "responses": {
@@ -2885,8 +2885,8 @@
         }
       },
       "post": {
-        "summary": "Invite an existing account to join the team",
-        "description": "Bounded to an account that already exists. Creating one is a system_admin operation (POST /api/admin/users), not a team-scoped one -- see docs/design/team-membership-lifecycle.md. Owner may invite at member or admin; admin may invite only at member.",
+        "summary": "Invite an existing account to join the space",
+        "description": "Bounded to an account that already exists. Creating one is a system_admin operation (POST /api/admin/users), not a space-scoped one -- see docs/design/space-membership-lifecycle.md. Owner may invite at member or admin; admin may invite only at member.",
         "security": [{"bearerAuth": []}],
         "requestBody": {
           "required": true,
@@ -2919,8 +2919,8 @@
         }
       }
     },
-    "/api/teams/{team_id}/invitations/{invitation_id}": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/invitations/{invitation_id}": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "delete": {
         "summary": "Revoke a pending invitation",
         "security": [{"bearerAuth": []}],
@@ -2942,10 +2942,10 @@
         }
       }
     },
-    "/api/teams/{team_id}/usage": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/usage": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
-        "summary": "Report this team's run and token usage against its quota",
+        "summary": "Report this space's run and token usage against its quota",
         "security": [{"bearerAuth": []}],
         "responses": {
           "200": {
@@ -2959,10 +2959,10 @@
         }
       }
     },
-    "/api/teams/{team_id}/audit-events": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/audit-events": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
-        "summary": "Search this team's audit trail",
+        "summary": "Search this space's audit trail",
         "security": [{"bearerAuth": []}],
         "parameters": [
           {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer"}},
@@ -2986,10 +2986,10 @@
         }
       }
     },
-    "/api/teams/{team_id}/audit-events/export": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/audit-events/export": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
-        "summary": "Export this team's audit trail",
+        "summary": "Export this space's audit trail",
         "security": [{"bearerAuth": []}],
         "parameters": [
           {
@@ -3015,8 +3015,8 @@
         }
       }
     },
-    "/api/teams/{team_id}/agents/{agent_id}/revisions": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/agents/{agent_id}/revisions": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
         "summary": "List an Agent definition's revisions",
         "security": [{"bearerAuth": []}],
@@ -3043,8 +3043,8 @@
         }
       }
     },
-    "/api/teams/{team_id}/agents/{agent_id}/revisions/{revision}/restore": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/agents/{agent_id}/revisions/{revision}/restore": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "post": {
         "summary": "Restore an Agent definition to an earlier revision",
         "security": [{"bearerAuth": []}],
@@ -3064,10 +3064,10 @@
         }
       }
     },
-    "/api/teams/{team_id}/plugin-activations": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/plugin-activations": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
-        "summary": "List the team's plugin activations and curation mode",
+        "summary": "List the space's plugin activations and curation mode",
         "security": [{"bearerAuth": []}],
         "responses": {
           "200": {
@@ -3085,13 +3085,13 @@
             }
           },
           "404": {
-            "description": "Team not found",
+            "description": "Space not found",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
         }
       },
       "post": {
-        "summary": "Activate a plugin release for the team",
+        "summary": "Activate a plugin release for the space",
         "security": [{"bearerAuth": []}],
         "requestBody": {
           "required": true,
@@ -3120,8 +3120,8 @@
         }
       }
     },
-    "/api/teams/{team_id}/plugin-activations/{plugin_name}": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/plugin-activations/{plugin_name}": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "patch": {
         "summary": "Move an activation's pin or suspend it",
         "security": [{"bearerAuth": []}],
@@ -3147,16 +3147,16 @@
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           },
           "404": {
-            "description": "Not activated for this team",
+            "description": "Not activated for this space",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
         }
       }
     },
-    "/api/teams/{team_id}/plugin-curation": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/plugin-curation": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "put": {
-        "summary": "Choose who fills the team's activation list",
+        "summary": "Choose who fills the space's activation list",
         "security": [{"bearerAuth": []}],
         "requestBody": {
           "required": true,
@@ -3178,10 +3178,10 @@
         }
       }
     },
-    "/api/teams/{team_id}/sandbox-defaults": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/sandbox-defaults": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
-        "summary": "Get the team's default sandbox tiers",
+        "summary": "Get the space's default sandbox tiers",
         "security": [{"bearerAuth": []}],
         "responses": {
           "200": {
@@ -3199,13 +3199,13 @@
             }
           },
           "404": {
-            "description": "Team not found",
+            "description": "Space not found",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
         }
       },
       "put": {
-        "summary": "Set the team's default sandbox tiers",
+        "summary": "Set the space's default sandbox tiers",
         "security": [{"bearerAuth": []}],
         "requestBody": {
           "required": true,
@@ -3241,14 +3241,14 @@
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           },
           "403": {
-            "description": "Only a team owner or admin may set the default tiers",
+            "description": "Only a space owner or admin may set the default tiers",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
         }
       }
     },
-    "/api/teams/{team_id}/agent-instructions": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/agent-instructions": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
         "summary": "Get the Space-level instructions inherited by background Agent runs",
         "security": [{"bearerAuth": []}],
@@ -3262,7 +3262,7 @@
             }}}
           },
           "404": {
-            "description": "Team not found",
+            "description": "Space not found",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
         }
@@ -3292,14 +3292,14 @@
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           },
           "403": {
-            "description": "Only a team owner or admin may set Agent instructions",
+            "description": "Only a space owner or admin may set Agent instructions",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
         }
       }
     },
-    "/api/teams/{team_id}/issues": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/issues": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
         "summary": "List issues",
         "security": [{"bearerAuth": []}],
@@ -3357,8 +3357,8 @@
         }
       }
     },
-    "/api/teams/{team_id}/issues/{issue_id}": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/issues/{issue_id}": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
         "summary": "Show one issue",
         "security": [{"bearerAuth": []}],
@@ -3418,8 +3418,8 @@
         }
       }
     },
-    "/api/teams/{team_id}/issues/{issue_id}/flow": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/issues/{issue_id}/flow": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
         "summary": "Show an issue's work: its conversation, task runs, and workflow runs",
         "security": [{"bearerAuth": []}],
@@ -3440,8 +3440,8 @@
         }
       }
     },
-    "/api/teams/{team_id}/issues/{issue_id}/agent-runs": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/issues/{issue_id}/agent-runs": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "post": {
         "summary": "Start the assigned Agent on an issue",
         "security": [{"bearerAuth": []}],
@@ -3461,14 +3461,14 @@
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           },
           "429": {
-            "description": "The team is over its run or token allowance",
+            "description": "The space is over its run or token allowance",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
         }
       }
     },
-    "/api/teams/{team_id}/issues/{issue_id}/workflow-runs": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/issues/{issue_id}/workflow-runs": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "post": {
         "summary": "Start the assigned Workflow on an issue",
         "security": [{"bearerAuth": []}],
@@ -3500,8 +3500,8 @@
         }
       }
     },
-    "/api/teams/{team_id}/issues/{issue_id}/comments": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/issues/{issue_id}/comments": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
         "summary": "List an issue's comments",
         "security": [{"bearerAuth": []}],
@@ -3566,8 +3566,8 @@
         }
       }
     },
-    "/api/teams/{team_id}/issues/{issue_id}/comments/{comment_id}": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/issues/{issue_id}/comments/{comment_id}": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "patch": {
         "summary": "Edit a comment",
         "security": [{"bearerAuth": []}],
@@ -3616,10 +3616,10 @@
         }
       }
     },
-    "/api/teams/{team_id}/workflows": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/workflows": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
-        "summary": "List the team's workflows",
+        "summary": "List the space's workflows",
         "security": [{"bearerAuth": []}],
         "responses": {
           "200": {
@@ -3653,8 +3653,8 @@
         }
       }
     },
-    "/api/teams/{team_id}/workflows/{workflow_id}": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/workflows/{workflow_id}": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
         "summary": "Show one workflow",
         "security": [{"bearerAuth": []}],
@@ -3691,8 +3691,8 @@
         }
       }
     },
-    "/api/teams/{team_id}/workflows/{workflow_id}/revisions": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/workflows/{workflow_id}/revisions": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
         "summary": "List a workflow's revisions",
         "security": [{"bearerAuth": []}],
@@ -3719,8 +3719,8 @@
         }
       }
     },
-    "/api/teams/{team_id}/workflows/{workflow_id}/revisions/{revision}/restore": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/workflows/{workflow_id}/revisions/{revision}/restore": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "post": {
         "summary": "Restore a workflow to an earlier revision",
         "security": [{"bearerAuth": []}],
@@ -3740,8 +3740,8 @@
         }
       }
     },
-    "/api/teams/{team_id}/workflows/{workflow_id}/runs": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/workflows/{workflow_id}/runs": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
         "summary": "List a workflow's runs",
         "security": [{"bearerAuth": []}],
@@ -3798,8 +3798,8 @@
         }
       }
     },
-    "/api/teams/{team_id}/workflow-runs/{workflow_run_id}": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/workflow-runs/{workflow_run_id}": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
         "summary": "Show one workflow run and its steps",
         "security": [{"bearerAuth": []}],
@@ -3826,8 +3826,8 @@
         }
       }
     },
-    "/api/teams/{team_id}/task-runs/{task_run_id}": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/task-runs/{task_run_id}": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
         "summary": "Show what produced a task run, including its Space and Agent instruction revisions",
         "security": [{"bearerAuth": []}],
@@ -3835,7 +3835,7 @@
         "responses": {
           "200": {"description": "OK", "content": {"application/json": {"schema": {"type": "object"}}}},
           "404": {
-            "description": "No such run for this team",
+            "description": "No such run for this space",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
         }
@@ -3843,15 +3843,15 @@
     },
     "/api/artifacts": {
       "post": {
-        "summary": "Upload an artifact to the caller's default team",
+        "summary": "Upload an artifact to the caller's default space",
         "security": [{"bearerAuth": []}],
         "parameters": [
           {
-            "name": "team_id",
+            "name": "space_id",
             "in": "query",
             "required": false,
             "schema": {"type": "string"},
-            "description": "Overrides the caller's default team"
+            "description": "Overrides the caller's default space"
           }
         ],
         "requestBody": {
@@ -3878,10 +3878,10 @@
         }
       }
     },
-    "/api/teams/{team_id}/artifacts": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/artifacts": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
-        "summary": "List a team's artifacts",
+        "summary": "List a space's artifacts",
         "security": [{"bearerAuth": []}],
         "parameters": [
           {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer"}},
@@ -3905,7 +3905,7 @@
         }
       },
       "post": {
-        "summary": "Upload an artifact to a team",
+        "summary": "Upload an artifact to a space",
         "security": [{"bearerAuth": []}],
         "requestBody": {
           "required": true,
@@ -3934,7 +3934,7 @@
     "/api/artifacts/{artifact_id}": {
       "get": {
         "summary": "Show one artifact's metadata",
-        "description": "The artifact's team comes from the record, not from the path.",
+        "description": "The artifact's space comes from the record, not from the path.",
         "security": [{"bearerAuth": []}],
         "parameters": [{"name": "artifact_id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "responses": {
@@ -4158,10 +4158,10 @@
         }
       }
     },
-    "/api/teams/{team_id}/ws": {
-      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+    "/api/spaces/{space_id}/ws": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
-        "summary": "Open the team's event stream",
+        "summary": "Open the space's event stream",
         "description": "Authenticated by the token query parameter rather than a bearer header.",
         "security": [],
         "parameters": [
@@ -4176,7 +4176,7 @@
         "responses": {
           "101": {"description": "Switching Protocols"},
           "401": {"description": "Missing or invalid token"},
-          "503": {"description": "This server is shutting down, or teams are not configured"}
+          "503": {"description": "This server is shutting down, or spaces are not configured"}
         }
       }
     },
@@ -4396,7 +4396,7 @@
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           },
           "409": {
-            "description": "This run has no team to keep an artifact for",
+            "description": "This run has no space to keep an artifact for",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
         }

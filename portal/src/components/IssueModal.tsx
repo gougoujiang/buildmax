@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { BaseModal } from "@buildmax/gui"
-import type { ApiTeamMember } from "../lib/api/types"
+import type { ApiSpaceMember } from "../lib/api/types"
 import type { Agent, Issue, Workflow } from "../lib/types"
 
 interface IssueModalProps {
@@ -9,7 +9,7 @@ interface IssueModalProps {
   issue?: Issue | null
   agents: Agent[]
   workflows: Workflow[]
-  members: ApiTeamMember[]
+  members: ApiSpaceMember[]
   userId?: string
   loading: boolean
   runningWorkflow?: boolean
@@ -81,7 +81,7 @@ export function IssueModal({
   const titleText = mode === "create" ? "New Issue" : "Issue Details"
   const submitText = mode === "create" ? "Create issue" : "Save"
 
-  function memberLabel(member: ApiTeamMember): string {
+  function memberLabel(member: ApiSpaceMember): string {
     if (member.user_id === userId) return "Me"
     if (member.user_name && member.user_name.trim() !== "") return member.user_name
     if (member.user_email && member.user_email.trim() !== "") return member.user_email
@@ -137,7 +137,7 @@ export function IssueModal({
             <span className="issues-page__field-label">
               {allowWorkflowAssignment
                 ? "Only `published` workflows are available for new assignment."
-                : "You can assign a person or agent here. Workflow assignment is limited to team owners and admins."}
+                : "You can assign a person or agent here. Workflow assignment is limited to space owners and admins."}
             </span>
           </label>
           {mode === "edit" && issue?.assigneeKind === "workflow" ? (

@@ -3,7 +3,7 @@
 // Everything here runs before a caller has one, or changes the credential that
 // produces one: request an account, log in, refresh, log out, set a password.
 // Once a session exists, deciding what it may reach is internal/server/access's
-// job, not this package's -- which is why this Config holds no team store.
+// job, not this package's -- which is why this Config holds no space store.
 package auth
 
 import (

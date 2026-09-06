@@ -23,7 +23,7 @@ const (
 	composeSmokeFile        = "deployment/compose/compose.smoke.yaml"
 	composeSmokeManagedFile = "deployment/compose/compose.smoke.managed.yaml"
 	smokeEmail              = "deployment-smoke@buildmax.local"
-	// smokeOutsiderEmail owns a team of its own and belongs to none of the
+	// smokeOutsiderEmail owns a space of its own and belongs to none of the
 	// smoke account's, which is what makes it able to prove a denial.
 	smokeOutsiderEmail = "deployment-smoke-outsider@buildmax.local"
 	smokeReply         = "deployment smoke ok"
@@ -283,15 +283,15 @@ func runDeploymentSmoke(ctx context.Context, target smokeTarget) error {
 		return fmt.Errorf("portal runtime config does not contain %q: %s", wantAPIBase, strings.TrimSpace(portalConfig))
 	}
 
-	token, teamID, err := smokeSignIn(ctx, client, target, smokeEmail)
+	token, spaceID, err := smokeSignIn(ctx, client, target, smokeEmail)
 	if err != nil {
 		return err
 	}
 
-	if err := uploadSmokeFile(ctx, client, target.apiBase, teamID, token); err != nil {
+	if err := uploadSmokeFile(ctx, client, target.apiBase, spaceID, token); err != nil {
 		return err
 	}
-	fileURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/files/deployment-smoke.txt"
+	fileURL := target.apiBase + "/api/spaces/" + url.PathEscape(spaceID) + "/files/deployment-smoke.txt"
 	content, err := requestText(ctx, client, http.MethodGet, fileURL, token, nil, http.StatusOK)
 	if err != nil {
 		return err
@@ -303,7 +303,7 @@ func runDeploymentSmoke(ctx context.Context, target smokeTarget) error {
 	var conversation struct {
 		ID string `json:"conversation_id"`
 	}
-	conversationsURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/conversations"
+	conversationsURL := target.apiBase + "/api/spaces/" + url.PathEscape(spaceID) + "/conversations"
 	if err := requestJSON(ctx, client, http.MethodPost, conversationsURL, token, map[string]string{"channel": "portal"}, &conversation, http.StatusCreated); err != nil {
 		return err
 	}
@@ -315,7 +315,7 @@ func runDeploymentSmoke(ctx context.Context, target smokeTarget) error {
 		return err
 	}
 
-	taskURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/tasks/" + url.PathEscape(task.ID)
+	taskURL := target.apiBase + "/api/spaces/" + url.PathEscape(spaceID) + "/tasks/" + url.PathEscape(task.ID)
 	output, err := waitForTaskSuccess(ctx, client, taskURL, token)
 	if err != nil {
 		return err
@@ -333,7 +333,7 @@ func runDeploymentSmoke(ctx context.Context, target smokeTarget) error {
 	if len(artifacts) == 0 || artifacts[0].TaskRunID == "" {
 		return errors.New("successful task has no artifact")
 	}
-	artifactURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/task-runs/" + url.PathEscape(artifacts[0].TaskRunID) + "/artifacts/content"
+	artifactURL := target.apiBase + "/api/spaces/" + url.PathEscape(spaceID) + "/task-runs/" + url.PathEscape(artifacts[0].TaskRunID) + "/artifacts/content"
 	artifact, err := requestText(ctx, client, http.MethodGet, artifactURL, token, nil, http.StatusOK)
 	if err != nil {
 		return err
@@ -342,25 +342,25 @@ func runDeploymentSmoke(ctx context.Context, target smokeTarget) error {
 		return fmt.Errorf("artifact content = %q, want %q", strings.TrimSpace(artifact), smokeReply)
 	}
 
-	if err := assertManagedRun(ctx, client, target, teamID, artifacts[0].TaskRunID, token); err != nil {
+	if err := assertManagedRun(ctx, client, target, spaceID, artifacts[0].TaskRunID, token); err != nil {
 		return err
 	}
-	if err := assertWorkerSandboxConfines(ctx, client, target, teamID, conversation.ID, token); err != nil {
+	if err := assertWorkerSandboxConfines(ctx, client, target, spaceID, conversation.ID, token); err != nil {
 		return err
 	}
-	if err := assertRetryRunsAgain(ctx, client, target, teamID, task.ID, artifacts[0].TaskRunID, token); err != nil {
+	if err := assertRetryRunsAgain(ctx, client, target, spaceID, task.ID, artifacts[0].TaskRunID, token); err != nil {
 		return err
 	}
-	if err := assertTeamBoundaryHolds(ctx, client, target, teamID); err != nil {
+	if err := assertSpaceBoundaryHolds(ctx, client, target, spaceID); err != nil {
 		return err
 	}
 	// Last, because it arms a stall on the shared mock: anything after it would
 	// be waiting on that stall rather than on the deployment.
-	if err := assertCancellationSettles(ctx, client, target, teamID, conversation.ID, token); err != nil {
+	if err := assertCancellationSettles(ctx, client, target, spaceID, conversation.ID, token); err != nil {
 		return err
 	}
 
-	covered := "portal, auth, team boundary, storage, scheduler, worker, artifact, retry, and cancellation"
+	covered := "portal, auth, space boundary, storage, scheduler, worker, artifact, retry, and cancellation"
 	if target.managedLLM {
 		covered += ", with the run reaching its model through the gateway rather than a provider key"
 	}
@@ -380,7 +380,7 @@ func runDeploymentSmoke(ctx context.Context, target smokeTarget) error {
 // The window comes from the mock: a run whose model call answers immediately is
 // finished before anything can cancel it, so the smoke arms a stall and takes it
 // away again. See docs/design/end-to-end-testing.md §6.2.
-func assertCancellationSettles(ctx context.Context, client *http.Client, target smokeTarget, teamID, conversationID, token string) error {
+func assertCancellationSettles(ctx context.Context, client *http.Client, target smokeTarget, spaceID, conversationID, token string) error {
 	if err := armLLMStall(ctx, client, target, cancelStall); err != nil {
 		return err
 	}
@@ -399,11 +399,11 @@ func assertCancellationSettles(ctx context.Context, client *http.Client, target 
 	var task struct {
 		ID string `json:"id"`
 	}
-	tasksURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/conversations/" + url.PathEscape(conversationID) + "/tasks"
+	tasksURL := target.apiBase + "/api/spaces/" + url.PathEscape(spaceID) + "/conversations/" + url.PathEscape(conversationID) + "/tasks"
 	if err := requestJSON(ctx, patient, http.MethodPost, tasksURL, token, map[string]string{"input": "Stall until this run is canceled."}, &task, http.StatusCreated); err != nil {
 		return fmt.Errorf("cancellation: create task: %w", err)
 	}
-	taskURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/tasks/" + url.PathEscape(task.ID)
+	taskURL := target.apiBase + "/api/spaces/" + url.PathEscape(spaceID) + "/tasks/" + url.PathEscape(task.ID)
 
 	if err := waitForTaskStatus(ctx, patient, taskURL, token, "RUNNING", 2*time.Minute); err != nil {
 		return fmt.Errorf("cancellation: %w", err)
@@ -437,7 +437,7 @@ func assertCancellationSettles(ctx context.Context, client *http.Client, target 
 		return fmt.Errorf("cancellation: the task left CANCELED for %s five seconds later", settled.Status)
 	}
 
-	return assertNoDanglingArtifacts(ctx, patient, target, teamID, taskURL, token)
+	return assertNoDanglingArtifacts(ctx, patient, target, spaceID, taskURL, token)
 }
 
 // assertNoDanglingArtifacts checks that whatever a canceled run listed can
@@ -447,7 +447,7 @@ func assertCancellationSettles(ctx context.Context, client *http.Client, target 
 // is a legitimate answer for one stopped before it wrote any. What is never
 // legitimate is a record for an object that is not there: it sends an operator
 // looking for evidence the deployment cannot produce.
-func assertNoDanglingArtifacts(ctx context.Context, client *http.Client, target smokeTarget, teamID, taskURL, token string) error {
+func assertNoDanglingArtifacts(ctx context.Context, client *http.Client, target smokeTarget, spaceID, taskURL, token string) error {
 	var artifacts []struct {
 		TaskRunID string `json:"task_run_id"`
 	}
@@ -455,7 +455,7 @@ func assertNoDanglingArtifacts(ctx context.Context, client *http.Client, target 
 		return fmt.Errorf("cancellation: list the canceled run's artifacts: %w", err)
 	}
 	for _, artifact := range artifacts {
-		endpoint := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/task-runs/" + url.PathEscape(artifact.TaskRunID) + "/artifacts/content"
+		endpoint := target.apiBase + "/api/spaces/" + url.PathEscape(spaceID) + "/task-runs/" + url.PathEscape(artifact.TaskRunID) + "/artifacts/content"
 		if _, err := requestText(ctx, client, http.MethodGet, endpoint, token, nil, http.StatusOK); err != nil {
 			return fmt.Errorf("cancellation: the canceled run lists an artifact that cannot be downloaded: %w", err)
 		}
@@ -530,7 +530,7 @@ const smokeSandboxProbeArmCount = 6
 // Skips silently on a target with no control routes to arm: a target that
 // cannot script its mock cannot run this probe, the same way armLLMStall's
 // callers already gate on llmControlURL.
-func assertWorkerSandboxConfines(ctx context.Context, client *http.Client, target smokeTarget, teamID, conversationID, token string) error {
+func assertWorkerSandboxConfines(ctx context.Context, client *http.Client, target smokeTarget, spaceID, conversationID, token string) error {
 	if target.llmControlToolCallURL == "" || target.llmControlRequestsURL == "" {
 		return nil
 	}
@@ -553,14 +553,14 @@ func assertWorkerSandboxConfines(ctx context.Context, client *http.Client, targe
 		_ = requestJSON(ctx, client, http.MethodPost, target.llmControlToolCallURL, "", map[string]any{"clear": true}, nil, http.StatusOK)
 	}()
 
-	tasksURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/conversations/" + url.PathEscape(conversationID) + "/tasks"
+	tasksURL := target.apiBase + "/api/spaces/" + url.PathEscape(spaceID) + "/conversations/" + url.PathEscape(conversationID) + "/tasks"
 	var task struct {
 		ID string `json:"id"`
 	}
 	if err := requestJSON(ctx, client, http.MethodPost, tasksURL, token, map[string]string{"input": "Run the sandbox probe."}, &task, http.StatusCreated); err != nil {
 		return fmt.Errorf("create sandbox probe task: %w", err)
 	}
-	taskURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/tasks/" + url.PathEscape(task.ID)
+	taskURL := target.apiBase + "/api/spaces/" + url.PathEscape(spaceID) + "/tasks/" + url.PathEscape(task.ID)
 	if _, err := waitForTaskSuccess(ctx, client, taskURL, token); err != nil {
 		return fmt.Errorf("sandbox probe task: %w", err)
 	}
@@ -677,12 +677,12 @@ func waitForTaskSuccess(ctx context.Context, client *http.Client, taskURL, token
 // a second run id is cheap to write down, and a second artifact is not — it
 // exists only because a process started, ran, and wrote one. See
 // docs/design/end-to-end-testing.md §6.1.
-func assertRetryRunsAgain(ctx context.Context, client *http.Client, target smokeTarget, teamID, taskID, firstRunID, token string) error {
+func assertRetryRunsAgain(ctx context.Context, client *http.Client, target smokeTarget, spaceID, taskID, firstRunID, token string) error {
 	var retried struct {
 		TaskRunID        string `json:"task_run_id"`
 		RetryOfTaskRunID string `json:"retry_of_task_run_id"`
 	}
-	taskURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/tasks/" + url.PathEscape(taskID)
+	taskURL := target.apiBase + "/api/spaces/" + url.PathEscape(spaceID) + "/tasks/" + url.PathEscape(taskID)
 	if err := requestJSON(ctx, client, http.MethodPost, taskURL+"/retry", token, nil, &retried, http.StatusCreated); err != nil {
 		return fmt.Errorf("retry the finished run: %w", err)
 	}
@@ -718,7 +718,7 @@ func assertRetryRunsAgain(ctx context.Context, client *http.Client, target smoke
 	}
 }
 
-// assertTeamBoundaryHolds proves the team boundary is enforced at the
+// assertSpaceBoundaryHolds proves the space boundary is enforced at the
 // deployment edge.
 //
 // The authorization matrix is covered by handler tests against a real router,
@@ -726,36 +726,36 @@ func assertRetryRunsAgain(ctx context.Context, client *http.Client, target smoke
 // sits in front of it — an ingress in kind, a published port in Compose — which
 // is the only way to catch a deployment that authenticates somewhere else, or
 // not at all.
-func assertTeamBoundaryHolds(ctx context.Context, client *http.Client, target smokeTarget, teamID string) error {
-	usageURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/usage"
+func assertSpaceBoundaryHolds(ctx context.Context, client *http.Client, target smokeTarget, spaceID string) error {
+	usageURL := target.apiBase + "/api/spaces/" + url.PathEscape(spaceID) + "/usage"
 	if err := expectStatusWithToken(ctx, client, usageURL, "", http.StatusUnauthorized); err != nil {
-		return fmt.Errorf("an unauthenticated read of a team: %w", err)
+		return fmt.Errorf("an unauthenticated read of a space: %w", err)
 	}
 
-	outsider, outsiderTeamID, err := smokeOutsider(ctx, client, target)
+	outsider, outsiderSpaceID, err := smokeOutsider(ctx, client, target)
 	if err != nil {
 		return err
 	}
 	if err := expectStatusWithToken(ctx, client, usageURL, outsider, http.StatusForbidden); err != nil {
-		return fmt.Errorf("a signed-in stranger reading another team: %w", err)
+		return fmt.Errorf("a signed-in stranger reading another space: %w", err)
 	}
-	// The same token against its own team, so the refusal above is a boundary
+	// The same token against its own space, so the refusal above is a boundary
 	// holding rather than a token that never worked.
-	ownURL := target.apiBase + "/api/teams/" + url.PathEscape(outsiderTeamID) + "/usage"
+	ownURL := target.apiBase + "/api/spaces/" + url.PathEscape(outsiderSpaceID) + "/usage"
 	if err := expectStatusWithToken(ctx, client, ownURL, outsider, http.StatusOK); err != nil {
-		return fmt.Errorf("the stranger reading its own team: %w", err)
+		return fmt.Errorf("the stranger reading its own space: %w", err)
 	}
 	return nil
 }
 
-// smokeOutsider signs in an account that belongs to no team of the smoke
-// account's, returning its token and its own team id.
+// smokeOutsider signs in an account that belongs to no space of the smoke
+// account's, returning its token and its own space id.
 func smokeOutsider(ctx context.Context, client *http.Client, target smokeTarget) (string, string, error) {
 	return smokeSignIn(ctx, client, target, smokeOutsiderEmail)
 }
 
 // smokeSignIn creates the account if it is new, spends a login code, and
-// returns the token together with the personal team every account is given.
+// returns the token together with the personal space every account is given.
 //
 // The account is addressed by email throughout, so the failures name which one
 // could not sign in: a smoke run drives two, and they prove different things.
@@ -782,16 +782,16 @@ func smokeSignIn(ctx context.Context, client *http.Client, target smokeTarget, e
 	if login.Token == "" {
 		return "", "", fmt.Errorf("the login response for %s contained no token", email)
 	}
-	var teams []struct {
+	var spaces []struct {
 		ID string `json:"id"`
 	}
-	if err := requestJSON(ctx, client, http.MethodGet, target.apiBase+"/api/teams", login.Token, nil, &teams, http.StatusOK); err != nil {
+	if err := requestJSON(ctx, client, http.MethodGet, target.apiBase+"/api/spaces", login.Token, nil, &spaces, http.StatusOK); err != nil {
 		return "", "", err
 	}
-	if len(teams) == 0 || teams[0].ID == "" {
-		return "", "", fmt.Errorf("%s has no personal team", email)
+	if len(spaces) == 0 || spaces[0].ID == "" {
+		return "", "", fmt.Errorf("%s has no personal space", email)
 	}
-	return login.Token, teams[0].ID, nil
+	return login.Token, spaces[0].ID, nil
 }
 
 // expectStatusWithToken reads endpoint as whoever token names — nobody, when it
@@ -809,12 +809,12 @@ func expectStatusWithToken(ctx context.Context, client *http.Client, endpoint, t
 // The call ledger is the evidence because only a gateway call produces a row: a
 // worker that had quietly used a provider key would finish the same task, return
 // the same output, and leave nothing here. The row also has to name a user and a
-// team, which is what the run token carries and a shared worker credential could
+// space, which is what the run token carries and a shared worker credential could
 // never supply.
 //
-// It reads the ledger through the same team-authorized route an operator would,
+// It reads the ledger through the same space-authorized route an operator would,
 // which makes this assertion cover the route as well as the transport.
-func assertManagedRun(ctx context.Context, client *http.Client, target smokeTarget, teamID, taskRunID, token string) error {
+func assertManagedRun(ctx context.Context, client *http.Client, target smokeTarget, spaceID, taskRunID, token string) error {
 	if !target.managedLLM {
 		return nil
 	}
@@ -824,7 +824,7 @@ func assertManagedRun(ctx context.Context, client *http.Client, target smokeTarg
 		Status  string  `json:"status"`
 		Surface string  `json:"surface"`
 	}
-	callsURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/task-runs/" + url.PathEscape(taskRunID) + "/llm-calls"
+	callsURL := target.apiBase + "/api/spaces/" + url.PathEscape(spaceID) + "/task-runs/" + url.PathEscape(taskRunID) + "/llm-calls"
 	if err := requestJSON(ctx, client, http.MethodGet, callsURL, token, nil, &calls, http.StatusOK); err != nil {
 		return fmt.Errorf("run llm calls: %w", err)
 	}
@@ -943,7 +943,7 @@ func request(ctx context.Context, client *http.Client, method, endpoint, token, 
 	return resp.Body, nil
 }
 
-func uploadSmokeFile(ctx context.Context, client *http.Client, apiBase, teamID, token string) error {
+func uploadSmokeFile(ctx context.Context, client *http.Client, apiBase, spaceID, token string) error {
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	part, err := writer.CreateFormFile("files", "deployment-smoke.txt")
@@ -956,7 +956,7 @@ func uploadSmokeFile(ctx context.Context, client *http.Client, apiBase, teamID, 
 	if err := writer.Close(); err != nil {
 		return err
 	}
-	endpoint := apiBase + "/api/teams/" + url.PathEscape(teamID) + "/upload"
+	endpoint := apiBase + "/api/spaces/" + url.PathEscape(spaceID) + "/upload"
 	response, err := request(ctx, client, http.MethodPost, endpoint, token, writer.FormDataContentType(), &body, http.StatusOK)
 	if err != nil {
 		return err

@@ -68,7 +68,7 @@ func usePathStyle(cfg config.WorkspaceStorageConfig) bool {
 }
 
 // BuildPersistStorage returns the configured persist storage implementation.
-func BuildPersistStorage(cfg config.WorkspaceStorageConfig, persistRoot func(teamID string) string, s3Client blob.S3Client) (blob.PersistStorage, error) {
+func BuildPersistStorage(cfg config.WorkspaceStorageConfig, persistRoot func(spaceID string) string, s3Client blob.S3Client) (blob.PersistStorage, error) {
 	switch cfg.PersistProvider {
 	case config.ProviderMinIO:
 		if s3Client == nil {
@@ -81,9 +81,9 @@ func BuildPersistStorage(cfg config.WorkspaceStorageConfig, persistRoot func(tea
 }
 
 // BuildArtifactStorage returns the configured storage for artifact content.
-// artifactDir is (teamID, artifactID) -> directory for the local-filesystem
+// artifactDir is (spaceID, artifactID) -> directory for the local-filesystem
 // backend; the S3 backend derives its own key and ignores it.
-func BuildArtifactStorage(cfg config.WorkspaceStorageConfig, artifactDir func(teamID, artifactID string) string, s3Client blob.S3Client) (artifactsvc.ContentStore, error) {
+func BuildArtifactStorage(cfg config.WorkspaceStorageConfig, artifactDir func(spaceID, artifactID string) string, s3Client blob.S3Client) (artifactsvc.ContentStore, error) {
 	switch cfg.ArtifactProvider {
 	case config.ProviderMinIO:
 		if s3Client == nil {
@@ -96,8 +96,8 @@ func BuildArtifactStorage(cfg config.WorkspaceStorageConfig, artifactDir func(te
 }
 
 // BuildRunOutputStorage returns the configured run-output storage implementation.
-// runOutputDir is (teamID, taskID, taskRunID) -> path for run output files.
-func BuildRunOutputStorage(cfg config.WorkspaceStorageConfig, runOutputDir func(teamID, taskID, taskRunID string) string, s3Client blob.S3Client) (blob.RunOutputStorage, error) {
+// runOutputDir is (spaceID, taskID, taskRunID) -> path for run output files.
+func BuildRunOutputStorage(cfg config.WorkspaceStorageConfig, runOutputDir func(spaceID, taskID, taskRunID string) string, s3Client blob.S3Client) (blob.RunOutputStorage, error) {
 	switch cfg.ArtifactProvider {
 	case config.ProviderMinIO:
 		if s3Client == nil {
@@ -110,7 +110,7 @@ func BuildRunOutputStorage(cfg config.WorkspaceStorageConfig, runOutputDir func(
 }
 
 // PluginPackagesDirName is where a deployment with no object store keeps
-// published packages. It is dot-prefixed so it cannot be mistaken for a team's
+// published packages. It is dot-prefixed so it cannot be mistaken for a space's
 // workspace directory, which is what every other entry under workspaces_dir is.
 const PluginPackagesDirName = ".marketplace"
 
@@ -122,8 +122,8 @@ const PluginPackagesDirName = ".marketplace"
 // disk — the same decision it already made for everything else it stores, and
 // one fewer knob to set inconsistently.
 //
-// Packages are kept apart from team artifacts on purpose: a catalog record that
-// vanished with a team's retention window could no longer explain an
+// Packages are kept apart from space artifacts on purpose: a catalog record that
+// vanished with a space's retention window could no longer explain an
 // installation still sitting on somebody's machine.
 func BuildPluginPackageStorage(cfg config.WorkspaceStorageConfig, workspacesDir string, s3Client blob.S3Client) (plugin.PackageStore, string) {
 	if s3Client != nil {

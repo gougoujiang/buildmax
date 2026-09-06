@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test"
 import { patchJSON, postJSON, reportLeftovers, session, tagged } from "./fixtures"
 
 /**
- * A workflow is team-scoped and reusable, so the list and the detail view are
+ * A workflow is space-scoped and reusable, so the list and the detail view are
  * where an operator meets one. Both are browser-only: the API smoke never
  * renders a workflow, and the handler tests never route to it.
  *
@@ -16,20 +16,20 @@ import { patchJSON, postJSON, reportLeftovers, session, tagged } from "./fixture
 test("a workflow is listed, and its detail view opens by URL", async ({ page }) => {
   const current = await session(page)
 
-  const agent = await postJSON<{ id: string }>(page, `${current.team}/agents`, current, {
+  const agent = await postJSON<{ id: string }>(page, `${current.space}/agents`, current, {
     name: tagged("Workflow probe agent"),
     description: "Created by the Portal browser tests.",
     instructions: "Reply with exactly: deployment smoke ok",
   })
   const name = tagged("Workflow probe")
-  const workflow = await postJSON<{ id: string }>(page, `${current.team}/workflows`, current, {
+  const workflow = await postJSON<{ id: string }>(page, `${current.space}/workflows`, current, {
     name,
     description: "Created by the Portal browser tests to exercise the workflow views.",
     definition: JSON.stringify({
       steps: [{ step_id: "only", type: "agent_task", target_agent_id: agent.id, prompt: "Reply with exactly: deployment smoke ok" }],
     }),
   })
-  reportLeftovers(current.teamId, [`agent ${agent.id}`, `workflow ${workflow.id}`])
+  reportLeftovers(current.spaceId, [`agent ${agent.id}`, `workflow ${workflow.id}`])
 
   await page.goto("/#/workflows")
   await expect(page.getByRole("heading", { name: "Workflows", exact: true })).toBeVisible()
@@ -65,12 +65,12 @@ test("a workflow runs, and the run view reports each step's outcome", async ({ p
 
   const current = await session(page)
 
-  const agent = await postJSON<{ id: string }>(page, `${current.team}/agents`, current, {
+  const agent = await postJSON<{ id: string }>(page, `${current.space}/agents`, current, {
     name: tagged("Workflow run agent"),
     description: "Created by the Portal browser tests.",
     instructions: "Reply with exactly: deployment smoke ok",
   })
-  const workflow = await postJSON<{ id: string }>(page, `${current.team}/workflows`, current, {
+  const workflow = await postJSON<{ id: string }>(page, `${current.space}/workflows`, current, {
     name: tagged("Workflow run probe"),
     description: "Created by the Portal browser tests to exercise workflow execution.",
     definition: JSON.stringify({
@@ -86,17 +86,17 @@ test("a workflow runs, and the run view reports each step's outcome", async ({ p
   })
   // A workflow is created as a draft and a draft is refused a run, so this is a
   // precondition of the next call rather than a separate assertion.
-  await patchJSON(page, `${current.team}/workflows/${encodeURIComponent(workflow.id)}`, current, {
+  await patchJSON(page, `${current.space}/workflows/${encodeURIComponent(workflow.id)}`, current, {
     status: "published",
   })
   const started = await postJSON<{ run: { id: string } }>(
     page,
-    `${current.team}/workflows/${encodeURIComponent(workflow.id)}/runs`,
+    `${current.space}/workflows/${encodeURIComponent(workflow.id)}/runs`,
     current,
     {}
   )
   const runId = started.run.id
-  reportLeftovers(current.teamId, [`agent ${agent.id}`, `workflow ${workflow.id}`, `workflow run ${runId}`])
+  reportLeftovers(current.spaceId, [`agent ${agent.id}`, `workflow ${workflow.id}`, `workflow run ${runId}`])
 
   // Poll the run rather than the view. A run that never finishes should fail
   // here, naming the status it stuck in, instead of as a missing string on a
@@ -104,7 +104,7 @@ test("a workflow runs, and the run view reports each step's outcome", async ({ p
   await expect
     .poll(
       async () => {
-        const res = await page.request.get(`${current.team}/workflow-runs/${encodeURIComponent(runId)}`, {
+        const res = await page.request.get(`${current.space}/workflow-runs/${encodeURIComponent(runId)}`, {
           headers: { Authorization: `Bearer ${current.token}` },
         })
         if (!res.ok()) return `HTTP ${res.status()}`

@@ -14,8 +14,8 @@ import (
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	coreschema "github.com/gougoujiang/buildmax/internal/core/schema"
 	coresecret "github.com/gougoujiang/buildmax/internal/core/secret"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
@@ -23,7 +23,7 @@ import (
 	artifactroutes "github.com/gougoujiang/buildmax/internal/server/handlers/artifact"
 	authroutes "github.com/gougoujiang/buildmax/internal/server/handlers/auth"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/runterminal"
-	teamroutes "github.com/gougoujiang/buildmax/internal/server/handlers/team"
+	spaceroutes "github.com/gougoujiang/buildmax/internal/server/handlers/space"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/work"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/worker"
 	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
@@ -66,7 +66,7 @@ type Config struct {
 	LoginCodeStore    coreidentity.LoginCodeStore
 	PasswordStore     coreidentity.PasswordStore
 	RefreshTokenStore coreidentity.RefreshTokenStore
-	TeamStore         coreteam.Store
+	SpaceStore        corespace.Store
 	WorkflowStore     coreworkflow.Store
 	AgentStore        agentdef.Store
 	IssueStore        coreissue.Store
@@ -92,7 +92,7 @@ type Config struct {
 	// entries. Nil leaves the catalog routes reporting that this deployment
 	// has no Marketplace.
 	PluginService *pluginsvc.Service
-	// SecretStore is the Team Secret store, used by the agent consumption
+	// SecretStore is the Space Secret store, used by the agent consumption
 	// validator and the secret service. Nil disables the secret feature.
 	SecretStore coresecret.Store
 	// SecretService backs the Secret management routes. Nil when no KEK file is
@@ -191,7 +191,7 @@ type Handler struct {
 	// capability; it never rebuilds the application's dependency graph.
 	admin         *admin.Handler
 	auth          *authroutes.Handler
-	team          *teamroutes.Handler
+	space         *spaceroutes.Handler
 	work          *work.Handler
 	worker        *worker.Handler
 	artifact      *artifactroutes.Handler
@@ -216,7 +216,7 @@ func NewHandler(cfg Config) *Handler {
 	h.conversations = h.buildConversationService()
 	h.admin = h.buildAdminHandler()
 	h.auth = h.buildAuthHandler()
-	h.team = h.buildTeamHandler()
+	h.space = h.buildSpaceHandler()
 	h.work = h.buildWorkHandler()
 	h.worker = h.buildWorkerHandler()
 	h.artifact = h.buildArtifactHandler()

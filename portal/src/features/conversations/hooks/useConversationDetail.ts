@@ -5,10 +5,10 @@ import {
   useConversationBusy,
   useWebSocket,
 } from "../../../contexts/WebSocketContext"
-import { useTeam } from "../../../contexts/TeamContext"
+import { useSpace } from "../../../contexts/SpaceContext"
 
 interface UseConversationDetailOptions {
-  teamId: string | null
+  spaceId: string | null
   conversationId: string
   token: string | null
   initialMessage?: string
@@ -42,7 +42,7 @@ interface ConversationErrorPayload {
 }
 
 export function useConversationDetail({
-  teamId,
+  spaceId,
   conversationId,
   token,
   initialMessage,
@@ -52,17 +52,17 @@ export function useConversationDetail({
   const historyRef = useRef<HTMLElement | null>(null)
   const ws = useWebSocket()
   const { busy: sending, markBusy, queued: queuedMessages } = useConversationBusy(conversationId)
-  const { currentTeamId } = useTeam()
+  const { currentSpaceId } = useSpace()
   const {
     data: messagesData,
     loading: messagesLoading,
     error: messagesError,
     refetch: refetchMessages,
   } = useFetch(
-    () => getConversationMessages(teamId!, conversationId, token!),
-    [teamId, conversationId, token],
+    () => getConversationMessages(spaceId!, conversationId, token!),
+    [spaceId, conversationId, token],
     {
-      enabled: !!(token && teamId && conversationId),
+      enabled: !!(token && spaceId && conversationId),
       errorMessage: (e) => (e instanceof Error ? e.message : "Failed to load messages"),
     }
   )
@@ -72,7 +72,7 @@ export function useConversationDetail({
   const [streamingContent, setStreamingContent] = useState<string | null>(null)
   const [optimisticUserMessage, setOptimisticUserMessage] = useState<string | null>(null)
   // Records the conversationId we've already sent the initial message for.
-  // Keying by conversationId prevents an async team-id resolve (or any unrelated rerun
+  // Keying by conversationId prevents an async space-id resolve (or any unrelated rerun
   // of the reset effect below) from wiping the guard and causing a duplicate send.
   const initialMessageSentForRef = useRef<string | null>(null)
 
@@ -86,7 +86,7 @@ export function useConversationDetail({
     setSendError(null)
     setStreamingContent(null)
     setOptimisticUserMessage(null)
-  }, [conversationId, currentTeamId])
+  }, [conversationId, currentSpaceId])
 
   useEffect(() => {
     const handleDelta = (payload: MessageDeltaPayload) => {

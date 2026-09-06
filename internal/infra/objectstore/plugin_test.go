@@ -52,7 +52,7 @@ func TestPluginPackageKeyRejections(t *testing.T) {
 		digest string
 	}{
 		{"traversal in name", "../escape", testDigest},
-		{"nested name", "team/code-review", testDigest},
+		{"nested name", "space/code-review", testDigest},
 		{"empty name", "", testDigest},
 		{"unlabelled digest", "code-review", strings.TrimPrefix(testDigest, "sha256:")},
 		{"wrong algorithm", "code-review", "md5:abc"},

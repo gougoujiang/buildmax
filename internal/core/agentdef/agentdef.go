@@ -9,7 +9,7 @@ import (
 type Agent struct {
 	ID           string `json:"id"`
 	UserID       string `json:"user_id"`
-	TeamID       string `json:"team_id,omitempty"`
+	SpaceID      string `json:"space_id,omitempty"`
 	Name         string `json:"name"`
 	Description  string `json:"description"`
 	Instructions string `json:"instructions"`
@@ -20,19 +20,19 @@ type Agent struct {
 	// own server.yaml and ignores this field.
 	Model string `json:"model,omitempty"`
 	// Plugins names the catalog plugins this agent loads for a background run.
-	// Nothing is inherited from the team's activations: an agent that names
-	// none loads none. See docs/design/plugin-team-distribution.md §5.3.
+	// Nothing is inherited from the space's activations: an agent that names
+	// none loads none. See docs/design/plugin-space-distribution.md §5.3.
 	Plugins []string `json:"plugins,omitempty"`
 	// SandboxNetworkTier and SandboxFilesystemTier declare this agent's
-	// worker sandbox needs. Nothing is inherited from a team default: an
+	// worker sandbox needs. Nothing is inherited from a space default: an
 	// agent that sets neither gets the strictest tier on both axes, the same
 	// way an agent that names no Plugins loads none. See
 	// docs/design/agent-sandbox-policy.md §4.2.
 	SandboxNetworkTier    string `json:"sandbox_network_tier,omitempty"`
 	SandboxFilesystemTier string `json:"sandbox_filesystem_tier,omitempty"`
-	// SecretConsumption declares which Team Secrets this agent consumes and
+	// SecretConsumption declares which Space Secrets this agent consumes and
 	// how. It versions with the definition, so an old revision still answers
-	// what a run of it received. See docs/design/team-secrets.md §6.
+	// what a run of it received. See docs/design/space-secrets.md §6.
 	SecretConsumption SecretConsumption `json:"secret_consumption,omitempty"`
 	// Revision numbers the agent_revision row holding this content. It starts
 	// at 1 and advances every time the definition changes.
@@ -90,7 +90,7 @@ type Definition struct {
 	// is available. Empty means the deployment default. See Agent.Model.
 	Model string
 	// Plugins names catalog plugins, never releases. The version and digest
-	// come from the team's activation, so moving a plugin to a new release
+	// come from the space's activation, so moving a plugin to a new release
 	// stays one edit in one place.
 	Plugins []string
 	// SandboxNetworkTier and SandboxFilesystemTier are validated against
@@ -98,8 +98,8 @@ type Definition struct {
 	// write is accepted. See Agent.SandboxNetworkTier.
 	SandboxNetworkTier    string
 	SandboxFilesystemTier string
-	// SecretConsumption is validated against the team's live Secrets before a
-	// write is accepted. See docs/design/team-secrets.md §6.
+	// SecretConsumption is validated against the space's live Secrets before a
+	// write is accepted. See docs/design/space-secrets.md §6.
 	SecretConsumption SecretConsumption
 }
 
@@ -108,15 +108,15 @@ type Definition struct {
 // definition grew past the point where an argument list said which value was
 // which.
 type CreateInput struct {
-	TeamID string
-	UserID string
-	Def    Definition
+	SpaceID string
+	UserID  string
+	Def     Definition
 }
 
 type UpdateInput struct {
 	AgentID string
-	TeamID  string
-	// UpdatedBy is taken because a team agent is edited by whoever holds the
+	SpaceID string
+	// UpdatedBy is taken because a space agent is edited by whoever holds the
 	// permission, not only by its owner, and a revision that cannot name its
 	// author is not much of a record.
 	UpdatedBy string
@@ -126,7 +126,7 @@ type UpdateInput struct {
 // Store provides persistence for Portal agents.
 type Store interface {
 	ListAgentsByUser(ctx context.Context, userID string) ([]Agent, error)
-	ListAgentsByTeam(ctx context.Context, teamID string) ([]Agent, error)
+	ListAgentsBySpace(ctx context.Context, spaceID string) ([]Agent, error)
 	// GetAgent returns a live agent. A deleted one reads as not found, so no
 	// caller can start new work with it by forgetting to check.
 	GetAgent(ctx context.Context, agentID string) (*Agent, error)
@@ -134,14 +134,14 @@ type Store interface {
 	// deleted or not. Use it to finish or describe work that named the agent
 	// before it was deleted, never to start work with it.
 	GetAgentIncludingDeleted(ctx context.Context, agentID string) (*Agent, error)
-	CreateAgentInTeam(ctx context.Context, in CreateInput) (*Agent, error)
-	UpdateAgentInTeam(ctx context.Context, in UpdateInput) (*Agent, error)
-	// DeleteAgent and DeleteAgentInTeam mark the agent deleted rather than
+	CreateAgentInSpace(ctx context.Context, in CreateInput) (*Agent, error)
+	UpdateAgentInSpace(ctx context.Context, in UpdateInput) (*Agent, error)
+	// DeleteAgent and DeleteAgentInSpace mark the agent deleted rather than
 	// removing the row. Deleting an agent a published workflow still names is
 	// refused above this layer; see the delete handler.
 	// Both return ErrNotFound when there is no such live agent for that owner.
 	DeleteAgent(ctx context.Context, agentID, userID string) error
-	DeleteAgentInTeam(ctx context.Context, agentID, teamID string) error
+	DeleteAgentInSpace(ctx context.Context, agentID, spaceID string) error
 	// ListAgentRevisions returns an agent's revisions, newest first, with the
 	// total count.
 	ListAgentRevisions(ctx context.Context, agentID string, limit, offset int) ([]Revision, int, error)

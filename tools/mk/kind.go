@@ -216,7 +216,7 @@ func kindUp() error {
 	if err := applyKindSecret(); err != nil {
 		return err
 	}
-	// The Team Secret KEK, so kind can exercise the Secrets feature end to end
+	// The Space Secret KEK, so kind can exercise the Secrets feature end to end
 	// rather than answering 503. Ephemeral like the JWT above.
 	if err := applyKindKEK(); err != nil {
 		return err
@@ -1006,7 +1006,7 @@ func applyKindSecret() error {
 	return runStdin(manifest, "kubectl", "--context", kindContext(), "apply", "-f", "-")
 }
 
-// applyKindKEK creates the buildmax-kek Secret holding an ephemeral Team Secret
+// applyKindKEK creates the buildmax-kek Secret holding an ephemeral Space Secret
 // key-encryption key, in the on-disk shape internal/infra/secret expects: a
 // `current` key id and a `keys` map of id to base64 32-byte material. The
 // server mounts it at /buildmax/kek/kek.json and the smoke config points

@@ -29,7 +29,7 @@ func TestTransitionTaskRunDoesNotOverwriteACommittedOutcome(t *testing.T) {
 		t.Fatalf("CreateConversation: %v", err)
 	}
 	task, err := s.CreateTask(ctx, &coretask.CreateInput{
-		TeamID:         conversation.TeamID,
+		SpaceID:        conversation.SpaceID,
 		ConversationID: conversation.ID,
 		Input:          "input",
 		CreatedBy:      userID,

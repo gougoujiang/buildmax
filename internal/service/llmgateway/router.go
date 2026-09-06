@@ -109,7 +109,7 @@ func (r *Router) ClientFor(ctx context.Context, req ResolveRequest) (RoutedClien
 //
 // This is the path for Server-owned inference. It shares the resolver's
 // capability checks and the router's client cache with managed calls, so
-// in-process work and team calls cannot drift apart.
+// in-process work and space calls cannot drift apart.
 func (r *Router) ClientForTarget(ctx context.Context, targetID string, requires []Capability) (RoutedClient, error) {
 	if r == nil {
 		return RoutedClient{}, ErrCatalogNotConfigured

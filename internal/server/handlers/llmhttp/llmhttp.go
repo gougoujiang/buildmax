@@ -1,6 +1,6 @@
 // Package llmhttp presents the managed gateway over HTTP.
 //
-// Shared because two routes do it: a team calls the gateway for itself, and a
+// Shared because two routes do it: a space calls the gateway for itself, and a
 // worker calls it on behalf of a run. The SSE framing, the status a refusal
 // maps to, and the rule that a provider's own error body never reaches a client
 // must be one answer for both, not two that happen to agree.
@@ -56,7 +56,7 @@ func (s *sseWriter) send(event string, payload any) error {
 // plain HTTP error with a status the client can act on; only a failure after
 // the stream has started becomes an error event.
 // Stream runs one managed call and frames it as server-sent events.
-func Stream(w http.ResponseWriter, r *http.Request, gateway *llmgateway.Service, cmd llmgateway.CompleteRequest, teamID string) {
+func Stream(w http.ResponseWriter, r *http.Request, gateway *llmgateway.Service, cmd llmgateway.CompleteRequest, spaceID string) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		httputil.WriteJSONError(w, http.StatusInternalServerError, "streaming is not supported by this server")
@@ -73,7 +73,7 @@ func Stream(w http.ResponseWriter, r *http.Request, gateway *llmgateway.Service,
 
 	if err != nil {
 		if !stream.started {
-			WriteError(w, err, "llm_completions_stream", teamID)
+			WriteError(w, err, "llm_completions_stream", spaceID)
 			return
 		}
 		class := llmgateway.ErrorClassFor(err)
@@ -119,11 +119,11 @@ func RequireGateway(w http.ResponseWriter, gateway *llmgateway.Service) bool {
 // bodies never reach this path — only BuildMax classifications do.
 // WriteError maps a stable class onto a status. Provider error bodies never
 // reach this path -- only BuildMax classifications do.
-func WriteError(w http.ResponseWriter, err error, handlerName, teamID string) {
+func WriteError(w http.ResponseWriter, err error, handlerName, spaceID string) {
 	class := llmgateway.ErrorClassFor(err)
 	status, message := statusFor(class, err)
 	if status == http.StatusInternalServerError {
-		httputil.WriteInternalError(w, err, "handler error", "handler", handlerName, "team_id", teamID, "code", class)
+		httputil.WriteInternalError(w, err, "handler error", "handler", handlerName, "space_id", spaceID, "code", class)
 		return
 	}
 	httputil.WriteJSON(w, status, llmwire.ErrorResponse{Error: message, Code: class})
@@ -180,7 +180,7 @@ func WireProviderState(in *cllm.ProviderState) *llmwire.ProviderState {
 // CoreMessages converts wire messages to the core contract.
 // CallProfile validates the profile a managed caller named.
 //
-// Shared by the team route, the worker route, and any other endpoint that
+// Shared by the space route, the worker route, and any other endpoint that
 // serves a managed call, because a profile that means one thing on one route
 // and another on the next is exactly the drift the gateway exists to prevent.
 //

@@ -6,7 +6,7 @@ package architecture_test
 //
 // The drift they were written for was real. The document once carried 40 of
 // 117 operations, described five `created_at` fields as integers when every
-// one of them is an RFC 3339 string on the wire, and left `team_id` undeclared
+// one of them is an RFC 3339 string on the wire, and left `space_id` undeclared
 // on 22 operations whose paths template it.
 
 import (

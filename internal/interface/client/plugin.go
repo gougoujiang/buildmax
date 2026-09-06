@@ -35,15 +35,15 @@ func (c *Client) GetPlugin(ctx context.Context, token, name string) (*pluginwire
 	return &out, nil
 }
 
-// ListTeamActivations returns what a team has activated for its background
+// ListSpaceActivations returns what a space has activated for its background
 // runs, and who fills that list.
 //
 // It is a read only. Changing an activation stays in Portal, where the audit
-// trail and the team's other shared automation already are; what this serves is
+// trail and the space's other shared automation already are; what this serves is
 // somebody debugging a run who wants the answer without a browser.
-func (c *Client) ListTeamActivations(ctx context.Context, token, teamID string) (*pluginwire.ActivationsResponse, error) {
+func (c *Client) ListSpaceActivations(ctx context.Context, token, spaceID string) (*pluginwire.ActivationsResponse, error) {
 	var out pluginwire.ActivationsResponse
-	path := fmt.Sprintf(pluginwire.TeamActivationsPath, url.PathEscape(teamID))
+	path := fmt.Sprintf(pluginwire.SpaceActivationsPath, url.PathEscape(spaceID))
 	if err := c.getJSON(ctx, token, path, &out); err != nil {
 		return nil, err
 	}

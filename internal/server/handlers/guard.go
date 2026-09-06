@@ -5,7 +5,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
 	artifactroutes "github.com/gougoujiang/buildmax/internal/server/handlers/artifact"
 	authroutes "github.com/gougoujiang/buildmax/internal/server/handlers/auth"
-	teamroutes "github.com/gougoujiang/buildmax/internal/server/handlers/team"
+	spaceroutes "github.com/gougoujiang/buildmax/internal/server/handlers/space"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/work"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/worker"
 	agentsvc "github.com/gougoujiang/buildmax/internal/service/agent"
@@ -27,7 +27,7 @@ func (h *Handler) guard() *access.Guard {
 	return &access.Guard{
 		JWTSecret: h.cfg.JWTSecret,
 		Users:     h.cfg.UserStore,
-		Teams:     h.cfg.TeamStore,
+		Spaces:    h.cfg.SpaceStore,
 		Grants:    h.cfg.SystemGrantStore,
 		Audit:     h.cfg.Audit,
 	}
@@ -48,7 +48,7 @@ func (h *Handler) buildAdminHandler() *admin.Handler {
 		Users:            h.cfg.UserStore,
 		LoginCodes:       h.cfg.LoginCodeStore,
 		RefreshTokens:    h.cfg.RefreshTokenStore,
-		Teams:            h.cfg.TeamStore,
+		Spaces:           h.cfg.SpaceStore,
 		Grants:           h.cfg.SystemGrantStore,
 		Audits:           h.cfg.AuditStore,
 		Models:           h.cfg.LLMModelStore,
@@ -74,7 +74,7 @@ func (h *Handler) buildWorkerHandler() *worker.Handler {
 		WorkerLLM:     h.cfg.WorkerLLM,
 		TaskRuns:      h.cfg.TaskRunStore,
 		Agents:        h.cfg.AgentStore,
-		Teams:         h.cfg.TeamStore,
+		Spaces:        h.cfg.SpaceStore,
 		Gateway:       h.cfg.LLMGateway,
 		Artifacts:     h.artifacts,
 		Issues:        h.workerIssueAccess(),
@@ -82,7 +82,7 @@ func (h *Handler) buildWorkerHandler() *worker.Handler {
 		OnTerminal:    h.terminalListeners,
 		TerminalGroup: h.terminal,
 		// The activation store rather than the plugin service: this route
-		// resolves what a team already activated and must not be able to
+		// resolves what a space already activated and must not be able to
 		// activate anything on a run token's behalf.
 		Activations: h.activationStore(),
 		Plugins:     h.cfg.PluginService,
@@ -158,12 +158,12 @@ func (h *Handler) buildAuthHandler() *authroutes.Handler {
 	})
 }
 
-// teamHandler builds the team surface from the stores a team's own routes read.
-func (h *Handler) buildTeamHandler() *teamroutes.Handler {
-	return teamroutes.New(teamroutes.Config{
+// spaceHandler builds the space surface from the stores a space's own routes read.
+func (h *Handler) buildSpaceHandler() *spaceroutes.Handler {
+	return spaceroutes.New(spaceroutes.Config{
 		JWTSecret:        h.cfg.JWTSecret,
 		DefaultQuotaTier: h.cfg.DefaultQuotaTier,
-		Teams:            h.cfg.TeamStore,
+		Spaces:           h.cfg.SpaceStore,
 		Users:            h.cfg.UserStore,
 		Agents:           h.cfg.AgentStore,
 		WebhookKeys:      h.cfg.UserWebhookKeyStore,
@@ -213,7 +213,7 @@ func (h *Handler) buildArtifactHandler() *artifactroutes.Handler {
 	return artifactroutes.New(artifactroutes.Config{
 		JWTSecret: h.cfg.JWTSecret,
 		Users:     h.cfg.UserStore,
-		Teams:     h.cfg.TeamStore,
+		Spaces:    h.cfg.SpaceStore,
 		Artifacts: h.artifacts,
 		Audit:     h.cfg.Audit,
 	})
@@ -253,7 +253,7 @@ func (h *Handler) buildWorkHandler() *work.Handler {
 		Tasks:            h.cfg.TaskStore,
 		TaskRuns:         h.cfg.TaskRunStore,
 		Agents:           h.cfg.AgentStore,
-		Teams:            h.cfg.TeamStore,
+		Spaces:           h.cfg.SpaceStore,
 		Conversations:    h.cfg.ConversationStore,
 		Messages:         h.cfg.ConversationMessageStore,
 		RunOutputs:       h.cfg.RunOutputLister,

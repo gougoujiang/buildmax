@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -16,7 +16,7 @@ import (
 
 const hierarchyTestSecret = "hierarchy-test-secret"
 
-const hierarchyTeam = "tm_hierarchy"
+const hierarchySpace = "tm_hierarchy"
 
 // hierarchyMux wires one parent with two children — one done, one not — plus a
 // loose top-level issue, which is enough to exercise every listing mode and the
@@ -25,19 +25,19 @@ func hierarchyMux(t *testing.T) (*http.ServeMux, *mock.MockIssueStore) {
 	t.Helper()
 	issues := &mock.MockIssueStore{
 		Issues: []coreissue.Issue{
-			{ID: "i_parent", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Parent", Status: coreissue.StatusInProgress, Version: 1},
-			{ID: "i_child_a", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Child A", Status: coreissue.StatusDone, ParentIssueID: util.Ptr("i_parent"), Version: 1},
-			{ID: "i_child_b", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Child B", Status: coreissue.StatusTodo, ParentIssueID: util.Ptr("i_parent"), Version: 1},
-			{ID: "i_loose", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Loose", Status: coreissue.StatusTodo, Version: 1},
+			{ID: "i_parent", UserID: "u_owner", SpaceID: hierarchySpace, Title: "Parent", Status: coreissue.StatusInProgress, Version: 1},
+			{ID: "i_child_a", UserID: "u_owner", SpaceID: hierarchySpace, Title: "Child A", Status: coreissue.StatusDone, ParentIssueID: util.Ptr("i_parent"), Version: 1},
+			{ID: "i_child_b", UserID: "u_owner", SpaceID: hierarchySpace, Title: "Child B", Status: coreissue.StatusTodo, ParentIssueID: util.Ptr("i_parent"), Version: 1},
+			{ID: "i_loose", UserID: "u_owner", SpaceID: hierarchySpace, Title: "Loose", Status: coreissue.StatusTodo, Version: 1},
 		},
 	}
-	teams := &mock.MockTeamStore{
-		Teams:   []coreteam.Team{{ID: hierarchyTeam, Name: "Hierarchy", CreatedBy: "u_owner"}},
-		Members: []coreteam.Member{{TeamID: hierarchyTeam, UserID: "u_owner", Role: coreteam.RoleOwner}},
+	spaces := &mock.MockSpaceStore{
+		Spaces:  []corespace.Space{{ID: hierarchySpace, Name: "Hierarchy", CreatedBy: "u_owner"}},
+		Members: []corespace.Member{{SpaceID: hierarchySpace, UserID: "u_owner", Role: corespace.RoleOwner}},
 	}
 	h := New(Config{
 		JWTSecret:     hierarchyTestSecret,
-		Teams:         teams,
+		Spaces:        spaces,
 		Issues:        issues,
 		IssueComments: &mock.MockIssueCommentStore{},
 		Workflows:     &mock.MockWorkflowStore{},
@@ -74,7 +74,7 @@ func decodeIssueList(t *testing.T, rec *httptest.ResponseRecorder) issueListResp
 // hierarchy must not see the endpoint change under them.
 func TestListIssues_DefaultIsUnfiltered(t *testing.T) {
 	mux, _ := hierarchyMux(t)
-	out := decodeIssueList(t, hierarchyRequest(t, mux, http.MethodGet, "/api/teams/"+hierarchyTeam+"/issues", ""))
+	out := decodeIssueList(t, hierarchyRequest(t, mux, http.MethodGet, "/api/spaces/"+hierarchySpace+"/issues", ""))
 	if out.Total != 4 || len(out.Issues) != 4 {
 		t.Fatalf("total = %d, len = %d, want 4 and 4", out.Total, len(out.Issues))
 	}
@@ -82,7 +82,7 @@ func TestListIssues_DefaultIsUnfiltered(t *testing.T) {
 
 func TestListIssues_TopLevelOnly(t *testing.T) {
 	mux, _ := hierarchyMux(t)
-	out := decodeIssueList(t, hierarchyRequest(t, mux, http.MethodGet, "/api/teams/"+hierarchyTeam+"/issues?parent_id=none", ""))
+	out := decodeIssueList(t, hierarchyRequest(t, mux, http.MethodGet, "/api/spaces/"+hierarchySpace+"/issues?parent_id=none", ""))
 	if out.Total != 2 {
 		t.Fatalf("total = %d, want 2 top-level issues", out.Total)
 	}
@@ -95,7 +95,7 @@ func TestListIssues_TopLevelOnly(t *testing.T) {
 
 func TestListIssues_ByParent(t *testing.T) {
 	mux, _ := hierarchyMux(t)
-	out := decodeIssueList(t, hierarchyRequest(t, mux, http.MethodGet, "/api/teams/"+hierarchyTeam+"/issues?parent_id=i_parent", ""))
+	out := decodeIssueList(t, hierarchyRequest(t, mux, http.MethodGet, "/api/spaces/"+hierarchySpace+"/issues?parent_id=i_parent", ""))
 	if out.Total != 2 {
 		t.Fatalf("total = %d, want 2 children", out.Total)
 	}
@@ -110,7 +110,7 @@ func TestListIssues_ByParent(t *testing.T) {
 // reports 1/2 and the childless issues report 0/0.
 func TestListIssues_ChildProgress(t *testing.T) {
 	mux, _ := hierarchyMux(t)
-	out := decodeIssueList(t, hierarchyRequest(t, mux, http.MethodGet, "/api/teams/"+hierarchyTeam+"/issues", ""))
+	out := decodeIssueList(t, hierarchyRequest(t, mux, http.MethodGet, "/api/spaces/"+hierarchySpace+"/issues", ""))
 	byID := map[string]IssueResponse{}
 	for _, issue := range out.Issues {
 		byID[issue.ID] = issue
@@ -125,7 +125,7 @@ func TestListIssues_ChildProgress(t *testing.T) {
 
 func TestCreateIssue_WithParent(t *testing.T) {
 	mux, _ := hierarchyMux(t)
-	rec := hierarchyRequest(t, mux, http.MethodPost, "/api/teams/"+hierarchyTeam+"/issues", `{"title":"Child C","parent_issue_id":"i_parent"}`)
+	rec := hierarchyRequest(t, mux, http.MethodPost, "/api/spaces/"+hierarchySpace+"/issues", `{"title":"Child C","parent_issue_id":"i_parent"}`)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want 201, body=%s", rec.Code, rec.Body.String())
 	}
@@ -150,7 +150,7 @@ func TestCreateIssue_RejectedParents(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mux, store := hierarchyMux(t)
 			before := len(store.Issues)
-			rec := hierarchyRequest(t, mux, http.MethodPost, "/api/teams/"+hierarchyTeam+"/issues", tc.body)
+			rec := hierarchyRequest(t, mux, http.MethodPost, "/api/spaces/"+hierarchySpace+"/issues", tc.body)
 			if rec.Code != http.StatusBadRequest {
 				t.Fatalf("status = %d, want 400, body=%s", rec.Code, rec.Body.String())
 			}
@@ -163,7 +163,7 @@ func TestCreateIssue_RejectedParents(t *testing.T) {
 
 func TestPatchIssue_Reparent(t *testing.T) {
 	mux, _ := hierarchyMux(t)
-	rec := hierarchyRequest(t, mux, http.MethodPatch, "/api/teams/"+hierarchyTeam+"/issues/i_loose", `{"version":1,"parent_issue_id":"i_parent"}`)
+	rec := hierarchyRequest(t, mux, http.MethodPatch, "/api/spaces/"+hierarchySpace+"/issues/i_loose", `{"version":1,"parent_issue_id":"i_parent"}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
 	}
@@ -178,7 +178,7 @@ func TestPatchIssue_Reparent(t *testing.T) {
 
 func TestPatchIssue_ClearParent(t *testing.T) {
 	mux, _ := hierarchyMux(t)
-	rec := hierarchyRequest(t, mux, http.MethodPatch, "/api/teams/"+hierarchyTeam+"/issues/i_child_b", `{"version":1,"parent_issue_id":""}`)
+	rec := hierarchyRequest(t, mux, http.MethodPatch, "/api/spaces/"+hierarchySpace+"/issues/i_child_b", `{"version":1,"parent_issue_id":""}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
 	}
@@ -193,7 +193,7 @@ func TestPatchIssue_ClearParent(t *testing.T) {
 
 func TestPatchIssue_ParentWithChildrenCannotBeAdopted(t *testing.T) {
 	mux, _ := hierarchyMux(t)
-	rec := hierarchyRequest(t, mux, http.MethodPatch, "/api/teams/"+hierarchyTeam+"/issues/i_parent", `{"version":1,"parent_issue_id":"i_loose"}`)
+	rec := hierarchyRequest(t, mux, http.MethodPatch, "/api/spaces/"+hierarchySpace+"/issues/i_parent", `{"version":1,"parent_issue_id":"i_loose"}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400, body=%s", rec.Code, rec.Body.String())
 	}
@@ -201,7 +201,7 @@ func TestPatchIssue_ParentWithChildrenCannotBeAdopted(t *testing.T) {
 
 func TestPatchIssue_SelfParent(t *testing.T) {
 	mux, _ := hierarchyMux(t)
-	rec := hierarchyRequest(t, mux, http.MethodPatch, "/api/teams/"+hierarchyTeam+"/issues/i_loose", `{"version":1,"parent_issue_id":"i_loose"}`)
+	rec := hierarchyRequest(t, mux, http.MethodPatch, "/api/spaces/"+hierarchySpace+"/issues/i_loose", `{"version":1,"parent_issue_id":"i_loose"}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400, body=%s", rec.Code, rec.Body.String())
 	}
@@ -211,7 +211,7 @@ func TestPatchIssue_SelfParent(t *testing.T) {
 // never both — the hierarchy is two levels deep.
 func TestIssueFlow_Relatives(t *testing.T) {
 	mux, _ := hierarchyMux(t)
-	rec := hierarchyRequest(t, mux, http.MethodGet, "/api/teams/"+hierarchyTeam+"/issues/i_parent/flow", "")
+	rec := hierarchyRequest(t, mux, http.MethodGet, "/api/spaces/"+hierarchySpace+"/issues/i_parent/flow", "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("parent flow status = %d, body=%s", rec.Code, rec.Body.String())
 	}
@@ -229,7 +229,7 @@ func TestIssueFlow_Relatives(t *testing.T) {
 		t.Fatalf("flow progress = %d/%d, want 1/2", parentFlow.Issue.DoneChildCount, parentFlow.Issue.ChildCount)
 	}
 
-	rec = hierarchyRequest(t, mux, http.MethodGet, "/api/teams/"+hierarchyTeam+"/issues/i_child_a/flow", "")
+	rec = hierarchyRequest(t, mux, http.MethodGet, "/api/spaces/"+hierarchySpace+"/issues/i_child_a/flow", "")
 	var childFlow issueFlowResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &childFlow); err != nil {
 		t.Fatalf("decode child flow: %v", err)

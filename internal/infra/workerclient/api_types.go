@@ -15,7 +15,7 @@ type GetTaskRunResponse struct {
 	// receives a finished list. Empty when the run's agent names none, or when
 	// there is no agent.
 	Plugins []TaskRunPlugin `json:"plugins,omitempty"`
-	// PluginError is why this run cannot proceed — a named plugin its team has
+	// PluginError is why this run cannot proceed — a named plugin its space has
 	// not activated, or whose activation is suspended. A worker that receives
 	// it must fail the run rather than start it: an agent that names a plugin
 	// has declared it needs one, and a background run doing quietly less than
@@ -39,7 +39,7 @@ type TaskRunSandbox struct {
 // variable names its agent declared, mapped to the values the server decrypted.
 // It is fetched on its own route, not folded into GetTaskRunResponse, so the
 // values ride a response that is Cache-Control: no-store and never logged. See
-// docs/design/team-secrets.md §7.
+// docs/design/space-secrets.md §7.
 type TaskRunSecretsResponse struct {
 	Env map[string]string `json:"env,omitempty"`
 }
@@ -92,7 +92,7 @@ type TaskRunRun struct {
 type TaskRunTask struct {
 	ID             string  `json:"id"`
 	ConversationID string  `json:"conversation_id"`
-	TeamID         string  `json:"team_id"`
+	SpaceID        string  `json:"space_id"`
 	UserID         string  `json:"user_id"`
 	SessionID      *string `json:"session_id,omitempty"`
 	// AgentInstructions is the instruction text of the agent this task names, resolved by
@@ -107,11 +107,11 @@ type TaskRunTask struct {
 	// Absent means the task names no agent, or a server built before this field existed, so
 	// a worker reads it as it always did.
 	AgentInstructions string `json:"agent_instructions,omitempty"`
-	// TeamAgentInstructions is the Space-level guidance inherited by every
+	// SpaceAgentInstructions is the Space-level guidance inherited by every
 	// background agent run. Revision identifies the version recorded on this
-	// TaskRun. Both are absent when the team has never configured the layer.
-	TeamAgentInstructions         string `json:"team_agent_instructions,omitempty"`
-	TeamAgentInstructionsRevision int    `json:"team_agent_instructions_revision,omitempty"`
+	// TaskRun. Both are absent when the space has never configured the layer.
+	SpaceAgentInstructions         string `json:"space_agent_instructions,omitempty"`
+	SpaceAgentInstructionsRevision int    `json:"space_agent_instructions_revision,omitempty"`
 }
 
 // PatchTaskRunRequest is the JSON body for PATCH /api/worker/task-runs/{task_run_id} (snake_case).

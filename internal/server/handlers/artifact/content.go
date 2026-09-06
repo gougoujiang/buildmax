@@ -155,7 +155,7 @@ func writeContentHeaders(w http.ResponseWriter, rec *coreartifact.Artifact, down
 	w.Header().Set("Content-Disposition", contentDisposition(disposition, rec.Filename))
 	w.Header().Set("Content-Length", strconv.FormatInt(rec.SizeBytes, 10))
 	// Content is immutable, but access to it is not: a caller removed from the
-	// team must stop being able to read what their browser kept.
+	// space must stop being able to read what their browser kept.
 	w.Header().Set("Cache-Control", "private, no-store")
 	w.WriteHeader(http.StatusOK)
 }

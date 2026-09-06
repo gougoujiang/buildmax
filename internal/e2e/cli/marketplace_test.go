@@ -58,7 +58,7 @@ func startMarketplace(t *testing.T) *httptest.Server {
 	h := handlers.NewHandler(handlers.Config{
 		JWTSecret:        marketplaceSecret,
 		UserStore:        users,
-		TeamStore:        &mock.MockTeamStore{},
+		SpaceStore:       &mock.MockSpaceStore{},
 		SystemGrantStore: grants,
 		AuditStore:       audits,
 		Audit:            audit.NewRecorder(audits),

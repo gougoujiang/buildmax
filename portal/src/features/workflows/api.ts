@@ -8,24 +8,24 @@ import type {
   ApiWorkflowRunListResponse,
 } from "../../lib/api/types"
 
-export async function getWorkflows(teamId: string, token: string): Promise<ApiWorkflowListResponse> {
-  return requestJson<ApiWorkflowListResponse>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/workflows`, {
+export async function getWorkflows(spaceId: string, token: string): Promise<ApiWorkflowListResponse> {
+  return requestJson<ApiWorkflowListResponse>(`${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/workflows`, {
     headers: authHeaders(token),
   })
 }
 
-export async function getWorkflow(teamId: string, workflowId: string, token: string): Promise<ApiWorkflow> {
-  return requestJson<ApiWorkflow>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/workflows/${encodeURIComponent(workflowId)}`, {
+export async function getWorkflow(spaceId: string, workflowId: string, token: string): Promise<ApiWorkflow> {
+  return requestJson<ApiWorkflow>(`${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/workflows/${encodeURIComponent(workflowId)}`, {
     headers: authHeaders(token),
   })
 }
 
 export async function createWorkflow(
-  teamId: string,
+  spaceId: string,
   body: { name: string; description?: string; definition: string },
   token: string,
 ): Promise<ApiWorkflow> {
-  return requestJson<ApiWorkflow>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/workflows`, {
+  return requestJson<ApiWorkflow>(`${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/workflows`, {
     method: "POST",
     headers: { ...jsonHeaders, ...authHeaders(token) },
     body: JSON.stringify(body),
@@ -33,12 +33,12 @@ export async function createWorkflow(
 }
 
 export async function updateWorkflow(
-  teamId: string,
+  spaceId: string,
   workflowId: string,
   body: { name?: string; description?: string; definition?: string; status?: string },
   token: string,
 ): Promise<ApiWorkflow> {
-  return requestJson<ApiWorkflow>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/workflows/${encodeURIComponent(workflowId)}`, {
+  return requestJson<ApiWorkflow>(`${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/workflows/${encodeURIComponent(workflowId)}`, {
     method: "PATCH",
     headers: { ...jsonHeaders, ...authHeaders(token) },
     body: JSON.stringify(body),
@@ -46,32 +46,32 @@ export async function updateWorkflow(
 }
 
 export async function getWorkflowRuns(
-  teamId: string,
+  spaceId: string,
   workflowId: string,
   token: string,
 ): Promise<ApiWorkflowRunListResponse> {
-  return requestJson<ApiWorkflowRunListResponse>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/workflows/${encodeURIComponent(workflowId)}/runs`, {
+  return requestJson<ApiWorkflowRunListResponse>(`${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/workflows/${encodeURIComponent(workflowId)}/runs`, {
     headers: authHeaders(token),
   })
 }
 
 export async function getWorkflowRunDetail(
-  teamId: string,
+  spaceId: string,
   workflowRunId: string,
   token: string,
 ): Promise<ApiWorkflowRunDetailResponse> {
-  return requestJson<ApiWorkflowRunDetailResponse>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/workflow-runs/${encodeURIComponent(workflowRunId)}`, {
+  return requestJson<ApiWorkflowRunDetailResponse>(`${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/workflow-runs/${encodeURIComponent(workflowRunId)}`, {
     headers: authHeaders(token),
   })
 }
 
 export async function runWorkflow(
-  teamId: string,
+  spaceId: string,
   workflowId: string,
   token: string,
   issueId?: string,
 ): Promise<ApiWorkflowRunDetailResponse> {
-  return requestJson<ApiWorkflowRunDetailResponse>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/workflows/${encodeURIComponent(workflowId)}/runs`, {
+  return requestJson<ApiWorkflowRunDetailResponse>(`${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/workflows/${encodeURIComponent(workflowId)}/runs`, {
     method: "POST",
     headers: { ...jsonHeaders, ...authHeaders(token) },
     body: JSON.stringify(issueId ? { issue_id: issueId } : {}),
@@ -79,35 +79,35 @@ export async function runWorkflow(
 }
 
 export async function runIssueWorkflow(
-  teamId: string,
+  spaceId: string,
   issueId: string,
   token: string,
 ): Promise<ApiWorkflowRunDetailResponse> {
-  return requestJson<ApiWorkflowRunDetailResponse>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/issues/${encodeURIComponent(issueId)}/workflow-runs`, {
+  return requestJson<ApiWorkflowRunDetailResponse>(`${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/issues/${encodeURIComponent(issueId)}/workflow-runs`, {
     method: "POST",
     headers: authHeaders(token),
   })
 }
 
 export async function getWorkflowRevisions(
-  teamId: string,
+  spaceId: string,
   workflowId: string,
   token: string,
 ): Promise<ApiWorkflowRevisionListResponse> {
   return requestJson<ApiWorkflowRevisionListResponse>(
-    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/workflows/${encodeURIComponent(workflowId)}/revisions`,
+    `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/workflows/${encodeURIComponent(workflowId)}/revisions`,
     { headers: authHeaders(token) },
   )
 }
 
 export async function restoreWorkflowRevision(
-  teamId: string,
+  spaceId: string,
   workflowId: string,
   revision: number,
   token: string,
 ): Promise<ApiWorkflow> {
   return requestJson<ApiWorkflow>(
-    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/workflows/${encodeURIComponent(workflowId)}/revisions/${revision}/restore`,
+    `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/workflows/${encodeURIComponent(workflowId)}/revisions/${revision}/restore`,
     { method: "POST", headers: authHeaders(token) },
   )
 }

@@ -12,19 +12,19 @@ import (
 	coresecret "github.com/gougoujiang/buildmax/internal/core/secret"
 )
 
-// secretRow is one Team-owned Secret: a group of named items stored as one
+// secretRow is one Space-owned Secret: a group of named items stored as one
 // encrypted blob. The items are a single AEAD ciphertext (Ciphertext under
 // Nonce, its DEK sealed as WrappedDEK by the KEK named in KeyID), rewritten
 // whole on every edit -- which is what makes a multi-item rotation atomic.
 // ItemNames is the plaintext key set so a listing and consumption validation
 // work without decrypting anything. No item value is stored in the clear, and
-// there is no reveal path. See docs/design/team-secrets.md §5.1.
+// there is no reveal path. See docs/design/space-secrets.md §5.1.
 type secretRow struct {
 	ID       uint64 `gorm:"primaryKey;autoIncrement"`
 	PublicID string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_secret_public_id;not null"`
 
-	TeamID uint64 `gorm:"column:team_id;not null;uniqueIndex:ux_secret_team_name,priority:1"`
-	Name   string `gorm:"type:varchar(128);not null;uniqueIndex:ux_secret_team_name,priority:2"`
+	SpaceID uint64 `gorm:"column:space_id;not null;uniqueIndex:ux_secret_space_name,priority:1"`
+	Name    string `gorm:"type:varchar(128);not null;uniqueIndex:ux_secret_space_name,priority:2"`
 
 	Description string `gorm:"type:varchar(1024);not null;default:''"`
 	Provider    string `gorm:"type:varchar(32);not null;default:'embedded'"`
@@ -50,14 +50,14 @@ func (secretRow) TableName() string { return "secret" }
 // secretReadRow is secretRow plus the handles its references resolve to.
 type secretReadRow struct {
 	Row             secretRow `gorm:"embedded"`
-	TeamPublicID    string    `gorm:"column:team_public_id"`
+	SpacePublicID   string    `gorm:"column:space_public_id"`
 	CreatedByPublic string    `gorm:"column:created_by_public_id"`
 }
 
 func (s *Store) secretSelect(ctx context.Context) *gorm.DB {
 	return s.db.WithContext(ctx).Model(&secretRow{}).
-		Select("secret.*, t.public_id AS team_public_id, cb.public_id AS created_by_public_id").
-		Joins("INNER JOIN team t ON t.id = secret.team_id").
+		Select("secret.*, t.public_id AS space_public_id, cb.public_id AS created_by_public_id").
+		Joins("INNER JOIN space t ON t.id = secret.space_id").
 		Joins("INNER JOIN `user` cb ON cb.id = secret.created_by")
 }
 
@@ -68,7 +68,7 @@ func toSecret(r *secretReadRow) *coresecret.Secret {
 	}
 	return &coresecret.Secret{
 		ID:          r.Row.PublicID,
-		TeamID:      r.TeamPublicID,
+		SpaceID:     r.SpacePublicID,
 		Name:        r.Row.Name,
 		Description: r.Row.Description,
 		Provider:    coresecret.Provider(r.Row.Provider),
@@ -109,7 +109,7 @@ func (s *Store) CreateSecret(ctx context.Context, in coresecret.CreateInput) (*c
 		KeyID:       in.Sealed.KeyID,
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		teamKey, err := lookupKey(ctx, tx, "team", in.TeamID)
+		spaceKey, err := lookupKey(ctx, tx, "space", in.SpaceID)
 		if err != nil {
 			return err
 		}
@@ -117,7 +117,7 @@ func (s *Store) CreateSecret(ctx context.Context, in coresecret.CreateInput) (*c
 		if err != nil {
 			return err
 		}
-		row.TeamID = teamKey
+		row.SpaceID = spaceKey
 		row.CreatedBy = creatorKey
 		return createWithPublicID(ctx, tx, "uq_secret_public_id",
 			func(id string) { row.PublicID = id }, row)
@@ -141,14 +141,14 @@ func (s *Store) GetSecret(ctx context.Context, id string) (*coresecret.Secret, e
 	return toSecret(&r), nil
 }
 
-// ListSecretsByTeam returns a team's Secrets, newest first, metadata only.
-func (s *Store) ListSecretsByTeam(ctx context.Context, teamID string) ([]coresecret.Secret, error) {
-	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
+// ListSecretsBySpace returns a space's Secrets, newest first, metadata only.
+func (s *Store) ListSecretsBySpace(ctx context.Context, spaceID string) ([]coresecret.Secret, error) {
+	spaceKey, err := lookupKey(ctx, s.db, "space", spaceID)
 	if err != nil {
 		return nil, err
 	}
 	var rows []secretReadRow
-	if err := s.secretSelect(ctx).Where("secret.team_id = ?", teamKey).
+	if err := s.secretSelect(ctx).Where("secret.space_id = ?", spaceKey).
 		Order("secret.id DESC").Find(&rows).Error; err != nil {
 		return nil, err
 	}

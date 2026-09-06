@@ -7,24 +7,24 @@ import (
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 )
 
-// A direct Agent run names a Team and an Agent and no Conversation at all —
+// A direct Agent run names a Space and an Agent and no Conversation at all —
 // the shape agent-execution-and-task-threads.md §4.1 and §8.1 describe.
-// team_id is required and authoritative; conversation_id is absent, not just
+// space_id is required and authoritative; conversation_id is absent, not just
 // empty on the wire.
 func TestCreateTaskDirectHasNoConversation(t *testing.T) {
 	s, ctx := newTestStore(t)
 	userID := newTestUser(t, s, "direct-task")
-	teamID := newTestTeam(t, s, userID)
+	spaceID := newTestSpace(t, s, userID)
 
-	agent, err := s.CreateAgentInTeam(ctx, agentdef.CreateInput{
-		TeamID: teamID, UserID: userID, Def: agentdef.Definition{Name: "direct-runner"},
+	agent, err := s.CreateAgentInSpace(ctx, agentdef.CreateInput{
+		SpaceID: spaceID, UserID: userID, Def: agentdef.Definition{Name: "direct-runner"},
 	})
 	if err != nil {
-		t.Fatalf("CreateAgentInTeam: %v", err)
+		t.Fatalf("CreateAgentInSpace: %v", err)
 	}
 
 	task, err := s.CreateTask(ctx, &coretask.CreateInput{
-		TeamID:    teamID,
+		SpaceID:   spaceID,
 		AgentID:   &agent.ID,
 		Input:     "run the nightly checks",
 		CreatedBy: userID,
@@ -37,8 +37,8 @@ func TestCreateTaskDirectHasNoConversation(t *testing.T) {
 		_ = s.db.WithContext(ctx).Delete(&taskRow{}, "task_id = ?", task.ID)
 	})
 
-	if task.TeamID != teamID {
-		t.Errorf("task.TeamID = %q, want %q", task.TeamID, teamID)
+	if task.SpaceID != spaceID {
+		t.Errorf("task.SpaceID = %q, want %q", task.SpaceID, spaceID)
 	}
 	if task.ConversationID != "" {
 		t.Errorf("task.ConversationID = %q, want empty for a direct run", task.ConversationID)
@@ -60,11 +60,11 @@ func TestCreateTaskDirectHasNoConversation(t *testing.T) {
 	if got.ConversationID != "" {
 		t.Errorf("re-read task.ConversationID = %q, want empty", got.ConversationID)
 	}
-	if got.TeamID != teamID {
-		t.Errorf("re-read task.TeamID = %q, want %q", got.TeamID, teamID)
+	if got.SpaceID != spaceID {
+		t.Errorf("re-read task.SpaceID = %q, want %q", got.SpaceID, spaceID)
 	}
 
-	list, total, err := s.ListTasksByAgent(ctx, teamID, agent.ID, 10, 0)
+	list, total, err := s.ListTasksByAgent(ctx, spaceID, agent.ID, 10, 0)
 	if err != nil {
 		t.Fatalf("ListTasksByAgent: %v", err)
 	}
@@ -72,14 +72,14 @@ func TestCreateTaskDirectHasNoConversation(t *testing.T) {
 		t.Fatalf("ListTasksByAgent = %+v (total %d), want just %s", list, total, task.ID)
 	}
 
-	// A second team's agent cannot see it: team ownership is authoritative,
+	// A second space's agent cannot see it: space ownership is authoritative,
 	// not the agent id alone.
 	strangerUser := newTestUser(t, s, "direct-task-stranger")
-	strangerTeam := newTestTeam(t, s, strangerUser)
-	if strangerList, strangerTotal, err := s.ListTasksByAgent(ctx, strangerTeam, agent.ID, 10, 0); err != nil {
-		t.Fatalf("ListTasksByAgent (stranger team): %v", err)
+	strangerSpace := newTestSpace(t, s, strangerUser)
+	if strangerList, strangerTotal, err := s.ListTasksByAgent(ctx, strangerSpace, agent.ID, 10, 0); err != nil {
+		t.Fatalf("ListTasksByAgent (stranger space): %v", err)
 	} else if strangerTotal != 0 || len(strangerList) != 0 {
-		t.Errorf("a stranger team's agent lookup saw %d tasks, want 0", strangerTotal)
+		t.Errorf("a stranger space's agent lookup saw %d tasks, want 0", strangerTotal)
 	}
 }
 
@@ -88,16 +88,16 @@ func TestCreateTaskDirectHasNoConversation(t *testing.T) {
 func TestCreateTaskRunContinuesADirectTaskWithoutAConversation(t *testing.T) {
 	s, ctx := newTestStore(t)
 	userID := newTestUser(t, s, "direct-continue")
-	teamID := newTestTeam(t, s, userID)
+	spaceID := newTestSpace(t, s, userID)
 
-	agent, err := s.CreateAgentInTeam(ctx, agentdef.CreateInput{
-		TeamID: teamID, UserID: userID, Def: agentdef.Definition{Name: "continuable"},
+	agent, err := s.CreateAgentInSpace(ctx, agentdef.CreateInput{
+		SpaceID: spaceID, UserID: userID, Def: agentdef.Definition{Name: "continuable"},
 	})
 	if err != nil {
-		t.Fatalf("CreateAgentInTeam: %v", err)
+		t.Fatalf("CreateAgentInSpace: %v", err)
 	}
 	task, err := s.CreateTask(ctx, &coretask.CreateInput{
-		TeamID: teamID, AgentID: &agent.ID, Input: "first turn", CreatedBy: userID,
+		SpaceID: spaceID, AgentID: &agent.ID, Input: "first turn", CreatedBy: userID,
 	})
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
@@ -163,16 +163,16 @@ func TestCreateTaskRunContinuesADirectTaskWithoutAConversation(t *testing.T) {
 func TestCreateTaskRunIsIdempotentByKey(t *testing.T) {
 	s, ctx := newTestStore(t)
 	userID := newTestUser(t, s, "idempotency-key")
-	teamID := newTestTeam(t, s, userID)
+	spaceID := newTestSpace(t, s, userID)
 
-	agent, err := s.CreateAgentInTeam(ctx, agentdef.CreateInput{
-		TeamID: teamID, UserID: userID, Def: agentdef.Definition{Name: "idempotent-runner"},
+	agent, err := s.CreateAgentInSpace(ctx, agentdef.CreateInput{
+		SpaceID: spaceID, UserID: userID, Def: agentdef.Definition{Name: "idempotent-runner"},
 	})
 	if err != nil {
-		t.Fatalf("CreateAgentInTeam: %v", err)
+		t.Fatalf("CreateAgentInSpace: %v", err)
 	}
 	task, err := s.CreateTask(ctx, &coretask.CreateInput{
-		TeamID: teamID, AgentID: &agent.ID, Input: "first turn", CreatedBy: userID,
+		SpaceID: spaceID, AgentID: &agent.ID, Input: "first turn", CreatedBy: userID,
 	})
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)

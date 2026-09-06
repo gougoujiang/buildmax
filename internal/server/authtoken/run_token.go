@@ -38,7 +38,7 @@ const (
 
 // ErrIncompleteRunClaims reports a mint call that would produce a token
 // ParseRun is bound to reject.
-var ErrIncompleteRunClaims = errors.New("run token needs a user, a team, and a task run")
+var ErrIncompleteRunClaims = errors.New("run token needs a user, a space, and a task run")
 
 // RunClaims is the identity a run token carries.
 //
@@ -49,8 +49,8 @@ type RunClaims struct {
 	// UserID owns the task. It is not always a human login — webhook and system
 	// runs carry their configured identity — but it is always the task's owner.
 	UserID string
-	// TeamID is the authorization and accounting boundary the run spends against.
-	TeamID string
+	// SpaceID is the authorization and accounting boundary the run spends against.
+	SpaceID string
 	// TaskRunID is the one run this token authorizes.
 	TaskRunID string
 	// TaskID is correlation context for the call ledger. Optional.
@@ -75,7 +75,7 @@ func MintRun(secret string, claims RunClaims, ttl time.Duration, now time.Time) 
 	if secret == "" {
 		return "", errors.New("run token needs a signing secret")
 	}
-	if claims.UserID == "" || claims.TeamID == "" || claims.TaskRunID == "" {
+	if claims.UserID == "" || claims.SpaceID == "" || claims.TaskRunID == "" {
 		return "", ErrIncompleteRunClaims
 	}
 	if ttl <= 0 {
@@ -88,7 +88,7 @@ func MintRun(secret string, claims RunClaims, ttl time.Duration, now time.Time) 
 			IssuedAt:  jwt.NewNumericDate(now),
 		},
 		Typ: TokenTypeRun,
-		Tid: claims.TeamID,
+		Tid: claims.SpaceID,
 		Rid: claims.TaskRunID,
 		Kid: claims.TaskID,
 	}
@@ -120,7 +120,7 @@ func ParseRun(tokenStr, secret string) (RunClaims, bool) {
 	}
 	return RunClaims{
 		UserID:    claims.Subject,
-		TeamID:    claims.Tid,
+		SpaceID:   claims.Tid,
 		TaskRunID: claims.Rid,
 		TaskID:    claims.Kid,
 	}, true

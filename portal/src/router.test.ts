@@ -25,12 +25,12 @@ describe("hash router", () => {
     // Artifacts left space settings for their own area; the old address still
     // lands on them rather than silently falling through to Overview.
     ["#/space/artifacts", { name: "artifacts" }],
-    ["#/team-settings", { name: "space", section: "overview" }],
+    ["#/space-settings", { name: "space", section: "overview" }],
     // Deployment administration is a separate area from space settings, and
     // its sections are linkable for the same reason the space ones are.
     ["#/admin", { name: "admin", section: "overview" }],
     ["#/admin/accounts", { name: "admin", section: "accounts" }],
-    ["#/admin/teams", { name: "admin", section: "teams" }],
+    ["#/admin/spaces", { name: "admin", section: "spaces" }],
     ["#/account/plugins", { name: "account", section: "plugins" }],
     ["#/admin/models", { name: "admin", section: "models" }],
     ["#/admin/plugins", { name: "admin", section: "plugins" }],
@@ -41,7 +41,7 @@ describe("hash router", () => {
     ["#/issues", { name: "issues" }],
     ["#/issue/i_123", { name: "issue", issueId: "i_123" }],
     ["#/artifacts", { name: "artifacts" }],
-    // No team in the path: an artifact's id is the whole address, matching the
+    // No space in the path: an artifact's id is the whole address, matching the
     // API. See docs/design/unified-artifacts.md section 6.1.
     ["#/artifact/gsyt7at6cjfr33d73mta", { name: "artifact", artifactId: "gsyt7at6cjfr33d73mta" }],
     ["#/marketplace", { name: "marketplace" }],
@@ -61,7 +61,7 @@ describe("hash router", () => {
     [{ name: "account", section: "usage" }, "#/account/usage"],
     [{ name: "admin", section: "overview" }, "#/admin"],
     [{ name: "admin", section: "accounts" }, "#/admin/accounts"],
-    [{ name: "admin", section: "teams" }, "#/admin/teams"],
+    [{ name: "admin", section: "spaces" }, "#/admin/spaces"],
     [{ name: "account", section: "plugins" }, "#/account/plugins"],
     [{ name: "admin", section: "models" }, "#/admin/models"],
     [{ name: "admin", section: "plugins" }, "#/admin/plugins"],

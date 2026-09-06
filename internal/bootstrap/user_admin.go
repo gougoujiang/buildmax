@@ -34,7 +34,7 @@ import (
 const UserCommandUsage = `Usage: buildmax-server user <command> [flags]
 
 Commands:
-  create <email>         Create an account and its personal team
+  create <email>         Create an account and its personal space
   set-password <email>   Set an account's password, read from stdin
   login-code <email>     Issue a single-use login code for an existing account
 
@@ -100,7 +100,7 @@ func runUserCreate(ctx context.Context, args []string, out io.Writer, store user
 		return fmt.Errorf("create user: %w", err)
 	}
 	recordOperatorUserAudit(ctx, store, coreaudit.UserCreated, user.ID)
-	fmt.Fprintf(out, "Created %s (%s) with a personal team. It has no password yet.\n\n", user.Email, user.ID)
+	fmt.Fprintf(out, "Created %s (%s) with a personal space. It has no password yet.\n\n", user.Email, user.ID)
 	fmt.Fprintf(out, "Let them set their own:\n  buildmax-server user login-code %s\n\n", email)
 	fmt.Fprintf(out, "Or set one now:\n  printf '%%s' '<password>' | buildmax-server user set-password %s\n", email)
 	return nil

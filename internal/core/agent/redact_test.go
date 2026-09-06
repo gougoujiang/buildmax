@@ -11,7 +11,7 @@ import (
 // TestRunLoop_RedactsToolResult proves a run's Secret value is removed from a
 // tool result before it enters the model context, the events, and the log --
 // RedactResult runs once, and every downstream consumer reads the redacted
-// result. See docs/design/team-secrets.md §12.
+// result. See docs/design/space-secrets.md §12.
 func TestRunLoop_RedactsToolResult(t *testing.T) {
 	ctx := context.Background()
 	const secretValue = "ghs_deadbeef_secret_0001"

@@ -41,7 +41,7 @@ func (e *CapabilityError) Is(target error) bool { return target == ErrCapability
 // ResolveRequest names the model a caller wants.
 //
 // Every catalog model is available to every user of the deployment, so a
-// request carries no team: authorization is being signed in. See
+// request carries no space: authorization is being signed in. See
 // docs/design/client-modes.md section 5.
 type ResolveRequest struct {
 	// Name is the operator-facing model name. Empty selects the deployment

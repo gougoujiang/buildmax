@@ -11,11 +11,11 @@ import (
 // artifact and the conditional revoke, neither of which a mock proves. They
 // skip without BUILDMAX_TEST_DSN, like every store test here.
 
-func newTestShare(t *testing.T, s *Store, artifactID, teamID, tokenHash string, expiresAt *time.Time) string {
+func newTestShare(t *testing.T, s *Store, artifactID, spaceID, tokenHash string, expiresAt *time.Time) string {
 	t.Helper()
 	rec, err := s.CreateArtifactShare(t.Context(), coreartifact.CreateShareInput{
 		ArtifactID:    artifactID,
-		TeamID:        teamID,
+		SpaceID:       spaceID,
 		TokenSHA256:   tokenHash,
 		CreatedByType: coreartifact.CreatorUser,
 		CreatedByID:   "u_1",
@@ -29,9 +29,9 @@ func newTestShare(t *testing.T, s *Store, artifactID, teamID, tokenHash string, 
 
 func TestCreateAndResolveShareByTokenHash(t *testing.T) {
 	s, ctx := newTestStore(t)
-	teamID := newTestTeam(t, s, newTestUser(t, s, "share-resolve"))
-	artifactID := newTestArtifact(t, s, teamID, 100, nil)
-	shareID := newTestShare(t, s, artifactID, teamID, "hash-a", nil)
+	spaceID := newTestSpace(t, s, newTestUser(t, s, "share-resolve"))
+	artifactID := newTestArtifact(t, s, spaceID, 100, nil)
+	shareID := newTestShare(t, s, artifactID, spaceID, "hash-a", nil)
 
 	resolved, err := s.GetArtifactShareByTokenHash(ctx, "hash-a")
 	if err != nil || resolved == nil {
@@ -43,8 +43,8 @@ func TestCreateAndResolveShareByTokenHash(t *testing.T) {
 	if resolved.Share.ArtifactID != artifactID || resolved.Artifact.ID != artifactID {
 		t.Errorf("resolved artifact = %q/%q, want %q", resolved.Share.ArtifactID, resolved.Artifact.ID, artifactID)
 	}
-	if resolved.Share.TeamID != teamID {
-		t.Errorf("team = %q, want %q", resolved.Share.TeamID, teamID)
+	if resolved.Share.SpaceID != spaceID {
+		t.Errorf("space = %q, want %q", resolved.Share.SpaceID, spaceID)
 	}
 }
 
@@ -65,9 +65,9 @@ func TestResolveUnknownTokenIsNil(t *testing.T) {
 // tombstone visible rather than hiding it or erroring.
 func TestResolveShareReflectsATombstonedArtifact(t *testing.T) {
 	s, ctx := newTestStore(t)
-	teamID := newTestTeam(t, s, newTestUser(t, s, "share-tombstone"))
-	artifactID := newTestArtifact(t, s, teamID, 100, nil)
-	newTestShare(t, s, artifactID, teamID, "hash-b", nil)
+	spaceID := newTestSpace(t, s, newTestUser(t, s, "share-tombstone"))
+	artifactID := newTestArtifact(t, s, spaceID, 100, nil)
+	newTestShare(t, s, artifactID, spaceID, "hash-b", nil)
 
 	if _, err := s.SoftDeleteArtifact(ctx, artifactID, time.Now().UTC()); err != nil {
 		t.Fatalf("SoftDeleteArtifact: %v", err)
@@ -83,10 +83,10 @@ func TestResolveShareReflectsATombstonedArtifact(t *testing.T) {
 
 func TestRevokeShareIsConditionalAndScoped(t *testing.T) {
 	s, ctx := newTestStore(t)
-	teamID := newTestTeam(t, s, newTestUser(t, s, "share-revoke"))
-	artifactID := newTestArtifact(t, s, teamID, 100, nil)
-	otherArtifact := newTestArtifact(t, s, teamID, 100, nil)
-	shareID := newTestShare(t, s, artifactID, teamID, "hash-c", nil)
+	spaceID := newTestSpace(t, s, newTestUser(t, s, "share-revoke"))
+	artifactID := newTestArtifact(t, s, spaceID, 100, nil)
+	otherArtifact := newTestArtifact(t, s, spaceID, 100, nil)
+	shareID := newTestShare(t, s, artifactID, spaceID, "hash-c", nil)
 
 	// A share cannot be revoked through an artifact it does not belong to.
 	if changed, err := s.RevokeArtifactShare(ctx, otherArtifact, shareID, time.Now().UTC()); err != nil || changed {
@@ -107,10 +107,10 @@ func TestRevokeShareIsConditionalAndScoped(t *testing.T) {
 
 func TestListAndRetrievalCount(t *testing.T) {
 	s, ctx := newTestStore(t)
-	teamID := newTestTeam(t, s, newTestUser(t, s, "share-list"))
-	artifactID := newTestArtifact(t, s, teamID, 100, nil)
-	shareID := newTestShare(t, s, artifactID, teamID, "hash-d", nil)
-	newTestShare(t, s, artifactID, teamID, "hash-e", nil)
+	spaceID := newTestSpace(t, s, newTestUser(t, s, "share-list"))
+	artifactID := newTestArtifact(t, s, spaceID, 100, nil)
+	shareID := newTestShare(t, s, artifactID, spaceID, "hash-d", nil)
+	newTestShare(t, s, artifactID, spaceID, "hash-e", nil)
 
 	shares, err := s.ListArtifactShares(ctx, artifactID)
 	if err != nil || len(shares) != 2 {

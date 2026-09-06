@@ -224,7 +224,7 @@ quota applies to it identically.
 - Who the caller is, which team the request is about, and whether they may
   proceed are all answered by `internal/server/access`. Its `Guard` writes the
   refusal itself, so a route reads as a list of gates; the role/action decision
-  it consults is `team.Allows` in `internal/core/team/policy.go`, the one
+  it consults is `space.Allows` in `internal/core/space/policy.go`, the one
   implementation the team service shares with it.
 - `POST /api/login` accepts a password or an operator-issued, single-use login
   code. The latter is the account-claim and recovery path because BuildMax has

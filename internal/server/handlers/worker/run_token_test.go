@@ -26,7 +26,7 @@ func TestRunTokenIsNotAUserLogin(t *testing.T) {
 	const secret = "test-jwt-secret"
 	token, err := authtoken.MintRun(secret, authtoken.RunClaims{
 		UserID:    "u1",
-		TeamID:    "tm1",
+		SpaceID:   "tm1",
 		TaskRunID: "r1",
 		TaskID:    "t1",
 	}, time.Hour, time.Now())
@@ -61,7 +61,7 @@ func workerRouteConfig() Config {
 		JWTSecret: workerTestSecret,
 		TaskRuns: &mock.MockTaskRunStore{
 			Runs:     []coretask.Run{{ID: "r_1", TaskID: "t_1", Status: string(coretask.RunStatusScheduled), CreatedAt: time.Unix(1, 0).UTC()}},
-			TaskList: []coretask.Task{{ID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam, CreatedBy: llmTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
+			TaskList: []coretask.Task{{ID: "t_1", ConversationID: "c_1", SpaceID: llmTestSpace, CreatedBy: llmTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
 	}
 }
@@ -69,7 +69,7 @@ func workerRouteConfig() Config {
 // TestWorkerRoutesAreRunScoped is what retiring the shared secret buys. Every
 // worker route names a run in its path, and each one checks that the caller
 // holds that run's token — so a compromised run can no longer read another
-// team's task input, forge another run's result, or write into another run's
+// space's task input, forge another run's result, or write into another run's
 // live stream.
 //
 // The list is every route the package registers. A route added without a
@@ -89,7 +89,7 @@ func TestWorkerRoutesAreRunScoped(t *testing.T) {
 	// A run token is the only credential these routes take, so everything a
 	// worker could otherwise present has to be refused by name.
 	otherDeployment, err := authtoken.MintRun("some-other-deployments-secret", authtoken.RunClaims{
-		UserID: "u_1", TeamID: "tm_1", TaskRunID: "r_1", TaskID: "t_1",
+		UserID: "u_1", SpaceID: "tm_1", TaskRunID: "r_1", TaskID: "t_1",
 	}, time.Hour, time.Now())
 	if err != nil {
 		t.Fatalf("MintRun: %v", err)

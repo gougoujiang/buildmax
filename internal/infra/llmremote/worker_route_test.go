@@ -10,7 +10,7 @@ import (
 )
 
 // TestWorkerModeCallsTheRunRoute covers the routing decision that lets a task
-// run reach the gateway at all. The team route authenticates a person; a worker
+// run reach the gateway at all. The space route authenticates a person; a worker
 // has no person to be, so it calls as the run it was dispatched for and lets the
 // server derive the rest from the run token.
 func TestWorkerModeCallsTheRunRoute(t *testing.T) {
@@ -29,10 +29,10 @@ func TestWorkerModeCallsTheRunRoute(t *testing.T) {
 	if gateway.gotAuth != "Bearer run-token" {
 		t.Errorf("authorization = %q", gateway.gotAuth)
 	}
-	// The body must not name a team. A worker that could state one would be
+	// The body must not name a space. A worker that could state one would be
 	// asserting an identity the server is supposed to derive.
-	if strings.Contains(string(gateway.gotRaw), "team") {
-		t.Errorf("worker request body mentions a team: %s", gateway.gotRaw)
+	if strings.Contains(string(gateway.gotRaw), "space") {
+		t.Errorf("worker request body mentions a space: %s", gateway.gotRaw)
 	}
 }
 

@@ -2,22 +2,22 @@ package db
 
 import "testing"
 
-func TestListConversationsByTeamReturnsTeamConversations(t *testing.T) {
+func TestListConversationsBySpaceReturnsSpaceConversations(t *testing.T) {
 	s, ctx := newTestStore(t)
-	user := newTestUser(t, s, "team-conversations")
-	team := newTestTeam(t, s, user)
+	user := newTestUser(t, s, "space-conversations")
+	space := newTestSpace(t, s, user)
 
-	mine, err := s.CreateConversationInTeam(ctx, team, user, "portal", user)
+	mine, err := s.CreateConversationInSpace(ctx, space, user, "portal", user)
 	if err != nil {
-		t.Fatalf("CreateConversationInTeam: %v", err)
+		t.Fatalf("CreateConversationInSpace: %v", err)
 	}
 	t.Cleanup(func() {
 		_ = s.db.Delete(&conversationRow{}, "conversation_id = ?", mine.ID)
 	})
 
-	list, total, err := s.ListConversationsByTeam(ctx, team, 50, 0)
+	list, total, err := s.ListConversationsBySpace(ctx, space, 50, 0)
 	if err != nil {
-		t.Fatalf("ListConversationsByTeam: %v", err)
+		t.Fatalf("ListConversationsBySpace: %v", err)
 	}
 	if total != 1 {
 		t.Errorf("total = %d, want 1", total)

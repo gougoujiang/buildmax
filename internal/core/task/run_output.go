@@ -3,7 +3,7 @@ package task
 import "time"
 
 // Run output is not an Artifact. An Artifact is a file somebody chose to keep,
-// addressed by its own opaque ID and governed by team authorization and retention;
+// addressed by its own opaque ID and governed by space authorization and retention;
 // a run output is what a run left behind, which is reproducibility state keyed
 // by the run. They were named TaskRunArtifact and ArtifactWithTask, which read
 // as Artifact types and are not. See docs/design/unified-artifacts.md.
@@ -25,7 +25,7 @@ type RunOutputListing struct {
 	TaskID           string    `json:"task_id"`
 	TaskRunID        string    `json:"task_run_id"`
 	ConversationID   string    `json:"conversation_id,omitempty"`
-	TeamID           string    `json:"team_id"`
+	SpaceID          string    `json:"space_id"`
 	UserID           string    `json:"user_id"`
 	CreatedAt        time.Time `json:"created_at"`
 	TaskInputSnippet string    `json:"task_input_snippet"`

@@ -14,8 +14,8 @@ import (
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/server/websocket"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
@@ -23,12 +23,12 @@ import (
 	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
 )
 
-// TeamSandboxDefaultsReader is the only team capability a run token receives
+// SpaceSandboxDefaultsReader is the only space capability a run token receives
 // beyond plugin activation: the tiers an agent that declares neither inherits.
 // See resolveSandboxTiers. In particular, the worker surface cannot read
-// membership or change anything about the team.
-type TeamSandboxDefaultsReader interface {
-	GetTeam(ctx context.Context, teamID string) (*coreteam.Team, error)
+// membership or change anything about the space.
+type SpaceSandboxDefaultsReader interface {
+	GetSpace(ctx context.Context, spaceID string) (*corespace.Space, error)
 }
 
 type Config struct {
@@ -40,11 +40,11 @@ type Config struct {
 
 	TaskRuns coretask.RunStore
 	Agents   agentdef.Store
-	// Teams resolves a run's team default sandbox tiers -- what an agent that
-	// declares neither inherits. Nil means no team falls through beyond the
+	// Spaces resolves a run's space default sandbox tiers -- what an agent that
+	// declares neither inherits. Nil means no space falls through beyond the
 	// agent's own declaration.
-	Teams TeamSandboxDefaultsReader
-	// Activations resolves what a run's team activated. Nil means this
+	Spaces SpaceSandboxDefaultsReader
+	// Activations resolves what a run's space activated. Nil means this
 	// deployment cannot, which is a refusal only for an agent that names a
 	// plugin.
 	Activations ActivationReader
@@ -53,7 +53,7 @@ type Config struct {
 	Plugins *pluginsvc.Service
 	Gateway *llmgateway.Service
 	Hub     websocket.StreamHub
-	// Artifacts lets a run's agent keep a file for the team. Nil means this
+	// Artifacts lets a run's agent keep a file for the space. Nil means this
 	// deployment has no artifact store, and the route answers 503 — which is
 	// also what makes the worker leave the tool unregistered.
 	Artifacts *artifactsvc.Service
@@ -62,7 +62,7 @@ type Config struct {
 	// 404 from a configured one — either way the worker leaves the tools
 	// unregistered rather than offering ones that always fail.
 	Issues IssueAccess
-	// Secrets decrypts a run's declared Team Secret grants. Nil means the
+	// Secrets decrypts a run's declared Space Secret grants. Nil means the
 	// feature is off; the secrets route then returns an empty grant set, which
 	// is correct because no agent could have saved a consumption config.
 	Secrets SecretMaterializer
@@ -79,10 +79,10 @@ type Config struct {
 	TerminalGroup *runterminal.Group
 }
 
-// ActivationReader is the only team-plugin capability a run token receives.
+// ActivationReader is the only space-plugin capability a run token receives.
 // In particular, the worker surface cannot activate or repin a plugin.
 type ActivationReader interface {
-	GetPluginActivation(ctx context.Context, teamID, pluginName string) (*coreplugin.Activation, error)
+	GetPluginActivation(ctx context.Context, spaceID, pluginName string) (*coreplugin.Activation, error)
 }
 
 type Handler struct{ cfg Config }
@@ -110,12 +110,12 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// update route: what an agent may not say about its work is decided by the
 	// absence of the route, not by the tool that would have called it.
 	// The run's resolved Secret env grants, on their own route so the values
-	// ride a no-store, unlogged response. See docs/design/team-secrets.md §7.
+	// ride a no-store, unlogged response. See docs/design/space-secrets.md §7.
 	mux.Handle("GET /api/worker/task-runs/{task_run_id}/secrets", h.runScopedWorkerMiddleware(http.HandlerFunc(h.getTaskRunSecrets)))
 	mux.Handle("GET /api/worker/task-runs/{task_run_id}/issue", h.runScopedWorkerMiddleware(http.HandlerFunc(h.getRunIssue)))
 	mux.Handle("POST /api/worker/task-runs/{task_run_id}/issue/comments", h.runScopedWorkerMiddleware(http.HandlerFunc(h.postRunIssueComment)))
 	// Inference authenticates the same way but reads the claims itself: it
-	// attributes the call to the token's user and team rather than only
+	// attributes the call to the token's user and space rather than only
 	// admitting it.
 	mux.HandleFunc("POST /api/worker/task-runs/{task_run_id}/llm/completions", h.workerLLMCompletionsHandler)
 	// The bytes of a release this run is pinned to. Scoped like everything else

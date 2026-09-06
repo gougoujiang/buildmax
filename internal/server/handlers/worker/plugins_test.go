@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	pluginTestTeam = "tm_1"
-	pluginTestRun  = "tr_1"
+	pluginTestSpace = "tm_1"
+	pluginTestRun   = "tr_1"
 )
 
 type pinFixture struct {
@@ -37,17 +37,17 @@ type pinFixture struct {
 func newPinFixture(t *testing.T, agentPlugins []string) *pinFixture {
 	t.Helper()
 	agents := &mock.MockAgentStore{}
-	created, err := agents.CreateAgentInTeam(context.Background(), agentdef.CreateInput{
-		TeamID: pluginTestTeam, UserID: "u_1",
+	created, err := agents.CreateAgentInSpace(context.Background(), agentdef.CreateInput{
+		SpaceID: pluginTestSpace, UserID: "u_1",
 		Def: agentdef.Definition{Name: "Reviewer", Plugins: agentPlugins},
 	})
 	if err != nil {
-		t.Fatalf("CreateAgentInTeam: %v", err)
+		t.Fatalf("CreateAgentInSpace: %v", err)
 	}
 	agentID := created.ID
 	runs := &mock.MockTaskRunStore{
 		Runs:     []coretask.Run{{ID: pluginTestRun, TaskID: "tk_1", Status: string(coretask.RunStatusRunning)}},
-		TaskList: []coretask.Task{{ID: "tk_1", TeamID: pluginTestTeam, CreatedBy: "u_1", AgentID: &agentID}},
+		TaskList: []coretask.Task{{ID: "tk_1", SpaceID: pluginTestSpace, CreatedBy: "u_1", AgentID: &agentID}},
 	}
 	catalog := mock.NewMockPluginStore()
 	packages := mock.NewMockPluginPackageStorage()
@@ -71,13 +71,13 @@ func (f *pinFixture) activate(t *testing.T, name, version, digest string, enable
 	t.Helper()
 	ctx := context.Background()
 	if _, err := f.activations.ActivatePlugin(ctx, coreplugin.ActivateInput{
-		TeamID: pluginTestTeam, PluginName: name, Version: version, Digest: digest,
+		SpaceID: pluginTestSpace, PluginName: name, Version: version, Digest: digest,
 		Origin: coreplugin.ActivationCurated, ActorID: "u_1",
 	}); err != nil {
 		t.Fatalf("ActivatePlugin: %v", err)
 	}
 	if !enabled {
-		if _, err := f.activations.SetPluginActivationEnabled(ctx, pluginTestTeam, name, false, "u_1"); err != nil {
+		if _, err := f.activations.SetPluginActivationEnabled(ctx, pluginTestSpace, name, false, "u_1"); err != nil {
 			t.Fatalf("SetPluginActivationEnabled: %v", err)
 		}
 	}
@@ -119,7 +119,7 @@ func TestClaimResolvesAndRecordsPins(t *testing.T) {
 	}
 }
 
-// A worker polls its run while it executes. A team moving a pin in that window
+// A worker polls its run while it executes. A space moving a pin in that window
 // must not change what the run was given.
 func TestASecondClaimKeepsTheRecordedPins(t *testing.T) {
 	f := newPinFixture(t, []string{"code-review"})
@@ -129,7 +129,7 @@ func TestASecondClaimKeepsTheRecordedPins(t *testing.T) {
 	}
 
 	if _, err := f.activations.MovePluginActivationPin(context.Background(), coreplugin.MovePinInput{
-		TeamID: pluginTestTeam, PluginName: "code-review", Version: "2.0.0", Digest: "sha256:two", ActorID: "u_1",
+		SpaceID: pluginTestSpace, PluginName: "code-review", Version: "2.0.0", Digest: "sha256:two", ActorID: "u_1",
 	}); err != nil {
 		t.Fatalf("MovePluginActivationPin: %v", err)
 	}
@@ -187,11 +187,11 @@ func TestClaimWithNoAgentResolvesNothing(t *testing.T) {
 	}
 }
 
-// An agent whose team is not the run's team is treated as no agent, plugins
+// An agent whose space is not the run's space is treated as no agent, plugins
 // included — the rule the route already applies to its instructions.
-func TestClaimIgnoresAnAgentFromAnotherTeam(t *testing.T) {
+func TestClaimIgnoresAnAgentFromAnotherSpace(t *testing.T) {
 	f := newPinFixture(t, []string{"code-review"})
-	f.agents.Agents[0].TeamID = "tm_other"
+	f.agents.Agents[0].SpaceID = "tm_other"
 
 	got := f.claim(t)
 	if got.PluginError != "" || len(got.Plugins) != 0 {

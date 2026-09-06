@@ -7,12 +7,12 @@ import (
 )
 
 // System roles are deployment-scoped: they are held by a user and attached to
-// no team. A grant is an authority to operate the deployment, not a key to its
+// no space. A grant is an authority to operate the deployment, not a key to its
 // contents — see docs/design/system-administration.md.
 const (
 	// SystemRoleAdmin may manage accounts, read deployment status, and search
-	// the audit trail across teams. It grants no access to any team's issues,
-	// conversations, artifacts, files, or run traces: those stay behind team
+	// the audit trail across spaces. It grants no access to any space's issues,
+	// conversations, artifacts, files, or run traces: those stay behind space
 	// membership, which a system grant never substitutes for.
 	SystemRoleAdmin = "system_admin"
 )

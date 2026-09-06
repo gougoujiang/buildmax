@@ -1,7 +1,7 @@
 package work
 
 import (
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	"net/http"
 	"time"
 
@@ -14,7 +14,7 @@ import (
 
 type workflowResponse struct {
 	ID          string    `json:"id"`
-	TeamID      string    `json:"team_id"`
+	SpaceID     string    `json:"space_id"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
 	Definition  string    `json:"definition"`
@@ -111,7 +111,7 @@ type createWorkflowRunRequest struct {
 func workflowToResponse(workflow coreworkflow.Workflow) workflowResponse {
 	return workflowResponse{
 		ID:          workflow.ID,
-		TeamID:      workflow.TeamID,
+		SpaceID:     workflow.SpaceID,
 		Name:        workflow.Name,
 		Description: workflow.Description,
 		Definition:  workflow.Definition,
@@ -193,16 +193,16 @@ func (h *Handler) writeWorkflowSvcError(w http.ResponseWriter, err error) bool {
 }
 
 func (h *Handler) listWorkflowsHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Workflows, "workflows not configured")
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Workflows, "workflows not configured")
 	if !ok {
 		return
 	}
-	list, err := h.workflowService().ListWorkflows(r.Context(), teamID)
+	list, err := h.workflowService().ListWorkflows(r.Context(), spaceID)
 	if err != nil {
 		if h.writeWorkflowSvcError(w, err) {
 			return
 		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "list_workflows", "team_id", teamID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "list_workflows", "space_id", spaceID)
 		return
 	}
 	out := make([]workflowResponse, len(list))
@@ -213,11 +213,11 @@ func (h *Handler) listWorkflowsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createWorkflowHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Workflows, "workflows not configured")
+	userID, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Workflows, "workflows not configured")
 	if !ok {
 		return
 	}
-	if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionManageWorkflows); !ok {
+	if _, ok := h.guard().SpaceAction(w, r, userID, spaceID, corespace.ActionManageWorkflows); !ok {
 		return
 	}
 	var req createWorkflowRequest
@@ -225,7 +225,7 @@ func (h *Handler) createWorkflowHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	createdWorkflow, err := h.workflowService().CreateWorkflow(r.Context(), workflow.CreateWorkflowCmd{
-		TeamID:      teamID,
+		SpaceID:     spaceID,
 		UserID:      userID,
 		Name:        req.Name,
 		Description: req.Description,
@@ -235,14 +235,14 @@ func (h *Handler) createWorkflowHandler(w http.ResponseWriter, r *http.Request) 
 		if h.writeWorkflowSvcError(w, err) {
 			return
 		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "create_workflow", "team_id", teamID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "create_workflow", "space_id", spaceID)
 		return
 	}
 	httputil.WriteJSON(w, http.StatusCreated, workflowToResponse(*createdWorkflow))
 }
 
 func (h *Handler) getWorkflowHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Workflows, "workflows not configured")
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Workflows, "workflows not configured")
 	if !ok {
 		return
 	}
@@ -250,23 +250,23 @@ func (h *Handler) getWorkflowHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	workflow, err := h.workflowService().GetWorkflow(r.Context(), teamID, workflowID)
+	workflow, err := h.workflowService().GetWorkflow(r.Context(), spaceID, workflowID)
 	if err != nil {
 		if h.writeWorkflowSvcError(w, err) {
 			return
 		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "get_workflow", "team_id", teamID, "workflow_id", workflowID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "get_workflow", "space_id", spaceID, "workflow_id", workflowID)
 		return
 	}
 	httputil.WriteJSON(w, http.StatusOK, workflowToResponse(*workflow))
 }
 
 func (h *Handler) patchWorkflowHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Workflows, "workflows not configured")
+	userID, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Workflows, "workflows not configured")
 	if !ok {
 		return
 	}
-	if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionManageWorkflows); !ok {
+	if _, ok := h.guard().SpaceAction(w, r, userID, spaceID, corespace.ActionManageWorkflows); !ok {
 		return
 	}
 	workflowID, ok := httputil.PathValue(w, r, "workflow_id")
@@ -278,7 +278,7 @@ func (h *Handler) patchWorkflowHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	updatedWorkflow, err := h.workflowService().UpdateWorkflow(r.Context(), workflow.UpdateWorkflowCmd{
-		TeamID:      teamID,
+		SpaceID:     spaceID,
 		UserID:      userID,
 		WorkflowID:  workflowID,
 		Name:        req.Name,
@@ -290,16 +290,16 @@ func (h *Handler) patchWorkflowHandler(w http.ResponseWriter, r *http.Request) {
 		if h.writeWorkflowSvcError(w, err) {
 			return
 		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "patch_workflow", "team_id", teamID, "workflow_id", workflowID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "patch_workflow", "space_id", spaceID, "workflow_id", workflowID)
 		return
 	}
 	httputil.WriteJSON(w, http.StatusOK, workflowToResponse(*updatedWorkflow))
 }
 
 // listWorkflowRevisionsHandler returns a workflow's recorded versions, newest
-// first. Reading history needs no more than team membership.
+// first. Reading history needs no more than space membership.
 func (h *Handler) listWorkflowRevisionsHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Workflows, "workflows not configured")
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Workflows, "workflows not configured")
 	if !ok {
 		return
 	}
@@ -308,12 +308,12 @@ func (h *Handler) listWorkflowRevisionsHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.BrowsePageDefault, httputil.BrowsePageMax)
-	list, total, err := h.workflowService().ListWorkflowRevisions(r.Context(), teamID, workflowID, limit, offset)
+	list, total, err := h.workflowService().ListWorkflowRevisions(r.Context(), spaceID, workflowID, limit, offset)
 	if err != nil {
 		if h.writeWorkflowSvcError(w, err) {
 			return
 		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "list_workflow_revisions", "team_id", teamID, "workflow_id", workflowID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "list_workflow_revisions", "space_id", spaceID, "workflow_id", workflowID)
 		return
 	}
 	out := make([]workflowRevisionResponse, len(list))
@@ -326,11 +326,11 @@ func (h *Handler) listWorkflowRevisionsHandler(w http.ResponseWriter, r *http.Re
 // restoreWorkflowRevisionHandler writes an earlier revision's content back to
 // the workflow. It is an ordinary edit and needs the permission an edit needs.
 func (h *Handler) restoreWorkflowRevisionHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Workflows, "workflows not configured")
+	userID, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Workflows, "workflows not configured")
 	if !ok {
 		return
 	}
-	if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionManageWorkflows); !ok {
+	if _, ok := h.guard().SpaceAction(w, r, userID, spaceID, corespace.ActionManageWorkflows); !ok {
 		return
 	}
 	workflowID, ok := httputil.PathValue(w, r, "workflow_id")
@@ -342,7 +342,7 @@ func (h *Handler) restoreWorkflowRevisionHandler(w http.ResponseWriter, r *http.
 		return
 	}
 	updated, err := h.workflowService().RestoreWorkflowRevision(r.Context(), workflow.RestoreWorkflowRevisionCmd{
-		TeamID:     teamID,
+		SpaceID:    spaceID,
 		UserID:     userID,
 		WorkflowID: workflowID,
 		Revision:   revision,
@@ -351,14 +351,14 @@ func (h *Handler) restoreWorkflowRevisionHandler(w http.ResponseWriter, r *http.
 		if h.writeWorkflowSvcError(w, err) {
 			return
 		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "restore_workflow_revision", "team_id", teamID, "workflow_id", workflowID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "restore_workflow_revision", "space_id", spaceID, "workflow_id", workflowID)
 		return
 	}
 	httputil.WriteJSON(w, http.StatusOK, workflowToResponse(*updated))
 }
 
 func (h *Handler) listWorkflowRunsHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Workflows, "workflows not configured")
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Workflows, "workflows not configured")
 	if !ok {
 		return
 	}
@@ -367,12 +367,12 @@ func (h *Handler) listWorkflowRunsHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.BrowsePageDefault, httputil.BrowsePageMax)
-	runs, total, err := h.workflowService().ListWorkflowRuns(r.Context(), teamID, workflowID, limit, offset)
+	runs, total, err := h.workflowService().ListWorkflowRuns(r.Context(), spaceID, workflowID, limit, offset)
 	if err != nil {
 		if h.writeWorkflowSvcError(w, err) {
 			return
 		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "list_workflow_runs", "team_id", teamID, "workflow_id", workflowID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "list_workflow_runs", "space_id", spaceID, "workflow_id", workflowID)
 		return
 	}
 	out := make([]workflowRunResponse, len(runs))
@@ -383,7 +383,7 @@ func (h *Handler) listWorkflowRunsHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) getWorkflowRunHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Workflows, "workflows not configured")
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Workflows, "workflows not configured")
 	if !ok {
 		return
 	}
@@ -391,12 +391,12 @@ func (h *Handler) getWorkflowRunHandler(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	run, steps, err := h.workflowService().GetWorkflowRunDetail(r.Context(), teamID, runID)
+	run, steps, err := h.workflowService().GetWorkflowRunDetail(r.Context(), spaceID, runID)
 	if err != nil {
 		if h.writeWorkflowSvcError(w, err) {
 			return
 		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "get_workflow_run", "team_id", teamID, "workflow_run_id", runID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "get_workflow_run", "space_id", spaceID, "workflow_run_id", runID)
 		return
 	}
 	stepOut := make([]workflowStepRunResponse, len(steps))
@@ -407,11 +407,11 @@ func (h *Handler) getWorkflowRunHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) createWorkflowRunHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Workflows, "workflows not configured")
+	userID, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Workflows, "workflows not configured")
 	if !ok {
 		return
 	}
-	if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionRunWorkflow); !ok {
+	if _, ok := h.guard().SpaceAction(w, r, userID, spaceID, corespace.ActionRunWorkflow); !ok {
 		return
 	}
 	workflowID, ok := httputil.PathValue(w, r, "workflow_id")
@@ -425,7 +425,7 @@ func (h *Handler) createWorkflowRunHandler(w http.ResponseWriter, r *http.Reques
 		}
 	}
 	run, steps, err := h.workflowService().StartWorkflowRun(r.Context(), workflow.StartWorkflowRunCmd{
-		TeamID:     teamID,
+		SpaceID:    spaceID,
 		UserID:     userID,
 		WorkflowID: workflowID,
 		IssueID:    req.IssueID,
@@ -434,7 +434,7 @@ func (h *Handler) createWorkflowRunHandler(w http.ResponseWriter, r *http.Reques
 		if h.writeWorkflowSvcError(w, err) {
 			return
 		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "create_workflow_run", "team_id", teamID, "workflow_id", workflowID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "create_workflow_run", "space_id", spaceID, "workflow_id", workflowID)
 		return
 	}
 	stepOut := make([]workflowStepRunResponse, len(steps))
@@ -445,11 +445,11 @@ func (h *Handler) createWorkflowRunHandler(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) createIssueWorkflowRunHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Workflows, "workflows not configured")
+	userID, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Workflows, "workflows not configured")
 	if !ok {
 		return
 	}
-	if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionRunWorkflow); !ok {
+	if _, ok := h.guard().SpaceAction(w, r, userID, spaceID, corespace.ActionRunWorkflow); !ok {
 		return
 	}
 	issueID, ok := httputil.PathValue(w, r, "issue_id")
@@ -461,10 +461,10 @@ func (h *Handler) createIssueWorkflowRunHandler(w http.ResponseWriter, r *http.R
 	}
 	issue, err := h.cfg.Issues.GetIssue(r.Context(), issueID)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "get_issue_for_workflow_run", "team_id", teamID, "issue_id", issueID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "get_issue_for_workflow_run", "space_id", spaceID, "issue_id", issueID)
 		return
 	}
-	if issue == nil || issue.TeamID != teamID {
+	if issue == nil || issue.SpaceID != spaceID {
 		httputil.WriteJSONError(w, http.StatusNotFound, "issue not found")
 		return
 	}
@@ -473,7 +473,7 @@ func (h *Handler) createIssueWorkflowRunHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 	run, steps, err := h.workflowService().StartWorkflowRun(r.Context(), workflow.StartWorkflowRunCmd{
-		TeamID:     teamID,
+		SpaceID:    spaceID,
 		UserID:     userID,
 		WorkflowID: *issue.AssigneeID,
 		IssueID:    &issueID,
@@ -482,7 +482,7 @@ func (h *Handler) createIssueWorkflowRunHandler(w http.ResponseWriter, r *http.R
 		if h.writeWorkflowSvcError(w, err) {
 			return
 		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "create_issue_workflow_run", "team_id", teamID, "issue_id", issueID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "create_issue_workflow_run", "space_id", spaceID, "issue_id", issueID)
 		return
 	}
 	stepOut := make([]workflowStepRunResponse, len(steps))

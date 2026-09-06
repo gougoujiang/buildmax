@@ -13,9 +13,9 @@ import (
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 )
 
-// pluginRow is one catalog entry. It has no team column: the catalog belongs to
+// pluginRow is one catalog entry. It has no space column: the catalog belongs to
 // the deployment, which is what lets a System Administrator manage company
-// capabilities without reaching into any team's content.
+// capabilities without reaching into any space's content.
 type pluginRow struct {
 	ID          uint64     `gorm:"primaryKey;autoIncrement"`
 	Name        string     `gorm:"type:varchar(128);uniqueIndex;not null"`

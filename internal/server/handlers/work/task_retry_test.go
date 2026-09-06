@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -18,7 +18,7 @@ import (
 
 const (
 	retrySecret = "test-retry-secret"
-	retryTeam   = "tm_personal_u1"
+	retrySpace  = "tm_personal_u1"
 	retryConv   = "conv_retry"
 	retryUser   = "u1"
 	retryTaskID = "t_retry"
@@ -32,7 +32,7 @@ func retryFixture(t *testing.T, run coretask.Run, workflows *mock.MockWorkflowSt
 	target := coretask.Task{
 		ID:             retryTaskID,
 		ConversationID: retryConv,
-		TeamID:         retryTeam,
+		SpaceID:        retrySpace,
 		Status:         run.Status,
 		Input:          "the task's original input",
 		CreatedBy:      retryUser,
@@ -46,14 +46,14 @@ func retryFixture(t *testing.T, run coretask.Run, workflows *mock.MockWorkflowSt
 	}
 	cfg := Config{
 		JWTSecret: retrySecret,
-		Teams: &mock.MockTeamStore{
-			Teams:   []coreteam.Team{{ID: retryTeam, Name: "My Space", PersonalForUserID: util.Ptr(retryUser), CreatedBy: retryUser}},
-			Members: []coreteam.Member{{TeamID: retryTeam, UserID: retryUser, Role: coreteam.RoleOwner}},
+		Spaces: &mock.MockSpaceStore{
+			Spaces:  []corespace.Space{{ID: retrySpace, Name: "My Space", PersonalForUserID: util.Ptr(retryUser), CreatedBy: retryUser}},
+			Members: []corespace.Member{{SpaceID: retrySpace, UserID: retryUser, Role: corespace.RoleOwner}},
 		},
 		Tasks:    &mock.MockTaskStore{List: []coretask.Task{target}},
 		TaskRuns: runs,
 		Conversations: &mock.MockConversationStore{Conversations: []coreconv.Conversation{
-			{ID: retryConv, UserID: retryUser, TeamID: retryTeam, Channel: "portal", CreatedBy: retryUser},
+			{ID: retryConv, UserID: retryUser, SpaceID: retrySpace, Channel: "portal", CreatedBy: retryUser},
 		}},
 	}
 	if workflows != nil {
@@ -66,7 +66,7 @@ func retryFixture(t *testing.T, run coretask.Run, workflows *mock.MockWorkflowSt
 
 func postRetry(t *testing.T, mux *http.ServeMux) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodPost, "/api/teams/"+retryTeam+"/tasks/"+retryTaskID+"/retry", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/spaces/"+retrySpace+"/tasks/"+retryTaskID+"/retry", nil)
 	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(retryUser, retrySecret))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)

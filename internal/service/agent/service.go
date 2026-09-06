@@ -1,7 +1,7 @@
-// Package agent owns the rules for a team's agent definitions.
+// Package agent owns the rules for a space's agent definitions.
 //
 // The handlers that used to hold these rules re-derived them per route: four of
-// them separately asked the store for an agent and compared its team, and the
+// them separately asked the store for an agent and compared its space, and the
 // one that deletes carried the workflow check inline. Both belong here, where a
 // second caller -- a CLI command, another service -- gets them for free.
 package agent
@@ -17,7 +17,7 @@ import (
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 )
 
@@ -42,18 +42,18 @@ var (
 // question answered, and depending on the whole service would tie an agent edit
 // to workflow orchestration.
 type WorkflowUsage interface {
-	PublishedWorkflowsUsingAgent(ctx context.Context, teamID, agentID string) ([]coreworkflow.Workflow, error)
+	PublishedWorkflowsUsingAgent(ctx context.Context, spaceID, agentID string) ([]coreworkflow.Workflow, error)
 }
 
-// PluginSelection turns the plugin names an agent carries into the team
-// activations that back them, applying the team's curation mode.
+// PluginSelection turns the plugin names an agent carries into the space
+// activations that back them, applying the space's curation mode.
 //
 // An interface rather than the plugin service itself, for the reason
 // WorkflowUsage is one: this package needs one question answered, and depending
 // on the whole service would tie an agent edit to publication and package
 // storage.
 type PluginSelection interface {
-	ResolveSelection(ctx context.Context, teamID string, names []string, actorID string) ([]coreplugin.Activation, error)
+	ResolveSelection(ctx context.Context, spaceID string, names []string, actorID string) ([]coreplugin.Activation, error)
 }
 
 // ModelCatalog lists the model names this deployment offers, so an agent naming
@@ -72,8 +72,8 @@ type ModelCatalog interface {
 
 type Service struct {
 	Agents agentdef.Store
-	Teams  interface {
-		GetTeam(context.Context, string) (*coreteam.Team, error)
+	Spaces interface {
+		GetSpace(context.Context, string) (*corespace.Space, error)
 	}
 	// Plugins is optional, and nil means the deployment has no Marketplace.
 	// An agent that names a plugin is then refused rather than saved: storing
@@ -97,15 +97,15 @@ type Service struct {
 	Models ModelCatalog
 }
 
-func (s *Service) validateInstructions(ctx context.Context, teamID, instructions string) error {
+func (s *Service) validateInstructions(ctx context.Context, spaceID, instructions string) error {
 	spaceInstructions := ""
-	if s.Teams != nil {
-		team, err := s.Teams.GetTeam(ctx, teamID)
+	if s.Spaces != nil {
+		space, err := s.Spaces.GetSpace(ctx, spaceID)
 		if err != nil {
 			return err
 		}
-		if team != nil {
-			spaceInstructions = team.AgentInstructions
+		if space != nil {
+			spaceInstructions = space.AgentInstructions
 		}
 	}
 	if err := coreagent.ValidateInstructionLayers(spaceInstructions, instructions); err != nil {
@@ -115,7 +115,7 @@ func (s *Service) validateInstructions(ctx context.Context, teamID, instructions
 }
 
 type CreateCmd struct {
-	TeamID       string
+	SpaceID      string
 	UserID       string
 	Name         string
 	Description  string
@@ -124,19 +124,19 @@ type CreateCmd struct {
 	// deployment default. See agentdef.Agent.Model.
 	Model string
 	// Plugins names catalog plugins this agent loads. Nothing is inherited
-	// from the team's activations, so an empty list means no plugins.
+	// from the space's activations, so an empty list means no plugins.
 	Plugins []string
 	// SandboxNetworkTier and SandboxFilesystemTier declare this agent's
 	// worker sandbox needs. Empty means the strictest tier on that axis. See
 	// docs/design/agent-sandbox-policy.md §4.2.
 	SandboxNetworkTier    string
 	SandboxFilesystemTier string
-	// SecretConsumption declares which Team Secrets this agent consumes.
+	// SecretConsumption declares which Space Secrets this agent consumes.
 	SecretConsumption agentdef.SecretConsumption
 }
 
 type UpdateCmd struct {
-	TeamID                string
+	SpaceID               string
 	UserID                string
 	AgentID               string
 	Name                  string
@@ -181,17 +181,17 @@ func (s *Service) validateModel(ctx context.Context, model string) (string, erro
 }
 
 type RestoreRevisionCmd struct {
-	TeamID   string
+	SpaceID  string
 	UserID   string
 	AgentID  string
 	Revision int
 }
 
-func (s *Service) ListAgents(ctx context.Context, teamID string) ([]agentdef.Agent, error) {
+func (s *Service) ListAgents(ctx context.Context, spaceID string) ([]agentdef.Agent, error) {
 	if s.Agents == nil {
 		return nil, ErrAgentsNotConfigured
 	}
-	return s.Agents.ListAgentsByTeam(ctx, teamID)
+	return s.Agents.ListAgentsBySpace(ctx, spaceID)
 }
 
 func (s *Service) CreateAgent(ctx context.Context, cmd CreateCmd) (*agentdef.Agent, error) {
@@ -201,7 +201,7 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateCmd) (*agentdef.Age
 	if cmd.Name == "" {
 		return nil, ErrNameRequired
 	}
-	if err := s.validateInstructions(ctx, cmd.TeamID, cmd.Instructions); err != nil {
+	if err := s.validateInstructions(ctx, cmd.SpaceID, cmd.Instructions); err != nil {
 		return nil, err
 	}
 	if err := validateSandboxTiers(cmd.SandboxNetworkTier, cmd.SandboxFilesystemTier); err != nil {
@@ -211,16 +211,16 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateCmd) (*agentdef.Age
 	if err != nil {
 		return nil, err
 	}
-	if err := s.validateConsumption(ctx, cmd.TeamID, cmd.SecretConsumption); err != nil {
+	if err := s.validateConsumption(ctx, cmd.SpaceID, cmd.SecretConsumption); err != nil {
 		return nil, err
 	}
-	plugins, err := s.resolvePlugins(ctx, cmd.TeamID, cmd.Plugins, cmd.UserID)
+	plugins, err := s.resolvePlugins(ctx, cmd.SpaceID, cmd.Plugins, cmd.UserID)
 	if err != nil {
 		return nil, err
 	}
-	return s.Agents.CreateAgentInTeam(ctx, agentdef.CreateInput{
-		TeamID: cmd.TeamID,
-		UserID: cmd.UserID,
+	return s.Agents.CreateAgentInSpace(ctx, agentdef.CreateInput{
+		SpaceID: cmd.SpaceID,
+		UserID:  cmd.UserID,
 		Def: agentdef.Definition{
 			Name:                  cmd.Name,
 			Description:           cmd.Description,
@@ -238,11 +238,11 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateCmd) (*agentdef.Age
 // to store, normalized.
 //
 // The check happens here rather than at the run because an agent naming a
-// plugin its team cannot use should be refused while somebody is watching. The
+// plugin its space cannot use should be refused while somebody is watching. The
 // run checks again — an activation can be suspended after the agent was saved,
 // and a revision is append-only — but that later refusal is a failure, and this
 // one is a correction.
-func (s *Service) resolvePlugins(ctx context.Context, teamID string, names []string, actorID string) ([]string, error) {
+func (s *Service) resolvePlugins(ctx context.Context, spaceID string, names []string, actorID string) ([]string, error) {
 	normalized := normalizePluginNames(names)
 	if len(normalized) == 0 {
 		return nil, nil
@@ -250,7 +250,7 @@ func (s *Service) resolvePlugins(ctx context.Context, teamID string, names []str
 	if s.Plugins == nil {
 		return nil, ErrPluginsNotConfigured
 	}
-	if _, err := s.Plugins.ResolveSelection(ctx, teamID, normalized, actorID); err != nil {
+	if _, err := s.Plugins.ResolveSelection(ctx, spaceID, normalized, actorID); err != nil {
 		return nil, err
 	}
 	return normalized, nil
@@ -279,11 +279,11 @@ func normalizePluginNames(names []string) []string {
 	return out
 }
 
-// GetAgent resolves an agent the team owns.
+// GetAgent resolves an agent the space owns.
 //
-// An agent belonging to another team reads as not found rather than forbidden,
+// An agent belonging to another space reads as not found rather than forbidden,
 // so the answer does not confirm that an id exists somewhere else.
-func (s *Service) GetAgent(ctx context.Context, teamID, agentID string) (*agentdef.Agent, error) {
+func (s *Service) GetAgent(ctx context.Context, spaceID, agentID string) (*agentdef.Agent, error) {
 	if s.Agents == nil {
 		return nil, ErrAgentsNotConfigured
 	}
@@ -291,7 +291,7 @@ func (s *Service) GetAgent(ctx context.Context, teamID, agentID string) (*agentd
 	if err != nil {
 		return nil, err
 	}
-	if found == nil || found.TeamID != teamID {
+	if found == nil || found.SpaceID != spaceID {
 		return nil, ErrAgentNotFound
 	}
 	return found, nil
@@ -304,7 +304,7 @@ func (s *Service) UpdateAgent(ctx context.Context, cmd UpdateCmd) (*agentdef.Age
 	if cmd.Name == "" {
 		return nil, ErrNameRequired
 	}
-	if err := s.validateInstructions(ctx, cmd.TeamID, cmd.Instructions); err != nil {
+	if err := s.validateInstructions(ctx, cmd.SpaceID, cmd.Instructions); err != nil {
 		return nil, err
 	}
 	if err := validateSandboxTiers(cmd.SandboxNetworkTier, cmd.SandboxFilesystemTier); err != nil {
@@ -314,16 +314,16 @@ func (s *Service) UpdateAgent(ctx context.Context, cmd UpdateCmd) (*agentdef.Age
 	if err != nil {
 		return nil, err
 	}
-	if err := s.validateConsumption(ctx, cmd.TeamID, cmd.SecretConsumption); err != nil {
+	if err := s.validateConsumption(ctx, cmd.SpaceID, cmd.SecretConsumption); err != nil {
 		return nil, err
 	}
-	plugins, err := s.resolvePlugins(ctx, cmd.TeamID, cmd.Plugins, cmd.UserID)
+	plugins, err := s.resolvePlugins(ctx, cmd.SpaceID, cmd.Plugins, cmd.UserID)
 	if err != nil {
 		return nil, err
 	}
-	updated, err := s.Agents.UpdateAgentInTeam(ctx, agentdef.UpdateInput{
+	updated, err := s.Agents.UpdateAgentInSpace(ctx, agentdef.UpdateInput{
 		AgentID:   cmd.AgentID,
-		TeamID:    cmd.TeamID,
+		SpaceID:   cmd.SpaceID,
 		UpdatedBy: cmd.UserID,
 		Def: agentdef.Definition{
 			Name:                  cmd.Name,
@@ -345,8 +345,8 @@ func (s *Service) UpdateAgent(ctx context.Context, cmd UpdateCmd) (*agentdef.Age
 	return updated, nil
 }
 
-func (s *Service) ListRevisions(ctx context.Context, teamID, agentID string, limit, offset int) ([]agentdef.Revision, int, error) {
-	if _, err := s.GetAgent(ctx, teamID, agentID); err != nil {
+func (s *Service) ListRevisions(ctx context.Context, spaceID, agentID string, limit, offset int) ([]agentdef.Revision, int, error) {
+	if _, err := s.GetAgent(ctx, spaceID, agentID); err != nil {
 		return nil, 0, err
 	}
 	return s.Agents.ListAgentRevisions(ctx, agentID, limit, offset)
@@ -355,7 +355,7 @@ func (s *Service) ListRevisions(ctx context.Context, teamID, agentID string, lim
 // RestoreRevision writes an older definition back as a new revision. Restoring
 // is an edit, not a rewind: the history keeps growing.
 func (s *Service) RestoreRevision(ctx context.Context, cmd RestoreRevisionCmd) (*agentdef.Agent, error) {
-	if _, err := s.GetAgent(ctx, cmd.TeamID, cmd.AgentID); err != nil {
+	if _, err := s.GetAgent(ctx, cmd.SpaceID, cmd.AgentID); err != nil {
 		return nil, err
 	}
 	rev, err := s.Agents.GetAgentRevision(ctx, cmd.AgentID, cmd.Revision)
@@ -366,7 +366,7 @@ func (s *Service) RestoreRevision(ctx context.Context, cmd RestoreRevisionCmd) (
 		return nil, ErrRevisionNotFound
 	}
 	return s.UpdateAgent(ctx, UpdateCmd{
-		TeamID:                cmd.TeamID,
+		SpaceID:               cmd.SpaceID,
 		UserID:                cmd.UserID,
 		AgentID:               cmd.AgentID,
 		Name:                  rev.Name,
@@ -386,12 +386,12 @@ func (s *Service) RestoreRevision(ctx context.Context, cmd RestoreRevisionCmd) (
 // Deleting it anyway would leave that workflow unable to run and the operator
 // would only find out at its next step. The refusal names the workflows so they
 // can be fixed or archived first.
-func (s *Service) DeleteAgent(ctx context.Context, teamID, agentID string) error {
+func (s *Service) DeleteAgent(ctx context.Context, spaceID, agentID string) error {
 	if s.Agents == nil {
 		return ErrAgentsNotConfigured
 	}
 	if s.Workflows != nil {
-		using, err := s.Workflows.PublishedWorkflowsUsingAgent(ctx, teamID, agentID)
+		using, err := s.Workflows.PublishedWorkflowsUsingAgent(ctx, spaceID, agentID)
 		if err != nil {
 			return err
 		}
@@ -399,7 +399,7 @@ func (s *Service) DeleteAgent(ctx context.Context, teamID, agentID string) error
 			return apierr.Detail(ErrUsedByPublishedFlows, "%s", workflowNameList(using))
 		}
 	}
-	if err := s.Agents.DeleteAgentInTeam(ctx, agentID, teamID); err != nil {
+	if err := s.Agents.DeleteAgentInSpace(ctx, agentID, spaceID); err != nil {
 		if errors.Is(err, apierr.ErrNotFound) {
 			return ErrAgentNotFound
 		}

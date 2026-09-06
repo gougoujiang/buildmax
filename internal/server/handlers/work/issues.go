@@ -2,7 +2,7 @@ package work
 
 import (
 	"context"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	"net/http"
 	"strings"
 	"time"
@@ -19,7 +19,7 @@ import (
 type IssueResponse struct {
 	ID            string    `json:"id"`
 	UserID        string    `json:"user_id"`
-	TeamID        string    `json:"team_id,omitempty"`
+	SpaceID       string    `json:"space_id,omitempty"`
 	ParentIssueID *string   `json:"parent_issue_id,omitempty"`
 	Title         string    `json:"title"`
 	Description   string    `json:"description"`
@@ -91,7 +91,7 @@ func issueToResponse(issue coreissue.Issue) IssueResponse {
 	return IssueResponse{
 		ID:            issue.ID,
 		UserID:        issue.UserID,
-		TeamID:        issue.TeamID,
+		SpaceID:       issue.SpaceID,
 		ParentIssueID: issue.ParentIssueID,
 		Title:         issue.Title,
 		Description:   issue.Description,
@@ -146,7 +146,7 @@ func newIssueService(cfg Config) *issue.Service {
 		Issues:    cfg.Issues,
 		Comments:  cfg.IssueComments,
 		Agents:    cfg.Agents,
-		Teams:     cfg.Teams,
+		Spaces:    cfg.Spaces,
 		Workflows: cfg.Workflows,
 	}
 }
@@ -156,12 +156,12 @@ func (h *Handler) writeIssueServiceError(w http.ResponseWriter, err error) bool 
 }
 
 func (h *Handler) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Issues, "issues not configured")
+	userID, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Issues, "issues not configured")
 	if !ok {
 		return
 	}
 	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.ListPageDefault, httputil.ListPageMax)
-	// No parent_id lists every issue in the team, sub-issues included. That is
+	// No parent_id lists every issue in the space, sub-issues included. That is
 	// what callers predating the hierarchy expect, so the board opts into the
 	// filtered view rather than the endpoint changing under anyone.
 	var filter coreissue.ListFilter
@@ -182,12 +182,12 @@ func (h *Handler) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
 		filter.AssigneeID = r.URL.Query().Get("assignee_id")
 	}
 	filter.Status = r.URL.Query().Get("status")
-	list, total, err := h.issueService().ListIssues(r.Context(), teamID, filter, limit, offset)
+	list, total, err := h.issueService().ListIssues(r.Context(), spaceID, filter, limit, offset)
 	if err != nil {
 		if h.writeIssueServiceError(w, err) {
 			return
 		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "list_issues", "user_id", userID, "team_id", teamID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "list_issues", "user_id", userID, "space_id", spaceID)
 		return
 	}
 	out := make([]IssueResponse, len(list))
@@ -199,7 +199,7 @@ func (h *Handler) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createIssueHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Issues, "issues not configured")
+	userID, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Issues, "issues not configured")
 	if !ok {
 		return
 	}
@@ -209,7 +209,7 @@ func (h *Handler) createIssueHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	createdIssue, err := h.issueService().CreateIssue(r.Context(), issue.CreateIssueCmd{
 		UserID:        userID,
-		TeamID:        teamID,
+		SpaceID:       spaceID,
 		Title:         req.Title,
 		Description:   req.Description,
 		ParentIssueID: req.ParentIssueID,
@@ -218,14 +218,14 @@ func (h *Handler) createIssueHandler(w http.ResponseWriter, r *http.Request) {
 		if h.writeIssueServiceError(w, err) {
 			return
 		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "create_issue", "user_id", userID, "team_id", teamID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "create_issue", "user_id", userID, "space_id", spaceID)
 		return
 	}
 	httputil.WriteJSON(w, http.StatusCreated, issueToResponse(*createdIssue))
 }
 
 func (h *Handler) getIssueHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Issues, "issues not configured")
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Issues, "issues not configured")
 	if !ok {
 		return
 	}
@@ -233,7 +233,7 @@ func (h *Handler) getIssueHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	issue, err := h.issueService().GetIssue(r.Context(), teamID, issueID)
+	issue, err := h.issueService().GetIssue(r.Context(), spaceID, issueID)
 	if err != nil {
 		if h.writeIssueServiceError(w, err) {
 			return
@@ -252,7 +252,7 @@ func (h *Handler) getIssueHandler(w http.ResponseWriter, r *http.Request) {
 //
 
 func (h *Handler) getIssueFlowHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Issues, "issues not configured")
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Issues, "issues not configured")
 	if !ok {
 		return
 	}
@@ -264,7 +264,7 @@ func (h *Handler) getIssueFlowHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.BrowsePageDefault, httputil.BrowsePageMax)
-	flow, err := h.loadIssueFlow(r.Context(), teamID, issueID, limit, offset)
+	flow, err := h.loadIssueFlow(r.Context(), spaceID, issueID, limit, offset)
 	if err != nil {
 		if h.writeIssueServiceError(w, err) {
 			return
@@ -326,7 +326,7 @@ func (h *Handler) issueFlowToResponse(ctx context.Context, flow *issueFlow) issu
 }
 
 func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Issues, "issues not configured")
+	userID, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Issues, "issues not configured")
 	if !ok {
 		return
 	}
@@ -347,7 +347,7 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 		}
 	}
 	plan, err := h.issueService().PlanAssignedAgentRun(r.Context(),
-		issue.StartAssignedAgentCmd{TeamID: teamID, IssueID: issueID, UserID: userID, Input: req.Input},
+		issue.StartAssignedAgentCmd{SpaceID: spaceID, IssueID: issueID, UserID: userID, Input: req.Input},
 		h.taskService(),
 	)
 	if err != nil {
@@ -363,7 +363,7 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 	}
 	createdTask, err := h.taskService().CreateTask(r.Context(), task.CreateTaskCmd{
 		UserID:        userID,
-		TeamID:        teamID,
+		SpaceID:       spaceID,
 		Input:         input,
 		AgentID:       &plan.AgentID,
 		IssueID:       &issueID,
@@ -381,7 +381,7 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *Handler) patchIssueHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Issues, "issues not configured")
+	userID, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Issues, "issues not configured")
 	if !ok {
 		return
 	}
@@ -394,13 +394,13 @@ func (h *Handler) patchIssueHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.AssigneeKind != nil && *req.AssigneeKind == coreissue.AssigneeWorkflow {
-		if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionAssignIssueWorkflow); !ok {
+		if _, ok := h.guard().SpaceAction(w, r, userID, spaceID, corespace.ActionAssignIssueWorkflow); !ok {
 			return
 		}
 	}
 	updatedIssue, err := h.issueService().UpdateIssue(r.Context(), issue.UpdateIssueCmd{
 		UserID:        userID,
-		TeamID:        teamID,
+		SpaceID:       spaceID,
 		IssueID:       issueID,
 		IfVersion:     req.Version,
 		Title:         req.Title,

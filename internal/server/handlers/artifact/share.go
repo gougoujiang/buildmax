@@ -9,7 +9,7 @@ import (
 	"time"
 
 	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 )
@@ -49,7 +49,7 @@ func toShareResponse(rec coreartifact.ArtifactShare) shareResponse {
 
 // sharedMetaResponse is the public metadata the preview page needs. It is a
 // narrow subset: enough to render and to name a download, and nothing about the
-// team, the producer, or the storage.
+// space, the producer, or the storage.
 type sharedMetaResponse struct {
 	Filename  string    `json:"filename"`
 	MediaType string    `json:"media_type"`
@@ -127,7 +127,7 @@ func (h *Handler) revokeShareHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	role, ok := h.guard().TeamRole(w, r, userID, rec.TeamID)
+	role, ok := h.guard().SpaceRole(w, r, userID, rec.SpaceID)
 	if !ok {
 		return
 	}
@@ -152,7 +152,7 @@ func (h *Handler) revokeShareHandler(w http.ResponseWriter, r *http.Request) {
 // revokes only one they created. Ownership is read from the link itself, which
 // is why a member's revoke costs a listing lookup.
 func (h *Handler) mayRevokeShare(r *http.Request, svc *artifactsvc.Service, rec *coreartifact.Artifact, shareID, role, userID string, w http.ResponseWriter) bool {
-	if role == coreteam.RoleAdmin || role == coreteam.RoleOwner {
+	if role == corespace.RoleAdmin || role == corespace.RoleOwner {
 		return true
 	}
 	shares, err := svc.ListShares(r.Context(), rec.ID)

@@ -6,8 +6,8 @@ import (
 	"time"
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 )
 
@@ -17,7 +17,7 @@ func revisionFixture(agentID *string, agents *mock.MockAgentStore) (http.Handler
 	runs := &mock.MockTaskRunStore{
 		Runs: []coretask.Run{{ID: "r_1", TaskID: "t_1", Status: string(coretask.RunStatusScheduled), CreatedAt: time.Unix(1, 0).UTC()}},
 		TaskList: []coretask.Task{{
-			ID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam,
+			ID: "t_1", ConversationID: "c_1", SpaceID: llmTestSpace,
 			Status: string(coretask.RunStatusScheduled), Input: "in", CreatedBy: llmTestUser,
 			AgentID: agentID, CreatedAt: time.Unix(1, 0).UTC(),
 		}},
@@ -33,41 +33,41 @@ func revisionFixture(agentID *string, agents *mock.MockAgentStore) (http.Handler
 }
 
 func TestGetTaskRunRecordsSpaceInstructionsRevisionOnce(t *testing.T) {
-	teams := &mock.MockTeamStore{Teams: []coreteam.Team{{
-		ID: llmTestTeam, AgentInstructions: "First policy.", AgentInstructionsRevision: 3,
+	spaces := &mock.MockSpaceStore{Spaces: []corespace.Space{{
+		ID: llmTestSpace, AgentInstructions: "First policy.", AgentInstructionsRevision: 3,
 	}}}
 	runs := &mock.MockTaskRunStore{
 		Runs:     []coretask.Run{{ID: "r_1", TaskID: "t_1", Status: string(coretask.RunStatusScheduled)}},
-		TaskList: []coretask.Task{{ID: "t_1", TeamID: llmTestTeam, CreatedBy: llmTestUser}},
+		TaskList: []coretask.Task{{ID: "t_1", SpaceID: llmTestSpace, CreatedBy: llmTestUser}},
 	}
-	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs, Teams: teams})
+	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs, Spaces: spaces})
 	mux := http.NewServeMux()
 	h.Register(mux)
 
 	getTaskRun(t, mux)
-	teams.Teams[0].AgentInstructions = "Second policy."
-	teams.Teams[0].AgentInstructionsRevision = 4
+	spaces.Spaces[0].AgentInstructions = "Second policy."
+	spaces.Spaces[0].AgentInstructionsRevision = 4
 	getTaskRun(t, mux)
 
-	if runs.Runs[0].TeamAgentInstructionsRevision == nil || *runs.Runs[0].TeamAgentInstructionsRevision != 3 {
-		t.Fatalf("team instructions revision = %v, want first served revision 3", runs.Runs[0].TeamAgentInstructionsRevision)
+	if runs.Runs[0].SpaceAgentInstructionsRevision == nil || *runs.Runs[0].SpaceAgentInstructionsRevision != 3 {
+		t.Fatalf("space instructions revision = %v, want first served revision 3", runs.Runs[0].SpaceAgentInstructionsRevision)
 	}
 }
 
 func TestGetTaskRunRecordsThatNoSpaceInstructionsWereConfigured(t *testing.T) {
-	teams := &mock.MockTeamStore{Teams: []coreteam.Team{{ID: llmTestTeam}}}
+	spaces := &mock.MockSpaceStore{Spaces: []corespace.Space{{ID: llmTestSpace}}}
 	runs := &mock.MockTaskRunStore{
 		Runs:     []coretask.Run{{ID: "r_1", TaskID: "t_1", Status: string(coretask.RunStatusScheduled)}},
-		TaskList: []coretask.Task{{ID: "t_1", TeamID: llmTestTeam, CreatedBy: llmTestUser}},
+		TaskList: []coretask.Task{{ID: "t_1", SpaceID: llmTestSpace, CreatedBy: llmTestUser}},
 	}
-	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs, Teams: teams})
+	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs, Spaces: spaces})
 	mux := http.NewServeMux()
 	h.Register(mux)
 
 	getTaskRun(t, mux)
 
-	if runs.Runs[0].TeamAgentInstructionsRevision == nil || *runs.Runs[0].TeamAgentInstructionsRevision != 0 {
-		t.Fatalf("team instructions revision = %v, want recorded revision 0", runs.Runs[0].TeamAgentInstructionsRevision)
+	if runs.Runs[0].SpaceAgentInstructionsRevision == nil || *runs.Runs[0].SpaceAgentInstructionsRevision != 0 {
+		t.Fatalf("space instructions revision = %v, want recorded revision 0", runs.Runs[0].SpaceAgentInstructionsRevision)
 	}
 }
 
@@ -77,7 +77,7 @@ func TestGetTaskRunRecordsThatNoSpaceInstructionsWereConfigured(t *testing.T) {
 func TestGetTaskRun_RecordsTheAgentRevisionItServed(t *testing.T) {
 	agentID := "ag_1"
 	agents := &mock.MockAgentStore{Agents: []agentdef.Agent{{
-		ID: agentID, TeamID: llmTestTeam, Name: "reviewer", Revision: 3,
+		ID: agentID, SpaceID: llmTestSpace, Name: "reviewer", Revision: 3,
 		Instructions: "You review things.",
 	}}}
 	handler, runs := revisionFixture(&agentID, agents)
@@ -94,7 +94,7 @@ func TestGetTaskRun_RecordsTheAgentRevisionItServed(t *testing.T) {
 func TestGetTaskRun_AgentRevisionIsNotRewrittenByALaterPoll(t *testing.T) {
 	agentID := "ag_1"
 	agents := &mock.MockAgentStore{Agents: []agentdef.Agent{{
-		ID: agentID, TeamID: llmTestTeam, Name: "reviewer", Revision: 3,
+		ID: agentID, SpaceID: llmTestSpace, Name: "reviewer", Revision: 3,
 		Instructions: "You review things.",
 	}}}
 	handler, runs := revisionFixture(&agentID, agents)
@@ -114,11 +114,11 @@ func TestGetTaskRun_AgentRevisionIsNotRewrittenByALaterPoll(t *testing.T) {
 	}
 }
 
-// Another team's agent contributes nothing, so there is nothing to record.
+// Another space's agent contributes nothing, so there is nothing to record.
 func TestGetTaskRun_ForeignAgentRevisionIsNotRecorded(t *testing.T) {
 	agentID := "ag_other"
 	agents := &mock.MockAgentStore{Agents: []agentdef.Agent{{
-		ID: agentID, TeamID: "team_somebody_else", Revision: 7, Instructions: "secret",
+		ID: agentID, SpaceID: "space_somebody_else", Revision: 7, Instructions: "secret",
 	}}}
 	handler, runs := revisionFixture(&agentID, agents)
 

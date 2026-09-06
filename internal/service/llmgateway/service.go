@@ -15,14 +15,14 @@ import (
 var (
 	ErrLedgerNotConfigured = errors.New("call ledger is not configured")
 	ErrMessagesRequired    = errors.New("messages are required")
-	ErrQuotaExceeded       = errors.New("team quota exceeded")
+	ErrQuotaExceeded       = errors.New("space quota exceeded")
 	ErrDuplicateCall       = errors.New("client call id has already been used")
 	// ErrUpstream wraps a provider failure. The wrapped error stays inside the
 	// server: callers receive the classification, not the provider's body.
 	ErrUpstream = errors.New("upstream model call failed")
 )
 
-// DuplicateCallError reports a client call ID the team has already used.
+// DuplicateCallError reports a client call ID the space has already used.
 //
 // The first version does not attach to a running call or replay a completed
 // one: it names the original call so the caller can stop guessing whether its
@@ -42,7 +42,7 @@ func (e *DuplicateCallError) Error() string {
 // Is reports whether the error matches the ErrDuplicateCall sentinel.
 func (e *DuplicateCallError) Is(target error) bool { return target == ErrDuplicateCall }
 
-// QuotaError reports why a team was refused. It satisfies
+// QuotaError reports why a space was refused. It satisfies
 // errors.Is(err, ErrQuotaExceeded).
 type QuotaError struct {
 	Reason string
@@ -55,7 +55,7 @@ func (e *QuotaError) Is(target error) bool { return target == ErrQuotaExceeded }
 
 // QuotaChecker is the narrow quota surface the gateway needs.
 type QuotaChecker interface {
-	Check(ctx context.Context, teamID string, addRuns, addTokens int) (allowed bool, reason string, err error)
+	Check(ctx context.Context, spaceID string, addRuns, addTokens int) (allowed bool, reason string, err error)
 }
 
 // Service runs one managed call: resolve, authorize, meter, dispatch, record.
@@ -82,11 +82,11 @@ func (s *Service) now() time.Time {
 // Identity fields are derived from authentication by the caller of this
 // service; nothing here may be taken from a client request body.
 type CompleteRequest struct {
-	// TeamID is what the call is metered against, and is set only on a worker
-	// call, where the run names the team it was scheduled for. A foreground call
-	// belongs to no team and is not counted against one — see
+	// SpaceID is what the call is metered against, and is set only on a worker
+	// call, where the run names the space it was scheduled for. A foreground call
+	// belongs to no space and is not counted against one — see
 	// docs/design/client-modes.md section 9.
-	TeamID string
+	SpaceID string
 	// UserID is who the call is for, and what the ledger attributes it to. A
 	// user-authenticated call takes it from the login; a worker call takes it
 	// from the run token, which names the task's owner — a run is somebody's
@@ -186,18 +186,18 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 		return CompleteResult{}, err
 	}
 
-	// Soft enforcement: a team already over its limit is refused. Concurrent
+	// Soft enforcement: a space already over its limit is refused. Concurrent
 	// calls can still overshoot, because the size of a completion is unknown
 	// before it exists. See docs/design/llm-gateway.md section 10.
 	//
-	// Only a call that belongs to a team is metered against one; a foreground
-	// call names no team and passes.
-	if s.Quota != nil && req.TeamID != "" {
-		allowed, reason, err := s.Quota.Check(ctx, req.TeamID, 0, 0)
+	// Only a call that belongs to a space is metered against one; a foreground
+	// call names no space and passes.
+	if s.Quota != nil && req.SpaceID != "" {
+		allowed, reason, err := s.Quota.Check(ctx, req.SpaceID, 0, 0)
 		if err != nil {
 			// Refusing here costs one call; admitting serves unmetered
 			// inference on a deployment that cannot see its own limits.
-			return CompleteResult{}, fmt.Errorf("check quota for team %s: %w", req.TeamID, err)
+			return CompleteResult{}, fmt.Errorf("check quota for space %s: %w", req.SpaceID, err)
 		}
 		if !allowed {
 			return CompleteResult{}, &QuotaError{Reason: reason}
@@ -221,7 +221,7 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 		Status:        coregw.CallStatusAccepted,
 	}
 	// The rates are copied onto the row at acceptance, not looked up when
-	// someone reads it back. A catalog price changes; what a team spent last
+	// someone reads it back. A catalog price changes; what a space spent last
 	// month does not, and a spend report recomputed from today's rates would
 	// quietly restate an invoice that has already been paid.
 	applyRateSnapshot(ledgerEntry, routed.Resolution.Target)
@@ -243,12 +243,12 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 		Messages: req.Messages,
 		Tools:    req.Tools,
 		Profile:  req.CallProfile,
-		// Teams sharing one approved model share one provider credential, and
+		// Spaces sharing one approved model share one provider credential, and
 		// therefore one provider cache bucket unless something separates them.
-		// The team is that separator, and it comes from authentication rather
+		// The space is that separator, and it comes from authentication rather
 		// than from the request: a caller that could name its own scope could
-		// aim at another team's bucket.
-		CacheScope: req.TeamID,
+		// aim at another space's bucket.
+		CacheScope: req.SpaceID,
 	}
 	if streaming {
 		observed := func(delta string) {

@@ -17,7 +17,7 @@ import (
 // A worker reaches its server over HTTP and nothing else: it fetches the run,
 // reports status, streams output, and polls for cancellation. So evaluating one
 // needs a server that speaks that protocol — not a database, a Portal user, a
-// team, or a scheduler. This is the same move mockllm makes for the model side,
+// space, or a scheduler. This is the same move mockllm makes for the model side,
 // and it is what keeps a worker trial a black-box run of the shipped binary
 // rather than an in-process call to the runtime it happens to use.
 //

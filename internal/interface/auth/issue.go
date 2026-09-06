@@ -9,18 +9,18 @@ import (
 	"github.com/gougoujiang/buildmax/internal/tool"
 )
 
-// IssueSession is one local session's link to one team Issue.
+// IssueSession is one local session's link to one space Issue.
 //
 // It carries what the session must be able to say out loud as well as what it
-// needs to call: which server and team the work came from, and which Issue.
+// needs to call: which server and space the work came from, and which Issue.
 // Work crossing that boundary should be visible before it crosses, not
 // inferable afterwards from a tool call.
 //
 // It lasts one run. The durable form is the local Issue bridge's to design.
 type IssueSession struct {
 	ServerURL string
-	TeamID    string
-	TeamName  string
+	SpaceID   string
+	SpaceName string
 	Issue     coreissue.Issue
 	Client    tool.IssueClient
 }
@@ -39,22 +39,22 @@ func OpenIssueSession(ctx context.Context, issueID string) (*IssueSession, error
 		return nil, fmt.Errorf("read credentials: %w", err)
 	}
 	if !info.LoggedIn || info.ServerURL == "" {
-		return nil, fmt.Errorf("not signed in: run `buildmax login` to work on a team issue")
+		return nil, fmt.Errorf("not signed in: run `buildmax login` to work on a space issue")
 	}
 	token, err := TokenForServer(info.ServerURL)
 	if err != nil {
 		return nil, fmt.Errorf("authenticate to %s: %w", info.ServerURL, err)
 	}
-	team, issue, err := client.NewClient(info.ServerURL).FindIssue(ctx, token, issueID)
+	space, issue, err := client.NewClient(info.ServerURL).FindIssue(ctx, token, issueID)
 	if err != nil {
 		return nil, err
 	}
 	return &IssueSession{
 		ServerURL: info.ServerURL,
-		TeamID:    team.ID,
-		TeamName:  team.Name,
+		SpaceID:   space.ID,
+		SpaceName: space.Name,
 		Issue:     issue,
-		Client:    client.NewIssueClient(info.ServerURL, team.ID, issue.ID, TokenForServer),
+		Client:    client.NewIssueClient(info.ServerURL, space.ID, issue.ID, TokenForServer),
 	}, nil
 }
 

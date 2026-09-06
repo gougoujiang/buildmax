@@ -6,17 +6,17 @@ import (
 
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 )
 
-// MockUsageReader returns fixed run count and token total for TeamUsageInWindow.
+// MockUsageReader returns fixed run count and token total for SpaceUsageInWindow.
 type MockUsageReader struct {
 	RunCount    int
 	TotalTokens int
 	Err         error
 }
 
-func (m *MockUsageReader) TeamUsageInWindow(_ context.Context, _ string, _, _ time.Time) (int, int, error) {
+func (m *MockUsageReader) SpaceUsageInWindow(_ context.Context, _ string, _, _ time.Time) (int, int, error) {
 	if m.Err != nil {
 		return 0, 0, m.Err
 	}
@@ -36,39 +36,39 @@ func (m *MockTierStore) GetQuotaTier(_ context.Context, _ string) (*corequota.Ti
 	return m.Tier, nil
 }
 
-// DenyQuotaTeamStore is used by quota 429 tests to supply a team with tier.
-type DenyQuotaTeamStore struct {
-	Team *coreteam.Team
+// DenyQuotaSpaceStore is used by quota 429 tests to supply a space with tier.
+type DenyQuotaSpaceStore struct {
+	Space *corespace.Space
 }
 
-func (d *DenyQuotaTeamStore) GetTeam(_ context.Context, _ string) (*coreteam.Team, error) {
-	return d.Team, nil
+func (d *DenyQuotaSpaceStore) GetSpace(_ context.Context, _ string) (*corespace.Space, error) {
+	return d.Space, nil
 }
 
-func (d *DenyQuotaTeamStore) GetPersonalTeamByUser(_ context.Context, _ string) (*coreteam.Team, error) {
-	return d.Team, nil
+func (d *DenyQuotaSpaceStore) GetPersonalSpaceByUser(_ context.Context, _ string) (*corespace.Space, error) {
+	return d.Space, nil
 }
 
-func (d *DenyQuotaTeamStore) ListTeamsByUser(_ context.Context, _ string) ([]coreteam.Team, error) {
-	if d.Team == nil {
+func (d *DenyQuotaSpaceStore) ListSpacesByUser(_ context.Context, _ string) ([]corespace.Space, error) {
+	if d.Space == nil {
 		return nil, nil
 	}
-	return []coreteam.Team{*d.Team}, nil
+	return []corespace.Space{*d.Space}, nil
 }
 
-func (d *DenyQuotaTeamStore) CreateTeam(_ context.Context, _, _, _ string) (*coreteam.Team, error) {
+func (d *DenyQuotaSpaceStore) CreateSpace(_ context.Context, _, _, _ string) (*corespace.Space, error) {
 	return nil, nil
 }
 
-func (d *DenyQuotaTeamStore) AddTeamMember(_ context.Context, _, _, _ string) (*coreteam.Member, error) {
+func (d *DenyQuotaSpaceStore) AddSpaceMember(_ context.Context, _, _, _ string) (*corespace.Member, error) {
 	return nil, nil
 }
 
-func (d *DenyQuotaTeamStore) RemoveTeamMember(_ context.Context, _, _ string) error {
+func (d *DenyQuotaSpaceStore) RemoveSpaceMember(_ context.Context, _, _ string) error {
 	return nil
 }
 
-func (d *DenyQuotaTeamStore) ListTeamMembers(_ context.Context, _ string) ([]coreteam.Member, error) {
+func (d *DenyQuotaSpaceStore) ListSpaceMembers(_ context.Context, _ string) ([]corespace.Member, error) {
 	return nil, nil
 }
 
@@ -78,7 +78,7 @@ type DenyQuotaUsageReader struct {
 	TotalTokens int
 }
 
-func (d *DenyQuotaUsageReader) TeamUsageInWindow(_ context.Context, _ string, _, _ time.Time) (int, int, error) {
+func (d *DenyQuotaUsageReader) SpaceUsageInWindow(_ context.Context, _ string, _, _ time.Time) (int, int, error) {
 	return d.RunCount, d.TotalTokens, nil
 }
 
@@ -91,53 +91,53 @@ func (d *DenyQuotaTierStore) GetQuotaTier(_ context.Context, _ string) (*corequo
 	return d.Tier, nil
 }
 
-func (d *DenyQuotaTeamStore) ListAllTeams(_ context.Context, _ string, _, _ int) ([]coreteam.Team, int, error) {
-	if d.Team == nil {
+func (d *DenyQuotaSpaceStore) ListAllSpaces(_ context.Context, _ string, _, _ int) ([]corespace.Space, int, error) {
+	if d.Space == nil {
 		return nil, 0, nil
 	}
-	return []coreteam.Team{*d.Team}, 1, nil
+	return []corespace.Space{*d.Space}, 1, nil
 }
 
-func (d *DenyQuotaTeamStore) CountTeamMembers(_ context.Context, _ []string) (map[string]int, error) {
+func (d *DenyQuotaSpaceStore) CountSpaceMembers(_ context.Context, _ []string) (map[string]int, error) {
 	return nil, nil
 }
 
-func (d *DenyQuotaTeamStore) SetTeamPluginCuration(_ context.Context, _ string, _ coreplugin.Curation) error {
+func (d *DenyQuotaSpaceStore) SetSpacePluginCuration(_ context.Context, _ string, _ coreplugin.Curation) error {
 	return nil
 }
 
-func (d *DenyQuotaTeamStore) SetTeamSandboxDefaults(_ context.Context, _, _, _ string) error {
+func (d *DenyQuotaSpaceStore) SetSpaceSandboxDefaults(_ context.Context, _, _, _ string) error {
 	return nil
 }
 
-func (d *DenyQuotaTeamStore) SetTeamAgentInstructions(_ context.Context, _, _ string) error {
+func (d *DenyQuotaSpaceStore) SetSpaceAgentInstructions(_ context.Context, _, _ string) error {
 	return nil
 }
 
-func (d *DenyQuotaTeamStore) CreateInvitation(_ context.Context, _, _, _, _ string, _ time.Time) (*coreteam.Invitation, error) {
+func (d *DenyQuotaSpaceStore) CreateInvitation(_ context.Context, _, _, _, _ string, _ time.Time) (*corespace.Invitation, error) {
 	return nil, nil
 }
 
-func (d *DenyQuotaTeamStore) GetInvitation(_ context.Context, _ string) (*coreteam.Invitation, error) {
+func (d *DenyQuotaSpaceStore) GetInvitation(_ context.Context, _ string) (*corespace.Invitation, error) {
 	return nil, nil
 }
 
-func (d *DenyQuotaTeamStore) ListPendingInvitationsByTeam(_ context.Context, _ string, _ time.Time) ([]coreteam.Invitation, error) {
+func (d *DenyQuotaSpaceStore) ListPendingInvitationsBySpace(_ context.Context, _ string, _ time.Time) ([]corespace.Invitation, error) {
 	return nil, nil
 }
 
-func (d *DenyQuotaTeamStore) ListPendingInvitationsByUser(_ context.Context, _ string, _ time.Time) ([]coreteam.Invitation, error) {
+func (d *DenyQuotaSpaceStore) ListPendingInvitationsByUser(_ context.Context, _ string, _ time.Time) ([]corespace.Invitation, error) {
 	return nil, nil
 }
 
-func (d *DenyQuotaTeamStore) AcceptInvitation(_ context.Context, _ string, _ time.Time) (*coreteam.Invitation, error) {
+func (d *DenyQuotaSpaceStore) AcceptInvitation(_ context.Context, _ string, _ time.Time) (*corespace.Invitation, error) {
 	return nil, nil
 }
 
-func (d *DenyQuotaTeamStore) RevokeInvitation(_ context.Context, _ string, _ time.Time) error {
+func (d *DenyQuotaSpaceStore) RevokeInvitation(_ context.Context, _ string, _ time.Time) error {
 	return nil
 }
 
-func (d *DenyQuotaTeamStore) TransferOwnership(_ context.Context, _, _, _ string) error {
+func (d *DenyQuotaSpaceStore) TransferOwnership(_ context.Context, _, _, _ string) error {
 	return nil
 }

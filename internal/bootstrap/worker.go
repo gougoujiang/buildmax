@@ -181,7 +181,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 	// stream, publish an artifact, or spend tokens for a run that is not RUNNING
 	// -- so the claim has to come first, and the Secret fetch below happens as a
 	// claimed run. See docs/design/worker-api-network-boundary.md §8 and
-	// docs/design/team-secrets.md §7.
+	// docs/design/space-secrets.md §7.
 	sessionID := session.NewID()
 	if task.SessionID != nil {
 		sessionID = *task.SessionID
@@ -200,7 +200,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		return fmt.Errorf("mark RUNNING: %w", err)
 	}
 
-	// The run's resolved Team Secret grants, on their own no-store route. An
+	// The run's resolved Space Secret grants, on their own no-store route. An
 	// error here is the server refusing to produce a required grant -- a
 	// disabled or destroyed Secret the agent declared -- and a run must not
 	// proceed without a credential its definition named, the same as a plugin
@@ -220,16 +220,16 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 			return fmt.Errorf("S3 client: %w", s3Err)
 		}
 	}
-	persistRoot := func(teamID string) string {
-		return config.PersistentWorkspaceDir(workspacesDir, teamID)
+	persistRoot := func(spaceID string) string {
+		return config.PersistentWorkspaceDir(workspacesDir, spaceID)
 	}
 	persistStorage, err := BuildPersistStorage(wsCfg, persistRoot, s3Client)
 	if err != nil {
 		slog.Error("failed to build persist storage", "err", err)
 		return fmt.Errorf("persist storage: %w", err)
 	}
-	runOutputRoot := func(teamID, taskID, taskRunID string) string {
-		return config.RunOutputDir(workspacesDir, teamID, taskID, taskRunID)
+	runOutputRoot := func(spaceID, taskID, taskRunID string) string {
+		return config.RunOutputDir(workspacesDir, spaceID, taskID, taskRunID)
 	}
 	runOutputStorage, err := BuildRunOutputStorage(wsCfg, runOutputRoot, s3Client)
 	if err != nil {
@@ -269,7 +269,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		ManagedHTTPClient:      httpClient,
 		WorkerAPI:              apiCfg,
 		AdditionalSystemPrompt: fetched.AgentInstructions,
-		TeamAgentInstructions:  fetched.TeamAgentInstructions,
+		SpaceAgentInstructions: fetched.SpaceAgentInstructions,
 		Plugins:                fetched.Plugins,
 		SandboxNetworkTier:     config.SandboxNetworkTier(fetched.SandboxNetworkTier),
 		SandboxFilesystemTier:  config.SandboxFilesystemTier(fetched.SandboxFilesystemTier),
@@ -294,7 +294,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 // reportPluginRefusal finishes a run the server would not resolve plugins for.
 //
 // It reports FAILED rather than CANCELED: nobody asked for this to stop, and a
-// team reading its runs needs the two apart. The reason is the server's text,
+// space reading its runs needs the two apart. The reason is the server's text,
 // which names the plugin, because the fix is an activation somebody has to make.
 func reportPluginRefusal(ctx context.Context, updater taskrun.TaskRunUpdater, taskRunID, reason string) error {
 	slog.Error("this run cannot start", "reason", reason)

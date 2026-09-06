@@ -31,7 +31,7 @@ const WorkerAdapterVersion = 1
 // command line, a run token in the environment, and a server to fetch the run
 // from — against a control plane this adapter serves. What it exercises that
 // the CLI adapter cannot is the part of the product only a worker has:
-// materializing the team's persistent workspace into a run-scoped directory,
+// materializing the space's persistent workspace into a run-scoped directory,
 // executing with no interactive surface, and reporting an outcome over the API
 // rather than to a terminal.
 type Worker struct {
@@ -41,15 +41,15 @@ type Worker struct {
 	Credential ModelAccess
 	// Retention is how much free text bundles keep.
 	Retention contract.RetentionLevel
-	// TeamID and UserID scope the run's directories. They are identifiers in a
+	// SpaceID and UserID scope the run's directories. They are identifiers in a
 	// control plane no real deployment sees, so they only need to be stable.
-	TeamID string
-	UserID string
+	SpaceID string
+	UserID  string
 }
 
 const (
-	defaultEvalTeamID = "tm_evaluation"
-	defaultEvalUserID = "us_evaluation"
+	defaultEvalSpaceID = "tm_evaluation"
+	defaultEvalUserID  = "us_evaluation"
 )
 
 // Run executes one trial through the worker and writes its evidence under
@@ -104,13 +104,13 @@ func (w *Worker) Run(ctx context.Context, tr Trial, bundleRoot string) (Result, 
 			fmt.Errorf("task has %d turns; a worker run executes one", len(tr.Task.Turns)))
 	}
 
-	// The initial state goes into the team's persistent workspace, not into the
+	// The initial state goes into the space's persistent workspace, not into the
 	// run directory. Materializing it is the worker's job, so putting it where
-	// a real team's files live is what puts that step under test.
-	if err := Materialize(tr.TaskDir, layout.teamHome); err != nil {
+	// a real space's files live is what puts that step under test.
+	if err := Materialize(tr.TaskDir, layout.spaceHome); err != nil {
 		return fail(contract.StatusInvalidTask, err)
 	}
-	leaked, err := VerifyBoundary(tr.TaskDir, layout.teamHome)
+	leaked, err := VerifyBoundary(tr.TaskDir, layout.spaceHome)
 	if err != nil {
 		return fail(contract.StatusInfrastructureError, err)
 	}
@@ -118,7 +118,7 @@ func (w *Worker) Run(ctx context.Context, tr Trial, bundleRoot string) (Result, 
 		return fail(contract.StatusInvalidTask,
 			fmt.Errorf("hidden task material reachable in the workspace: %s", strings.Join(leaked, ", ")))
 	}
-	initial, err := DigestDir(layout.teamHome)
+	initial, err := DigestDir(layout.spaceHome)
 	if err != nil {
 		return fail(contract.StatusInfrastructureError, err)
 	}
@@ -203,7 +203,7 @@ func (w *Worker) Run(ctx context.Context, tr Trial, bundleRoot string) (Result, 
 	}
 
 	// The final state is the agent's workspace. The initial digest above is the
-	// team's persistent directory, which is what the run materialized from
+	// space's persistent directory, which is what the run materialized from
 	// rather than what it started from: a worker creates its run directory
 	// itself, so no adapter can observe the workspace at the instant before the
 	// agent began. The two digests therefore describe different trees, and
@@ -230,7 +230,7 @@ func (w *Worker) Run(ctx context.Context, tr Trial, bundleRoot string) (Result, 
 		Bundle:   bundle,
 		Gradable: true,
 		// Graders read the agent's workspace. A path assertion resolves against
-		// its root, so a file the team supplied is at `home/<name>` here while
+		// its root, so a file the space supplied is at `home/<name>` here while
 		// the same task on the CLI has it at `<name>`.
 		Workspace: layout.runDir,
 		TrialDir:  trialDir,
@@ -242,12 +242,12 @@ func (w *Worker) Run(ctx context.Context, tr Trial, bundleRoot string) (Result, 
 type workerLayout struct {
 	home       string // BUILDMAX_HOME for the worker process
 	workspaces string // server.yaml workspaces_dir
-	teamHome   string // the team's persistent workspace
-	// runDir is the agent's workspace. The team's files are materialized into
+	spaceHome  string // the space's persistent workspace
+	// runDir is the agent's workspace. The space's files are materialized into
 	// its `home` subdirectory rather than into the directory itself, so what
 	// the agent sees at its root and what it inherited are not the same tree.
 	runDir         string
-	runHome        string // runDir/home: where the team's files land
+	runHome        string // runDir/home: where the space's files land
 	runGlobal      string // run-global state, including the trace
 	runArtifacts   string
 	runID          string
@@ -260,18 +260,18 @@ func (w *Worker) layout(root string, tr Trial) workerLayout {
 	runID := fmt.Sprintf("rt_%s_%d", sanitizeID(tr.Task.ID), tr.Index)
 	taskID := "tk_" + sanitizeID(tr.Task.ID)
 	conversationID := "cv_evaluation"
-	team := w.teamID()
+	space := w.spaceID()
 
 	// This mirrors taskrun.NewRuntimePathsFromRoot and
 	// config.PersistentWorkspaceDir. It is duplicated rather than imported
 	// because the adapter must describe where it expects the worker to write:
 	// computing both sides from one function would make a layout change look
 	// like agreement.
-	runDir := filepath.Join(workspaces, team, "tasks", taskID, runID)
+	runDir := filepath.Join(workspaces, space, "tasks", taskID, runID)
 	return workerLayout{
 		home:           filepath.Join(root, "home"),
 		workspaces:     workspaces,
-		teamHome:       filepath.Join(workspaces, team, "home"),
+		spaceHome:      filepath.Join(workspaces, space, "home"),
 		runDir:         runDir,
 		runHome:        filepath.Join(runDir, "home"),
 		runGlobal:      filepath.Join(runDir, "global"),
@@ -282,11 +282,11 @@ func (w *Worker) layout(root string, tr Trial) workerLayout {
 	}
 }
 
-func (w *Worker) teamID() string {
-	if w.TeamID != "" {
-		return w.TeamID
+func (w *Worker) spaceID() string {
+	if w.SpaceID != "" {
+		return w.SpaceID
 	}
-	return defaultEvalTeamID
+	return defaultEvalSpaceID
 }
 
 func (w *Worker) userID() string {
@@ -330,7 +330,7 @@ func (w *Worker) describeRun(tr Trial, layout workerLayout) workerclient.GetTask
 		Task: workerclient.TaskRunTask{
 			ID:             layout.taskID,
 			ConversationID: layout.conversationID,
-			TeamID:         w.teamID(),
+			SpaceID:        w.spaceID(),
 			UserID:         w.userID(),
 		},
 		// LLM is left absent, which the contract defines as direct: the run
@@ -338,7 +338,7 @@ func (w *Worker) describeRun(tr Trial, layout workerLayout) workerclient.GetTask
 		// would measure a transport the subject manifest does not describe.
 		LLM: nil,
 		// No plugins, and that is a decision rather than an omission. A server
-		// resolves a run's plugin pins from what its agent names and its team
+		// resolves a run's plugin pins from what its agent names and its space
 		// has activated; an evaluation subject declares its extensions in the
 		// manifest, so a trial that quietly loaded one would be measuring a
 		// configuration the result does not describe. Evaluating pinned plugins
@@ -355,8 +355,8 @@ func (w *Worker) writeServerConfig(layout workerLayout, controlPlaneURL string, 
 	if err := os.MkdirAll(layout.home, 0o755); err != nil {
 		return fmt.Errorf("create trial home: %w", err)
 	}
-	if err := os.MkdirAll(layout.teamHome, 0o755); err != nil {
-		return fmt.Errorf("create team workspace: %w", err)
+	if err := os.MkdirAll(layout.spaceHome, 0o755); err != nil {
+		return fmt.Errorf("create space workspace: %w", err)
 	}
 
 	// Only what a run needs. Everything absent is a deployment setting a

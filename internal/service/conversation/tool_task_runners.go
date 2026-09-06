@@ -12,7 +12,7 @@ import (
 
 // sourceMessageID is bound per turn because the model must not choose, or omit,
 // the message that requested the work.
-func newStartTaskServiceRunner(taskService *task.Service, conversationID, teamID, userID string, sourceMessageID *string) startTaskRunner {
+func newStartTaskServiceRunner(taskService *task.Service, conversationID, spaceID, userID string, sourceMessageID *string) startTaskRunner {
 	if taskService == nil {
 		return nil
 	}
@@ -20,7 +20,7 @@ func newStartTaskServiceRunner(taskService *task.Service, conversationID, teamID
 		taskService:     taskService,
 		userID:          userID,
 		conversationID:  conversationID,
-		teamID:          teamID,
+		spaceID:         spaceID,
 		sourceMessageID: sourceMessageID,
 	}
 }
@@ -52,18 +52,18 @@ type startTaskServiceRunner struct {
 	taskService     *task.Service
 	userID          string
 	conversationID  string
-	teamID          string
+	spaceID         string
 	sourceMessageID *string
 }
 
 func (r *startTaskServiceRunner) StartTask(ctx context.Context, input string, agentID *string) (taskID, runID string, err error) {
-	if r.teamID == "" {
-		return "", "", fmt.Errorf("conversation has no team")
+	if r.spaceID == "" {
+		return "", "", fmt.Errorf("conversation has no space")
 	}
 	result, err := r.taskService.StartBackgroundTask(ctx, task.CreateTaskCmd{
 		ConversationID:  r.conversationID,
 		UserID:          r.userID,
-		TeamID:          r.teamID,
+		SpaceID:         r.spaceID,
 		Input:           input,
 		AgentID:         agentID,
 		CreatedByType:   coretask.RunCreatedByTypeUser,

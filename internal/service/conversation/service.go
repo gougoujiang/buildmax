@@ -86,16 +86,16 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 		return ConversationResult{}, ErrLLMRequired
 	}
 
-	teamID := s.fetchTeamID(ctx, cmd.ConversationID, cmd.Channel)
+	spaceID := s.fetchSpaceID(ctx, cmd.ConversationID, cmd.Channel)
 
 	runInput := turnRunInput{
 		ConversationID: cmd.ConversationID,
 		Message:        cmd.Message,
 		Channel:        cmd.Channel,
 		UserID:         cmd.UserID,
-		TeamID:         teamID,
+		SpaceID:        spaceID,
 		TaskService:    s.taskServiceForChannel(cmd.Channel),
-		AgentSummaries: s.fetchAgentSummaries(ctx, teamID, cmd.Channel),
+		AgentSummaries: s.fetchAgentSummaries(ctx, spaceID, cmd.Channel),
 		TitleGenerator: s.TitleGenerator,
 		StreamSink:     cmd.StreamSink,
 	}
@@ -110,9 +110,9 @@ func (s *Service) taskServiceForChannel(channel string) *task.Service {
 	return s.TaskService
 }
 
-// fetchTeamID looks up the conversation's team once so StartTask and agent listing share it.
+// fetchSpaceID looks up the conversation's space once so StartTask and agent listing share it.
 // Returns "" when the channel is system or no TaskService is configured (task tools disabled).
-func (s *Service) fetchTeamID(ctx context.Context, conversationID, channel string) string {
+func (s *Service) fetchSpaceID(ctx context.Context, conversationID, channel string) string {
 	if channel == convchannel.ChannelSystem || s.TaskService == nil || s.ConversationStore == nil {
 		return ""
 	}
@@ -120,14 +120,14 @@ func (s *Service) fetchTeamID(ctx context.Context, conversationID, channel strin
 	if err != nil || conv == nil {
 		return ""
 	}
-	return conv.TeamID
+	return conv.SpaceID
 }
 
-func (s *Service) fetchAgentSummaries(ctx context.Context, teamID, channel string) []agentSummary {
-	if s.AgentStore == nil || teamID == "" || channel == convchannel.ChannelSystem {
+func (s *Service) fetchAgentSummaries(ctx context.Context, spaceID, channel string) []agentSummary {
+	if s.AgentStore == nil || spaceID == "" || channel == convchannel.ChannelSystem {
 		return nil
 	}
-	agents, err := s.AgentStore.ListAgentsByTeam(ctx, teamID)
+	agents, err := s.AgentStore.ListAgentsBySpace(ctx, spaceID)
 	if err != nil || len(agents) == 0 {
 		return nil
 	}

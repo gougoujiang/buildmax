@@ -125,7 +125,7 @@ export function AdminOverview({ token }: { token: string | null }) {
         <div className="settings-page__section-head">
           <div>
             <h2 className="settings-page__section-title">Task runs</h2>
-            <p className="settings-page__section-copy">Counts by status across every team.</p>
+            <p className="settings-page__section-copy">Counts by status across every space.</p>
           </div>
         </div>
         <div className="admin-facts">

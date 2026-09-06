@@ -5,7 +5,7 @@ import { actorLabel, describeEvent, formatEventTime } from "./describe"
 function event(partial: Partial<ApiAuditEvent>): ApiAuditEvent {
   return {
     id: "ae_1",
-    team_id: "tm_1",
+    space_id: "tm_1",
     actor_type: "user",
     actor_id: "u_1",
     action: "user.login",
@@ -33,14 +33,14 @@ describe("describeEvent", () => {
   })
 
   it("uses the detail when there is one to use", () => {
-    expect(describeEvent(event({ action: "team.member_added", detail: "admin" })).summary)
+    expect(describeEvent(event({ action: "space.member_added", detail: "admin" })).summary)
       .toContain("admin")
-    expect(describeEvent(event({ action: "team.member_added" })).summary)
+    expect(describeEvent(event({ action: "space.member_added" })).summary)
       .toBe("Added a member")
   })
 
   it("reads the deployment-scoped actions the admin trail added", () => {
-    // These have no team, so a space owner can never see them. They are only
+    // These have no space, so a space owner can never see them. They are only
     // readable in the administration area, and they should read as sentences
     // there rather than as raw action strings.
     expect(describeEvent(event({ action: "system.admin_granted", detail: "system_admin" })).summary)
@@ -86,18 +86,18 @@ describe("describeEvent", () => {
       .toBe(true)
   })
 
-  it("reads the invitation and role-change actions team-membership-lifecycle added", () => {
-    expect(describeEvent(event({ action: "team.member_invited", detail: "admin" })).summary)
+  it("reads the invitation and role-change actions space-membership-lifecycle added", () => {
+    expect(describeEvent(event({ action: "space.member_invited", detail: "admin" })).summary)
       .toContain("admin")
-    expect(describeEvent(event({ action: "team.invitation_accepted", detail: "member" })).summary)
+    expect(describeEvent(event({ action: "space.invitation_accepted", detail: "member" })).summary)
       .toContain("member")
-    expect(describeEvent(event({ action: "team.invitation_revoked" })).summary)
+    expect(describeEvent(event({ action: "space.invitation_revoked" })).summary)
       .toBe("Revoked a pending invitation")
-    expect(describeEvent(event({ action: "team.member_role_changed", detail: "owner" })).summary)
+    expect(describeEvent(event({ action: "space.member_role_changed", detail: "owner" })).summary)
       .toContain("owner")
-    expect(describeEvent(event({ action: "team.ownership_transferred" })).summary)
+    expect(describeEvent(event({ action: "space.ownership_transferred" })).summary)
       .toBe("Transferred ownership")
-    expect(describeEvent(event({ action: "team.member_login_code_issued" })).summary)
+    expect(describeEvent(event({ action: "space.member_login_code_issued" })).summary)
       .toBe("Issued a login code for a member")
   })
 
@@ -105,13 +105,13 @@ describe("describeEvent", () => {
     // An invitation names a specific, already-resolved account before anyone
     // acts on it, so its outcome is worth calling out either way -- unlike a
     // failed login, which says nothing about who the actor was.
-    expect(describeEvent(event({ action: "team.invitation_expired" })).denied).toBe(true)
+    expect(describeEvent(event({ action: "space.invitation_expired" })).denied).toBe(true)
   })
 
   it("does not show a target for events whose target is already in the summary", () => {
     // A login's target is the platform, which the sentence already names.
     expect(describeEvent(event({ action: "user.login", target_id: "cli" })).target).toBeNull()
-    expect(describeEvent(event({ action: "team.member_removed", target_id: "u_2" })).target).toBe("u_2")
+    expect(describeEvent(event({ action: "space.member_removed", target_id: "u_2" })).target).toBe("u_2")
   })
 })
 

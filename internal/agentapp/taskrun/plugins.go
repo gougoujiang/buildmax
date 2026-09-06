@@ -39,7 +39,7 @@ func httpPackageFetcher(cfg workerclient.WorkerAPIClientConfig, taskRunID string
 // A pin that fails to download, fails its digest, or would not load fails the
 // whole run rather than starting it without that plugin. A background run's
 // output is acted on by somebody who was not watching it, so silently doing
-// less than the team activated is the wrong failure.
+// less than the space activated is the wrong failure.
 func materializePlugins(ctx context.Context, globalDir string, pins []coreplugin.Pin, fetch packageFetcher) error {
 	if len(pins) == 0 {
 		return nil
@@ -78,7 +78,7 @@ func materializeOne(ctx context.Context, pluginsDir string, pin coreplugin.Pin, 
 		return fmt.Errorf("finish writing the package: %w", err)
 	}
 	// The pin's digest decides, not the header. The header is a convenience the
-	// server offers; the pin is what the team activated, and a server that sent
+	// server offers; the pin is what the space activated, and a server that sent
 	// a different one has already disagreed with the record.
 	if served != "" && served != pin.Digest {
 		return fmt.Errorf("the server served digest %s where this run is pinned to %s", served, pin.Digest)

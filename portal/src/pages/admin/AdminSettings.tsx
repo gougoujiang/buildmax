@@ -5,7 +5,7 @@ import {
   AdminModels,
   AdminOverview,
   AdminPlugins,
-  AdminTeams,
+  AdminSpaces,
   useAdminAccess,
 } from "../../features/admin"
 import { useAuth } from "../../contexts/AuthContext"
@@ -16,7 +16,7 @@ import IssueIcon from "../../icons/issue.svg?react"
 import UsageIcon from "../../icons/usage.svg?react"
 import ToolboxIcon from "../../icons/toolbox.svg?react"
 
-export type AdminSection = "overview" | "accounts" | "teams" | "models" | "plugins" | "audit"
+export type AdminSection = "overview" | "accounts" | "spaces" | "models" | "plugins" | "audit"
 
 interface AdminNavItem {
   id: AdminSection
@@ -32,7 +32,7 @@ interface AdminNavItem {
 export const ADMIN_NAV: AdminNavItem[] = [
   { id: "overview", label: "Overview", icon: SettingsIcon },
   { id: "accounts", label: "Accounts", icon: AgentsIcon },
-  { id: "teams", label: "Spaces", icon: IssueIcon },
+  { id: "spaces", label: "Spaces", icon: IssueIcon },
   { id: "models", label: "Models", icon: ToolboxIcon },
   { id: "plugins", label: "Plugins", icon: ToolboxIcon },
   { id: "audit", label: "Audit", icon: UsageIcon },
@@ -103,7 +103,7 @@ export function AdminSettings({ section }: { section: AdminSection }) {
       <div className="settings-page__content">
         {section === "overview" ? <AdminOverview token={token} /> : null}
         {section === "accounts" ? <AdminAccounts token={token} /> : null}
-        {section === "teams" ? <AdminTeams token={token} /> : null}
+        {section === "spaces" ? <AdminSpaces token={token} /> : null}
         {section === "models" ? <AdminModels token={token} /> : null}
         {section === "plugins" ? <AdminPlugins token={token} /> : null}
         {section === "audit" ? <AdminAudit token={token} currentUserId={user?.id} /> : null}

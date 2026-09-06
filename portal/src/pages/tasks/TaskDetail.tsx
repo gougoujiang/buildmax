@@ -5,7 +5,7 @@ import { BaseModal, ChatComposer, ChatThread, type ChatThreadItem } from "@build
 import { AgentAvatar, UserAvatar } from "../../components/UserAvatar"
 import { useApp } from "../../contexts/AppContext"
 import { useAuth } from "../../contexts/AuthContext"
-import { useTeam } from "../../contexts/TeamContext"
+import { useSpace } from "../../contexts/SpaceContext"
 import { cancelTask, continueTask, getTask, getTaskRuns, retryTask } from "../../features/tasks"
 import { getAgent } from "../../features/agents"
 import { RunTraceModal } from "../../features/runs"
@@ -51,7 +51,7 @@ function TypingDots() {
 }
 
 export function TaskDetail({ token, taskId }: TaskDetailProps) {
-  const { currentTeamId } = useTeam()
+  const { currentSpaceId } = useSpace()
   const { user } = useAuth()
   const { entityLabels, setEntityLabel, setBreadcrumbTrail } = useApp()
   const historyRef = useRef<HTMLElement | null>(null)
@@ -69,11 +69,11 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
   const [filesRunId, setFilesRunId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    if (!token || !currentTeamId) return
+    if (!token || !currentSpaceId) return
     try {
       const [nextTask, nextRuns] = await Promise.all([
-        getTask(currentTeamId, taskId, token),
-        getTaskRuns(currentTeamId, taskId, token),
+        getTask(currentSpaceId, taskId, token),
+        getTaskRuns(currentSpaceId, taskId, token),
       ])
       setTask(nextTask)
       setRuns(nextRuns)
@@ -83,7 +83,7 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
     } finally {
       setLoading(false)
     }
-  }, [currentTeamId, taskId, token])
+  }, [currentSpaceId, taskId, token])
 
   useEffect(() => {
     setLoading(true)
@@ -104,14 +104,14 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
   // Resolve the agent's name for the header link and details panel, and share it
   // so this task's breadcrumb reads the name too.
   useEffect(() => {
-    if (!token || !currentTeamId || !task?.agent_id) {
+    if (!token || !currentSpaceId || !task?.agent_id) {
       setAgentName(null)
       return
     }
-    getAgent(currentTeamId, task.agent_id, token)
+    getAgent(currentSpaceId, task.agent_id, token)
       .then((a) => setAgentName(a.name))
       .catch(() => setAgentName(null))
-  }, [token, currentTeamId, task?.agent_id])
+  }, [token, currentSpaceId, task?.agent_id])
 
   useEffect(() => {
     if (task?.agent_id && agentName) setEntityLabel(task.agent_id, agentName)
@@ -189,13 +189,13 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
 
   async function handleContinue() {
     const message = input.trim()
-    if (!message || !token || !currentTeamId || sending || running) return
+    if (!message || !token || !currentSpaceId || sending || running) return
     setSending(true)
     setError(null)
     try {
       // Generated fresh per attempt: this call's own retry-on-401 reuses it, so
       // a token refresh cannot turn one Continue into two runs.
-      const run = await continueTask(currentTeamId, taskId, message, token, crypto.randomUUID())
+      const run = await continueTask(currentSpaceId, taskId, message, token, crypto.randomUUID())
       setRuns((current) => [...current, run])
       setInput("")
     } catch (err) {
@@ -206,20 +206,20 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
   }
 
   function handleStop() {
-    if (!token || !currentTeamId || stopping || !running) return
+    if (!token || !currentSpaceId || stopping || !running) return
     setStopping(true)
     setError(null)
-    cancelTask(currentTeamId, taskId, token)
+    cancelTask(currentSpaceId, taskId, token)
       .then(() => load())
       .catch((err) => setError(getErrorMessage(err, "Failed to stop this run")))
       .finally(() => setStopping(false))
   }
 
   function handleRetry() {
-    if (!token || !currentTeamId || retrying || running) return
+    if (!token || !currentSpaceId || retrying || running) return
     setRetrying(true)
     setError(null)
-    retryTask(currentTeamId, taskId, token)
+    retryTask(currentSpaceId, taskId, token)
       .then(() => load())
       .catch((err) => setError(getErrorMessage(err, "Failed to retry this run")))
       .finally(() => setRetrying(false))
@@ -388,14 +388,14 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
 
       <RunTraceModal
         open={traceRunId != null}
-        teamId={currentTeamId}
+        spaceId={currentSpaceId}
         token={token}
         taskRunId={traceRunId}
         onClose={() => setTraceRunId(null)}
       />
       <TaskFilesModal
         open={filesRunId != null}
-        teamId={currentTeamId}
+        spaceId={currentSpaceId}
         token={token}
         taskRunId={filesRunId}
         onClose={() => setFilesRunId(null)}

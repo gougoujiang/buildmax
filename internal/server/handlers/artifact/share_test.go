@@ -25,7 +25,7 @@ func (f *fixture) createShare(t *testing.T, userID, artifactID string) shareResp
 
 func TestCreateShareReturnsAPublicLink(t *testing.T) {
 	f := newFixture(t)
-	created := f.upload(t, userOwner, teamA, "report.md", "# hello")
+	created := f.upload(t, userOwner, spaceA, "report.md", "# hello")
 	share := f.createShare(t, userMember, created.ID)
 
 	if share.Token == "" {
@@ -43,7 +43,7 @@ func TestCreateShareReturnsAPublicLink(t *testing.T) {
 // A later read of the share never carries the token again: only creation does.
 func TestListSharesNeverCarriesTheToken(t *testing.T) {
 	f := newFixture(t)
-	created := f.upload(t, userOwner, teamA, "report.md", "# hello")
+	created := f.upload(t, userOwner, spaceA, "report.md", "# hello")
 	share := f.createShare(t, userOwner, created.ID)
 
 	rec := f.do(t, http.MethodGet, "/api/artifacts/"+created.ID+"/shares", userOwner, nil, "")
@@ -61,7 +61,7 @@ func TestListSharesNeverCarriesTheToken(t *testing.T) {
 
 func TestSharedContentAndMetaByToken(t *testing.T) {
 	f := newFixture(t)
-	created := f.upload(t, userOwner, teamA, "report.md", "# hello")
+	created := f.upload(t, userOwner, spaceA, "report.md", "# hello")
 	share := f.createShare(t, userOwner, created.ID)
 
 	// No Authorization header: the token is the whole authorization.
@@ -90,7 +90,7 @@ func TestSharedContentAndMetaByToken(t *testing.T) {
 // opaque-origin sandbox the authenticated route uses.
 func TestSharedHTMLCarriesTheSandboxCSP(t *testing.T) {
 	f := newFixture(t)
-	created := f.upload(t, userOwner, teamA, "proto.html", "<h1>hi</h1>")
+	created := f.upload(t, userOwner, spaceA, "proto.html", "<h1>hi</h1>")
 	share := f.createShare(t, userOwner, created.ID)
 
 	rec := f.do(t, http.MethodGet, "/shared/artifacts/"+share.Token+"/raw", "", nil, "")
@@ -114,7 +114,7 @@ func TestUnknownTokenIsNotFound(t *testing.T) {
 
 func TestRevokedShareResolvesToNotFound(t *testing.T) {
 	f := newFixture(t)
-	created := f.upload(t, userOwner, teamA, "report.md", "# hello")
+	created := f.upload(t, userOwner, spaceA, "report.md", "# hello")
 	share := f.createShare(t, userOwner, created.ID)
 
 	del := f.do(t, http.MethodDelete, "/api/artifacts/"+created.ID+"/shares/"+share.ShareID, userOwner, nil, "")
@@ -130,7 +130,7 @@ func TestRevokedShareResolvesToNotFound(t *testing.T) {
 // revoke step.
 func TestDeletedArtifactMakesShareNotFound(t *testing.T) {
 	f := newFixture(t)
-	created := f.upload(t, userOwner, teamA, "report.md", "# hello")
+	created := f.upload(t, userOwner, spaceA, "report.md", "# hello")
 	share := f.createShare(t, userOwner, created.ID)
 
 	if code := f.do(t, http.MethodDelete, "/api/artifacts/"+created.ID, userOwner, nil, "").Code; code != http.StatusNoContent {
@@ -145,7 +145,7 @@ func TestDeletedArtifactMakesShareNotFound(t *testing.T) {
 // withdraw, but an owner may withdraw any.
 func TestRevokeSharePolicy(t *testing.T) {
 	f := newFixture(t)
-	created := f.upload(t, userOwner, teamA, "report.md", "# hello")
+	created := f.upload(t, userOwner, spaceA, "report.md", "# hello")
 	memberShare := f.createShare(t, userMember, created.ID)
 
 	// A different member cannot revoke the member's share.
@@ -162,7 +162,7 @@ func TestRevokeSharePolicy(t *testing.T) {
 func TestUploadWithShareFlagReturnsALink(t *testing.T) {
 	f := newFixture(t)
 	body, contentType := multipartBody(t, "report.md", "# hi")
-	rec := f.do(t, http.MethodPost, "/api/teams/"+teamA+"/artifacts?share=1", userOwner, body, contentType)
+	rec := f.do(t, http.MethodPost, "/api/spaces/"+spaceA+"/artifacts?share=1", userOwner, body, contentType)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("upload status = %d, want 201: %s", rec.Code, rec.Body.String())
 	}
@@ -182,13 +182,13 @@ func TestSharingUnconfigured(t *testing.T) {
 	// Rebuild the service with no public base URL, sharing off.
 	f.svc.PublicBaseURL = ""
 
-	created := f.upload(t, userOwner, teamA, "report.md", "# hi")
+	created := f.upload(t, userOwner, spaceA, "report.md", "# hi")
 	if code := f.do(t, http.MethodPost, "/api/artifacts/"+created.ID+"/shares", userOwner, nil, "").Code; code != http.StatusServiceUnavailable {
 		t.Errorf("create share with no base URL = %d, want 503", code)
 	}
 
 	body, contentType := multipartBody(t, "again.md", "# hi")
-	rec := f.do(t, http.MethodPost, "/api/teams/"+teamA+"/artifacts?share=1", userOwner, body, contentType)
+	rec := f.do(t, http.MethodPost, "/api/spaces/"+spaceA+"/artifacts?share=1", userOwner, body, contentType)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("upload status = %d, want 201 even with sharing off", rec.Code)
 	}
