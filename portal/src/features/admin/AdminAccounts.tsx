@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { ApiAdminSession, ApiAdminUser, ApiAdminUserDetail } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
+import { navigate } from "../../router"
 import { pageWindow } from "./pagination"
 import {
   createAdminUser,
@@ -41,7 +42,13 @@ function whenever(rfc3339?: string): string {
  * revokes sessions and stops queued work; a login code is shown once and is
  * recoverable nowhere. Both are said in the confirm, not discovered afterwards.
  */
-export function AdminAccounts({ token }: { token: string | null }) {
+export function AdminAccounts({
+  token,
+  selectedUserId,
+}: {
+  token: string | null
+  selectedUserId?: string
+}) {
   const [users, setUsers] = useState<ApiAdminUser[]>([])
   const [total, setTotal] = useState(0)
   const [query, setQuery] = useState("")
@@ -92,16 +99,31 @@ export function AdminAccounts({ token }: { token: string | null }) {
     load("", 0, emptyFilters)
   }, [load])
 
-  function openDetail(userId: string) {
-    if (!token) return
-    setLoginCode(null)
-    getAdminUser(token, userId)
-      .then(setSelected)
-      .catch((err) => setError(getErrorMessage(err, "Failed to load the account")))
-    listAdminUserSessions(token, userId)
-      .then((res) => setSessions(res.sessions))
-      .catch(() => setSessions([]))
-  }
+  const openDetail = useCallback(
+    (userId: string) => {
+      if (!token) return
+      setLoginCode(null)
+      getAdminUser(token, userId)
+        .then(setSelected)
+        .catch((err) => setError(getErrorMessage(err, "Failed to load the account")))
+      listAdminUserSessions(token, userId)
+        .then((res) => setSessions(res.sessions))
+        .catch(() => setSessions([]))
+    },
+    [token],
+  )
+
+  // The URL owns which account is open, so the detail panel survives a reload
+  // and can be linked. Selecting a row navigates; this reflects the result.
+  useEffect(() => {
+    if (!selectedUserId) {
+      setSelected(null)
+      setSessions([])
+      setLoginCode(null)
+      return
+    }
+    openDetail(selectedUserId)
+  }, [selectedUserId, openDetail])
 
   async function act<T>(run: () => Promise<T>, done: (result: T) => string): Promise<void> {
     if (!token) return
@@ -234,7 +256,7 @@ export function AdminAccounts({ token }: { token: string | null }) {
                   <button
                     type="button"
                     className="admin-list__main admin-list__main--action"
-                    onClick={() => openDetail(user.id)}
+                    onClick={() => navigate({ name: "admin", section: "accounts", userId: user.id })}
                   >
                     {user.email}
                   </button>
@@ -334,10 +356,7 @@ export function AdminAccounts({ token }: { token: string | null }) {
             <button
               type="button"
               className="admin-button"
-              onClick={() => {
-                setSelected(null)
-                setSessions([])
-              }}
+              onClick={() => navigate({ name: "admin", section: "accounts" })}
             >
               Close
             </button>

@@ -67,6 +67,20 @@ test("an account's detail lists its live sessions", async ({ page }) => {
   await expect(page.locator(".settings-section__error")).toHaveCount(0)
 })
 
+test("an open account detail is a linkable address that survives a reload", async ({ page }) => {
+  const email = process.env.BUILDMAX_E2E_EMAIL
+  test.skip(!email, "BUILDMAX_E2E_EMAIL not set")
+
+  await page.goto("/#/admin/accounts")
+  await page.getByRole("button", { name: email! }).first().click()
+  await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible()
+  // Opening the detail put the account in the URL, not just component state.
+  await expect(page).toHaveURL(/#\/admin\/accounts\/.+/)
+
+  await page.reload()
+  await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible()
+})
+
 test("the audit search reaches the events that have no space", async ({ page }) => {
   await page.goto("/#/admin/audit")
   await expect(page.getByRole("heading", { name: "Audit trail" })).toBeVisible()

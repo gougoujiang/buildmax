@@ -71,7 +71,8 @@ export function AppRouter({
 
   if (route.name === "account") return <AccountSettings section={route.section ?? "general"} />
   if (route.name === "space") return <SpaceSettings section={route.section ?? "overview"} />
-  if (route.name === "admin") return <AdminSettings section={route.section ?? "overview"} />
+  if (route.name === "admin")
+    return <AdminSettings section={route.section ?? "overview"} userId={route.userId} />
 
   if (route.name === "workflows") {
     return <Workflows token={token ?? null} />

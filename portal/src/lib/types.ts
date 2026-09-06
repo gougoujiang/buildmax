@@ -47,6 +47,9 @@ export type Route =
   | {
       name: "admin"
       section?: "overview" | "administrators" | "accounts" | "spaces" | "models" | "plugins" | "audit"
+      // The account whose detail is open, so the panel survives a reload and can
+      // be linked. Only meaningful for the accounts section.
+      userId?: string
     }
   | { name: "workflows" }
   | { name: "workflow"; workflowId: string }

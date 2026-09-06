@@ -60,7 +60,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
  * There is nothing here to tell them about, and the server refuses regardless —
  * hiding the page is presentation, not enforcement.
  */
-export function AdminSettings({ section }: { section: AdminSection }) {
+export function AdminSettings({ section, userId }: { section: AdminSection; userId?: string }) {
   const { token, user } = useAuth()
   const { isAdmin, loading } = useAdminAccess()
 
@@ -113,7 +113,7 @@ export function AdminSettings({ section }: { section: AdminSection }) {
       <div className="settings-page__content">
         {section === "overview" ? <AdminOverview token={token} /> : null}
         {section === "administrators" ? <AdminAdministrators token={token} /> : null}
-        {section === "accounts" ? <AdminAccounts token={token} /> : null}
+        {section === "accounts" ? <AdminAccounts token={token} selectedUserId={userId} /> : null}
         {section === "spaces" ? <AdminSpaces token={token} /> : null}
         {section === "models" ? <AdminModels token={token} /> : null}
         {section === "plugins" ? <AdminPlugins token={token} /> : null}

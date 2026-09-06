@@ -31,6 +31,8 @@ describe("hash router", () => {
     ["#/admin", { name: "admin", section: "overview" }],
     ["#/admin/administrators", { name: "admin", section: "administrators" }],
     ["#/admin/accounts", { name: "admin", section: "accounts" }],
+    // An open account detail is a linkable address, so it survives a reload.
+    ["#/admin/accounts/u_7Kq2", { name: "admin", section: "accounts", userId: "u_7Kq2" }],
     ["#/admin/spaces", { name: "admin", section: "spaces" }],
     ["#/account/plugins", { name: "account", section: "plugins" }],
     ["#/admin/models", { name: "admin", section: "models" }],
@@ -63,6 +65,7 @@ describe("hash router", () => {
     [{ name: "admin", section: "overview" }, "#/admin"],
     [{ name: "admin", section: "administrators" }, "#/admin/administrators"],
     [{ name: "admin", section: "accounts" }, "#/admin/accounts"],
+    [{ name: "admin", section: "accounts", userId: "u_7Kq2" }, "#/admin/accounts/u_7Kq2"],
     [{ name: "admin", section: "spaces" }, "#/admin/spaces"],
     [{ name: "account", section: "plugins" }, "#/account/plugins"],
     [{ name: "admin", section: "models" }, "#/admin/models"],
