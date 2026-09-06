@@ -33,6 +33,18 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.recordSeen(r, run)
+	teamInstructions := ""
+	teamInstructionsRevision := 0
+	if h.cfg.Teams != nil {
+		team, terr := h.cfg.Teams.GetTeam(r.Context(), task.TeamID)
+		if terr != nil {
+			componentLog().Warn("worker handler: team agent instructions unavailable", "task_run_id", taskRunID, "team_id", task.TeamID, "err", terr)
+		} else if team != nil {
+			teamInstructions = team.AgentInstructions
+			teamInstructionsRevision = team.AgentInstructionsRevision
+			h.recordTeamAgentInstructionsRevision(r, run, teamInstructionsRevision)
+		}
+	}
 	// The agent's instructions are appended to the run's system prompt. Resolving them here
 	// rather than at task creation means an edited definition takes effect on the next run,
 	// which is what someone editing the field expects. A deleted agent still answers, because
@@ -73,12 +85,14 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 			CreatedAt:       run.CreatedAt,
 		},
 		Task: workerclient.TaskRunTask{
-			ID:                task.ID,
-			ConversationID:    task.ConversationID,
-			TeamID:            task.TeamID,
-			UserID:            task.CreatedBy,
-			SessionID:         task.SessionID,
-			AgentInstructions: agentInstructions,
+			ID:                            task.ID,
+			ConversationID:                task.ConversationID,
+			TeamID:                        task.TeamID,
+			UserID:                        task.CreatedBy,
+			SessionID:                     task.SessionID,
+			AgentInstructions:             agentInstructions,
+			TeamAgentInstructions:         teamInstructions,
+			TeamAgentInstructionsRevision: teamInstructionsRevision,
 		},
 		Plugins:     toWirePlugins(pins),
 		PluginError: pluginRefusal,
@@ -340,5 +354,14 @@ func (h *Handler) recordAgentRevision(r *http.Request, run *coretask.Run, revisi
 	}
 	if err := h.cfg.TaskRuns.RecordTaskRunAgentRevision(r.Context(), run.ID, revision); err != nil {
 		componentLog().Warn("worker handler: agent revision not recorded", "task_run_id", run.ID, "revision", revision, "err", err)
+	}
+}
+
+func (h *Handler) recordTeamAgentInstructionsRevision(r *http.Request, run *coretask.Run, revision int) {
+	if run.TeamAgentInstructionsRevision != nil || h.cfg.TaskRuns == nil {
+		return
+	}
+	if err := h.cfg.TaskRuns.RecordTaskRunTeamAgentInstructionsRevision(r.Context(), run.ID, revision); err != nil {
+		componentLog().Warn("worker handler: team agent instructions revision not recorded", "task_run_id", run.ID, "err", err)
 	}
 }

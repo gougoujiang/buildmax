@@ -23,6 +23,8 @@ Portal owns the cloud/team lane:
   whatever it ended as, and show the server's own reason when it refuses
 - the space audit trail, for owners
 - agents
+- Space-level Agent instructions, inherited by every background Agent run and
+  revisioned at worker claim time; they do not alter the Tier 1 coordinator
 - artifacts: the space's durable files, listed and opened at their own opaque
   address rather than through the run that produced them
 - team files

@@ -166,3 +166,34 @@ func TestSetTeamSandboxDefaultsRoundTrips(t *testing.T) {
 		t.Errorf("defaults = %q/%q, want registries/workspace_plus_shared_read", got.DefaultSandboxNetworkTier, got.DefaultSandboxFilesystemTier)
 	}
 }
+
+func TestSetTeamAgentInstructionsAdvancesOnlyOnChange(t *testing.T) {
+	s, ctx := newTestStore(t)
+	owner := newTestUser(t, s, "agent-instructions-owner")
+	team, err := s.CreateTeam(ctx, "agent instructions team", owner, "")
+	if err != nil {
+		t.Fatalf("CreateTeam: %v", err)
+	}
+
+	if err := s.SetTeamAgentInstructions(ctx, team.ID, "Use British English."); err != nil {
+		t.Fatalf("SetTeamAgentInstructions: %v", err)
+	}
+	got, err := s.GetTeam(ctx, team.ID)
+	if err != nil {
+		t.Fatalf("GetTeam: %v", err)
+	}
+	if got.AgentInstructions != "Use British English." || got.AgentInstructionsRevision != 1 {
+		t.Fatalf("instructions = %q at revision %d, want first revision", got.AgentInstructions, got.AgentInstructionsRevision)
+	}
+
+	if err := s.SetTeamAgentInstructions(ctx, team.ID, "Use British English."); err != nil {
+		t.Fatalf("repeat SetTeamAgentInstructions: %v", err)
+	}
+	got, err = s.GetTeam(ctx, team.ID)
+	if err != nil {
+		t.Fatalf("GetTeam after repeat: %v", err)
+	}
+	if got.AgentInstructionsRevision != 1 {
+		t.Errorf("unchanged text advanced revision to %d, want 1", got.AgentInstructionsRevision)
+	}
+}

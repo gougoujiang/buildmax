@@ -137,3 +137,39 @@ func TestCreateTaskRunWithoutASourceMessage(t *testing.T) {
 		t.Errorf("source_message_id = %v, want nil", run.SourceMessageID)
 	}
 }
+
+func TestTaskRunSpaceInstructionsRevisionIsFirstWriteWins(t *testing.T) {
+	s, ctx := newTestStore(t)
+	user := newTestUser(t, s, "space-instructions-revision")
+	conv, err := s.CreateConversation(ctx, user, "portal", user)
+	if err != nil {
+		t.Fatalf("CreateConversation: %v", err)
+	}
+	task, err := s.CreateTask(ctx, &coretask.CreateInput{
+		TeamID: conv.TeamID, ConversationID: conv.ID, Input: "run", CreatedBy: user,
+	})
+	if err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	t.Cleanup(func() {
+		runKey, _ := lookupKey(ctx, s.db, "task_run", *task.LastRunID)
+		taskKey, _ := lookupKey(ctx, s.db, "task", task.ID)
+		_ = s.db.WithContext(ctx).Delete(&taskRunRow{}, "id = ?", runKey).Error
+		_ = s.db.WithContext(ctx).Delete(&taskRow{}, "id = ?", taskKey).Error
+		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "public_id = ?", conv.ID).Error
+	})
+
+	if err := s.RecordTaskRunTeamAgentInstructionsRevision(ctx, *task.LastRunID, 0); err != nil {
+		t.Fatalf("record revision 0: %v", err)
+	}
+	if err := s.RecordTaskRunTeamAgentInstructionsRevision(ctx, *task.LastRunID, 2); err != nil {
+		t.Fatalf("record later revision: %v", err)
+	}
+	got, err := s.GetTaskRun(ctx, *task.LastRunID)
+	if err != nil {
+		t.Fatalf("GetTaskRun: %v", err)
+	}
+	if got.TeamAgentInstructionsRevision == nil || *got.TeamAgentInstructionsRevision != 0 {
+		t.Fatalf("team instructions revision = %v, want first write 0", got.TeamAgentInstructionsRevision)
+	}
+}

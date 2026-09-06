@@ -136,10 +136,10 @@ Architecture tests under `internal/architecture` enforce these boundaries.
   `<BUILDMAX_HOME>/server.yaml`. Contributor-local repository configuration
   belongs in the single gitignored `.local/` directory created by
   `./make setup local`; `tools/mk/local.go` owns its contents.
-- The system prompt has four additive, session-stable layers: runtime,
-  `<BUILDMAX_HOME>/AGENTS.md`, workspace-root `AGENTS.md`, and this run's
-  additional prompt. Compaction summaries are appended by `RunLoop`, never
-  inserted into a layer.
+- The system prompt is additive: runtime, `<BUILDMAX_HOME>/AGENTS.md`,
+  workspace-root `AGENTS.md`, optional Space instructions for Portal background
+  runs, then this run's additional prompt. Compaction summaries are appended by
+  `RunLoop`, never inserted into a layer.
 - Runtime hooks merge global settings with `<workspace>/.buildmax/hooks.yaml`
   and fail open. See [`docs/design/hook-system.md`](docs/design/hook-system.md).
 - The Bash sandbox defaults off for CLI and on with fail-closed enforcement for

@@ -218,6 +218,30 @@ func TestRunProvenanceNamesTheAgentRevisionThatRan(t *testing.T) {
 	}
 }
 
+// Space instructions are resolved independently from the agent. Their revision
+// makes the global context behind an old run visible even after the Space is
+// edited.
+func TestRunProvenanceNamesTheSpaceInstructionsRevisionThatRan(t *testing.T) {
+	revision := 2
+	run := coretask.Run{
+		ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED",
+		TeamAgentInstructionsRevision: &revision, CreatedAt: time.Unix(1000, 0).UTC(),
+	}
+	f := newProvenanceFixture(t, run, provenanceTask())
+	f.handler.cfg.Teams.(*mock.MockTeamStore).Teams[0].AgentInstructionsRevision = 5
+
+	_, out := f.get(t, "tr_1")
+	if out.SpaceInstructions == nil {
+		t.Fatal("no Space instructions provenance returned")
+	}
+	if out.SpaceInstructions.Revision != 2 {
+		t.Errorf("revision = %d, want the one the run was handed", out.SpaceInstructions.Revision)
+	}
+	if out.SpaceInstructions.CurrentRevision != 5 {
+		t.Errorf("current_revision = %d, want what the Space says now", out.SpaceInstructions.CurrentRevision)
+	}
+}
+
 // A deleted agent is still named. A run that already executed under it does not
 // stop having done so, and hiding the definition is the opposite of provenance.
 func TestRunProvenanceNamesADeletedAgent(t *testing.T) {

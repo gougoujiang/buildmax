@@ -22,7 +22,9 @@ type teamRow struct {
 	// PluginCuration is who fills the team's plugin activation list. It
 	// defaults to open: the gate that crosses teams is operator eligibility,
 	// not a team's housekeeping. See docs/design/plugin-team-distribution.md.
-	PluginCuration string `gorm:"column:plugin_curation;type:varchar(16);not null;default:'open'"`
+	PluginCuration            string `gorm:"column:plugin_curation;type:varchar(16);not null;default:'open'"`
+	AgentInstructions         string `gorm:"column:agent_instructions;type:text"`
+	AgentInstructionsRevision int    `gorm:"column:agent_instructions_revision;not null;default:0"`
 	// DefaultSandboxNetworkTier and DefaultSandboxFilesystemTier mirror
 	// agentRow's columns of the same names: empty means this team sets no
 	// default and an agent that declares neither tier falls through to the
@@ -98,6 +100,8 @@ func toTeam(row *teamReadRow) *coreteam.Team {
 		Name:                         row.Row.Name,
 		QuotaTier:                    row.Row.QuotaTier,
 		PluginCuration:               coreplugin.NormalizeCuration(row.Row.PluginCuration),
+		AgentInstructions:            row.Row.AgentInstructions,
+		AgentInstructionsRevision:    row.Row.AgentInstructionsRevision,
 		DefaultSandboxNetworkTier:    row.Row.DefaultSandboxNetworkTier,
 		DefaultSandboxFilesystemTier: row.Row.DefaultSandboxFilesystemTier,
 		CreatedBy:                    derefPublicID(row.CreatedByPublicID),
@@ -436,5 +440,20 @@ func (s *Store) SetTeamSandboxDefaults(ctx context.Context, teamID, networkTier,
 		Updates(map[string]any{
 			"default_sandbox_network_tier":    networkTier,
 			"default_sandbox_filesystem_tier": filesystemTier,
+		}).Error
+}
+
+// SetTeamAgentInstructions replaces a team's shared agent guidance and bumps
+// its revision only when the text actually changes.
+func (s *Store) SetTeamAgentInstructions(ctx context.Context, teamID, instructions string) error {
+	key, err := lookupKey(ctx, s.db, "team", teamID)
+	if err != nil {
+		return err
+	}
+	return s.db.WithContext(ctx).Model(&teamRow{}).
+		Where("id = ? AND (agent_instructions IS NULL OR agent_instructions <> ?)", key, instructions).
+		Updates(map[string]any{
+			"agent_instructions":          instructions,
+			"agent_instructions_revision": gorm.Expr("agent_instructions_revision + 1"),
 		}).Error
 }

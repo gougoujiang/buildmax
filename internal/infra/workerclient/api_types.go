@@ -107,6 +107,11 @@ type TaskRunTask struct {
 	// Absent means the task names no agent, or a server built before this field existed, so
 	// a worker reads it as it always did.
 	AgentInstructions string `json:"agent_instructions,omitempty"`
+	// TeamAgentInstructions is the Space-level guidance inherited by every
+	// background agent run. Revision identifies the version recorded on this
+	// TaskRun. Both are absent when the team has never configured the layer.
+	TeamAgentInstructions         string `json:"team_agent_instructions,omitempty"`
+	TeamAgentInstructionsRevision int    `json:"team_agent_instructions_revision,omitempty"`
 }
 
 // PatchTaskRunRequest is the JSON body for PATCH /api/worker/task-runs/{task_run_id} (snake_case).

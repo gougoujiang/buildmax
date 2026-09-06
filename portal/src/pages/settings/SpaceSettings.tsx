@@ -12,6 +12,7 @@ import { SpaceAuditSection } from "../../features/audit"
 import { TeamPlugins } from "../../features/teamPlugins"
 import { TeamSandboxDefaults } from "../../features/teamSandbox"
 import { TeamSecrets } from "../../features/teamSecrets"
+import { TeamAgentInstructions } from "../../features/teamInstructions"
 import { useAuth } from "../../contexts/AuthContext"
 import { useTeam } from "../../contexts/TeamContext"
 
@@ -119,15 +120,24 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
 
       <div className="settings-page__content">
         {section === "overview" ? (
-          <SpaceOverviewSection
-            currentTeamName={currentTeamName}
-            isPersonalSpace={isPersonalSpace}
-            loadingMembers={membersLoading}
-            loadingUsage={teamUsageLoading}
-            members={members}
-            usage={teamUsage}
-            currentUserRole={currentUserMember?.role ?? null}
-          />
+          <>
+            <SpaceOverviewSection
+              currentTeamName={currentTeamName}
+              isPersonalSpace={isPersonalSpace}
+              loadingMembers={membersLoading}
+              loadingUsage={teamUsageLoading}
+              members={members}
+              usage={teamUsage}
+              currentUserRole={currentUserMember?.role ?? null}
+            />
+            <TeamAgentInstructions
+              token={token}
+              teamId={currentTeamId}
+              canManage={
+                currentUserMember?.role === "owner" || currentUserMember?.role === "admin"
+              }
+            />
+          </>
         ) : null}
         {section === "plugins" ? (
           <TeamPlugins

@@ -13,9 +13,11 @@ import (
 	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/config"
+	coreagent "github.com/gougoujiang/buildmax/internal/core/agent"
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 )
 
@@ -31,6 +33,7 @@ var (
 		"this deployment cannot resolve plugins, so an agent cannot name one")
 	ErrSecretsNotConfigured = apierr.New(apierr.KindNotConfigured,
 		"this deployment has no secret store, so an agent cannot consume one")
+	ErrInstructionsTooLong = apierr.New(apierr.KindInvalid, "Space and Agent instructions exceed 8192 characters")
 )
 
 // WorkflowUsage reports which published workflows still name an agent.
@@ -69,6 +72,9 @@ type ModelCatalog interface {
 
 type Service struct {
 	Agents agentdef.Store
+	Teams  interface {
+		GetTeam(context.Context, string) (*coreteam.Team, error)
+	}
 	// Plugins is optional, and nil means the deployment has no Marketplace.
 	// An agent that names a plugin is then refused rather than saved: storing
 	// a selection nothing can resolve would be a definition that silently does
@@ -89,6 +95,23 @@ type Service struct {
 	// it; unlike a plugin, an unresolvable model has a defined fallback (the
 	// deployment default) at run time, so it is accepted rather than refused.
 	Models ModelCatalog
+}
+
+func (s *Service) validateInstructions(ctx context.Context, teamID, instructions string) error {
+	spaceInstructions := ""
+	if s.Teams != nil {
+		team, err := s.Teams.GetTeam(ctx, teamID)
+		if err != nil {
+			return err
+		}
+		if team != nil {
+			spaceInstructions = team.AgentInstructions
+		}
+	}
+	if err := coreagent.ValidateInstructionLayers(spaceInstructions, instructions); err != nil {
+		return apierr.Detail(ErrInstructionsTooLong, "%v", err)
+	}
+	return nil
 }
 
 type CreateCmd struct {
@@ -177,6 +200,9 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateCmd) (*agentdef.Age
 	}
 	if cmd.Name == "" {
 		return nil, ErrNameRequired
+	}
+	if err := s.validateInstructions(ctx, cmd.TeamID, cmd.Instructions); err != nil {
+		return nil, err
 	}
 	if err := validateSandboxTiers(cmd.SandboxNetworkTier, cmd.SandboxFilesystemTier); err != nil {
 		return nil, err
@@ -277,6 +303,9 @@ func (s *Service) UpdateAgent(ctx context.Context, cmd UpdateCmd) (*agentdef.Age
 	}
 	if cmd.Name == "" {
 		return nil, ErrNameRequired
+	}
+	if err := s.validateInstructions(ctx, cmd.TeamID, cmd.Instructions); err != nil {
+		return nil, err
 	}
 	if err := validateSandboxTiers(cmd.SandboxNetworkTier, cmd.SandboxFilesystemTier); err != nil {
 		return nil, err

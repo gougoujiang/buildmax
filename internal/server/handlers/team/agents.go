@@ -128,7 +128,7 @@ func (h *Handler) agentService() *agent.Service {
 }
 
 func newTeamAgentService(cfg Config, workflowUsage *workflow.Service) *agent.Service {
-	svc := &agent.Service{Agents: cfg.Agents}
+	svc := &agent.Service{Agents: cfg.Agents, Teams: cfg.Teams}
 	if workflowUsage != nil {
 		svc.Workflows = workflowUsage
 	}

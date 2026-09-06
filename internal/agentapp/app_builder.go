@@ -40,7 +40,7 @@ func resolveAgentAppConfig(cfg AppConfig) (resolvedAgentAppConfig, error) {
 	if err != nil {
 		return resolvedAgentAppConfig{}, err
 	}
-	if err := ValidateAdditionalSystemPrompt(cfg.AdditionalSystemPrompt); err != nil {
+	if err := ValidateInstructionLayers(cfg.TeamAgentInstructions, cfg.AdditionalSystemPrompt); err != nil {
 		return resolvedAgentAppConfig{}, err
 	}
 	settings, err := config.LoadSettings()
@@ -124,28 +124,30 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 	sandboxManager.AllowEnvNames(cfg.SecretEnvNames)
 
 	app := &AgentApp{
-		workspace:              workspace,
-		project:                resolved.project,
-		projects:               resolved.projects,
-		projectReport:          resolved.projectReport,
-		memoryUnavailable:      resolved.memoryUnavailable,
-		memoryDisabled:         cfg.DisableProjectMemory,
-		settings:               resolved.settings,
-		toolRegistries:         make(map[string]cllm.ToolRegistry),
-		sessionManager:         NewSessionManager(config.SessionsDir()).ForProject(resolved.project.ID),
-		skillsRegistry:         &SkillRegistry{},
-		subagentsRegistry:      &SubAgentRegistry{},
-		policy:                 NewConfiguredPolicy(config.ResolvePermissions(resolved.settings.Tools), cfg.Policy),
-		additionalSystemPrompt: cfg.AdditionalSystemPrompt,
-		artifactPublisher:      cfg.ArtifactPublisher,
-		issueClient:            cfg.IssueClient,
-		sandbox:                agent.SandboxView(sandboxManager),
-		sandboxManager:         sandboxManager,
-		sandboxResolved:        resolved.sandbox,
-		maxIterations:          config.ResolveMaxIterations(resolved.settings.Agent, cfg.MaxIterations),
-		plugins:                resolved.plugins,
-		secretEnvValues:        cfg.SecretEnvValues,
-		secretRedactor:         secretscan.NewRedactor(cfg.SecretEnvValues),
+		workspace:                   workspace,
+		project:                     resolved.project,
+		projects:                    resolved.projects,
+		projectReport:               resolved.projectReport,
+		memoryUnavailable:           resolved.memoryUnavailable,
+		memoryDisabled:              cfg.DisableProjectMemory,
+		settings:                    resolved.settings,
+		toolRegistries:              make(map[string]cllm.ToolRegistry),
+		sessionManager:              NewSessionManager(config.SessionsDir()).ForProject(resolved.project.ID),
+		skillsRegistry:              &SkillRegistry{},
+		subagentsRegistry:           &SubAgentRegistry{},
+		policy:                      NewConfiguredPolicy(config.ResolvePermissions(resolved.settings.Tools), cfg.Policy),
+		additionalSystemPrompt:      cfg.AdditionalSystemPrompt,
+		additionalSystemPromptLayer: cfg.AdditionalSystemPromptLayer,
+		teamAgentInstructions:       cfg.TeamAgentInstructions,
+		artifactPublisher:           cfg.ArtifactPublisher,
+		issueClient:                 cfg.IssueClient,
+		sandbox:                     agent.SandboxView(sandboxManager),
+		sandboxManager:              sandboxManager,
+		sandboxResolved:             resolved.sandbox,
+		maxIterations:               config.ResolveMaxIterations(resolved.settings.Agent, cfg.MaxIterations),
+		plugins:                     resolved.plugins,
+		secretEnvValues:             cfg.SecretEnvValues,
+		secretRedactor:              secretscan.NewRedactor(cfg.SecretEnvValues),
 	}
 	// A worker that resolves weaker than its own surface's baseline says so
 	// out loud, not only in the trace: docs/design/sandbox-boundaries.md §10.

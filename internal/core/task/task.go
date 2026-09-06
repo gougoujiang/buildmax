@@ -155,6 +155,11 @@ type Run struct {
 	// record says which text produced this outcome. Nil for a run with no agent
 	// and for runs that predate the column.
 	AgentRevision *int `json:"agent_revision,omitempty"`
+	// TeamAgentInstructionsRevision numbers the Space-level instruction text
+	// this run received. Revision 0 records that no Space instructions were
+	// configured; nil means the run predates this provenance or the team could
+	// not be resolved at dispatch.
+	TeamAgentInstructionsRevision *int `json:"team_agent_instructions_revision,omitempty"`
 	// PluginPins are the releases this run was given, resolved when its worker
 	// claimed it and fixed from that moment.
 	//
@@ -355,6 +360,9 @@ type RunStore interface {
 	// The first write wins: a run executes under the instructions it was handed
 	// at dispatch, and a later edit does not retroactively change what ran.
 	RecordTaskRunAgentRevision(ctx context.Context, taskRunID string, revision int) error
+	// RecordTaskRunTeamAgentInstructionsRevision stores which Space-level
+	// instruction revision a run was given. The first write wins.
+	RecordTaskRunTeamAgentInstructionsRevision(ctx context.Context, taskRunID string, revision int) error
 	// RecordTaskRunPluginPins stores the releases a run was given. Like the
 	// agent revision, the first write wins: a worker polls its run, and a
 	// team's activation edited mid-run must not rewrite what actually ran.

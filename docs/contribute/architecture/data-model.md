@@ -217,6 +217,8 @@ The ownership and authorization boundary for every Portal resource.
 | `personal_for_user_id` | `bigint unsigned` | yes | Set on a user's personal team; unique, so a user has at most one |
 | `quota_tier` | `varchar(64)` | yes | References `quota_tier.tier_name` |
 | `plugin_curation` | `varchar(16)` | no | Default `'open'`; `open` or `curated`, see `plugin_activation` |
+| `agent_instructions` | `text` | yes | Space-level instructions appended to every background Agent run; empty means no layer |
+| `agent_instructions_revision` | `bigint` | no | Advances whenever `agent_instructions` changes; starts at 0 |
 | `default_sandbox_network_tier` | `varchar(64)` | yes | Tier an agent that declares no network tier inherits; empty means none, see `agent` |
 | `default_sandbox_filesystem_tier` | `varchar(64)` | yes | Filesystem counterpart of `default_sandbox_network_tier` |
 | `created_by` | `bigint unsigned` | no | `user.id` |
@@ -779,6 +781,7 @@ One execution attempt. This is the row quota and token accounting read.
 | `retry_of_task_run_id` | `bigint unsigned` | yes | The run this one repeats; `NULL` for a run that carries its own instructions |
 | `source_message_id` | `bigint unsigned` | yes | `conversation_message.id` this run was asked for in; `NULL` when no message asked for it |
 | `agent_revision` | `int` | yes | Which revision of `task.agent_id` this run was served; `NULL` for a run with no agent or one that never reached a worker |
+| `team_agent_instructions_revision` | `int` | yes | Which revision of the owning team's Space-level instructions this run was served; `0` records no configured text, `NULL` means no provenance |
 | `plugin_pins` | `text` | yes | JSON array of `{plugin_name, version, digest}`: the releases this run was given |
 | `sandbox_network_tier` | `varchar(64)` | yes | The tier resolved on the first poll -- agent declaration, then team default, then the surface baseline; `NULL` until a worker claims the run |
 | `sandbox_filesystem_tier` | `varchar(64)` | yes | The tier resolved on the first poll, same fallback as `sandbox_network_tier` |
@@ -805,6 +808,11 @@ addressed by its agent plus its number, and the task already holds the agent. It
 is written when a worker asks for its run, and the first write wins — instructions
 are resolved per dispatch so an edit takes effect on the next run, and the record
 exists so an edit during a run cannot rewrite what that run was given.
+
+`team_agent_instructions_revision` follows the same first-write-wins rule. The
+worker receives the owning team's current Space instructions as a separate
+system-prompt layer before the selected Agent's instructions; editing the Space
+changes the next run, not one already executing.
 
 `plugin_pins` is written at that same moment and under the same rule, because it
 answers the same question about the same run. The server resolves the team's

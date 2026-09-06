@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 import type { ApiRunProvenance } from "../../lib/api/types"
-import { describeAgent, describeOrigin, inputMatchesMessage } from "./origin"
+import {
+  describeAgent,
+  describeOrigin,
+  describeSpaceInstructions,
+  inputMatchesMessage,
+} from "./origin"
 
 function provenance(over: Partial<ApiRunProvenance> = {}): ApiRunProvenance {
   return {
@@ -144,5 +149,41 @@ describe("describeAgent", () => {
 
   it("falls back to the handle when the definition could not be named", () => {
     expect(describeAgent(provenance({ agent: { id: "ag_1", revision: 2 } }))?.text).toContain("ag_1")
+  })
+})
+
+describe("describeSpaceInstructions", () => {
+  it("says nothing when an older run has no Space instruction provenance", () => {
+    expect(describeSpaceInstructions(provenance())).toBeNull()
+  })
+
+  it("names the revision handed to the worker", () => {
+    const described = describeSpaceInstructions(
+      provenance({ space_instructions: { revision: 3, current_revision: 3 } })
+    )
+    expect(described?.text).toContain("revision 3")
+    expect(described?.driftedSinceRun).toBe(false)
+  })
+
+  it("flags Space instructions edited after the run", () => {
+    const described = describeSpaceInstructions(
+      provenance({ space_instructions: { revision: 2, current_revision: 5 } })
+    )
+    expect(described?.text).toContain("revision 5")
+    expect(described?.driftedSinceRun).toBe(true)
+  })
+
+  it("distinguishes a run with no configured instructions from missing provenance", () => {
+    const unchanged = describeSpaceInstructions(
+      provenance({ space_instructions: { revision: 0, current_revision: 0 } })
+    )
+    expect(unchanged?.text).toContain("No Space instructions")
+    expect(unchanged?.driftedSinceRun).toBe(false)
+
+    const configuredLater = describeSpaceInstructions(
+      provenance({ space_instructions: { revision: 0, current_revision: 1 } })
+    )
+    expect(configuredLater?.text).toContain("now revision 1")
+    expect(configuredLater?.driftedSinceRun).toBe(true)
   })
 })

@@ -136,6 +136,9 @@ const (
 	// the tiers an agent that declares neither inherits. See
 	// docs/design/agent-sandbox-policy.md §9 M3.
 	TeamSandboxDefaultsSet = "team.sandbox_defaults_set"
+	// TeamAgentInstructionsSet records a change to the shared prompt layer.
+	// The event carries only the revision, never the user-authored text.
+	TeamAgentInstructionsSet = "team.agent_instructions_set"
 	// EventsExported records the trail itself being read out in bulk.
 	// Reading every recorded action is a sensitive action, and an export that
 	// left no trace would be the one way to consult the record without

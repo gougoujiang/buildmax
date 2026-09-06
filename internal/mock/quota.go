@@ -110,6 +110,10 @@ func (d *DenyQuotaTeamStore) SetTeamSandboxDefaults(_ context.Context, _, _, _ s
 	return nil
 }
 
+func (d *DenyQuotaTeamStore) SetTeamAgentInstructions(_ context.Context, _, _ string) error {
+	return nil
+}
+
 func (d *DenyQuotaTeamStore) CreateInvitation(_ context.Context, _, _, _, _ string, _ time.Time) (*coreteam.Invitation, error) {
 	return nil, nil
 }

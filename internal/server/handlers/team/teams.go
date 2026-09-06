@@ -147,7 +147,7 @@ func (h *Handler) teamService() *teamsvc.Service {
 }
 
 func newTeamService(cfg Config) *teamsvc.Service {
-	return &teamsvc.Service{Teams: cfg.Teams, Users: cfg.Users, LoginCodes: cfg.LoginCodes}
+	return &teamsvc.Service{Teams: cfg.Teams, Agents: cfg.Agents, Users: cfg.Users, LoginCodes: cfg.LoginCodes}
 }
 
 func (h *Handler) listTeamMembersHandler(w http.ResponseWriter, r *http.Request) {

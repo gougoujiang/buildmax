@@ -104,7 +104,8 @@
           "created_at": { "type": "string", "format": "date-time" },
           "started_at": { "type": "string", "format": "date-time", "nullable": true },
           "ended_at": { "type": "string", "format": "date-time", "nullable": true },
-          "agent_revision": { "type": "integer", "nullable": true }
+          "agent_revision": { "type": "integer", "nullable": true },
+          "team_agent_instructions_revision": { "type": "integer", "nullable": true }
         }
       },
       "Conversation": {
@@ -873,7 +874,9 @@
               "team_id": {"type": "string"},
               "user_id": {"type": "string"},
               "session_id": {"type": "string"},
-              "agent_instructions": {"type": "string"}
+              "agent_instructions": {"type": "string"},
+              "team_agent_instructions": {"type": "string"},
+              "team_agent_instructions_revision": {"type": "integer"}
             },
             "required": ["id", "conversation_id", "team_id", "user_id"]
           },
@@ -3244,6 +3247,57 @@
         }
       }
     },
+    "/api/teams/{team_id}/agent-instructions": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "Get the Space-level instructions inherited by background Agent runs",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {
+              "type": "object",
+              "properties": {"instructions": {"type": "string"}, "revision": {"type": "integer"}},
+              "required": ["instructions", "revision"]
+            }}}
+          },
+          "404": {
+            "description": "Team not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      },
+      "put": {
+        "summary": "Set the Space-level instructions inherited by future background Agent runs",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {
+            "type": "object",
+            "properties": {"instructions": {"type": "string", "maxLength": 8192}},
+            "required": ["instructions"]
+          }}}
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {
+              "type": "object",
+              "properties": {"instructions": {"type": "string"}, "revision": {"type": "integer"}},
+              "required": ["instructions", "revision"]
+            }}}
+          },
+          "400": {
+            "description": "Instructions exceed the permanent prompt budget",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "403": {
+            "description": "Only a team owner or admin may set Agent instructions",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
     "/api/teams/{team_id}/issues": {
       "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
@@ -3775,7 +3829,7 @@
     "/api/teams/{team_id}/task-runs/{task_run_id}": {
       "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
-        "summary": "Show what produced a task run: its Agent, model, plugins, and workspace",
+        "summary": "Show what produced a task run, including its Space and Agent instruction revisions",
         "security": [{"bearerAuth": []}],
         "parameters": [{"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "responses": {

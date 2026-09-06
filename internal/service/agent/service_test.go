@@ -8,6 +8,7 @@ import (
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/agent"
@@ -17,6 +18,22 @@ func newService(t *testing.T) (*agent.Service, *mock.MockAgentStore, context.Con
 	t.Helper()
 	store := &mock.MockAgentStore{}
 	return &agent.Service{Agents: store}, store, context.Background()
+}
+
+func TestCreateAgentSharesSpaceInstructionBudget(t *testing.T) {
+	svc, store, ctx := newService(t)
+	svc.Teams = &mock.MockTeamStore{Teams: []coreteam.Team{{
+		ID: "tm_1", AgentInstructions: strings.Repeat("s", 4096),
+	}}}
+	_, err := svc.CreateAgent(ctx, agent.CreateCmd{
+		TeamID: "tm_1", UserID: "u_1", Name: "writer", Instructions: strings.Repeat("a", 4097),
+	})
+	if !errors.Is(err, agent.ErrInstructionsTooLong) {
+		t.Fatalf("err = %v, want ErrInstructionsTooLong", err)
+	}
+	if len(store.Agents) != 0 {
+		t.Fatal("over-budget agent was stored")
+	}
 }
 
 func create(t *testing.T, s *agent.Service, teamID string) *agentdef.Agent {

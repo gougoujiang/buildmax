@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
+	coreagent "github.com/gougoujiang/buildmax/internal/core/agent"
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
@@ -73,7 +75,10 @@ var (
 		"only a team owner or admin may set the team's default sandbox tiers")
 	// ErrInvalidSandboxTier rejects a network or filesystem tier this binary
 	// does not recognize.
-	ErrInvalidSandboxTier = apierr.New(apierr.KindInvalid, "unknown sandbox network or filesystem tier")
+	ErrInvalidSandboxTier                      = apierr.New(apierr.KindInvalid, "unknown sandbox network or filesystem tier")
+	ErrOnlyOwnerOrAdminCanSetAgentInstructions = apierr.New(apierr.KindForbidden,
+		"only a team owner or admin may set the team's agent instructions")
+	ErrAgentInstructionsTooLong = apierr.New(apierr.KindInvalid, "team agent instructions exceed 8192 characters")
 
 	// ErrOnlyOwnerCanIssueMemberLoginCode gates the one place in this package
 	// a login code is issued: a locked-out member of the caller's own team.
@@ -86,7 +91,10 @@ var (
 )
 
 type Service struct {
-	Teams coreteam.Store
+	Teams  coreteam.Store
+	Agents interface {
+		ListAgentsByTeam(context.Context, string) ([]agentdef.Agent, error)
+	}
 	Users coreidentity.UserStore
 	// LoginCodes backs IssueMemberLoginCode only -- the one place in this
 	// package a credential is issued, and only for a member of the caller's
@@ -96,6 +104,12 @@ type Service struct {
 	// Now is the clock. Nil means time.Now. Tests set it to pin an invitation's
 	// expiry rather than waiting on InvitationTTLDefault.
 	Now func() time.Time
+}
+
+type SetAgentInstructionsCmd struct {
+	TeamID       string
+	ActorID      string
+	Instructions string
 }
 
 func (s *Service) now() time.Time {
@@ -479,6 +493,38 @@ func (s *Service) SetSandboxDefaults(ctx context.Context, cmd SetSandboxDefaults
 		return ErrInvalidSandboxTier
 	}
 	return s.Teams.SetTeamSandboxDefaults(ctx, cmd.TeamID, cmd.NetworkTier, cmd.FilesystemTier)
+}
+
+// SetAgentInstructions replaces the guidance inherited by every future
+// background agent run in the team.
+func (s *Service) SetAgentInstructions(ctx context.Context, cmd SetAgentInstructionsCmd) error {
+	if s.Teams == nil {
+		return ErrTeamsNotConfigured
+	}
+	members, err := s.Teams.ListTeamMembers(ctx, cmd.TeamID)
+	if err != nil {
+		return err
+	}
+	if !allows(members, cmd.ActorID, coreteam.ActionManageAgents) {
+		return ErrOnlyOwnerOrAdminCanSetAgentInstructions
+	}
+	instructions := strings.TrimSpace(cmd.Instructions)
+	if s.Agents == nil {
+		if err := coreagent.ValidateInstructionLayers(instructions, ""); err != nil {
+			return apierr.Detail(ErrAgentInstructionsTooLong, "%v", err)
+		}
+	} else {
+		agents, err := s.Agents.ListAgentsByTeam(ctx, cmd.TeamID)
+		if err != nil {
+			return err
+		}
+		for i := range agents {
+			if err := coreagent.ValidateInstructionLayers(instructions, agents[i].Instructions); err != nil {
+				return apierr.Detail(ErrAgentInstructionsTooLong, "agent %q: %v", agents[i].Name, err)
+			}
+		}
+	}
+	return s.Teams.SetTeamAgentInstructions(ctx, cmd.TeamID, instructions)
 }
 
 func countOwners(members []coreteam.Member) int {

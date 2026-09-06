@@ -7,6 +7,7 @@ import (
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 )
 
@@ -29,6 +30,45 @@ func revisionFixture(agentID *string, agents *mock.MockAgentStore) (http.Handler
 	mux := http.NewServeMux()
 	h.Register(mux)
 	return mux, runs
+}
+
+func TestGetTaskRunRecordsSpaceInstructionsRevisionOnce(t *testing.T) {
+	teams := &mock.MockTeamStore{Teams: []coreteam.Team{{
+		ID: llmTestTeam, AgentInstructions: "First policy.", AgentInstructionsRevision: 3,
+	}}}
+	runs := &mock.MockTaskRunStore{
+		Runs:     []coretask.Run{{ID: "r_1", TaskID: "t_1", Status: string(coretask.RunStatusScheduled)}},
+		TaskList: []coretask.Task{{ID: "t_1", TeamID: llmTestTeam, CreatedBy: llmTestUser}},
+	}
+	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs, Teams: teams})
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	getTaskRun(t, mux)
+	teams.Teams[0].AgentInstructions = "Second policy."
+	teams.Teams[0].AgentInstructionsRevision = 4
+	getTaskRun(t, mux)
+
+	if runs.Runs[0].TeamAgentInstructionsRevision == nil || *runs.Runs[0].TeamAgentInstructionsRevision != 3 {
+		t.Fatalf("team instructions revision = %v, want first served revision 3", runs.Runs[0].TeamAgentInstructionsRevision)
+	}
+}
+
+func TestGetTaskRunRecordsThatNoSpaceInstructionsWereConfigured(t *testing.T) {
+	teams := &mock.MockTeamStore{Teams: []coreteam.Team{{ID: llmTestTeam}}}
+	runs := &mock.MockTaskRunStore{
+		Runs:     []coretask.Run{{ID: "r_1", TaskID: "t_1", Status: string(coretask.RunStatusScheduled)}},
+		TaskList: []coretask.Task{{ID: "t_1", TeamID: llmTestTeam, CreatedBy: llmTestUser}},
+	}
+	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs, Teams: teams})
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	getTaskRun(t, mux)
+
+	if runs.Runs[0].TeamAgentInstructionsRevision == nil || *runs.Runs[0].TeamAgentInstructionsRevision != 0 {
+		t.Fatalf("team instructions revision = %v, want recorded revision 0", runs.Runs[0].TeamAgentInstructionsRevision)
+	}
 }
 
 // The instructions a run executes are whatever the definition says when its

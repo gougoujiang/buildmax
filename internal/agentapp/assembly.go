@@ -1,17 +1,15 @@
 package agentapp
 
 import (
-	"fmt"
-	"github.com/gougoujiang/buildmax/internal/core/subagent"
 	"log/slog"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/gougoujiang/buildmax/internal/agentapp/job"
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/gougoujiang/buildmax/internal/core/subagent"
 	tools "github.com/gougoujiang/buildmax/internal/tool"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -19,36 +17,40 @@ import (
 // MaxAdditionalSystemPromptChars bounds the additional system prompt. It sits in the system
 // prompt, which is re-sent in full on every call and has no trimming path, so it is bounded
 // when it is resolved rather than degraded later.
-const MaxAdditionalSystemPromptChars = 8192
+const MaxAdditionalSystemPromptChars = agent.MaxUserAuthoredSystemPromptChars
 
 // ValidateAdditionalSystemPrompt rejects text that does not fit the budget. The error names the
 // size and the limit so whoever supplied it — a flag, a file, or an agent record — can see what
 // to cut.
 func ValidateAdditionalSystemPrompt(text string) error {
-	if n := utf8.RuneCountInString(text); n > MaxAdditionalSystemPromptChars {
-		return fmt.Errorf("additional system prompt is %d characters, limit is %d: it is sent with "+
-			"every model call and cannot be trimmed, so it has to stay short", n, MaxAdditionalSystemPromptChars)
-	}
-	return nil
+	return ValidateInstructionLayers("", text)
+}
+
+// ValidateInstructionLayers bounds the complete user-authored instruction
+// prefix. Space and Agent instructions are both permanent on every model call,
+// so they share one budget rather than each quietly doubling it.
+func ValidateInstructionLayers(teamInstructions, additionalSystemPrompt string) error {
+	return agent.ValidateInstructionLayers(teamInstructions, additionalSystemPrompt)
 }
 
 // BuildEffectiveSystemPrompt builds the agent system prompt for a workspace, an optional model
 // name, and an optional additional system prompt.
 //
-// The layers run from least to most specific, and every one of them is additive:
+// The local layers run from least to most specific, and every one is additive:
 //
 //  1. the runtime prompt, which carries the tool-usage conventions
 //  2. ~/.buildmax/AGENTS.md — personal rules
 //  3. <ws>/AGENTS.md — project rules
 //  4. the additional system prompt — this run's user-authored identity and constraints
 //
-// All four are stable for the life of a session, so together they form a cacheable prefix. The
-// compaction summary changes, and RunLoop appends it after them; it is never added here.
+// Portal workers additionally insert their Space instructions before layer 4.
+// Together the layers form the cacheable prefix for one run. The compaction
+// summary changes, and RunLoop appends it after them; it is never added here.
 //
 // Pass an empty modelName when it is not yet known, and empty additional text when the run has
 // none.
 func BuildEffectiveSystemPrompt(workspaceDir, modelName, additionalSystemPrompt string, caps PromptCapabilities) string {
-	prompt, _ := BuildSystemPromptWithLayers(workspaceDir, modelName, additionalSystemPrompt, caps)
+	prompt, _ := buildSystemPromptWithLayers(workspaceDir, modelName, "", additionalSystemPrompt, "", caps)
 	return prompt
 }
 
@@ -56,6 +58,10 @@ func BuildEffectiveSystemPrompt(workspaceDir, modelName, additionalSystemPrompt 
 // The layer list goes into the run trace, so a finished run can say what it was told before
 // the conversation began rather than leaving it to be inferred from behaviour.
 func BuildSystemPromptWithLayers(workspaceDir, modelName, additionalSystemPrompt string, caps PromptCapabilities) (string, []agent.PromptLayer) {
+	return buildSystemPromptWithLayers(workspaceDir, modelName, "", additionalSystemPrompt, "", caps)
+}
+
+func buildSystemPromptWithLayers(workspaceDir, modelName, teamInstructions, additionalSystemPrompt, additionalLayerName string, caps PromptCapabilities) (string, []agent.PromptLayer) {
 	effectivePrompt := DefaultSystemPrompt
 	layers := []agent.PromptLayer{{Name: "runtime", Chars: len(DefaultSystemPrompt)}}
 	appendLayer := func(name, text string) {
@@ -75,8 +81,18 @@ func BuildSystemPromptWithLayers(workspaceDir, modelName, additionalSystemPrompt
 	if ws, err := ReadAgentsMd(workspaceDir); err == nil && ws != "" {
 		appendLayer("workspace_agents_md", ws)
 	}
+	if shared := strings.TrimSpace(teamInstructions); shared != "" {
+		appendLayer("space_instructions", "# Space instructions\n"+shared)
+	}
 	if extra := strings.TrimSpace(additionalSystemPrompt); extra != "" {
-		appendLayer("additional_system_prompt", "# Additional instructions\n"+extra)
+		if additionalLayerName == "" {
+			additionalLayerName = "additional_system_prompt"
+		}
+		heading := "# Additional instructions\n"
+		if additionalLayerName == "agent_instructions" {
+			heading = "# Agent instructions\n"
+		}
+		appendLayer(additionalLayerName, heading+extra)
 	}
 	return effectivePrompt, layers
 }
