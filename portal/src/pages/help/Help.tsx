@@ -6,8 +6,8 @@ import { navigate } from "../../router"
 
 /**
  * Help renders the end-user manual that ships inside the portal image. The pages
- * are plain markdown files under /help, mirrored from the repository-root help/
- * directory at build time (portal/scripts/sync-help.mjs). English is the source
+ * are plain markdown files under /help, mirrored from the repository-root manual/
+ * directory at build time (portal/scripts/sync-manual.mjs). English is the source
  * and lives at /help; the Chinese translation lives at /help/zh. This page
  * fetches <base>/manifest.json for the table of contents and <base>/<slug>.md
  * for a page, so adding documentation never touches the portal bundle — only the

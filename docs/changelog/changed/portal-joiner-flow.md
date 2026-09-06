@@ -3,3 +3,5 @@
   cannot sign in until a code is issued. Create and issue-a-code remain separate
   actions with separate audit events; the Portal only guides the operator from
   one to the next.
+
+  > **简体中文：** [阅读中文镜像](../../zh-CN/changelog/changed/portal-joiner-flow.md)

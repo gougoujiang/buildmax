@@ -143,7 +143,7 @@ This stack is shaped for a laptop. Before it faces anyone else:
   which also removes the CORS pairing below.
 - **The agent runs shell commands.** The worker executes what the model asks
   for, inside the server container, with the sandbox
-  [off by default](../../help/sandbox.md).
+  [off by default](../../manual/sandbox.md).
 - **Storage is a Docker volume.** `docker compose down -v` deletes every
   workspace, artifact, and account with it.
 

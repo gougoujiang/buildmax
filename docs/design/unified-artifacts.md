@@ -385,7 +385,7 @@ producing run or agent, creation time, preview/download action, and the
 canonical link.
 
 The LLM-facing name follows `internal/tool/names.go`; when implementation
-adds the constant, `help/tools.md` becomes the user-facing source of
+adds the constant, `manual/tools.md` becomes the user-facing source of
 truth for its arguments and availability.
 
 ## 8. Authorization, Governance, And Limits

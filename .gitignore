@@ -93,8 +93,8 @@ gui/*.tsbuildinfo
 portal/node_modules/
 portal/dist/
 portal/*.tsbuildinfo
-# Copied from the repository-root help/ manual by portal/scripts/sync-help.mjs at
-# predev/prebuild. help/ is the source of truth; this mirror is generated.
+# Copied from the repository-root manual by portal/scripts/sync-manual.mjs at
+# predev/prebuild. manual/ is the source of truth; this mirror is generated.
 portal/public/help/
 
 # Desktop app (Wails) — frontend in desktop/frontend (React + Vite).

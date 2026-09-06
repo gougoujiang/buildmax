@@ -4,3 +4,5 @@
   are plain Markdown under the repository-root `help/` directory and are baked
   into the portal image at build time, so the manual ships with the app and needs
   no separate site.
+
+  > **简体中文：** [阅读中文镜像](../../zh-CN/changelog/added/portal-help-center.md)
