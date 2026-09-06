@@ -44,7 +44,10 @@ export type Route =
       name: "space"
       section?: "overview" | "members" | "plugins" | "security" | "secrets" | "audit" | "memberNew"
     }
-  | { name: "admin"; section?: "overview" | "accounts" | "spaces" | "models" | "plugins" | "audit" }
+  | {
+      name: "admin"
+      section?: "overview" | "administrators" | "accounts" | "spaces" | "models" | "plugins" | "audit"
+    }
   | { name: "workflows" }
   | { name: "workflow"; workflowId: string }
   | { name: "workflowRun"; workflowRunId: string }

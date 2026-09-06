@@ -21,6 +21,10 @@ test("an account without a grant is sent away from the admin area", async ({ pag
   // tell them about. The heading is the whole area's marker.
   await expect(page.getByRole("heading", { name: "Administration" })).toHaveCount(0)
   await expect(page).toHaveURL(/#\/?$|#\/home/)
+
+  // And the first-level sidebar entry is not there either: the server confirms
+  // the grant before the nav item is rendered at all.
+  await expect(page.getByRole("button", { name: "Administration" })).toHaveCount(0)
 })
 
 test("an ungranted account still has a space of its own", async ({ page }) => {

@@ -65,12 +65,16 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
   } else if (route.name === "admin") {
     const sectionLabel = (() => {
       switch (route.section) {
+        case "administrators":
+          return "Administrators"
         case "accounts":
           return "Accounts"
         case "spaces":
           return "Spaces"
         case "models":
           return "Models"
+        case "plugins":
+          return "Plugins"
         case "audit":
           return "Audit"
         case "overview":

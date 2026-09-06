@@ -19,6 +19,7 @@ test("an administrator can open the deployment overview by URL", async ({ page }
 
 test("each administration section is linkable and survives a reload", async ({ page }) => {
   for (const [path, heading] of [
+    ["/#/admin/administrators", "Administrators"],
     ["/#/admin/accounts", "Accounts"],
     ["/#/admin/spaces", "Spaces"],
     ["/#/admin/models", "Models"],
@@ -30,6 +31,23 @@ test("each administration section is linkable and survives a reload", async ({ p
     await expect(page.getByRole("heading", { name: heading })).toBeVisible()
     await expect(page.locator(".settings-section__error")).toHaveCount(0)
   }
+})
+
+test("an administrator reaches administration from the first-level sidebar", async ({ page }) => {
+  await page.goto("/#/home")
+  await page.getByRole("button", { name: "Administration" }).click()
+  await expect(page.getByRole("heading", { name: "Administration" })).toBeVisible()
+})
+
+test("the Administrators section lists who can operate the deployment", async ({ page }) => {
+  await page.goto("/#/admin/administrators")
+  await expect(page.getByRole("heading", { name: "Administrators" })).toBeVisible()
+
+  // `./make e2e` granted the test account, so the list is never empty and the
+  // account carries an active grant.
+  await expect(page.locator(".admin-list__row").first()).toBeVisible()
+  await expect(page.locator(".admin-pill--ok").first()).toBeVisible()
+  await expect(page.locator(".settings-section__error")).toHaveCount(0)
 })
 
 test("the audit search reaches the events that have no space", async ({ page }) => {

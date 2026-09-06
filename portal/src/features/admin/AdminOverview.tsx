@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
-import type { ApiAdminSystem } from "../../lib/api/types"
+import type { ApiAdminMe, ApiAdminSystem } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { getAdminConfig, getAdminSystem } from "./api"
+import { getAdminConfig, getAdminMe, getAdminSystem } from "./api"
 
 function StatusPill({ ok, label }: { ok: boolean; label: string }) {
   return (
@@ -30,6 +30,7 @@ function Fact({ label, value }: { label: string; value: string }) {
 export function AdminOverview({ token }: { token: string | null }) {
   const [system, setSystem] = useState<ApiAdminSystem | null>(null)
   const [config, setConfig] = useState<Record<string, unknown> | null>(null)
+  const [me, setMe] = useState<ApiAdminMe | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -37,11 +38,16 @@ export function AdminOverview({ token }: { token: string | null }) {
     if (!token) return
     let cancelled = false
     setLoading(true)
-    Promise.all([getAdminSystem(token), getAdminConfig(token).catch(() => null)])
-      .then(([sys, cfg]) => {
+    Promise.all([
+      getAdminSystem(token),
+      getAdminConfig(token).catch(() => null),
+      getAdminMe(token).catch(() => null),
+    ])
+      .then(([sys, cfg, mine]) => {
         if (cancelled) return
         setSystem(sys)
         setConfig(cfg)
+        setMe(mine)
       })
       .catch((err) => {
         if (!cancelled) setError(getErrorMessage(err, "Failed to load the deployment status"))
@@ -66,9 +72,38 @@ export function AdminOverview({ token }: { token: string | null }) {
 
   const warnings = Array.isArray(config?.warnings) ? (config.warnings as string[]) : []
   const runStatuses = Object.entries(system.task_runs).sort(([a], [b]) => a.localeCompare(b))
+  const myGrant = me?.grants?.[0]
+  const grantedBy = myGrant
+    ? myGrant.granted_by === "buildmax-server"
+      ? "the operator command"
+      : myGrant.granted_by
+    : ""
+  // The redacted config minus warnings, which have their own section. The server
+  // has already reduced every credential to a set/not-set boolean, so this is
+  // safe to render whole.
+  const configEntries = Object.entries(config ?? {}).filter(([key]) => key !== "warnings")
 
   return (
     <div className="admin-sections">
+      {myGrant ? (
+        <section className="settings-page__section">
+          <div className="settings-page__section-head">
+            <div>
+              <h2 className="settings-page__section-title">Your access</h2>
+              <p className="settings-page__section-copy">
+                Why you can see this area. Deployment authority is separate from any
+                space role you also hold.
+              </p>
+            </div>
+          </div>
+          <div className="admin-facts">
+            <Fact label="Role" value={myGrant.role} />
+            <Fact label="Granted by" value={grantedBy} />
+            <Fact label="Granted" value={new Date(myGrant.granted_at).toLocaleString()} />
+          </div>
+        </section>
+      ) : null}
+
       <section className="settings-page__section">
         <div className="settings-page__section-head">
           <div>
@@ -156,6 +191,33 @@ export function AdminOverview({ token }: { token: string | null }) {
               </li>
             ))}
           </ul>
+        </section>
+      ) : null}
+
+      {configEntries.length > 0 ? (
+        <section className="settings-page__section">
+          <div className="settings-page__section-head">
+            <div>
+              <h2 className="settings-page__section-title">Effective configuration</h2>
+              <p className="settings-page__section-copy">
+                The resolved <code>server.yaml</code>, read-only. Every credential is
+                shown only as whether it is set — never its value. Change it by editing
+                the file and restarting the server.
+              </p>
+            </div>
+          </div>
+          <details className="admin-config">
+            <summary className="admin-config__summary">Show configuration</summary>
+            <div className="admin-facts">
+              {configEntries.map(([key, value]) => (
+                <Fact
+                  key={key}
+                  label={key}
+                  value={typeof value === "object" ? JSON.stringify(value) : String(value)}
+                />
+              ))}
+            </div>
+          </details>
         </section>
       ) : null}
 

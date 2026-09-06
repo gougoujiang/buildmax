@@ -14,6 +14,7 @@ import IssueIcon from "../icons/issue.svg?react"
 import WorkflowIcon from "../icons/workflow.svg?react"
 import AgentsIcon from "../icons/agents.svg?react"
 import ArtifactIcon from "../icons/artifact.svg?react"
+import ShieldIcon from "../icons/shield.svg?react"
 import { CreateSpaceDialog } from "../components/CreateSpaceDialog"
 import { useSpace } from "../contexts/SpaceContext"
 import { useAdminAccess } from "../features/admin"
@@ -48,6 +49,10 @@ function isWorkflowsActive(route: Route): boolean {
 
 function isArtifactsActive(route: Route): boolean {
   return route.name === "artifacts" || route.name === "artifact"
+}
+
+function isAdminActive(route: Route): boolean {
+  return route.name === "admin"
 }
 
 export function Sidebar({
@@ -208,6 +213,16 @@ export function Sidebar({
             <ArtifactIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">Artifacts</span>
           </button>
+          {isSystemAdmin && (
+            <button
+              type="button"
+              className={cn("sidebar__nav-item", isAdminActive(route) && "sidebar__nav-item--active")}
+              onClick={() => navigate({ name: "admin", section: "overview" })}
+            >
+              <ShieldIcon className="sidebar__nav-icon" aria-hidden />
+              <span className="sidebar__nav-item-text">Administration</span>
+            </button>
+          )}
         </div>
       </nav>
       <div className="sidebar__footer" aria-label="User" ref={userMenuRef}>
@@ -274,27 +289,11 @@ export function Sidebar({
               Space
             </button>
             {/*
-              Only for someone the server has confirmed may operate the
-              deployment. Hiding it is presentation — /api/admin refuses either
-              way — but an entry that leads to a forbidden screen is worse than
-              no entry.
+              Administration is a first-level sidebar destination for a confirmed
+              holder, not a user-menu item: it is a separate authority over the
+              deployment, and the server confirms the grant before the nav entry
+              is shown at all.
             */}
-            {isSystemAdmin ? (
-              <button
-                type="button"
-                className="sidebar__user-menu-item"
-                role="menuitem"
-                onClick={() => {
-                  setUserMenuOpen(false)
-                  navigate({ name: "admin", section: "overview" })
-                }}
-              >
-                <span className="sidebar__user-menu-item-icon" aria-hidden>
-                  <SettingsIcon />
-                </span>
-                Administration
-              </button>
-            ) : null}
             <button
               type="button"
               className="sidebar__user-menu-item"

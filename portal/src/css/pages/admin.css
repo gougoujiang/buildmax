@@ -175,6 +175,26 @@
   font-size: 0.9rem;
 }
 
+.admin-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.5rem 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.admin-config__summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  padding: 0.25rem 0;
+}
+
+.admin-config[open] .admin-config__summary {
+  margin-bottom: 0.5rem;
+}
+
 /*
  * Every page says what it does not show. An operator who assumes otherwise
  * eventually reports a missing feature that is actually the boundary.
