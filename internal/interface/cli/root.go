@@ -85,6 +85,7 @@ func NewRootCommand() *cobra.Command {
 	root.AddCommand(newSandboxCommand())
 	root.AddCommand(newToolsCommand())
 	root.AddCommand(newIssueCommand())
+	root.AddCommand(newAdminCommand())
 	root.AddCommand(newPluginCommand())
 	root.AddCommand(newModelsCommand())
 	root.AddCommand(newInfoCommand())
