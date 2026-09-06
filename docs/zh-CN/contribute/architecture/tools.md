@@ -1,9 +1,10 @@
-# Tools
+# 工具
 
-> **简体中文：** [阅读中文镜像](../../zh-CN/contribute/architecture/tools.md)
+> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/tools.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `a4df671b1df0fa3e31cdfae3838b8ad9d083711dada896d4dff6709db5c751aa`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **简体中文：** [阅读中文镜像](tools.md)
 > **Audience:** contributors · **Status:** current
 >
-> User-facing tool guide: [help/tools.md](../../../help/tools.md)
+> User-facing tool guide: [help/tools.md](../../../../help/tools.md)
 
 ## Purpose
 
@@ -99,7 +100,7 @@ results are sent back to the model as tool-role messages.
 
 - **Parameters**: `name` (required), `content` (required, may be empty), `description`, `type`
 - **Behavior**: Creates or replaces exactly one memory, at most 20 per project with a 100-character description and a 2,000-character body. Empty `content` deletes it. Creating a name that does not exist is always accepted; replacing one requires that this run read it — an unread replacement and a stale one are refused with different messages, because one needs a read and the other a merge. No version token appears in the schema: the comparison stays inside the runtime.
-- **Registration**: both are registered only on a local primary run whose session belongs to a project and whose user did not pass `--no-project-memory`. They are appended after the agent types are built, so no subagent definition can name them, and a delegate carries no index either. See [design/local-project-memory.md](../../design/local-project-memory.md) §9.
+- **Registration**: both are registered only on a local primary run whose session belongs to a project and whose user did not pass `--no-project-memory`. They are appended after the agent types are built, so no subagent definition can name them, and a delegate carries no index either. See [design/local-project-memory.md](../../../design/local-project-memory.md) §9.
 
 ### Surface-scoped tools
 
@@ -121,7 +122,7 @@ is not a permission denial.
 Portal background runs may add a Space instruction layer before the selected
 Agent's additional system prompt. Both are stable for that run; the additional
 prompt's `## Invariants` section is restated in the same block these tools render
-into. See [design/context-durability.md](../../design/context-durability.md).
+into. See [design/context-durability.md](../../../design/context-durability.md).
 
 Both write durable session state rather than returning a formatted string and
 nothing else. The state lives on `session.Session`, is reached through the
@@ -130,7 +131,7 @@ and shared across sessions, and is re-rendered after the message list on every
 call by `agent.RenderSessionState`. It is therefore never trimmed and never
 accumulates in the history. A subagent run is pointed at its own session, so it
 cannot overwrite the state of the run that delegated to it. See
-[design/context-durability.md](../../design/context-durability.md).
+[design/context-durability.md](../../../design/context-durability.md).
 
 The memory tools follow the same context-carried pattern
 (`agent.CtxWithMemoryStore`) over a different lifetime: the memories belong to
@@ -148,7 +149,7 @@ matchers and subagent `tools:` fields match against their exact strings.
 ## What A Tool Declares About Itself
 
 Beyond `llm.Tool`, four optional interfaces feed the permission layer. Full
-layering: [design/tool-permissions.md](../../design/tool-permissions.md).
+layering: [design/tool-permissions.md](../../../design/tool-permissions.md).
 
 **`Access(args)` is the one every tool should implement.** It answers whether
 the call changes anything the user owns. The zero value is `AccessWrite`, so
@@ -217,7 +218,7 @@ Declare `Access`, and read the concurrency obligation above before choosing
 `AccessReadOnly`. Add `CheckArgs` if some arguments are riskier than others.
 Reach for `DefaultAction` only when the tool genuinely knows better than the
 category, and say why in the comment. Then add a row to the table in
-[design/tool-permissions.md](../../design/tool-permissions.md) section 6 —
+[design/tool-permissions.md](../../../design/tool-permissions.md) section 6 —
 `internal/tool/permission_test.go` is table-driven against it and will fail
 until you do.
 
@@ -239,4 +240,4 @@ until you do.
 - All tools enforce path security — file operations must be under the configured root directory.
 - Tool output is designed for LLM consumption: meaningful messages on both success and failure.
 - Error messages are prefixed with `error:` by the agent when sent to the LLM.
-- See also: [Agent Loop](agent-loop.md), [CLI](cli.md), [help/tool-permissions.md](../../../help/tool-permissions.md).
+- See also: [Agent Loop](agent-loop.md), [CLI](cli.md), [help/tool-permissions.md](../../../../help/tool-permissions.md).

@@ -1,6 +1,7 @@
 # Data Model
 
-> **简体中文：** [阅读中文镜像](../../zh-CN/contribute/architecture/data-model.md)
+> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/data-model.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `2f755407bdfc4e8bba79bfd79206ed50640391559852d944e74b1086317db686`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **简体中文：** [阅读中文镜像](data-model.md)
 > **Audience:** contributors · **Status:** current
 
 The full relational schema of the BuildMax server database: every table, every
@@ -9,8 +10,8 @@ under `internal/infra/db`.
 
 For the layering around persistence — which package owns contracts versus the
 implementation — see [store.md](store.md). For why the entities are shaped this
-way, see [../../design/product-vision.md](../../design/product-vision.md) and
-[../../design/space-governance.md](../../design/space-governance.md).
+way, see [../../../design/product-vision.md](../../../design/product-vision.md) and
+[../../../design/space-governance.md](../../../design/space-governance.md).
 
 ## Where The Schema Lives
 
@@ -39,7 +40,7 @@ readable; `ascii_bin` keeps comparison memcmp, and the store writes only the
 canonical lowercase form. A read rooted at a handle resolves it once through
 the unique index and is numeric after that. Why, and which tables have a
 handle at all, is in
-[../../design/entity-identity.md](../../design/entity-identity.md) — the
+[../../../design/entity-identity.md](../../../design/entity-identity.md) — the
 storage form is its §17 amendment.
 
 **Not every row has a handle.** A join row, a revision, and a catalog record
@@ -67,7 +68,7 @@ every access token issued under it.
 this document is a plain indexed column that application code is responsible
 for keeping consistent. Deleting a parent row does not cascade, and a numeric
 reference must not be read as implying that it would. That is decided rather
-than deferred: [entity identity](../../design/entity-identity.md) §8 reviewed
+than deferred: [entity identity](../../../design/entity-identity.md) §8 reviewed
 the store's deletion semantics — no hard delete removes a referenced parent —
 and leaves the constraints to the change that first ships a real deletion
 feature, where the order has to be written down anyway.
@@ -83,7 +84,7 @@ no sentinel zeros. Every connection speaks UTC: `db.New` forces `loc=UTC` and a
 the server and one read by an operator's shell are the same instant. Durations,
 quotas, and counts are not instants and stay `bigint`, with the unit in the
 name. The reasoning is in
-[timestamp representation](../../design/timestamp-representation.md).
+[timestamp representation](../../../design/timestamp-representation.md).
 
 **Nullability is narrower than the Go type suggests.** `AutoMigrate` only emits
 `NOT NULL` where a tag says so. A non-pointer Go field without `not null` maps
@@ -161,14 +162,14 @@ user-facing work object. Conversation owns foreground chat and may create or
 project a Task. Task plus task_run is the durable Agent execution plane and its
 result is authoritative without a Conversation. The current non-null relation
 below is implementation debt; the target ownership and continuation model are
-in [Agent execution and Task threads](../../design/agent-execution-and-task-threads.md).
+in [Agent execution and Task threads](../../../design/agent-execution-and-task-threads.md).
 
 ## Identity And Authorization
 
 ### `user`
 
 One row per person. Created by an operator; self-registration is disabled by
-default (see [../../deploy/authentication.md](../../deploy/authentication.md)).
+default (see [../../deploy/authentication.md](../../../deploy/authentication.md)).
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -190,7 +191,7 @@ Indexes: PK `id`; unique `email`; unique `public_id`.
 column on this row rather than a side table: the check has to be one
 primary-key read. Disabling is not deletion — nothing is removed, and enabling
 clears the column and nothing else. What each credential does about it is in
-[../../design/system-administration.md](../../design/system-administration.md)
+[../../../design/system-administration.md](../../../design/system-administration.md)
 section 8.
 
 `last_login_at` and `last_login_platform` are written by the login handler,
@@ -276,7 +277,7 @@ approvals are planned but not implemented. The audit trail is implemented in
 ### `space_invitation`
 
 A pending offer of space membership against an account that already exists.
-See [space membership lifecycle](../../design/space-membership-lifecycle.md).
+See [space membership lifecycle](../../../design/space-membership-lifecycle.md).
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -310,7 +311,7 @@ be evidence of a bug no caller could act on.
 One deployment-scoped authority held by one user, attached to no space. This is
 the only table in the schema that grants anything outside a Space, and it grants
 operation of the deployment rather than access to its contents — see
-[../../design/system-administration.md](../../design/system-administration.md).
+[../../../design/system-administration.md](../../../design/system-administration.md).
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -387,7 +388,7 @@ kept until then, so a reuse report still has a chain to inspect.
 ### `user_webhook_key`
 
 API keys for the inbound webhook surface documented in
-[../../reference/webhook.md](../../reference/webhook.md).
+[../../reference/webhook.md](../../../reference/webhook.md).
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -611,7 +612,7 @@ recycle bin.
 
 These are server-side agent records. They are distinct from the workspace
 subagents defined as Markdown files under `.buildmax/`; see
-[help/skills-and-subagents.md](../../../help/skills-and-subagents.md).
+[help/skills-and-subagents.md](../../../../help/skills-and-subagents.md).
 
 ### `agent_revision`
 
@@ -678,7 +679,7 @@ but is not in `ValidChannels`, so it cannot be supplied by a caller.
 A workflow step and an issue agent run each create a Task directly, with
 `task.space_id` as owner and no `conversation_id`; neither creates a
 conversation for Task to hang on. See
-[agent execution and Task threads](../../design/agent-execution-and-task-threads.md).
+[agent execution and Task threads](../../../design/agent-execution-and-task-threads.md).
 
 ### `conversation_message`
 
@@ -710,7 +711,7 @@ resumes from these rows, so without it a second turn would send the upstream a
 conversation it rejects. A row written before the column existed, or one holding
 something that no longer parses, replays as a message without state rather than
 failing the turn. See
-[design/llm-provider-adapters.md](../../design/llm-provider-adapters.md).
+[design/llm-provider-adapters.md](../../../design/llm-provider-adapters.md).
 
 ## Background Execution
 
@@ -815,7 +816,7 @@ is not a duplicate of `NULL` in a MySQL unique index, so every run created
 without a key coexists with every other one. `CreateTaskRun` takes a locking
 read on the task row before checking this and the active-run count below, so
 two concurrent callers for one task cannot both see a clean slate and both
-insert; see [agent execution and Task threads §12](../../design/agent-execution-and-task-threads.md#12-failure-recovery-and-concurrency).
+insert; see [agent execution and Task threads §12](../../../design/agent-execution-and-task-threads.md#12-failure-recovery-and-concurrency).
 
 `agent_revision` is not a reference to `agent_revision.id`: a revision is
 addressed by its agent plus its number, and the task already holds the agent. It
@@ -914,7 +915,7 @@ The scheduler claims work by polling for the oldest pending run
 
 An immutable, complete representation of a Task's `workspace/` at one boundary —
 its seed, a successful result, or a partial. See
-[task workspace checkpoints](../../design/task-workspace-checkpoints.md) §9.1.
+[task workspace checkpoints](../../../design/task-workspace-checkpoints.md) §9.1.
 The payload lives in object storage; this row is its metadata.
 
 | Column | Type | Null | Notes |
@@ -953,7 +954,7 @@ The name is reused: the `artifact` table dropped by migration 0001 was a task
 run's child structure. This one is a first-class object whose producer is
 recorded as provenance, so migration 0001 now checks for `artifact_item` and for
 a legacy `task_run_id` column before touching either table. See
-[../../design/unified-artifacts.md](../../design/unified-artifacts.md).
+[../../../design/unified-artifacts.md](../../../design/unified-artifacts.md).
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -1108,7 +1109,7 @@ marked `canceled` rather than `failed`, because nothing went wrong.
 ## Managed Inference
 
 These two tables back the LLM gateway. Read
-[../../design/llm-gateway.md](../../design/llm-gateway.md) before changing
+[../../../design/llm-gateway.md](../../../design/llm-gateway.md) before changing
 either.
 
 ### `llm_model`
@@ -1150,7 +1151,7 @@ Indexes: PK `id`; index `created_at`; unique `name`; unique `public_id`.
 `api_key` is read by exactly one query — the one that constructs a provider
 client — and never appears in a listing, an API response, or an error message.
 It is nonetheless stored in plaintext, so **database backups carry provider
-credentials** and must be handled accordingly. See [../../../SECURITY.md](../../../SECURITY.md).
+credentials** and must be handled accordingly. See [../../../SECURITY.md](../../../../SECURITY.md).
 
 `capabilities` is a comma-separated list rather than a join table: the set is
 small, closed, and only ever read whole.
@@ -1208,7 +1209,7 @@ belongs to no space, and a run's space is reached through `task_run_id`. The
 composite unique index leads with `user_id`, which both scopes idempotency per
 caller and serves per-user lookups — so there is deliberately no second index on
 `user_id` alone. See
-[../../design/client-modes.md](../../design/client-modes.md) section 9.
+[../../../design/client-modes.md](../../../design/client-modes.md) section 9.
 
 The cache counts **break `prompt_tokens` down rather than adding to it**. A
 spend report that summed all three would count the same tokens twice.
@@ -1235,7 +1236,7 @@ them. The two will not agree, by design.
 ## Plugin Catalog
 
 These two tables back the private Marketplace. Read
-[../../design/plugin-marketplace.md](../../design/plugin-marketplace.md) before
+[../../../design/plugin-marketplace.md](../../../design/plugin-marketplace.md) before
 changing either.
 
 The catalog belongs to the deployment, not to a space: neither table carries a
@@ -1344,7 +1345,7 @@ admin activating deliberately; `automatic` is the row created because an agent
 named the plugin in a space whose `space.plugin_curation` is `open`. Both are
 real pins with the same digest and the same audit event, and `activated_by`
 names a person either way. See
-[../../design/plugin-space-distribution.md](../../design/plugin-space-distribution.md)
+[../../../design/plugin-space-distribution.md](../../../design/plugin-space-distribution.md)
 §4.1.
 
 ## Changing The Schema
@@ -1441,3 +1442,277 @@ implying an undo exists.
 whether [store.md](store.md) or the design record for the subsystem also needs
 a change. Run `./make test` — the store tests in `internal/infra/db` use an
 isolated database and will catch a mapping that no longer round-trips.
+
+## 工作对象
+
+### `issue`
+
+主要的用户工作对象。
+
+| 列 | 类型 | 可空 | 说明 |
+|---|---|---|---|
+| `id` | `bigint unsigned` | 否 | 内部主键 |
+| `public_id` | `char(20) ascii_bin` | 否 | 公开句柄，唯一 |
+| `user_id` | `bigint unsigned` | 否 | 所属用户 |
+| `space_id` | `bigint unsigned` | 是 | 所属 Space；授权键 |
+| `parent_issue_id` | `bigint unsigned` | 是 | 父项的 `issue.id`；顶层 Issue 为 `NULL` |
+| `title` | `varchar(255)` | 否 | |
+| `description` | `text` | 否 | |
+| `status` | `varchar(32)` | 否 | `todo`、`in_progress`、`done` |
+| `assignee_kind` | `varchar(32)` | 是 | `person`、`agent` 或 `workflow` |
+| `assignee_id` | `varchar(64)` | 是 | 根据 `assignee_kind` 解释为 `user_id`、`agent_id` 或 `workflow_id` |
+| `created_by` | `bigint unsigned` | 否 | `user.id` |
+| `version` | `bigint unsigned` | 否 | 乐观并发控制令牌，从 1 开始 |
+| `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
+| `updated_at` | `datetime(6)` | 是 | `autoUpdateTime` |
+
+索引：主键 `id`；索引 `parent_issue_id`；(`space_id`, `updated_at`) 上的索引 `idx_issue_space_updated`；索引 `user_id`；唯一索引 `public_id`。
+
+`version` 使每次更新都带条件。更新携带其所依据的版本，store 用 `WHERE public_id = ? AND version = ?` 写入并设置 `version = version + 1`；版本不再匹配的调用者收到 `coreissue.ErrVersionConflict`，即 409，而不是覆盖自己未读过的变更。没有无条件更新路径：不带版本的更新会失败，因为零值不匹配任何行。这里没有复用 `updated_at`；它用于展示和排序，正确性检查不应依赖它经过 RFC 3339 后仍能精确往返。
+
+`assignee_kind` / `assignee_id` 对是多态引用，没有索引或约束将其绑定到特定表，因此验证位于 `internal/service/issue`。
+
+`parent_issue_id` 是构成邻接表的自引用，层级最多为**两层**：父项自身必须满足 `parent_issue_id IS NULL`。模式不强制这一点；不变量位于 `internal/service/issue`，它还拒绝不同 Space 的父项、自身作为父项，以及为已有子项的 Issue 设置父项。进度（`child_count`、`done_child_count`）通过分组查询为每个响应计算，从不存储。权威验证见 `internal/service/issue`。
+
+### `issue_comment`
+
+一条面向人的 Issue 评论。
+
+| 列 | 类型 | 可空 | 说明 |
+|---|---|---|---|
+| `id` | `bigint unsigned` | 否 | 内部主键 |
+| `public_id` | `char(20) ascii_bin` | 否 | 公开句柄，唯一 |
+| `issue_id` | `bigint unsigned` | 否 | `issue.id` |
+| `author_kind` | `varchar(16)` | 否 | `user`、`agent`、`local_agent` 或 `system` |
+| `author_id` | `varchar(64)` | 否 | `user_id` 或 `agent_id`；`local_agent` 时为报告人；`system` 时为空 |
+| `body` | `text` | 否 | 原样存储的 Markdown 源码；服务限制为 16 KiB |
+| `source_task_id` | `bigint unsigned` | 是 | 在 `agent` 评论上设置；`local_agent` 评论不指向运行，绝不设置 |
+| `source_task_run_id` | `bigint unsigned` | 是 | 在 `agent` 评论上设置；`local_agent` 评论不指向运行，绝不设置 |
+| `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
+| `edited_at` | `datetime(6)` | 是 | 正文修改前为 `NULL` |
+
+索引：主键 `id`；(`issue_id`, `created_at`) 上的索引 `idx_issue_comment_issue_created`；唯一索引 `public_id`。
+
+先按 `created_at`、再按 `id` 排序——评论串从最早内容读起，公开句柄是随机的，不按时间排列。
+
+此行**没有 `space_id`**。评论的 Space 就是其 Issue 的 Space，每个处理器本来就会加载 Issue 进行授权；反规范化授权键会多出一个可能出错的位置。这与 `conversation_message` 通过 Conversation 解析 Space 的方式一致。
+
+删除是硬删除，没有 `deleted_at`，也没有墓碑标记。只有评论作者本人可以编辑；Agent 或系统评论是运行报告的记录，任何人都不能编辑，不过 Space owner 可以删除。
+
+### `agent`
+
+存储的 Agent 定义：Task 可以使用的一组名称和系统指令。
+
+| 列 | 类型 | 可空 | 说明 |
+|---|---|---|---|
+| `id` | `bigint unsigned` | 否 | 内部主键 |
+| `public_id` | `char(20) ascii_bin` | 否 | 公开句柄，唯一 |
+| `user_id` | `bigint unsigned` | 否 | 所属用户 |
+| `space_id` | `bigint unsigned` | 是 | 所属 Space |
+| `name` | `varchar(255)` | 否 | |
+| `description` | `text` | 是 | 在选择器中显示 |
+| `instructions` | `text` | 是 | 使用此 Agent 的运行将其追加到系统提示词 |
+| `plugins` | `text` | 是 | 此 Agent 加载的目录插件名称的 JSON 数组 |
+| `sandbox_network_tier` | `varchar(64)` | 是 | `none`、`registries` 或 `open`；为空则继承 Space 默认值，再回退到界面基线 |
+| `sandbox_filesystem_tier` | `varchar(64)` | 是 | `workspace`、`workspace_plus_shared_read` 或 `workspace_plus_external_write`；与网络级别使用相同回退规则 |
+| `revision` | `bigint` | 否 | 保存此内容的 `agent_revision` 行的修订号；从 1 开始 |
+| `deleted_at` | `datetime(6)` | 是 | Agent 删除时设置；行保留 |
+| `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
+
+索引：主键 `id`；索引 `deleted_at`；索引 `space_id`；索引 `user_id`；唯一索引 `public_id`。
+
+删除只写入 `deleted_at`，不执行 `DELETE`。Task、WorkflowStepRun 和修订都通过 ID 引用 Agent，移除行会让它们全部变成悬空引用，并让仍在进行的 WorkflowRun 在下一步失败。因此读取分为两类：`GetAgent` 和列表查询只查看存活 Agent，避免用已删除 Agent 启动新工作；`GetAgentIncludingDeleted` 则解析已有记录的引用。若 `published` Workflow 仍引用某 Agent，删除会被拒绝并返回 `409`——该 Workflow 仍可运行，否则错误会在下次运行时才暴露，而不是在删除时暴露。草稿和归档 Workflow 不阻止删除，因为两者都不能启动运行，而且发布时会重新验证 Agent。
+
+`plugins` 指定目录插件，而不指定发布版本：版本和摘要来自 Space 的 `plugin_activation` 行，因此将插件切换到新版本始终只需修改一处。不从 Space 的激活项隐式继承任何插件——未指定插件的 Agent 不加载插件——列表存储前去除首尾空白、去重并排序，因此重排同一集合不会追加修订。采用 JSON 列而非关联表，是因为不查询其内部：选择整体写入、整体读取，“哪些 Agent 指定了此插件”通过扫描一个 Space 的 Agent 得出。
+
+没有撤销删除的路由。保留行是为了让引用可解析，不是将其用作回收站。
+
+这些是服务端 Agent 记录，与 `.buildmax/` 下通过 Markdown 文件定义的工作区 subagent 不同；见 [help/skills-and-subagents.md](../../../../help/skills-and-subagents.md)。
+
+### `agent_revision`
+
+Agent 定义的一次版本记录。行仅追加，从不更新或删除。
+
+| 列 | 类型 | 可空 | 说明 |
+|---|---|---|---|
+| `id` | `bigint unsigned` | 否 | 内部主键 |
+| `agent_id` | `bigint unsigned` | 否 | `agent.id` |
+| `revision` | `bigint` | 否 | 首次记录内容为 1，此后每次变更加一 |
+| `name` | `varchar(255)` | 否 | |
+| `description` | `text` | 是 | |
+| `instructions` | `text` | 是 | |
+| `plugins` | `text` | 是 | JSON 数组；此修订记录的选择 |
+| `sandbox_network_tier` | `varchar(64)` | 是 | 此修订记录的级别 |
+| `sandbox_filesystem_tier` | `varchar(64)` | 是 | 此修订记录的级别 |
+| `created_by` | `bigint unsigned` | 否 | 写入此修订的用户，不一定是 Agent owner |
+| `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
+
+索引：主键 `id`；(`agent_id`, `revision`) 上的唯一索引 `idx_agent_revision`。
+
+修订与其描述的 Agent 行在同一事务中写入，唯一的 (`agent_id`, `revision`) 索引让并发的第二次写入失败，而不是将两个定义记在同一修订号下。没有实际变化的更新不追加修订。恢复早期修订是普通更新：追加一条包含旧内容的新修订，而非把修订号倒退回去。
+
+修订的生命周期长于 Agent 的使用期：删除的 Agent 保留历史，过去运行的来源信息正是指向这些历史。修订路由只服务存活 Agent，因此读取已删除 Agent 的历史需要查询表。
+
+修订历史引入前已经存在的 Agent 和 Workflow，由迁移 `0003_seed_first_agent_and_workflow_revision` 补充修订 1。这一行是近似记录：作者是记录创建者，时间戳是内容上次变动的时间，两者未必能标识产生所存内容的那次编辑。
+
+### `conversation`
+
+独立的前台聊天，以及可选的 Agent Task 编排器。它拥有自己的消息，而不拥有可能启动或展示的 Task。
+
+| 列 | 类型 | 可空 | 说明 |
+|---|---|---|---|
+| `id` | `bigint unsigned` | 否 | 内部主键 |
+| `public_id` | `char(20) ascii_bin` | 否 | 公开句柄，唯一 |
+| `user_id` | `bigint unsigned` | 否 | 所属用户 |
+| `space_id` | `bigint unsigned` | 是 | 所属 Space |
+| `channel` | `varchar(32)` | 否 | `portal`、`telegram`、`cron`、`webhook`，或合成的 `workflow` / `issue_agent` |
+| `title` | `varchar(256)` | 是 | 根据第一轮生成 |
+| `created_by` | `bigint unsigned` | 否 | `user.id` |
+| `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
+
+索引：主键 `id`；(`space_id`, `created_at`) 上的索引 `idx_conversation_space_created`；(`user_id`, `created_at`) 上的索引 `idx_conversation_user_created`；唯一索引 `public_id`。
+
+传输渠道常量位于 `internal/service/conversation/channel/types.go`。`system` 常量存在，但不在 `ValidChannels` 中，因此调用者不能传入它。
+
+Workflow 步骤和 Issue Agent 运行都直接创建 Task，以 `task.space_id` 作为所有权依据，不设 `conversation_id`；两者均不会创建 Conversation 来挂载 Task。见 [Agent 执行与 Task 线程](../../../design/agent-execution-and-task-threads.md)。
+
+### `conversation_message`
+
+Tier 1 Conversation 中的一条消息，包括工具交互。
+
+| 列 | 类型 | 可空 | 说明 |
+|---|---|---|---|
+| `id` | `bigint unsigned` | 否 | 内部主键 |
+| `public_id` | `char(20) ascii_bin` | 否 | 公开句柄，唯一 |
+| `conversation_id` | `bigint unsigned` | 否 | `conversation.id` |
+| `role` | `varchar(16)` | 否 | LLM 消息角色 |
+| `content` | `text` | 否 | |
+| `channel` | `varchar(32)` | 是 | 为此消息覆盖 Conversation 的渠道 |
+| `tool_call_id` | `varchar(64)` | 是 | 在工具结果上设置，将其关联到产生它的调用 |
+| `tool_calls` | `text` | 是 | assistant 消息上的工具调用 JSON 数组；Go 字段为 `ToolCallsJSON`，列名为 `tool_calls` |
+| `provider_state` | `text` | 是 | assistant 消息上的不透明推理状态，存储并重放，但此处从不读取其内容；Go 字段为 `ProviderStateJSON` |
+| `parts` | `mediumtext` | 是 | 消息上的非文本内容，例如工具返回的图像；`content` 仍保存描述它的文本。Go 字段为 `PartsJSON` |
+| `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
+
+索引：主键 `id`；(`conversation_id`, `created_at`) 上的索引 `idx_conversation_message_conversation`；唯一索引 `public_id`。
+
+先按 `created_at`、再按 `id` 排序。带前缀的 ID 是随机的，不按时间排列，因此绝不能按 `conversation_message_id` 排序。
+
+`provider_state` 保存协议产生并要求原样返还的内容，例如 Anthropic thinking block、OpenAI Responses reasoning item。Tier 1 轮次从这些行恢复，因此没有它，第二轮就会向上游发送会被拒绝的 Conversation。列出现前写入的行，或者内容已无法解析的行，重放为不带状态的消息，而不是使该轮失败。见 [design/llm-provider-adapters.md](../../../design/llm-provider-adapters.md)。
+
+## 后台执行
+
+Task 加 task_run 构成持久的 Agent 执行。TaskRun 拥有结果；Conversation、Issue 和 Workflow 视图可以通过显式的可选关系投影结果。
+
+### `task`
+
+后台工作的持久单元。一个 Task，多次尝试。
+
+| 列 | 类型 | 可空 | 说明 |
+|---|---|---|---|
+| `id` | `bigint unsigned` | 否 | 内部主键 |
+| `public_id` | `char(20) ascii_bin` | 否 | 公开句柄，唯一 |
+| `conversation_id` | `bigint unsigned` | 是 | 可选的来源/投影关系；直接创建的 Agent、Issue 或 Workflow Task 没有此关系 |
+| `space_id` | `bigint unsigned` | 否 | 所属 Space，是每项 Task 操作的权威依据 |
+| `issue_id` | `bigint unsigned` | 是 | 此 Task 推进的 Issue（如果有） |
+| `status` | `varchar(32)` | 否 | `PENDING`、`SCHEDULED`、`RUNNING`、`SUCCEEDED`、`FAILED`、`CANCELED` |
+| `input` | `text` | 否 | 提示词 |
+| `title` | `varchar(256)` | 是 | 由 LLM 生成 |
+| `title_prompt_tokens` | `bigint` | 是 | 生成标题消耗的 token，计入配额 |
+| `title_completion_tokens` | `bigint` | 是 | 同上 |
+| `output` | `text` | 是 | 最近一次成功运行的结果 |
+| `created_by` | `bigint unsigned` | 否 | `user.id` |
+| `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
+| `started_at` | `datetime(6)` | 是 | 首次运行开始时间 |
+| `ended_at` | `datetime(6)` | 是 | 进入终态的时间 |
+| `error_message` | `text` | 是 | |
+| `session_id` | `varchar(36)` | 是 | Agent Session 文件的 UUID，不是表引用 |
+| `last_run_id` | `bigint unsigned` | 是 | 最近一次尝试的 `task_run.id` |
+| `agent_id` | `bigint unsigned` | 是 | 此 Task 以哪个 `agent.id` 运行 |
+| `workspace_head_checkpoint_id` | `bigint unsigned` | 是 | 被接受为 Task 可恢复工作区的 `workspace_checkpoint.id`；先是种子，再是每次成功结果。首次运行提交前为空 |
+| `plugin_environment_head_id` | `bigint unsigned` | 是 | 下一次 Continue 使用的不可变 Plugin 环境；未自主安装任何插件的 Task 为空 |
+
+索引：主键 `id`；索引 `agent_id`；索引 `conversation_id`；索引 `issue_id`；索引 `last_run_id`；索引 `workspace_head_checkpoint_id`；索引 `plugin_environment_head_id`；(`space_id`, `created_at`) 上的索引 `idx_task_space_created`；唯一索引 `public_id`。
+
+状态值为 `task.RunStatus`，使用大写，与 `task_run` 共享。
+
+### `task_run`
+
+一次执行尝试。配额和 token 计量读取此行。
+
+| 列 | 类型 | 可空 | 说明 |
+|---|---|---|---|
+| `id` | `bigint unsigned` | 否 | 内部主键 |
+| `public_id` | `char(20) ascii_bin` | 否 | 公开句柄，唯一 |
+| `task_id` | `bigint unsigned` | 否 | `task.id` |
+| `previous_task_run_id` | `bigint unsigned` | 是 | Task 线性运行历史中不可变的前驱；worker 恢复该运行的 Session 包 |
+| `input` | `text` | 否 | 本次尝试的提示词；重新运行时可与 Task 的提示词不同 |
+| `created_by` | `varchar(64)` | 是 | `user.id`，系统触发的运行为空 |
+| `created_by_type` | `varchar(32)` | 是 | `user`、`webhook` 或 `system` |
+| `trigger_source` | `varchar(64)` | 是 | `task_create`、`task_rerun`、`portal_conversation`、`portal_task_create`、`portal_task_rerun`、`issue_agent_run`、`workflow_step`、`webhook` |
+| `status` | `varchar(32)` | 否 | 与 `task` 相同的 `task.RunStatus` 值 |
+| `output` | `text` | 是 | |
+| `error_message` | `text` | 是 | |
+| `started_at` | `datetime(6)` | 是 | |
+| `ended_at` | `datetime(6)` | 是 | 运行中为 `NULL` |
+| `session_id` | `varchar(36)` | 是 | 本次运行的 Session 文件 UUID |
+| `worker_type` | `varchar(32)` | 是 | `local_process` 或 `k8s_job`；写入时机见下文 |
+| `k8s_job_name` | `varchar(128)` | 是 | 执行此次运行的 Job；本地 runner 下为 `NULL` |
+| `k8s_job_created_at` | `datetime(6)` | 是 | 该 Job 的创建时间；本地 runner 下为 `NULL` |
+| `prompt_tokens` | `bigint` | 是 | 配额输入 |
+| `completion_tokens` | `bigint` | 是 | 配额输入 |
+| `trace_path` | `varchar(512)` | 是 | 本次运行在运行级全局存储中的持久 trace，例如 `traces/<session>/rt_….jsonl`；未写入时为 `NULL` |
+| `cancel_requested_at` | `datetime(6)` | 是 | 有人请求停止此次运行的时间；无人请求时为 `NULL` |
+| `cancel_requested_by` | `bigint unsigned` | 是 | 请求者的 `user.id` |
+| `retry_of_task_run_id` | `bigint unsigned` | 是 | 本次重复执行的运行；携带自身指令的运行为 `NULL` |
+| `source_message_id` | `bigint unsigned` | 是 | 请求本次运行的 `conversation_message.id`；没有消息发起请求时为 `NULL` |
+| `agent_revision` | `int` | 是 | 本次运行收到的 `task.agent_id` 修订号；没有 Agent 或从未到达 worker 的运行为 `NULL` |
+| `space_agent_instructions_revision` | `int` | 是 | 本次运行收到的所属 Space 的 Space 级指令修订号；`0` 表示未配置文本，`NULL` 表示没有来源记录 |
+| `plugin_pins` | `text` | 是 | `{plugin_name, version, digest}` 的 JSON 数组：本次运行获得的发布版本 |
+| `sandbox_network_tier` | `varchar(64)` | 是 | 首次轮询时解析的级别，依次采用 Agent 声明、Space 默认值、界面基线；worker 认领前为 `NULL` |
+| `sandbox_filesystem_tier` | `varchar(64)` | 是 | 首次轮询时解析的级别，与 `sandbox_network_tier` 使用相同回退规则 |
+| `last_seen_at` | `datetime(6)` | 是 | 此次运行的 worker 最近轮询自身路由的时间；worker 认领前为 `NULL` |
+| `idempotency_key` | `varchar(128)` | 是 | 调用者为 Continue 请求提供的去重键；未带键创建的运行为 `NULL`，包括重试、Workflow 步骤、Issue Agent 运行或旧客户端 |
+| `workspace_base_checkpoint_id` | `bigint unsigned` | 是 | 本次运行获准读取和修改的 `workspace_checkpoint.id`，执行前固定 |
+| `workspace_result_checkpoint_id` | `bigint unsigned` | 是 | 本次运行提交的成功结果检查点 |
+| `workspace_partial_checkpoint_id` | `bigint unsigned` | 是 | 失败、取消或中断后捕获的部分检查点；绝不作为 Task head |
+| `workspace_restore_status` | `varchar(32)` | 是 | `not_requested`、`pending`、`restored` 或 `failed` |
+| `workspace_restore_error` | `text` | 是 | 面向操作员、长度受限的恢复失败原因 |
+| `workspace_checkpoint_status` | `varchar(32)` | 是 | `not_requested`、`pending`、`committed` 或 `failed` |
+| `workspace_checkpoint_error` | `text` | 是 | 面向操作员、长度受限的捕获或提交失败原因 |
+| `plugin_environment_base_id` | `bigint unsigned` | 是 | 为本次运行物化的不可变 Plugin 集合 |
+| `plugin_environment_result_id` | `bigint unsigned` | 是 | 已提交的自主安装请求的新 Plugin 集合；在下一个 TaskRun 边界生效 |
+| `plugin_environment_status` | `varchar(32)` | 是 | `unchanged`、`pending`、`committed` 或 `failed` |
+| `plugin_environment_error` | `text` | 是 | 长度受限的安装或物化原因 |
+| `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
+
+索引：主键 `id`；索引 `cancel_requested_at`；索引 `created_by`；索引 `last_seen_at`；索引 `previous_task_run_id`；索引 `retry_of_task_run_id`；索引 `source_message_id`；(`task_id`, `created_at`) 上的索引 `idx_task_run_task_created`；唯一索引 `public_id`；(`task_id`, `idempotency_key`) 上的唯一索引 `idx_task_run_idempotency`。
+
+对同一 Task 使用相同幂等键重复发送 `POST .../tasks/{task_id}/runs`，会返回首次调用创建的运行，而不启动第二次运行；无论原运行仍在活动还是已经结束都如此。MySQL 唯一索引中 `NULL` 不视为另一个 `NULL` 的重复，因此所有未带键创建的运行都能共存。`CreateTaskRun` 在检查这一点及下述活动运行计数前，先对 Task 行加锁读取，因此同一 Task 的两个并发调用者不能都看到空状态并各自插入；见 [Agent 执行与 Task 线程 §12](../../../design/agent-execution-and-task-threads.md#12-failure-recovery-and-concurrency)。
+
+`agent_revision` 不是对 `agent_revision.id` 的引用：修订通过 Agent 加修订号寻址，而 Task 已持有 Agent。worker 请求其运行时写入此值，首次写入生效。指令按派发解析，使编辑在下次运行生效；保留此记录，使运行期间的编辑不能改写该运行实际收到的内容。
+
+`space_agent_instructions_revision` 遵循相同的首次写入生效规则。worker 将所属 Space 当前的 Space 指令作为独立系统提示词层接收，放在选定 Agent 的指令之前；编辑 Space 影响下次运行，而非正在执行的运行。
+
+`plugin_pins` 在同一时刻按同一规则写入，因为它回答的是同一运行的同类问题。服务端根据 Agent 的选择解析 Space 的 `plugin_activation` 行并发送完整列表；worker 从不自行读取激活项。在认领时而非派发时解析是安全的，因为激活项指定精确版本和摘要——阻止中途发布的新版本改变运行所加载内容的是固定引用，而非解析时机。trace 携带同样的清单，但 trace 失败时放行且存于运行级全局存储，因此此列是可查询的事实，也是重试读取的来源。Agent 未指定插件、运行没有 Agent 或从未到达 worker 时，此列为空。
+
+`source_message_id` 对应用户实际说的话；`input` 是 Tier 1 决定发送给 worker 的内容。两者是不同文本，保留两者正是目的：`input` 中缺失的约束，可能是模型遗漏，也可能是用户从未提供，模式中其他内容无法区分。每次运行各自记录：Task 首次运行指向创建它的消息，继续执行指向提出该请求的消息。所有非消息来源都为 `NULL`，包括 Workflow 步骤、Issue Agent 运行、重试和直接通过 API 创建的 Task。句柄无法解析时将列留为 `NULL`，而不拒绝运行；丢失来源记录优于拒绝用户请求的工作。
+
+`retry_of_task_run_id` 指向一次重试所重复的运行，每行一条链接：重试的重试指向其所重复的运行，而非链首。它不是外键，所指向的运行永不修改——重试是新尝试，不是改写解释为何需要重试的记录。对应的 `trigger_source` 为 `task_retry`。
+
+`previous_task_run_id` 不同于重试谱系：它指定新运行获准执行前一刻的当前运行，无论新运行是 Continue 还是 Retry。它与推进 `task.last_run_id` 在同一事务中写入，此后永不改变。worker 用此不可变值恢复先前的 Session 包；若读取 Task 投影，在新运行获准后只会得到当前运行。
+
+`cancel_requested_at` 是请求，不是状态：worker 已持有的运行保持 `RUNNING`，直到该 worker 报告 `CANCELED`，因为其他组件无法结束另一个进程的 Agent 循环。worker 通过轮询自身运行路由看到请求；若 worker 始终不确认，`StaleRunReaper` 会结束运行，这也是关闭被遗弃运行的同一兜底机制。两列都只写一次，第二次取消不会覆盖首位请求者。
+
+`last_seen_at` 使服务端能区分 worker 已终止还是执行缓慢。它仅在 `GET /api/worker/task-runs/{id}` 上写入：运行处于 `RUNNING` 的整个期间，worker 每隔几秒轮询该路由，因此信号早已存在，只需记录下来。流式路由每秒触发多次，有意不更新时间戳；终态 `PATCH` 也不更新，否则时间戳会晚于工作停止时刻。`StaleRunReaper` 读取它，在 `RUNNING` 运行失去响应数分钟后将其标为失败，而不等待 `worker.run_timeout`。`NULL` 永不因沉默而被回收：从未记录过信号，便谈不上变得安静。
+
+runner 无错误返回后，`Scheduler.dispatch` 通过 `UpdateTaskRunWorkerInfo` 写入 `worker_type`、`k8s_job_name` 和 `k8s_job_created_at`。这一时刻因 runner 而异，读取这些列前必须理解差异：
+
+- **`k8s_job`** 在 Job 创建后立即返回，因此三列都在派发时写入，整个运行期间可读。
+- **`local_process`** 在整个运行期间阻塞，因此 `worker_type` 只在 worker 退出后写入，且仅限正常退出；启动或退出失败会走失败路径，转而记录错误。两个 Kubernetes 列保持 `NULL`。
+
+目前没有代码读取这些列。未来的清理扫描可用 `k8s_job_name` 向 Kubernetes 查询 worker 消失的原因——从服务端看，`OOMKilled` 和 `Evicted` 都只是沉默——但这只覆盖 `k8s_job` runner，因此过期运行回收器观察的是 `last_seen_at`，而非 Job 状态。
+
+worker 在终态 PATCH 中写入 `trace_path`，成功和失败都写。它采用存储值而非推导值，因为 trace 文件名是 Agent run id，该 ID 在运行内部生成，不出现于其他位置。值与 `uploadTaskGlobal` 上传文件所用的键一致，因此可直接在运行级全局存储中解析；`internal/agentapp/taskrun` 的测试将两处计算绑定，避免偏离。
+
+调度器通过轮询最早的待处理运行（`GetNextPendingTaskRun`）认领工作；GORM 日志器配置为忽略 `ErrRecordNotFound`，避免空闲服务端每次轮询都记录未找到。

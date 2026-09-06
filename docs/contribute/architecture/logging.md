@@ -1,5 +1,6 @@
 # Log
 
+> **简体中文：** [阅读中文镜像](../../zh-CN/contribute/architecture/logging.md)
 > **Audience:** contributors · **Status:** current
 
 ## Purpose

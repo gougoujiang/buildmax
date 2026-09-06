@@ -1,5 +1,6 @@
 # Portal
 
+> **简体中文：** [阅读中文镜像](../../zh-CN/contribute/architecture/portal.md)
 > **Audience:** contributors · **Status:** current
 
 ## Purpose

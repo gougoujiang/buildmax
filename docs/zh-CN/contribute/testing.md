@@ -1,12 +1,13 @@
-# Testing
+# 测试
 
-> **简体中文：** [阅读中文镜像](../zh-CN/contribute/testing.md)
+> **翻译说明：** 本文是[英文原文](../../contribute/testing.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `edf105e450b9b189b640760ffc102bc508b22ad92af68aaa9b20cf4946860957`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **简体中文：** [阅读中文镜像](testing.md)
 > **Audience:** contributors and code-changing agents · **Status:** current
 
 What to run after a change, what it needs, and where to look when it fails.
 The reasoning behind this split — why end-to-end suites are a local feedback
 loop rather than a pull-request gate — is in
-[../design/end-to-end-testing.md](../design/end-to-end-testing.md).
+[../design/end-to-end-testing.md](../../design/end-to-end-testing.md).
 
 ## The Short Version
 
@@ -109,7 +110,7 @@ No suite needs a provider API key. Every one of them answers the model from
 desktop/frontend's UI ad hoc (click through a flow, screenshot a view, read
 what a bound Go method returns, before you know what to assert), start
 `./make run desktop-dev` and drive it with
-[`.buildmax/skills/drive-desktop/`](../../.buildmax/skills/drive-desktop/SKILL.md)
+[`.buildmax/skills/drive-desktop/`](../../../.buildmax/skills/drive-desktop/SKILL.md)
 instead.
 
 ## The Store Scope
@@ -139,7 +140,7 @@ command that starts containers as a side effect is one that mutates the machine.
 CI runs this same command against a pinned `mysql:8.0` service container on
 every pull request. `./make check ci` runs it too when `BUILDMAX_TEST_DSN` is
 set, and says it did not when the variable is absent. The design record is
-[../design/verification-program.md](../design/verification-program.md) §4.
+[../design/verification-program.md](../../design/verification-program.md) §4.
 
 `./make agent-smoke` is the exception, and it is not a test: it drives the
 agent's tools with a real model, needs a key, and reports a PASS/FAIL table the
@@ -152,7 +153,7 @@ proves what BuildMax sends and nothing about what a provider does with it — an
 a request can be perfectly shaped while the provider declines to cache it, for a
 minimum prefix length, an unsupported model, or an expired retention window.
 The suite runs the scenarios
-[prompt-cache-control.md](../design/prompt-cache-control.md) gates on against a
+[prompt-cache-control.md](../../design/prompt-cache-control.md) gates on against a
 real provider named by `BUILDMAX_CACHE_QUALIFY_*`, and no provider or gateway is
 described as cache-capable until it passes. Unset, it skips the way the store
 tests do under a plain `./make test` — with no scope of its own that refuses to,
@@ -169,8 +170,8 @@ behavior is wired, and evaluation asks how reliably a model drives it. It needs
 a key and spends tokens. Everything it can check without one — task validity,
 oracles, graders, and the adapter — runs in `./make test` instead, so a task
 that measures nothing is caught before it costs anything. See
-[design/evaluation-system.md](../design/evaluation-system.md) for why it is
-shaped this way, and [evaluation/README.md](../../evaluation/README.md) for how
+[design/evaluation-system.md](../../design/evaluation-system.md) for why it is
+shaped this way, and [evaluation/README.md](../../../evaluation/README.md) for how
 to run it and what a task and a bundle hold.
 
 `./make eval harbor` reports an external coordinate rather than producing one.
@@ -186,7 +187,7 @@ and it spends money, so it is as deliberate as the local suite. `./make eval
 harbor --job <dir>` is the import on its own, for a job someone else ran; that
 half builds nothing and calls no model. `./make doctor harbor` reports what a
 run needs and `./make setup harbor` installs it; see
-[evaluation/harbor/README.md](../../evaluation/harbor/README.md).
+[evaluation/harbor/README.md](../../../evaluation/harbor/README.md).
 
 The oracle smoke and a one-task canary have run through that path end to end.
 That verifies it for one task and no further; there is no Terminal-Bench score.
