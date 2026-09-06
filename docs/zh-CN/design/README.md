@@ -1,6 +1,6 @@
 # 设计记录
 
-> **翻译说明：** 本文是[英文原文](../../design/README.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `58f1a6abb73039c6d957a72f8b10f02f23480429eecd07662921844ec2920a1e`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../design/README.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `d266aa98b22aedf99a9a5338b5dbca8ad68ad13fa8be9673b9a2b74f646db9dc`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 
 > **受众:** 贡献者 · **状态:** 当前
 
@@ -54,6 +54,7 @@ BuildMax 是这样构建的理由。这些是**原理，而不是用户文档**�
 | [Local end-to-end verification](end-to-end-testing.md) | 未安排 | 护盾、CLI、Desktop 桥接、Desktop UI（React 应用加上绑定，通过 `wails dev` 的浏览器服务器）、CI 策略、命名套件和运行手册已完成；一些 Portal 路径、部署取消和故障恢复路径，以及原生窗口/打包应用烟雾测试仍然开放 |
 | [Verification program](verification-program.md) | R0–R4 | 计划的风险加权验证矩阵、拉取请求 MySQL 门，确定性关键旅程、受控故障注入、计划部署证据和外部发布彩排 |
 | [Workflow runtime](workflow-runtime.md) | R5 | 方向已接受：一个 Space 范围的、修订版固定的持久自适应图，覆盖 Task/TaskRun。当前代码仍然是线性的回调驱动的前身；持久性、数据流、图执行、类型化决策和等待是分阶段的且尚未发布 |
+| [Structured output](structured-output.md) | R5 前置条件 | 提议中的与提供商无关的结构化输出契约：请求携带 JSON Schema 子集，完成结果携带已验证值，各适配器如实报告能力。结构化值补充文本输出，并为 Workflow 类型化路由、规划器和更丰富的 Task 结果提供基础；尚未开始实现 |
 | [Unified artifacts](unified-artifacts.md) | P2 后续 | 已实现：具有稳定不透明引用的持久空间制品、上传/预览/下载、墓碑删除，以及在每个表面上都带有服务器的 `UploadArtifact`。记录运行输出目录被决定放弃；外部共享由下文记录重新开放；阶段 4 的后续仍然开放 |
 | [Artifact public sharing and preview](artifact-public-sharing-and-preview.md) | P2 后续 | 已实现（阶段 1–2）：重新开放 unified-artifacts 阶段 3，使用可撤销的存储共享令牌以实现匿名公共链接，`UploadArtifact(share=true)`，服务器渲染链接的 `public_base_url`，以及由经过身份验证的详情页面和公共页面共享的丰富 Portal 预览（Markdown 加上不透明起源的沙箱 HTML）。共享过期审计等待共享保留扫描；一些阶段 3 的后续仍然开放 |
 | [Portal execution model](portal-execution-model.md) | P2 后续 | 已发布阶段 0 和 3，以及阶段 1 的一半：结果预测、持久结果交付和运行溯源。其强制的层级结构和对话拥有的 Task 形状被 [agent execution and Task threads](agent-execution-and-task-threads.md) 取代 |

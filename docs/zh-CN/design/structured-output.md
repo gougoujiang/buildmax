@@ -1,0 +1,337 @@
+# 与提供商无关的结构化输出
+
+> **翻译说明：** 本文是[英文原文](../../design/structured-output.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `316186d210c365836f2ace5f819462fdc68c8d3352df3ea10e8bfa3fcb0b5f6e`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+
+> **读者：** 贡献者、产品设计师和运营人员 · **状态：** 提议阶段——方向待讨论，
+> 尚未开始实现。[编排与连续性决策](orchestration-and-continuity-decisions.md)
+> 第 7 节将其列为 R5 前置条件，[`ROADMAP.md`](../../ROADMAP.md) R5 也已列出；
+> 本文给出具体设计。
+
+相关文档：[Workflow 运行时](workflow-runtime.md)、
+[Agent 执行与 Task 线程](agent-execution-and-task-threads.md)、
+[LLM 网关](llm-gateway.md)、[LLM 提供商适配器](llm-provider-adapters.md)、
+[数据模型](../../contribute/architecture/data-model.md)和
+[编排与连续性决策](orchestration-and-continuity-decisions.md)。
+
+创建时间：2026-09-06
+
+## 内容
+
+- [1. 决策](#1-决策)
+- [2. 问题与当前基线](#2-问题与当前基线)
+- [3. 目标与非目标](#3-目标与非目标)
+- [4. 契约](#4-契约)
+- [5. 结构化输出是运行的最终值](#5-结构化输出是运行的最终值)
+- [6. Schema 子集](#6-schema-子集)
+- [7. 提供商映射](#7-提供商映射)
+- [8. 能力如实报告与回退](#8-能力如实报告与回退)
+- [9. 验证与失败](#9-验证与失败)
+- [10. 流式传输](#10-流式传输)
+- [11. 对外呈现位置](#11-对外呈现位置)
+- [12. 交付计划](#12-交付计划)
+- [13. 验证方案](#13-验证方案)
+- [14. 备选方案](#14-备选方案)
+- [15. 开放问题](#15-开放问题)
+
+## 1. 决策
+
+共享 Agent 运行时增加一套**与提供商无关的结构化输出契约**：调用方可以为
+一次运行的最终回答声明 JSON Schema；运行时要么返回一个**已经按该 Schema
+验证**的值，要么返回带类型的失败。无论请求最终由哪个提供商处理，Schema 和
+验证后的值都通过同一个 `internal/core/llm` 接口传递。每个适配器负责把契约
+映射到提供商原生机制；若提供商没有对应机制，运行时执行回退，并**记录实际采用
+的机制**。
+
+结构化输出是对运行文本输出的**补充，而不是替代**。运行仍会产生完整的助理轮次
+文本（参见 [Agent 执行——运行输出是完整轮次](agent-execution-and-task-threads.md)）；
+结构化值作为独立的机器可读字段与文本并列。人阅读文本，Workflow 路由、规划器
+或评估器读取结构化值。
+
+边界与 Workflow 已确立的原则相同：**模型提出值；运行时依据声明的 Schema
+验证并记录它。**验证失败的值不得被静默接受。
+
+该能力解锁了多项已接受设计所依赖的功能：Workflow 的类型化路由、有界规划器和
+评估器循环（参见 [Workflow 运行时第 13 节](workflow-runtime.md)）；节点输出信封
+中的 `structured` 字段在本契约存在前保持 `null`（参见
+[Workflow 运行时第 9 节](workflow-runtime.md)）；以及比自由文本更丰富的 Task 结果。
+
+## 2. 问题与当前基线
+
+共享运行时目前无法要求模型返回可由机器校验的答案。
+
+- `internal/core/llm.Request` 只有 `Messages`、`Tools`、`Profile` 和
+  `CacheScope`，没有输出 Schema。
+- `internal/core/llm.Completion` 只有 `Content`、`ToolCalls`、`Usage` 和
+  `ProviderState`，没有结构化值。
+- 现有适配器（`anthropic.go`、`ollama.go`、`openai_chat.go`、
+  `openai_responses.go`）都不会构造 `response_format`、强制
+  `tool_choice`、`format` 或其他 JSON 模式字段；在 LLM 包内搜索这些关键词
+  不会得到结果。
+
+因此所有回答都是自由文本，需要结构化值的消费者只能自行解析并寄希望于格式
+正确。Workflow 的自适应层依赖可信的 `structured` 字段，所以该字段一直为
+`null`；Task 结果也无法携带类型化结果。这是自适应 Workflow 与丰富结果信封
+两条方向共同缺少的基础能力。
+
+## 3. 目标与非目标
+
+### 3.1 目标
+
+- 用一套与提供商无关的方式请求受 Schema 约束的最终值，并得到已验证的值或
+  带类型的失败。
+- 由适配器映射各提供商原生机制，调用方不按提供商分支。
+- 如实报告能力：运行记录 Schema 是由原生机制强制、经强制工具调用约束，还是
+  仅靠提示并解析；绝不声称未实际发生的强制保证。
+- 结构化值与文本输出并列，不抑制文本。
+- 支持一套有文档的 JSON Schema 子集，并与 Workflow 现有输入 Schema 子集共享，
+  使同一定义只验证一次，在两个边界上含义一致。
+- 验证逻辑只在运行时实现一次，Portal 解析器或 Workflow 处理器不再重复实现。
+
+### 3.2 非目标
+
+- 通用语法或正则约束解码引擎；契约是 JSON Schema 子集，不是任意 CFG 输出。
+- 约束每一次中间 LLM 调用；本契约只约束运行的**最终**回答，而不约束途中调用
+  工具的轮次（第 5 节）。
+- 在结构化对象尚未完成时，把部分对象流式发送到 UI（第 10 节）。
+- 替代工具调用。工具用于让模型执行动作，结构化输出用于报告运行结果（第 14.1 节）。
+- 发明新的 Schema 语言。
+- 在本文冻结逐提供商功能矩阵；能力应在运行时发现并记录（第 8 节）。
+
+## 4. 契约
+
+在 `internal/core/llm` 中增加两组与提供商无关的字段：
+
+```go
+// Request 上的可选 Schema，最终回答必须满足它。
+type OutputSchema struct {
+    Name   string          // 稳定的 Schema 名称；部分提供商要求提供
+    Schema json.RawMessage // 第 6 节支持的 JSON Schema 子集
+    Strict bool            // true：必须验证通过；false：尽力符合形状
+}
+
+type Request struct {
+    Messages   []Message
+    Tools      []ToolDef
+    Profile    CallProfile
+    CacheScope string
+    Output     *OutputSchema // nil 表示自由文本，即当前行为
+}
+
+// Completion 上的已验证值，以及取得该值所用的机制。
+type Structured struct {
+    Value    json.RawMessage  // 验证通过的值；失败时为 nil
+    Mode     StructuredMode   // native | forced_tool | prompted
+    Enforced bool             // 仅当提供商保证形状时为 true
+    Err      *StructuredError // 模型返回值验证失败时设置
+}
+
+type Completion struct {
+    Content       string
+    ToolCalls     []ToolCall
+    Usage         Usage
+    ProviderState *ProviderState
+    Structured    *Structured // 仅在 Request 请求结构化输出时设置
+}
+```
+
+`Content` 文本保持不变并继续生成，`Structured.Value` 是机器可读答案。请求了
+结构化输出的调用方读取 `Structured`；未请求的调用方不受影响。`Output == nil`
+与当前行为完全一致，因此该变更是增量式的，现有调用点可以继续工作。
+
+`LLMClient` 接口签名不变，只扩展 `Request` 和 `Completion` 字段；
+`ContextWindow` 不受影响。
+
+## 5. 结构化输出是运行的最终值
+
+Agent 运行是一个循环：模型调用工具、读取结果、继续调用工具，最终写出答案。
+结构化输出约束的是**最终答案**，而不是中间轮次。调用工具的轮次是在执行动作，
+不是报告结果；强制它符合输出 Schema 会与工具调用本身冲突。
+
+因此该契约是由 `RunLoop` 解析的**运行属性**：
+
+- 模型仍在调用工具时，调用过程与当前一致，包括工具和自由文本叙述；运行按
+  “输出是完整轮次”的决策保留这些内容。
+- 当模型生成可终止运行的答案（没有工具调用），且运行请求了结构化输出时，
+  运行时才对最终答案施加 Schema 约束并验证。
+
+具体而言，`RunLoopOpts` 增加可选的 `Output *llm.OutputSchema`。`RunLoop`
+把它应用到可能终止循环的调用，并在返回文本回复的同时返回已验证的
+`Structured`。文本仍是完整轮次，结构化值则是最终答案的机器表达。
+
+这样，结构化输出与工具使用相互独立，一次运行同时产出人类可读的完整记录和
+一个类型化结果。
+
+## 6. Schema 子集
+
+契约接受的 JSON Schema 子集与 Workflow 输入 Schema 已定义的子集相同
+（参见 [Workflow 运行时第 6.1 节](workflow-runtime.md)）。声明了
+`output_schema` 的 Workflow 若使用子集之外的特性，发布时就会失败，与当前
+不受支持的输入 Schema 行为一致。
+
+实现时应随 API 一起记录该子集。首版有意保持狭窄：对象、固定标量类型、枚举、
+数组、`required` 和 `additionalProperties: false`。每个关键词都必须既能由
+所有提供商原生机制表达，也能由运行时自身验证器检查。只有某一家提供商支持的
+关键词不进入共享子集；运行时能力是下限，不以任何一家提供商的上限为准。
+
+## 7. 提供商映射
+
+各适配器把 `Output` 映射为自身原生机制，并报告使用的 `Mode`：
+
+| 提供商家族 | 原生机制 | `Mode` |
+|---|---|---|
+| OpenAI（Chat Completions 与 Responses） | `response_format: {type: "json_schema", …, strict: true}` | `native` |
+| Anthropic | 创建输入 Schema 即输出 Schema 的单个强制工具，并用 `tool_choice` 固定；工具输入即最终值 | `forced_tool` |
+| Ollama | 把 `format` 设置为 JSON Schema；若只需对象则设为 `json` | 模型遵守时为 `native`，否则为 `prompted` |
+| 没有可用机制的提供商 | 把 Schema 写入提示，再解析输出 | `prompted` |
+
+只有适配器了解提供商机制。其上层调用方只看到含 `Mode` 和 `Enforced` 的
+`Structured`，绝不按提供商分支。Anthropic 的强制工具映射复用现有
+`toolcalls.go`：运行时增加一个合成工具、强制模型调用它，再把参数作为结果值；
+这一实现细节对只声明了 Schema 的调用方不可见。
+
+## 8. 能力如实报告与回退
+
+并非所有模型都能强制执行 Schema，运行时不得声称它们做到了。这遵循项目的
+信任边界原则：**记录实际生效的边界，不记录暗示性的保证**（参见
+[产品愿景——让信任边界可见](product-vision.md)）。
+
+- `Structured.Mode` 记录实际机制；只有提供商保证输出形状时，
+  `Structured.Enforced` 才为 true，包括 `native`，以及确实会依据 Schema
+  验证工具输入的 `forced_tool`。
+- `prompted` 回退只是尽力而为。运行时仍会自行根据 Schema 验证解析后的值，
+  所以错误值会成为带类型失败，而非静默垃圾；但 `Enforced` 为 false，且该事实
+  会进入追踪以及需要它的消费者。
+- 要求强制保证的调用方——例如分支选择必须可信的 Workflow 路由——可以要求
+  `Enforced`，并把 `prompted` 视为失败。这是消费者显式设置的策略，运行时
+  不隐藏默认值。
+
+提供商/模型的结构化输出能力由适配器和模型记录共同发现，不冻结在本文中。
+功能矩阵变化太快，而第 2 节的代码基线也没有需要兼容的既有行为。
+
+## 9. 验证与失败
+
+验证只由运行时负责一次：
+
+1. 适配器返回模型给出的候选值，来源可能是 `response_format`、强制工具参数，
+   或对提示式输出的解析。
+2. 运行时使用自身验证器按 `OutputSchema` 验证；即使是 `native` 模式也要重验，
+   防止提供商缺陷绕过契约。
+3. 成功时 `Structured.Value` 保存验证后的值；失败时 `Structured.Err` 保存
+   带类型错误，`Value` 为 nil。
+
+失败后的处理属于**消费者策略**，并与 Workflow 一致：
+[Workflow 运行时第 13.1 节](workflow-runtime.md)已规定，无效结构化输出按节点
+显式重试策略处理，否则节点失败；验证还确保输出无效时不会执行未声明的边。
+本文只提供验证值和带类型失败，Workflow 决定重试或失败。直接 Agent 运行则把
+失败呈现在 TaskRun 上，不会假装存在有效值。
+
+模型提出值，运行时验证并记录；下游既不重新验证，也不重新解析。
+
+## 10. 流式传输
+
+结构化输出可以与令牌流式传输共存，但不会把尚未完成的对象当成“结果值”发送：
+
+- 运行仍像当前一样实时发送**文本**增量；得出答案过程中的叙述是文本，可正常流式传输。
+- **结构化值**只在终止答案形成时解析，并在运行完成时一次性交付验证后的结果；
+  部分构造的 JSON 对象绝不会被当作结果值呈现。
+
+因此 Task 页面继续显示实时文本流；结构化结果在运行完成、文本稳定时出现。
+无需新增流式协议。
+
+## 11. 对外呈现位置
+
+- **Agent 运行时：** `RunLoopOpts.Output` 发起请求，`RunLoop` 在文本回复旁返回
+  已验证的 `Structured`（第 5 节）。
+- **TaskRun：** 运行输出信封在文本旁增加 `structured` 字段，即
+  [Workflow 运行时第 9 节](workflow-runtime.md)预留的字段。未请求结构化输出时
+  它为 `null`。`internal/infra/db` 的 `xxxRow` 结构仍是 schema 事实来源，
+  实现时增加可空的结构化列。
+- **Workflow：** `agent_task` 节点的 `output_schema` 成为真实约束。运行时在节点
+  成功前验证结构化输出；类型化路由或规划器从信封的 `/structured/...` 读取
+  （参见 [Workflow 运行时第 13.1–13.2 节](workflow-runtime.md)）。Portal 不再解析
+  或验证，运行时已经完成。
+- **Task 结果信封：** Task 结果可在文本外携带结构化值，让需要类型化结果的
+  调用方和阅读自然语言答案的人都得到所需内容。
+
+## 12. 交付计划
+
+BuildMax 仍处于 Alpha；每个阶段会同步修改 `llm` 类型、适配器和消费者，
+不为旧形状增加兼容解释器。
+
+**阶段 1——运行时契约。** 在 `internal/core/llm` 增加
+`OutputSchema`/`Structured`、第 6 节子集的运行时验证器，以及两个 OpenAI
+适配器的 `native` 映射。通过脚本化提供商验证从请求到已验证值的路径。
+此阶段还没有消费者；`Output == nil` 行为不变。
+
+**阶段 2——其他提供商。** 实现 Anthropic `forced_tool`、Ollama `format`、
+`prompted` 回退，以及如实的 `Mode`/`Enforced` 报告。没有原生机制的模型仍由
+运行时自身验证器校验。
+
+**阶段 3——运行边界。** 增加 `RunLoopOpts.Output`，按第 5 节应用到终止答案，
+在回复旁返回 `Structured`；增加 TaskRun 结构化字段及其持久化。
+
+**阶段 4——消费者。** 实现 Workflow `output_schema` 强制、类型化路由，以及
+规划器/映射器读取 `/structured/...`；扩展 Task 结果信封。这是本文为 R5
+Workflow 工作解锁的首个真实消费者。
+
+阶段 1–3 构成共享基础能力；阶段 4 与真正需要它的 Workflow 切片一起交付。
+
+## 13. 验证方案
+
+- **运行时验证器：** 第 6 节子集——对象、标量、枚举、数组、`required`、
+  `additionalProperties: false`——应接受合法值，并为每类违规返回带类型错误；
+  `native` 提供商的值仍须重验。
+- **适配器映射（脚本化提供商）：** 覆盖每个 `Mode`：`native` 请求携带
+  `response_format`；`forced_tool` 新增强制合成工具并读取参数；`prompted`
+  渲染 Schema 并解析；各自报告正确的 `Mode`/`Enforced`。
+- **运行边界：** 一次先调用工具、再返回 Schema 约束答案的运行，同时产出完整
+  轮次文本和已验证 `Structured`；偏离 Schema 的回答只产出带类型失败，不产出值。
+- **消费者：** 带 `output_schema` 的 Workflow 节点仅在值验证通过时成功；无效值
+  遵循节点重试/失败策略，且不执行未声明的路由边。
+- **强制能力如实报告：** `prompted` 运行记录 `Enforced=false`；要求强制保证的
+  消费者把它视为失败。
+- 给定模型遵守 Schema 的可靠程度由真实模型评估测量，不由确定性测试断言。
+
+## 14. 备选方案
+
+### 14.1 用工具调用代替独立契约
+
+调用方可以定义输入 Schema 等于输出 Schema 的工具并读取其参数；这正是
+Anthropic 的**适配器映射**（第 7 节）。但它不适合作为共享契约：这会把提供商
+机制泄漏给每个调用方，混淆“模型执行动作”和“运行报告结果”，也让
+OpenAI/Ollama 无法使用自身的 `response_format`/`format`。强制工具只是一个
+适配器的实现细节，不是公共接口。
+
+### 14.2 按提示约定解析自由文本
+
+可以只在提示中要求 JSON 再解析回复，不修改类型。这是第 8 节的 `prompted`
+回退，不是契约：它不能强制格式、没有如实的能力信号，还会把验证工作推给每个
+消费者。只为没有原生机制的提供商保留为能力下限。
+
+### 14.3 完整 JSON Schema 或语法引擎
+
+支持全部 JSON Schema 或任意 CFG 约束解码，不适合作为第一步。共享子集中的
+每项能力都必须既能被运行时检查，也能由每种提供商机制表达。遵循奥卡姆剃刀：
+消费者真正需要某个关键词时再增加。子集可以扩展；若未来出现明确用例，语法引擎
+应作为独立设计。
+
+### 14.4 在消费者中验证
+
+让 Portal 或 Workflow 处理器各自验证模型 JSON 会导致重复实现和行为漂移。
+Workflow 明确要求在节点成功前由运行时验证，而非由 Portal 解析器验证
+（参见 [Workflow 运行时第 9 节](workflow-runtime.md)）。因此只保留一个运行时
+验证器。
+
+## 15. 开放问题
+
+- 首版精确支持哪些 Schema 关键词；是否与 Workflow 输入 Schema 子集逐字节
+  相同，还是定义一个双方引用的命名共享子集。
+- 是否值得同时保留 `Strict` 的“验证或失败”和尽力符合形状两种模式；另一选择是
+  契约始终“验证通过或返回带类型失败”，只用 `Enforced` 表达能力差异。
+- 对通过工具映射的提供商，运行应如何只为**最终**回答请求结构化输出，避免模型
+  过早触发强制工具；也就是需要怎样的提示和停止条件，才能在实践中保持第 5 节
+  的“仅最终答案”语义。
+- Task 结果信封的结构化字段可能含有提取数据，是否需要与文本输出不同的保留和
+  脱敏规则。
+- 携带推理状态的提供商（`ProviderState`）是否会与结构化输出产生需要适配器
+  明确排序的交互。

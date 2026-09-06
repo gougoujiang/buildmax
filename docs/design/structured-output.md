@@ -1,5 +1,7 @@
 # Provider-Neutral Structured Output
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/structured-output.md)
+
 > **Audience:** contributors, product designers, and operators · **Status:** proposed — direction for discussion, implementation not started. Recorded as an R5 prerequisite by [orchestration and continuity decisions](orchestration-and-continuity-decisions.md) §7 and named in [`ROADMAP.md`](../ROADMAP.md) R5; this record is its design.
 
 Related: [workflow runtime](workflow-runtime.md),
