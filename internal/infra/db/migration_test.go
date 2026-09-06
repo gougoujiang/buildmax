@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/config"
-	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
 
@@ -70,7 +69,15 @@ func testDB(t *testing.T) *gorm.DB {
 	if dsn == "" {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping migration integration test")
 	}
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	// Open the way New does — utcDSN turns on parseTime, so reading a recorded
+	// migration's applied_at scans into time.Time rather than []byte. The raw
+	// driver DSN this test used lacked it, which stayed invisible only while the
+	// migrations list was empty and nothing was ever recorded to read back.
+	utc, err := utcDSN(dsn)
+	if err != nil {
+		t.Fatalf("dsn: %v", err)
+	}
+	db, err := gorm.Open(mysqlDialector(utc), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
