@@ -6,6 +6,7 @@ import {
   throwIfNotOk,
 } from "../../lib/api/client"
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
+import { readSSEStream } from "../../lib/api/sse"
 import type {
   ApiTask,
   ApiTaskRun,
@@ -147,4 +148,51 @@ export async function retryTask(
   }
   await throwIfNotOk(res)
   return res.json() as Promise<RetryTaskResponse>
+}
+
+/**
+ * Stream a task's live agent output over server-sent events.
+ *
+ * The endpoint carries output deltas for whichever run is currently active,
+ * plus a `done` sentinel when the run finishes and a `draining` event when the
+ * serving instance is shutting down. It does not carry run lifecycle or status
+ * transitions, so the caller keeps polling for those and uses this only for the
+ * in-flight output; on `done`, `draining`, or any error the caller reloads and
+ * falls back to the poll.
+ */
+export async function streamTaskOutput(
+  spaceId: string,
+  taskId: string,
+  token: string,
+  callbacks: {
+    onDelta: (delta: string) => void
+    onDone: () => void
+    onError: (err: Error) => void
+    onDraining?: () => void
+  },
+  options?: { signal?: AbortSignal }
+): Promise<void> {
+  const url = `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/tasks/${encodeURIComponent(taskId)}/stream`
+  const res = await apiFetch(url, { headers: authHeaders(token), signal: options?.signal })
+  if (!res.ok) {
+    callbacks.onError(new Error(await parseErrorResponse(res, "Task stream failed")))
+    return
+  }
+  await readSSEStream(res, {
+    onData: (data) => {
+      if (data === "done") {
+        callbacks.onDone()
+        return false
+      }
+      callbacks.onDelta(data)
+    },
+    onEvent: (name) => {
+      if (name === "draining") {
+        callbacks.onDraining?.()
+        return false
+      }
+    },
+    onDone: callbacks.onDone,
+    onError: callbacks.onError,
+  })
 }
