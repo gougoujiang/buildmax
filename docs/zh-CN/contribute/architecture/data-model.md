@@ -612,7 +612,7 @@ recycle bin.
 
 These are server-side agent records. They are distinct from the workspace
 subagents defined as Markdown files under `.buildmax/`; see
-[help/skills-and-subagents.md](../../../../help/skills-and-subagents.md).
+[manual/skills-and-subagents.md](../../../../manual/skills-and-subagents.md).
 
 ### `agent_revision`
 
@@ -1527,7 +1527,7 @@ isolated database and will catch a mapping that no longer round-trips.
 
 没有撤销删除的路由。保留行是为了让引用可解析，不是将其用作回收站。
 
-这些是服务端 Agent 记录，与 `.buildmax/` 下通过 Markdown 文件定义的工作区 subagent 不同；见 [help/skills-and-subagents.md](../../../../help/skills-and-subagents.md)。
+这些是服务端 Agent 记录，与 `.buildmax/` 下通过 Markdown 文件定义的工作区 subagent 不同；见 [manual/skills-and-subagents.md](../../../../manual/skills-and-subagents.md)。
 
 ### `agent_revision`
 

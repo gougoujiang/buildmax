@@ -1,7 +1,7 @@
 # Session Trees, Agent Mailboxes, and Branched Workspaces
 
 > **简体中文：** [阅读中文镜像](../zh-CN/proposals/session-tree-and-agent-mailbox.md)
-
+>
 > **Audience:** contributors, product designers, and early adopters · **Status:** proposal — under discussion
 >
 > **Opened:** 2026-08-22

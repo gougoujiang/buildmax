@@ -3,7 +3,7 @@
 > **翻译说明：** 本文是[英文原文](../../../contribute/architecture/cli.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `e95bd3e1b2c792f3888d2bfe29a2fca8fccb0d3fcf61afdcfbe4b607a1c5403a`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 > **受众：** 贡献者 · **状态：** 当前有效
 >
-> 面向用户的命令与标志参考：[help/cli.md](../../../../help/cli.md)
+> 面向用户的命令与标志参考：[manual/cli.md](../../../../manual/cli.md)
 
 ## 用途
 
@@ -36,7 +36,7 @@ func main() {
 | `login`、`logout`、`whoami` | `login.go` |
 | `sandbox status\|deps\|mode\|enable\|disable` | `sandbox.go` |
 
-`NewRootCommand()` 在根命令上注册十一个标志；面向用户的表格见 [help/cli.md](../../../../help/cli.md)。
+`NewRootCommand()` 在根命令上注册十一个标志；面向用户的表格见 [manual/cli.md](../../../../manual/cli.md)。
 
 ## 分派（`runRoot`）
 

@@ -3,7 +3,7 @@
 > **翻译说明：** 本文是[英文原文](../../deploy/overview.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `1710869ca7402dd04b55bf5e0dea07cc8699269ab9251c5f667342fd5d991de9`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 > **受众：** 运维人员 · **状态：** 当前
 >
-> **BuildMax 处于 Alpha 阶段。** 将服务器放到不可信人员可访问的位置前，请阅读[身份认证](authentication.md)。当前部署支持边界见 [help/support.md](../../../help/support.md)。
+> **BuildMax 处于 Alpha 阶段。** 将服务器放到不可信人员可访问的位置前，请阅读[身份认证](authentication.md)。当前部署支持边界见 [manual/support.md](../../../manual/support.md)。
 
 为 Space 部署 BuildMax，需要运行两个 Go 二进制程序和两个支撑服务。无需向 Agent 运行时本身安装任何东西：Worker 使用与 CLI 相同的运行时，由服务器启动。
 
@@ -131,7 +131,7 @@ Agent 运行时执行模型选择的 shell 命令和文件编辑。请将每个�
 
 - 为服务器和 Worker 分配专用、最小权限凭证
 - 将 `workspaces_dir` 和 Blob 存储放在重要宿主机路径之外
-- 明确决定 Worker 的网络策略；[沙箱](../../../help/sandbox.md) 可限制出站流量，但**默认关闭**
+- 明确决定 Worker 的网络策略；[沙箱](../../../manual/sandbox.md) 可限制出站流量，但**默认关闭**
 - 不要把凭证提交到版本控制中的 `server.yaml`
 - 清楚所用边界：`local_process` 在同一宿主机上把 Worker 作为服务器子进程运行，属于一个信任域；减少继承内容并不会改变这一点。`k8s_job` 才会隔离服务器与模型选择的代码
 

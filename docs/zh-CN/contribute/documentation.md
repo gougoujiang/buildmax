@@ -5,9 +5,9 @@
 
 ## 按读者组织，而非按产物组织
 
-**最终用户手册是 [`help/`](../../../help)**：按任务组织，每项能力一页，随 Portal 镜像交付，并在应用内的 **Help** 下提供。从快速入门、核心概念到每个 CLI 命令，安装、运行和使用 BuildMax 所需的一切都在这里；[`help/manifest.json`](../../../help/manifest.json) 是其目录。
+**最终用户手册是 [`manual/`](../../../manual)**：按任务组织，每项能力一页，随 Portal 镜像交付，并在应用内的 **Help** 下提供。从快速入门、核心概念到每个 CLI 命令，安装、运行和使用 BuildMax 所需的一切都在这里；[`manual/manifest.json`](../../../manual/manifest.json) 是其目录。
 
-英文是源文档。[`help/zh/`](../../../help/zh) 是简体中文镜像，每个英文页面对应一页，并有自己的 `manifest.json`；Help 页面提供 EN / 中文切换。中文文件使用中文名称（`沙箱.md`），因此每个 manifest 条目保留英文 `slug` 作为稳定 URL 键，并增加 `file` 指定磁盘上的文件。两种语言必须同步：修改英文页面时，在同一个拉取请求中更新 `zh/` 对应页面。
+英文是源文档。[`manual/zh/`](../../../manual/zh) 是简体中文镜像，每个英文页面对应一页，并有自己的 `manifest.json`；Help 页面提供 EN / 中文切换。中文文件使用中文名称（`沙箱.md`），因此每个 manifest 条目保留英文 `slug` 作为稳定 URL 键，并增加 `file` 指定磁盘上的文件。两种语言必须同步：修改英文页面时，在同一个拉取请求中更新 `zh/` 对应页面。
 
 `docs/` 保存其余内容，按读者想回答的问题划分：
 
@@ -51,7 +51,7 @@
 - **活动路线图计划**：属于某项 `ROADMAP.md` 优先级的计划或部分实现工作；交付或改变方向后即失效。
 - **子系统规范**：记录已实现或部分实现子系统设计的长期文档，需保持最新。
 
-设计文档是**设计理由，不是用户文档**。设计交付用户可配置功能时，面向用户的部分应进入 `help/` 手册（查阅表格则进入 `reference/`）；设计文档链接到它，并保留取舍与开放缺口。
+设计文档是**设计理由，不是用户文档**。设计交付用户可配置功能时，面向用户的部分应进入 `manual/` 手册（查阅表格则进入 `reference/`）；设计文档链接到它，并保留取舍与开放缺口。
 
 ## 语言与翻译
 
@@ -79,7 +79,7 @@ git log --diff-filter=D --oneline -- docs/
 git show <commit>^:docs/path/to/file.md
 ```
 
-若退役文档中仍有真实且必要的内容，先对照代码验证，将其移入 `help/` 手册或 `reference/`，再删除原文。
+若退役文档中仍有真实且必要的内容，先对照代码验证，将其移入 `manual/` 手册或 `reference/`，再删除原文。
 
 ## 文档头部
 
@@ -106,7 +106,7 @@ git show <commit>^:docs/path/to/file.md
 
 这些文档往往长达数百行，读者通常需要先判断某节是否与自己有关。没有目录就必须滚动整篇文件才能判断，因此这里要求目录，而不只是鼓励。
 
-两个 `README.md` 索引文件豁免，它们本身就是链接列表。`help/` 手册和 `reference/` 页面也豁免：它们面向任务，目录会干扰任务而非服务于任务。
+两个 `README.md` 索引文件豁免，它们本身就是链接列表。`manual/` 手册和 `reference/` 页面也豁免：它们面向任务，目录会干扰任务而非服务于任务。
 
 随文档维护目录。重命名或添加章节却不更新条目，比没有目录更糟，因为读者会信任已有目录。
 
@@ -131,12 +131,12 @@ git show <commit>^:docs/path/to/file.md
 | `TestDocsLinksResolve` | 相对 Markdown 链接指向不存在的文件 |
 | `TestDesignTranslationsMirrorEnglish` | 中文设计镜像缺失、孤立、链接不正确，或落后于英文源文档 |
 | `TestEnvVarsDocumented` | `config.EnvVars()` 新增的变量未出现在 [reference/configuration.md](../../reference/configuration.md) |
-| `TestToolNamesDocumented` | 工具名称常量未出现在 [help/tools.md](../../../help/tools.md) |
+| `TestToolNamesDocumented` | 工具名称常量未出现在 [manual/tools.md](../../../manual/tools.md) |
 | `TestArchitectureToolInventoryCoversEveryToolNameConstant` | `internal/tool/names.go` 声明的工具未出现在贡献者[工具清单](architecture/tools.md) |
 | `TestAgentsMDPathsExist` / `TestAgentsMDRoutesExist` | [AGENTS.md](../../../AGENTS.md) 引用了不存在的路径或路由 |
 | `TestDocumentedFilePathsExist` | 任一文档引用了不存在的仓库文件 |
 | `TestDocumentedMakeCommandsExist` | 任一文档提及任务运行器无法分发的 `./make` 命令 |
-| `TestCLIReferenceCoversEveryCommand` | 二进制中存在某命令，但 [help/cli.md](../../../help/cli.md) 未记录 |
+| `TestCLIReferenceCoversEveryCommand` | 二进制中存在某命令，但 [manual/cli.md](../../../manual/cli.md) 未记录 |
 
 工具名称检查存在的原因是：这些字符串是用户可见契约，会出现在 hook 的 `matcher` 正则和 subagent 的 `tools:` 字段中。重命名工具却不更新文档会悄悄破坏可用配置。架构检查从 `names.go` 读取声明，避免手工维护的测试列表遗漏新增的界面限定工具。
 
@@ -149,7 +149,7 @@ git show <commit>^:docs/path/to/file.md
 | 变更 | 更新内容 |
 |---|---|
 | 包边界或运行时契约 | 同一拉取请求中更新 [architecture/](architecture/README.md) 对应文档 |
-| 用户可见行为或配置 | `help/` 手册、`reference/` 和 `config-examples/` |
+| 用户可见行为或配置 | `manual/` 手册、`reference/` 和 `config-examples/` |
 | 方向 | 在 [../design/](../../design/README.md) 添加或更新语义化记录 |
 | 包移动 | 仅更新 [repo-layout.md](repo-layout.md) |
 

@@ -46,7 +46,7 @@ Windows 上使用 `make.bat build cli`。`./make` 并非 GNU make，而是 `tool
 - 为已经正常工作的行为补充缺失测试。
 - 尝试快速入门时遇到的 CLI 或 TUI 体验问题。
 
-开始更大的工作前，请阅读 [help/support.md](../../../help/support.md)。其中说明项目目前支持哪些界面和部署路径，以及 alpha 阶段明确不支持哪些内容，避免工作超出维护者能够接受的范围。
+开始更大的工作前，请阅读 [manual/support.md](../../../manual/support.md)。其中说明项目目前支持哪些界面和部署路径，以及 alpha 阶段明确不支持哪些内容，避免工作超出维护者能够接受的范围。
 
 代码位置见 [repo-layout.md](repo-layout.md)。子系统工作原理见[架构](architecture/README.md)。
 
@@ -63,7 +63,7 @@ git switch -c short-topic-name
 
 遵循周围代码的风格。diff 中看不到的规则，例如持久化 JSON 使用 `snake_case`、表名单数、实体 ID 前缀和面向 LLM 的工具输出，见 [conventions.md](conventions.md)。
 
-文档是变更的一部分，而非后续工作：修改行为或配置时，在同一个拉取请求中更新 `help/`、`docs/reference/` 和 `config-examples/`。[documentation.md](documentation.md) 说明何时更新哪些内容。
+文档是变更的一部分，而非后续工作：修改行为或配置时，在同一个拉取请求中更新 `manual/`、`docs/reference/` 和 `config-examples/`。[documentation.md](documentation.md) 说明何时更新哪些内容。
 
 ## 5. 提交并创建拉取请求
 
@@ -89,6 +89,6 @@ git push -u origin short-topic-name
 
 ## 遇到困难时
 
-- 运行时问题参见 [help/troubleshooting.md](../../../help/troubleshooting.md)
+- 运行时问题参见 [manual/troubleshooting.md](../../../manual/troubleshooting.md)
 - 一般问题可到 [GitHub Discussions](https://github.com/gougoujiang/buildmax/discussions) 提问，也可以在未完成的拉取请求中提问
 - 应使用哪个渠道参见 [../../.github/SUPPORT.md](../../../.github/SUPPORT.md)

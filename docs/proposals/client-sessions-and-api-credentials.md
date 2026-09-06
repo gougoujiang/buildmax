@@ -1,7 +1,7 @@
 # Client Sessions And API Credentials
 
 > **简体中文：** [阅读中文镜像](../zh-CN/proposals/client-sessions-and-api-credentials.md)
-
+>
 > **Audience:** contributors, product reviewers, operators, and security reviewers · **Status:** proposal — under discussion
 >
 > **Opened:** 2026-08-24

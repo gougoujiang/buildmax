@@ -1,7 +1,7 @@
 # Enterprise Identity And Access
 
 > **简体中文：** [阅读中文镜像](../zh-CN/proposals/enterprise-identity-and-access.md)
-
+>
 > **Audience:** contributors, operators, and security reviewers · **Status:** proposal — under discussion
 >
 > **Opened:** 2026-08-16

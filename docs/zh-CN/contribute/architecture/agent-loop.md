@@ -4,7 +4,7 @@
 > **简体中文：** [阅读中文镜像](agent-loop.md)
 > **Audience:** contributors · **Status:** current
 >
-> User-facing view of the same loop: [help/concepts.md](../../../../help/concepts.md)
+> User-facing view of the same loop: [manual/concepts.md](../../../../manual/concepts.md)
 
 ## Purpose
 
@@ -225,4 +225,4 @@ Exceeding `MaxIter` is different — that returns an error.
 - [tools.md](tools.md) — the registry and the tool implementations
 - [llm-client.md](llm-client.md) — the client behind `llm.LLMClient`
 - [session.md](session.md) — the local `MessageHistory` implementation
-- [help/hooks.md](../../../../help/hooks.md) — the hook contract from the outside
+- [manual/hooks.md](../../../../manual/hooks.md) — the hook contract from the outside

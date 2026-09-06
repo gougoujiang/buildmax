@@ -1,7 +1,7 @@
 # Local Issue Work Bridge
 
 > **简体中文：** [阅读中文镜像](../zh-CN/proposals/local-issue-work-bridge.md)
-
+>
 > **Audience:** contributors, product reviewers, operators, and early adopters · **Status:** proposal — under discussion
 >
 > **Opened:** 2026-08-22

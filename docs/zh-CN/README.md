@@ -6,14 +6,14 @@
 
 ## 使用 BuildMax
 
-最终用户手册位于 [`help/`](../../help)，涵盖安装、快速入门、核心概念、所有 CLI 命令、内置工具、技能与子 Agent、MCP、插件、Hook、沙箱、工具权限和 Portal 使用流程。它随 Portal 镜像交付，可在应用内通过 **Help** 阅读；[`help/manifest.json`](../../help/manifest.json) 是其目录。
+最终用户手册位于 [`manual/`](../../manual)，涵盖安装、快速入门、核心概念、所有 CLI 命令、内置工具、技能与子 Agent、MCP、插件、Hook、沙箱、工具权限和 Portal 使用流程。它随 Portal 镜像交付，可在应用内通过 **Help** 阅读；[`manual/manifest.json`](../../manual/manifest.json) 是其目录。
 
 | | |
 |---|---|
-| [简介](../../help/introduction.md) | BuildMax 是什么，以及它的三个使用界面 |
-| [安装](../../help/install.md) | 获取二进制文件 |
-| [快速入门](../../help/quickstart.md) | 五分钟内完成首次 Agent 运行 |
-| [支持矩阵](../../help/support.md) | 支持的平台、界面、部署方式及非目标 |
+| [简介](../../manual/introduction.md) | BuildMax 是什么，以及它的三个使用界面 |
+| [安装](../../manual/install.md) | 获取二进制文件 |
+| [快速入门](../../manual/quickstart.md) | 五分钟内完成首次 Agent 运行 |
+| [支持矩阵](../../manual/support.md) | 支持的平台、界面、部署方式及非目标 |
 | [../sample-data/](../../sample-data/README.md) | 十五组可随时丢弃的示例数据集：上传到 Space 工作区，或让 CLI 指向其中一组 |
 
 ## 为 Space 部署和运行
@@ -32,7 +32,7 @@
 | | |
 |---|---|
 | [reference/configuration.md](../reference/configuration.md) | 所有配置文件字段和环境变量 |
-| [CLI 参考](../../help/cli.md) | 命令、标志与斜杠命令（位于用户手册） |
+| [CLI 参考](../../manual/cli.md) | 命令、标志与斜杠命令（位于用户手册） |
 | [reference/webhook.md](../reference/webhook.md) | 从外部系统触发运行 |
 
 HTTP API 提供自描述文档：`GET /openapi.json`，可在 `/swagger/` 浏览。
