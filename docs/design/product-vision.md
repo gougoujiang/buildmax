@@ -115,9 +115,15 @@ Each durable object names its own persistence and recovery contract:
 BuildMax does **not** have a generic versioned-workspace service, hidden Git
 state engine, activity timeline restore, or promise that every file change is
 reversible. Session rewind changes conversation history only; it does not undo
-tools or restore workspace files. A feature that needs snapshots, change sets,
-rollback, or cross-device workspace reconstruction requires a separately
-accepted design, ownership model, and roadmap priority.
+tools or restore workspace files.
+
+[Task workspace checkpoints](task-workspace-checkpoints.md) are the accepted,
+narrow exception in the execution plane: a planned TaskRun may restore one
+immutable `workspace/` checkpoint and publish the next so Task continuation does not
+pair remembered Agent history with missing files. That is execution recovery,
+not a user-visible workspace history. Change sets, arbitrary rollback,
+cross-device reconstruction, and applying Task state to shared Space files still require
+a separately accepted design, ownership model, and roadmap priority.
 
 ### Configuration And Execution Remain Portable
 
@@ -139,7 +145,7 @@ providers.
 | Conversation | Independent foreground chat and optional orchestrator | Team |
 | Task / TaskRun | Durable Agent thread and its execution turns or attempts | Team and scheduler |
 | Artifact | Explicit durable output with stable identity | Team |
-| Plugin activation | Team allow-list and release pin for Agent selection | Team; exact pins snapshot onto a TaskRun |
+| Plugin environment | Space/Agent activations plus Task-scoped autonomous additions; expanded run directories are projections | Immutable package pins and environment revision recorded on TaskRun |
 
 The table is a product map, not a database schema. Current fields and
 relationships live in the [data model](../contribute/architecture/data-model.md).
