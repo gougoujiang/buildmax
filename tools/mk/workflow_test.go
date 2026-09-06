@@ -163,7 +163,14 @@ func TestDefaultHelpListsEveryCommand(t *testing.T) {
 			t.Errorf("bare help does not list %q", name)
 		}
 	}
-	for _, want := range []string{"Typical contribution path:", mk() + " check ci", mk() + " help <command>"} {
+	for _, want := range []string{
+		"build [cli [os/arch]|desktop]",
+		"test [race|mysql] [pkg]",
+		"changelog [new|release]",
+		"Typical contribution path:",
+		mk() + " check ci",
+		mk() + " help <command>",
+	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("bare help does not mention %q", want)
 		}
