@@ -364,18 +364,30 @@ must continue to state that it shows metadata, not contents.
 
 ### 8.1 Operator Surface Contract
 
-Command line and Portal are peer operator surfaces over the same application
-services. They are optimized for different use:
+Operator surfaces are split by the authority a caller can present, not by
+feature. Two are direct-authority break-glass; two are authenticated peers over
+one Admin API:
 
 | Surface | Primary use | Authentication | Availability |
 |---|---|---|---|
-| `buildmax-server` | Bootstrap, recovery, scripts, and deployment automation | Access to Server configuration and database credentials | Works without Portal and, for database operations, without a healthy public Server |
-| Admin API | Stable programmatic contract for an authenticated administrator | User session plus a live system grant | Requires the Server |
-| Portal | Discoverable, guided routine operations | The same Admin API | Requires the Server and Portal |
+| `buildmax-server` | Break-glass: bootstrap the first account and grant, recover a locked-out or zero-administrator deployment, mint a run token, and run the Server | Direct access to Server configuration, the database, and the deployment signing key | Works without Portal and without a healthy public Server |
+| Admin API (`/api/admin/*`) | Stable programmatic contract for routine administration | User session plus a live system grant | Requires the Server |
+| `buildmax admin` | Scriptable, automation-friendly routine administration | The same Admin API, reusing the `buildmax` client login and Server-address configuration | Requires the Server |
+| Portal | Discoverable, guided routine administration | The same Admin API | Requires the Server and Portal |
 
-One domain service owns each mutation. CLI and HTTP adapters supply different
-actors and presentation, but validation, state transitions, invariants, and
-audit vocabulary must be shared.
+`buildmax admin` and Portal are peer clients of one Admin API; neither reaches
+the database. `buildmax-server` is not a routine administration surface: it
+keeps only the operations that must sit next to the database or the signing
+key — creating the first authority, recovering when no administrator can log in,
+and minting a run token — plus running the Server itself. Every other operator
+outcome moves onto the authenticated Admin API and is reached identically from a
+script (`buildmax admin`) or a browser (Portal).
+
+One domain service owns each mutation. The `buildmax admin` client and the HTTP
+handlers are both thin adapters that reach that service through the Admin API,
+while `buildmax-server` reaches the same services directly as a system actor.
+Validation, state transitions, invariants, and audit vocabulary are shared
+across all three.
 
 The parity requirement is explicit:
 
@@ -395,8 +407,15 @@ The parity requirement is explicit:
 | Mint a diagnostic run token | `buildmax-server run-token` | Not available | Keep CLI-only; exposing a bearer credential is not a routine management outcome |
 | Change process-start configuration | Edit `server.yaml` and restart | Read-only warnings | Keep read-only until a shared dynamic configuration store exists |
 
-Exceptions must be narrow and explained at the point where the Portal would
-otherwise offer an action:
+The table records today's surfaces and the proposed Portal outcome. Under the
+split above, every non-exception row is also delivered on `buildmax admin`, so
+each routine outcome reaches three-way parity: Admin API, `buildmax admin`, and
+Portal. The exception rows below are exactly the outcomes that stay on
+`buildmax-server` because they precede or bypass the authority the Admin API
+requires.
+
+Exceptions must be narrow and explained at the point where an authenticated
+surface would otherwise offer an action:
 
 - the first grant and recovery from zero administrators cannot depend on an
   already authenticated administrator;
@@ -416,6 +435,15 @@ those conditions are not met, `model add` remains visibly marked as unavailable
 rather than silently delegated to a command snippet.
 
 ## 9. Delivery Plan
+
+The `buildmax admin` client is not a separate phase. Each phase that adds an
+Admin API capability adds its `buildmax admin` subcommand in the same slice, so
+the automation surface never lags Portal. One discrete restructuring, sized with
+Phase 1, trims `buildmax-server` to its break-glass set — first grant, recovery
+login-code, final-holder force revoke, run-token, and running the Server — and
+moves every routine `user`, `model`, and `admin` operation onto the authenticated
+Admin API reached by `buildmax admin`. Because the repository is Alpha, this
+replaces the old command placement rather than aliasing it.
 
 ### Phase 0: Grant Integrity And Recovery
 
@@ -643,7 +671,8 @@ GET /api/admin/quota-tiers
 PUT /api/admin/spaces/{space_id}/quota-tier
 ```
 
-`core/quota.TierStore` currently reads one tier only. It needs a list operation.
+`internal/core/quota.TierStore` currently reads one tier only. It needs a list
+operation.
 The Space store needs a quota-tier assignment operation, while validation and
 audit ownership belong in `internal/service/quota`. The handler should not
 coordinate raw stores directly.
@@ -679,9 +708,9 @@ browser did not verify.
 Runtime status should be assembled from narrow readers owned by the domains
 that already own the facts:
 
-- `core/task` for persisted TaskRun status and age aggregates;
+- `internal/core/task` for persisted TaskRun status and age aggregates;
 - readiness probes supplied by bootstrap;
-- `core/quota` for aggregate capacity pressure;
+- `internal/core/quota` for aggregate capacity pressure;
 - configuration for immutable deployment facts and its redacted projection.
 
 Do not create a generic `AdminStore` exposing the complete database. The admin
@@ -701,10 +730,20 @@ and serialize a dedicated response type.
 Operator commands and HTTP handlers should delegate to the same service for the
 same state transition. Their authority differs — database-holding system actor
 versus signed-in administrator — but their business procedure must not drift.
+Today this delegation is uneven: `admin grant`/`revoke` and `model add` already
+call their owning service, while the `user` lifecycle commands and `model
+list`/`enable`/`disable` still reach `internal/core` primitives or the store
+directly and record audit inline. Converging every operator command onto its
+owning service is part of this proposal's work, not a precondition it assumes.
 
-The CLI is not implemented by calling the public HTTP API: bootstrap and
-recovery must still work when that API is unavailable. Shared service methods,
-not network self-calls, provide behavioral parity.
+The two CLIs reach these services differently on purpose. `buildmax-server`
+does not call the public HTTP API: bootstrap and recovery must still work when
+that API is unavailable, so it invokes the shared service methods directly as a
+system actor. `buildmax admin` is the opposite — a pure Admin API client that
+authenticates as the signed-in administrator and carries no database or
+service-layer access of its own, exactly like Portal. Behavioral parity across
+all three comes from the single owning service, not from either CLI duplicating
+its rules.
 
 ## 11. Authorization, Privacy, And Audit
 
@@ -856,12 +895,16 @@ constraint everywhere rather than layer a compatibility workaround over it.
 Suggested implementation order:
 
 1. grant schema and concurrency correctness;
-2. Administrators Portal page and discoverability;
+2. Administrators Portal page and discoverability, the `buildmax admin` client,
+   and the `buildmax-server` break-glass trim;
 3. account pagination and session lifecycle;
 4. model and plugin catalog parity, after credential hardening;
 5. Space quota assignment;
 6. runtime operations after the topology decision;
 7. enterprise identity as a separate accepted plan.
+
+Each routine capability from step 3 onward ships its Admin API route, its
+`buildmax admin` subcommand, and its Portal surface together.
 
 Each user-visible slice needs one changelog entry. Update:
 
