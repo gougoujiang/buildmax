@@ -101,6 +101,8 @@ data:
           cpu_limit: "2"
           memory_request: 512Mi
           memory_limit: 2Gi
+          ephemeral_storage_request: 1Gi
+          ephemeral_storage_limit: 10Gi
 
     # The internal worker listener, bound to all interfaces so the
     # buildmax-worker-api Service reaches it, over TLS. The certificate is

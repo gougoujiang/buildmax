@@ -31,7 +31,10 @@ func (f *fakeJobCreator) CreateJob(ctx context.Context, namespace string, job *b
 func newTestRunner(t *testing.T, namespace, image string, env []corev1.EnvVar, pod PodConfig, client JobCreator) *K8sJobRunner {
 	t.Helper()
 	if pod.Resources == (PodResources{}) {
-		pod.Resources = PodResources{CPURequest: "250m", CPULimit: "1", MemoryRequest: "512Mi", MemoryLimit: "1Gi"}
+		pod.Resources = PodResources{
+			CPURequest: "250m", CPULimit: "1", MemoryRequest: "512Mi", MemoryLimit: "1Gi",
+			EphemeralStorageRequest: "256Mi", EphemeralStorageLimit: "2Gi",
+		}
 	}
 	r, err := NewK8sJobRunner(namespace, image, env, pod, client)
 	if err != nil {
@@ -287,7 +290,10 @@ func TestJobPodResources(t *testing.T) {
 	t.Run("configured bounds reach the pod", func(t *testing.T) {
 		fake := &fakeJobCreator{}
 		r := newTestRunner(t, "buildmax", "img", nil, PodConfig{
-			Resources: PodResources{CPURequest: "250m", CPULimit: "2", MemoryRequest: "512Mi", MemoryLimit: "4Gi"},
+			Resources: PodResources{
+				CPURequest: "250m", CPULimit: "2", MemoryRequest: "512Mi", MemoryLimit: "4Gi",
+				EphemeralStorageRequest: "1Gi", EphemeralStorageLimit: "8Gi",
+			},
 		}, fake)
 		if _, _, _, err := r.Run(context.Background(), coretask.Run{ID: "run-1"}, ""); err != nil {
 			t.Fatalf("Run: %v", err)
@@ -304,6 +310,28 @@ func TestJobPodResources(t *testing.T) {
 		}
 		if got := res.Requests.Cpu().String(); got != "250m" {
 			t.Errorf("cpu request = %s, want 250m", got)
+		}
+		if got := res.Limits.StorageEphemeral().String(); got != "8Gi" {
+			t.Errorf("ephemeral-storage limit = %s, want 8Gi", got)
+		}
+		if got := res.Requests.StorageEphemeral().String(); got != "1Gi" {
+			t.Errorf("ephemeral-storage request = %s, want 1Gi", got)
+		}
+		// The limit is also the sizeLimit of each writable emptyDir, so a runaway
+		// workspace is evicted at the volume rather than filling the node.
+		vols := fake.lastJob.Spec.Template.Spec.Volumes
+		emptyDirs := 0
+		for _, v := range vols {
+			if v.EmptyDir == nil {
+				continue
+			}
+			emptyDirs++
+			if v.EmptyDir.SizeLimit == nil || v.EmptyDir.SizeLimit.String() != "8Gi" {
+				t.Errorf("volume %q sizeLimit = %v, want 8Gi", v.Name, v.EmptyDir.SizeLimit)
+			}
+		}
+		if emptyDirs != 2 {
+			t.Errorf("expected 2 emptyDir volumes (home, tmp), got %d", emptyDirs)
 		}
 	})
 
@@ -337,8 +365,18 @@ func TestJobPodResources(t *testing.T) {
 		},
 		{
 			name:      "a limit below its request",
-			resources: PodResources{CPURequest: "250m", CPULimit: "2", MemoryRequest: "4Gi", MemoryLimit: "512Mi"},
+			resources: PodResources{CPURequest: "250m", CPULimit: "2", MemoryRequest: "4Gi", MemoryLimit: "512Mi", EphemeralStorageRequest: "1Gi", EphemeralStorageLimit: "8Gi"},
 			wantField: "memory_limit",
+		},
+		{
+			name:      "no ephemeral-storage bound",
+			resources: PodResources{CPURequest: "250m", CPULimit: "2", MemoryRequest: "512Mi", MemoryLimit: "4Gi"},
+			wantField: "ephemeral_storage_request",
+		},
+		{
+			name:      "ephemeral-storage limit below its request",
+			resources: PodResources{CPURequest: "250m", CPULimit: "2", MemoryRequest: "512Mi", MemoryLimit: "4Gi", EphemeralStorageRequest: "8Gi", EphemeralStorageLimit: "1Gi"},
+			wantField: "ephemeral_storage_limit",
 		},
 	}
 	for _, tc := range rejected {

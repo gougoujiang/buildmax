@@ -115,6 +115,8 @@ data:
           cpu_limit: "2"
           memory_request: 1Gi
           memory_limit: 4Gi
+          ephemeral_storage_request: 2Gi
+          ephemeral_storage_limit: 20Gi
 
     # The internal worker listener. Bound to all interfaces here (not the
     # loopback default) so the buildmax-worker-api Service can reach it, and

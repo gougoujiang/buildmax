@@ -369,6 +369,15 @@ type ServerK8sResources struct {
 	CPULimit      string `mapstructure:"cpu_limit"`
 	MemoryRequest string `mapstructure:"memory_request"`
 	MemoryLimit   string `mapstructure:"memory_limit"`
+	// EphemeralStorageRequest and EphemeralStorageLimit bound the pod's local
+	// scratch disk — the writable layer plus every emptyDir, which is where the
+	// materialized workspace, the checkpoint payload staged for upload, and
+	// ordinary tool output all land. The limit is also applied as the sizeLimit
+	// of each emptyDir, so a runaway workspace is evicted cleanly instead of
+	// filling the node. Required in this run mode, like the CPU and memory
+	// bounds. See docs/design/task-workspace-checkpoints.md §12.3.
+	EphemeralStorageRequest string `mapstructure:"ephemeral_storage_request"`
+	EphemeralStorageLimit   string `mapstructure:"ephemeral_storage_limit"`
 }
 
 // ServerStorageConfig holds blob storage backend selection and MinIO settings.

@@ -46,6 +46,8 @@ worker:
       cpu_limit: "1"
       memory_request: 256Mi
       memory_limit: 1Gi
+      ephemeral_storage_request: 256Mi
+      ephemeral_storage_limit: 2Gi
 
 # Bound to all interfaces so the buildmax-worker-api Service reaches the worker
 # listener from a worker pod, over TLS. The cert is mounted into the server pod

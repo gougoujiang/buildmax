@@ -145,7 +145,8 @@ One setting under `worker.k8s` remains an operator's:
 
 | Setting | Default | Purpose |
 |---|---|---|
-| `resources.cpu_request` / `cpu_limit` / `memory_request` / `memory_limit` | none — required | Kubernetes quantity strings such as `500m`, `2`, `512Mi`, or `4Gi`. All four are required under `k8s_job`; BuildMax chooses no numbers for you, because the right ones depend on the work a deployment runs. |
+| `resources.cpu_request` / `cpu_limit` / `memory_request` / `memory_limit` | none — required | Kubernetes quantity strings such as `500m`, `2`, `512Mi`, or `4Gi`. All are required under `k8s_job`; BuildMax chooses no numbers for you, because the right ones depend on the work a deployment runs. |
+| `resources.ephemeral_storage_request` / `ephemeral_storage_limit` | none — required | Bound the worker pod's local scratch disk — the writable layer plus every emptyDir, where the materialized workspace, the staged checkpoint payload, and tool output all land. The limit is also applied as the `sizeLimit` of each of the pod's emptyDir volumes, so a runaway workspace is evicted cleanly instead of filling the node. |
 
 The server refuses to start when a bound is missing, is not a Kubernetes
 quantity, is zero or negative, or names a limit below its own request. The error
