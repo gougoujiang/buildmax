@@ -18,6 +18,9 @@ loop rather than a pull-request gate — is in
 ./make e2e desktop-ui # desktop/frontend through `wails dev`'s browser bridge
 ./make e2e local      # Portal in a browser, against a Compose stack this command owns
 ./make e2e all        # cli, desktop, then local — the release-time matrix
+./make kind up        # build the local cluster and verify a Kubernetes worker run
+./make kind smoke     # rerun the deployment flow without rebuilding
+./make e2e kind       # run the Portal browser suite against that cluster
 ```
 
 `./make test` is the loop. The CLI and Desktop suites live inside it because
@@ -43,14 +46,47 @@ package whose code reads those paths gives itself a `TestMain` calling
 | desktop/frontend's React app, or how it calls a bound Go method | `./make e2e desktop-ui` |
 | The Wails config, the desktop asset embedding, or the app's packaging | `./make build desktop` — nothing else builds the packaged app, and `go build ./...` compiles the `!desktop` stub instead |
 | A shared component in `gui/` | `./make check gui` |
-| Portal, `gui`, or a route Portal calls | `./make e2e local` |
-| Server, worker, scheduler, storage, or the model gateway | `./make compose smoke`, and `./make compose smoke managed` if the change touches the gateway |
-| Deployment manifests, the Dockerfiles, ingress, or the worker's Kubernetes path | `./make kind up`, then `./make e2e kind` |
+| Portal presentation or a shared component | `./make check portal` or `./make check gui`, then `./make e2e local` for the fast browser loop |
+| Portal behavior or a server route Portal calls | Use the local kind loop below; finish with `./make e2e kind` |
+| Server handlers, services, authentication, conversations, or task dispatch | Use the local kind loop below; run `./make kind smoke`, plus `./make e2e kind` when the behavior is browser-visible |
+| Worker, scheduler, storage, or the model gateway | `./make kind up`, then `./make kind smoke`; use `./make kind smoke managed` for the gateway path |
+| Deployment manifests, Dockerfiles, ingress, or the Kubernetes worker path | `./make kind up`, then `./make e2e kind` |
 | Documentation | `./make check docs` |
 
-Start with the narrowest suite the change touches. Run a broader one when the
-narrow one passes and you still do not believe it — not instead of reading the
-failure you already have.
+Start with the narrowest suite for fast feedback, then run the wider evidence
+the changed boundary requires. A unit or Compose check is not a substitute for
+kind when the claim depends on same-origin ingress, deployed configuration,
+real backing services, or Kubernetes worker execution.
+
+## The Kind Loop For Portal And Server
+
+The local kind cluster is the preferred end-to-end environment for substantive
+Portal and server work. It puts the built Portal and server images behind the
+same ingress, uses real MySQL and MinIO, and executes TaskRuns in Kubernetes
+worker Jobs. Those are product boundaries that component tests and the faster
+Compose loop cannot all prove together.
+
+```bash
+./make kind up              # create or update the cluster, then verify a real worker run
+./make kind reload portal   # rebuild and restart only Portal during the edit loop
+./make kind reload server   # rebuild and restart only the server during the edit loop
+./make kind smoke           # rerun the deterministic API-to-worker deployment flow
+./make kind smoke managed   # also prove gateway inference without a worker credential
+./make e2e kind             # run the Portal browser suite through the shared ingress
+```
+
+Run `kind up` first when no cluster exists. After a Portal-only edit, reload
+Portal and run `e2e kind`. After a server edit, reload the server and run
+`kind smoke`; add `e2e kind` when Portal consumes the changed behavior. Use
+`kind fixtures` plus `kind login` when an ad hoc browser check needs populated
+business views. Changes to manifests, images outside Portal/server, or the
+worker Job path require `kind up`, because `kind reload` only targets the two
+long-running Deployments.
+
+The kind commands create or mutate local infrastructure and deliberately stay
+outside automatic pull-request checks. That makes them a proportional choice,
+not an optional one: when a Portal or server change makes an end-to-end claim,
+the author is responsible for producing the local-cluster evidence.
 
 ## What Each Suite Needs, And How Long It Takes
 
@@ -260,8 +296,9 @@ passed.
 ```
 
 `./make e2e all` deliberately leaves out kind: that suite needs a cluster, and a
-release check that quietly builds one is a surprise. Run `./make kind up`
-followed by `./make e2e kind` when the change is worth proving on Kubernetes.
+release check that quietly builds one is a surprise. For substantive Portal or
+server work, and for every deployment-shaped change, fill that omission
+explicitly with `./make kind up` followed by `./make e2e kind`.
 
 ## Frontend Component Tests
 

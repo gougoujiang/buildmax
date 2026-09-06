@@ -166,39 +166,35 @@ never describe an unverified capability or evaluation score as existing.
 
 ## Build, Test, And Verification
 
-Use the cross-platform task runner from the repository root. `./make help` and
-[`docs/contribute/testing.md`](docs/contribute/testing.md) are the command and
-verification references.
+Building and verification are part of implementation, not optional handoff
+work. Before changing code, use
+[`docs/contribute/testing.md`](docs/contribute/testing.md) to select the suites
+for that subsystem. `./make help` is the source of truth for the current command
+surface; details belong there rather than being copied into this file.
 
-```bash
-./make doctor
-./make build cli
-./make test
-./make test mysql
-./make lint
-./make check <go|gui|portal|desktop|docs|all|ci>
-./make e2e <cli|desktop|local|compose|kind|all>
-```
-
-- Narrow tests through `./make test`, never bare `go test`; only the task runner
-  isolates `BUILDMAX_HOME` from a contributor's real `~/.buildmax`.
-- Run checks in proportion to the change, starting narrow and finishing with
-  every relevant scope. `git diff --check` is always part of handoff.
-- Any `internal/infra/db` change requires `./make test mysql` against a real
-  MySQL. The ordinary suite skips that scope and is not evidence for it.
-- When a Portal, worker, or deployment behavior cannot be proved by a unit
-  test, produce end-to-end evidence yourself. The deterministic E2E suites need
-  no provider API key.
-- `./make agent-smoke` and `./make eval` use real models, spend tokens, and
-  measure model-driven behavior; they are not tests or default handoff checks.
-- On Windows use `make.bat`. Add or change commands under `tools/mk`; do not
+- Run repository checks through the cross-platform task runner from the root.
+  Narrow Go tests with `./make test`, never bare `go test`, because only the
+  task runner isolates `BUILDMAX_HOME` from the contributor's real data.
+- Start with the narrowest relevant check, then run every scope needed to prove
+  the change. A passing unrelated or skipped scope is not evidence.
+- Any `internal/infra/db` change requires the MySQL scope against a real MySQL;
+  the ordinary suite skips those tests.
+- When a Portal, worker, or deployment outcome crosses boundaries that unit
+  tests cannot prove, produce the appropriate end-to-end evidence yourself.
+- For substantive Portal or server changes, the local kind cluster is the
+  preferred end-to-end environment: it exercises the shared ingress, deployed
+  images, real MySQL and object storage, and Kubernetes worker Jobs together.
+  Use `kind reload` for the edit loop, then the deployment smoke and Portal
+  browser suite as the change requires. Compose is a faster inner loop, not a
+  substitute when the claim depends on those boundaries.
+- Real-model smoke tests, cache qualification, and evaluation measure behavior
+  and may spend money; they are not deterministic tests or default handoff
+  checks. Run them only when the task calls for that evidence.
+- On Windows use `make.bat`. Commands are implemented under `tools/mk`; do not
   create a parallel shell-script workflow.
-- Go, Node, npm, and Wails versions are repository-pinned. Use `npm ci` for
-  reproducible frontend installs. Normal CLI development has no Node dependency.
-- `doctor`, `build cli`, `test`, `lint`, and scoped `check` are safe local
-  defaults. Before commands that install, release, start Compose or kind, or
-  publish externally, inspect their help and ensure the task authorizes their
-  machine, repository, or external effects.
+- Inspect help before any command that installs software, starts infrastructure,
+  publishes, releases, or otherwise changes the machine or an external system,
+  and run it only when the task authorizes that effect.
 
 ## Change Rules
 
