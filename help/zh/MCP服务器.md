@@ -71,7 +71,7 @@ tools:
     "CallMcpTool:github/*": allow
 ```
 
-完整细节参见：[工具权限](tool-permissions.md)。
+完整细节参见：[工具权限](工具权限.md)。
 
 ## 检查它是否正常工作
 
@@ -87,6 +87,6 @@ tools:
 
 ## 相关
 
-- [工具](tools.md) —— 内置工具集
-- [工具权限](tool-permissions.md) —— 哪些调用会停下来询问
-- [钩子](hooks.md) —— `mcp_tool` 也可作为一种钩子传输方式
+- [工具](工具.md) —— 内置工具集
+- [工具权限](工具权限.md) —— 哪些调用会停下来询问
+- [钩子](钩子.md) —— `mcp_tool` 也可作为一种钩子传输方式

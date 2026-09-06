@@ -61,6 +61,9 @@ const UI: Record<Lang, { manifestError: string; pageError: string; notFound: str
 interface HelpPage {
   slug: string
   title: string
+  // The markdown file on disk. English pages omit it (the file is `${slug}.md`);
+  // the Chinese manual names its files in Chinese, so it sets this explicitly.
+  file?: string
 }
 
 interface HelpSection {
@@ -73,12 +76,28 @@ interface HelpManifest {
   sections: HelpSection[]
 }
 
-/** A bare `slug.md` (optionally `./slug.md#anchor`) is a link to another page. */
-const INTERNAL_DOC = /^(?:\.\/)?([a-z0-9-]+)\.md(?:[#?].*)?$/i
+/** The file a manifest entry points at: its `file`, or `${slug}.md` by default. */
+function pageFile(page: HelpPage): string {
+  return page.file ?? `${page.slug}.md`
+}
 
-function internalSlug(href: string): string | null {
-  const match = href.match(INTERNAL_DOC)
-  return match ? match[1] : null
+/**
+ * A page links to another with a relative markdown filename — `sandbox.md` in
+ * English, `沙箱.md` in Chinese, optionally `./name.md#anchor`. Return the bare
+ * filename so it can be matched against the manifest; anything absolute, external,
+ * or not a `.md` file is not an in-manual link.
+ */
+function linkedFile(href: string): string | null {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith("#") || href.startsWith("/")) {
+    return null
+  }
+  const name = href.replace(/^\.\//, "").split(/[#?]/)[0]
+  if (!name.toLowerCase().endsWith(".md")) return null
+  try {
+    return decodeURIComponent(name)
+  } catch {
+    return name
+  }
 }
 
 export function Help({ slug }: { slug?: string }) {
@@ -121,7 +140,9 @@ export function Help({ slug }: { slug?: string }) {
 
   // The manual opens on its first page; a slug in the URL selects one directly.
   const activeSlug = slug ?? pages[0]?.slug
-  const known = activeSlug ? pages.some((p) => p.slug === activeSlug) : true
+  const activePage = pages.find((p) => p.slug === activeSlug)
+  const known = activeSlug ? activePage !== undefined : true
+  const activeFile = activePage ? pageFile(activePage) : undefined
 
   const [content, setContent] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -129,12 +150,12 @@ export function Help({ slug }: { slug?: string }) {
   const contentRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!activeSlug || !known) return
+    if (!activeFile) return
     let alive = true
     setLoading(true)
     setNotFound(false)
     setContent(null)
-    fetch(`${base}/${activeSlug}.md`)
+    fetch(`${base}/${encodeURIComponent(activeFile)}`)
       .then((r) => {
         if (!r.ok) throw new Error(String(r.status))
         return r.text()
@@ -145,18 +166,28 @@ export function Help({ slug }: { slug?: string }) {
     return () => {
       alive = false
     }
-  }, [base, activeSlug, known])
+  }, [base, activeFile])
 
   // A new page starts at its top, not wherever the previous one was scrolled.
   useEffect(() => {
     contentRef.current?.scrollTo({ top: 0 })
   }, [activeSlug])
 
+  // Map a linked markdown filename back to the page slug it routes to. Built from
+  // the current language's manifest, so a Chinese page's `沙箱.md` link resolves
+  // to the same slug English's `sandbox.md` does.
+  const fileToSlug = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const p of pages) m.set(pageFile(p), p.slug)
+    return m
+  }, [pages])
+
   const components: Components = useMemo(
     () => ({
       a(props) {
         const { href, children } = props
-        const target = href ? internalSlug(href) : null
+        const file = href ? linkedFile(href) : null
+        const target = file ? fileToSlug.get(file) : undefined
         if (target) {
           return (
             <a
@@ -183,7 +214,7 @@ export function Help({ slug }: { slug?: string }) {
         )
       },
     }),
-    [],
+    [fileToSlug],
   )
 
   const langToggle = (
