@@ -29,7 +29,6 @@ import (
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/server/handlers"
-	workroutes "github.com/gougoujiang/buildmax/internal/server/handlers/work"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
@@ -84,7 +83,6 @@ type StoresConfig struct {
 	TaskStore           coretask.Store
 	TaskRunStore        coretask.RunStore
 	LLMCallStore        coregw.CallStore
-	RunOutputLister     workroutes.RunOutputLister
 	UserWebhookKeyStore coreidentity.UserWebhookKeyStore
 	AuditStore          coreaudit.Store
 	SystemGrantStore    coreidentity.SystemGrantStore
@@ -114,11 +112,8 @@ type ServicesConfig struct {
 
 // StorageConfig holds blob storage and workspace paths.
 type StorageConfig struct {
-	PersistStorage   blob.PersistStorage
-	RunOutputStorage blob.RunOutputStorage
-	// ArtifactStorage holds artifact content. It is separate from
-	// RunOutputStorage because they are different key spaces with different
-	// lifetimes, not two names for one bucket.
+	PersistStorage blob.PersistStorage
+	// ArtifactStorage holds artifact content.
 	ArtifactStorage artifactsvc.ContentStore
 	// MaxArtifactBytes caps one artifact. Zero uses the service default.
 	MaxArtifactBytes int64
@@ -321,12 +316,10 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		TaskStore:                cfg.Stores.TaskStore,
 		TaskRunStore:             cfg.Stores.TaskRunStore,
 		LLMCallStore:             cfg.Stores.LLMCallStore,
-		RunOutputLister:          cfg.Stores.RunOutputLister,
 		UserWebhookKeyStore:      cfg.Stores.UserWebhookKeyStore,
 		ConversationStore:        cfg.Conv.ConversationStore,
 		ConversationMessageStore: cfg.Conv.ConversationMessageStore,
 		PersistStorage:           cfg.Storage.PersistStorage,
-		RunOutputStorage:         cfg.Storage.RunOutputStorage,
 		ArtifactStorage:          cfg.Storage.ArtifactStorage,
 		ArtifactShareStore:       cfg.Stores.ArtifactShareStore,
 		ArtifactPublicBaseURL:    cfg.Auth.PublicBaseURL,

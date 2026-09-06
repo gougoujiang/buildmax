@@ -5,5 +5,5 @@ export {
   updateIssueComment,
   deleteIssueComment,
 } from "./comments"
-export { OutputCard, OutputsList, OutputViewerModal } from "./IssueOutputs"
+export { OutputCard, OutputsList } from "./IssueOutputs"
 export { IssueDiscussion } from "./IssueDiscussion"

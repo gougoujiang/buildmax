@@ -51,34 +51,6 @@ func TestPersistObjectKey(t *testing.T) {
 	}
 }
 
-func TestRunOutputResultKey(t *testing.T) {
-	key := RunOutputResultKey("workspaces", "tm1", "task1", "run1")
-	if key != "workspaces/tm1/tasks/task1/run1/artifacts/result.md" {
-		t.Errorf("got %q", key)
-	}
-	key = runOutputResultKey(runKeyScope{Prefix: "workspaces", SpaceID: "tm1", TaskID: "task1", TaskRunID: "run1"})
-	if key != "workspaces/tm1/tasks/task1/run1/artifacts/result.md" {
-		t.Errorf("runOutputResultKey got %q", key)
-	}
-}
-
-func TestRunOutputFileKey(t *testing.T) {
-	key, err := RunOutputFileKey("workspaces", "tm1", "task1", "run1", "result.md")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if key != "workspaces/tm1/tasks/task1/run1/artifacts/result.md" {
-		t.Errorf("got %q", key)
-	}
-	key, err = RunOutputFileKey("w", "tm", "task", "run", "sub/file.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if key != "w/tm/tasks/task/run/artifacts/sub/file.txt" {
-		t.Errorf("got %q", key)
-	}
-}
-
 func TestPersistPrefix(t *testing.T) {
 	p := PersistPrefix("workspaces", "ws1")
 	if p != "workspaces/ws1/home/" {
@@ -112,15 +84,5 @@ func TestRunGlobalObjectKey(t *testing.T) {
 	_, err = RunGlobalObjectKey("w", "tm", "task", "run", "/abs")
 	if err != ErrInvalidPath {
 		t.Errorf("want ErrInvalidPath for absolute path, got %v", err)
-	}
-}
-
-func TestRunArtifactsObjectKey(t *testing.T) {
-	key, err := RunArtifactsObjectKey("workspaces", "tm1", "task1", "run1", "result.md")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if key != "workspaces/tm1/tasks/task1/run1/artifacts/result.md" {
-		t.Errorf("got %q", key)
 	}
 }

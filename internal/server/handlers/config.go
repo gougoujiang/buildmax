@@ -76,7 +76,6 @@ type Config struct {
 	// LLMCallStore reads the managed call ledger. Nil leaves the ledger
 	// unreadable over HTTP, which is what a deployment with no database has.
 	LLMCallStore             coregw.CallStore
-	RunOutputLister          work.RunOutputLister
 	UserWebhookKeyStore      coreidentity.UserWebhookKeyStore
 	ConversationStore        coreconv.Store
 	ConversationMessageStore coreconv.MessageStore
@@ -115,7 +114,6 @@ type Config struct {
 
 	// Storage
 	PersistStorage   blob.PersistStorage
-	RunOutputStorage blob.RunOutputStorage
 	ArtifactStorage  artifactsvc.ContentStore
 	MaxArtifactBytes int64
 	// ArtifactPublicBaseURL is the externally reachable origin share links are

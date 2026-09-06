@@ -13,9 +13,6 @@ import (
 type MockTaskRunStore struct {
 	Runs     []coretask.Run
 	TaskList []coretask.Task
-	// Artifacts holds the relative paths registered per run, so a test can
-	// check that a run's files were kept.
-	Artifacts map[string][]string
 }
 
 func (m *MockTaskRunStore) CreateTaskRun(_ context.Context, in coretask.CreateRunInput) (*coretask.Run, error) {
@@ -177,12 +174,6 @@ func (m *MockTaskRunStore) TransitionTaskRun(ctx context.Context, in coretask.Tr
 		}
 		if in.TracePath != nil {
 			m.Runs[i].TracePath = in.TracePath
-		}
-		if len(in.ArtifactRelativePaths) > 0 {
-			if m.Artifacts == nil {
-				m.Artifacts = make(map[string][]string)
-			}
-			m.Artifacts[in.TaskRunID] = append(m.Artifacts[in.TaskRunID], in.ArtifactRelativePaths...)
 		}
 		return true, m.syncTaskFromRun(ctx, in.TaskRunID)
 	}

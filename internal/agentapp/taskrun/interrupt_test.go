@@ -40,7 +40,6 @@ func TestRunInterruptedOnlyRecognisesAShutdownCause(t *testing.T) {
 // status while it still can, and keeps what it produced, instead of staying
 // RUNNING until the stale-run reaper closes it.
 func TestReportInterruptedRunReportsFailedAndKeepsPartialWork(t *testing.T) {
-	storage := &fakeRunOutputStorage{}
 	updater := &fakeUpdater{}
 	scope := RunScope{SpaceID: "tm1", TaskID: "t1", TaskRunID: "r1"}
 	result := runResult{
@@ -52,16 +51,12 @@ func TestReportInterruptedRunReportsFailedAndKeepsPartialWork(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	cancel(coretask.ErrRunInterrupted)
 	err := reportInterruptedRun(ctx, scope, result, runDirs{runGlobal: t.TempDir()}, RunTaskInput{
-		Persist:          newFakePersistStorage(),
-		RunOutputStorage: storage,
-		Updater:          updater,
+		Persist: newFakePersistStorage(),
+		Updater: updater,
 	})
 
 	if !errors.Is(err, coretask.ErrRunInterrupted) {
 		t.Fatalf("err = %v, want ErrRunInterrupted", err)
-	}
-	if storage.err != nil {
-		t.Fatalf("the result upload ran on the dead context: %v", storage.err)
 	}
 	if updater.req == nil {
 		t.Fatal("the run never reported an outcome")
@@ -74,15 +69,9 @@ func TestReportInterruptedRunReportsFailedAndKeepsPartialWork(t *testing.T) {
 	if updater.req.ErrorMessage == nil || !strings.Contains(*updater.req.ErrorMessage, "shut down") {
 		t.Errorf("error_message = %v, want one naming the shutdown", updater.req.ErrorMessage)
 	}
+	// The reply is the run's one persisted output, carried on the status patch.
 	if updater.req.Output == nil || *updater.req.Output != "as far as I got" {
 		t.Errorf("output = %v, want the partial reply the run had produced", updater.req.Output)
-	}
-	// The reply is the run's one output; the runtime no longer scans a directory.
-	if updater.req.Artifact == nil || len(updater.req.Artifact.RelativePaths) != 1 || updater.req.Artifact.RelativePaths[0] != "result.md" {
-		t.Fatalf("artifact = %v, want [result.md]", updater.req.Artifact)
-	}
-	if string(storage.result) != "as far as I got" {
-		t.Errorf("stored result = %q, want the partial output", storage.result)
 	}
 }
 
@@ -94,9 +83,8 @@ func TestCancelWinsOverAnInterruptionOnTheSameRun(t *testing.T) {
 	scope := RunScope{SpaceID: "tm1", TaskID: "t1", TaskRunID: "r1"}
 	dirs := runDirs{runGlobal: t.TempDir()}
 	input := RunTaskInput{
-		Persist:          newFakePersistStorage(),
-		RunOutputStorage: &fakeRunOutputStorage{},
-		Updater:          updater,
+		Persist: newFakePersistStorage(),
+		Updater: updater,
 	}
 
 	ctx, cancel := context.WithCancelCause(context.Background())
@@ -121,9 +109,8 @@ func TestCancelWinsOverAnInterruptionOnTheSameRun(t *testing.T) {
 func TestReportStoppedRunIgnoresALiveRun(t *testing.T) {
 	updater := &fakeUpdater{}
 	stopped, err := reportStoppedRun(context.Background(), RunScope{TaskRunID: "r1"}, runResult{}, runDirs{}, RunTaskInput{
-		Persist:          newFakePersistStorage(),
-		RunOutputStorage: &fakeRunOutputStorage{},
-		Updater:          updater,
+		Persist: newFakePersistStorage(),
+		Updater: updater,
 	})
 	if stopped || err != nil {
 		t.Fatalf("reportStoppedRun(live) = (%v, %v), want (false, nil)", stopped, err)

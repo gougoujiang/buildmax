@@ -67,10 +67,10 @@ the worker can compute them for any run:
 | Function | Returns |
 |---|---|
 | `PersistentWorkspaceDir(workspacesDir, workspaceID)` | The space's durable `home/` |
-| `RuntimeTaskRunDir(workspacesDir, workspaceID, taskID, taskRunID)` | The run directory |
-| `RuntimeTaskRunHomeDir(...)` | Materialized space home for that run |
-| `RuntimeTaskRunArtifactsDir(...)` | Where `result.md` and other outputs land |
-| `RuntimeTaskRunGlobalDir(...)` | `BUILDMAX_HOME` for that run |
+
+The run-scoped directory layout (`workspace/`, `buildmax-home`/global, OS home)
+is owned by `internal/agentapp/taskrun` through its `RuntimePaths`, not by these
+free functions.
 
 ## Precedence
 

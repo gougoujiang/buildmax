@@ -126,10 +126,10 @@ func TestGetWorkerTaskRunHandler_ReportsSessionPredecessor(t *testing.T) {
 	}
 }
 
-// A canceled run is registered like a finished one: its artifacts are kept and
-// its task follows it out of "running". Losing either would make cancelling
-// cost more than waiting.
-func TestPatchWorkerTaskRun_CanceledKeepsArtifactsAndSyncsTheTask(t *testing.T) {
+// A canceled run is registered like a finished one: its reply is kept and its
+// task follows it out of "running". Losing either would make cancelling cost
+// more than waiting.
+func TestPatchWorkerTaskRun_CanceledKeepsReplyAndSyncsTheTask(t *testing.T) {
 	taskRunID := "run-canceled"
 	runs := &mock.MockTaskRunStore{
 		Runs:     []coretask.Run{{ID: taskRunID, TaskID: "task-1", Status: string(coretask.RunStatusRunning)}},
@@ -141,10 +141,9 @@ func TestPatchWorkerTaskRun_CanceledKeepsArtifactsAndSyncsTheTask(t *testing.T) 
 
 	endedAt := time.Unix(1_800_000_010, 0).UTC()
 	body, err := json.Marshal(workerclient.PatchTaskRunRequest{
-		Status:   string(coretask.RunStatusCanceled),
-		EndedAt:  &endedAt,
-		Output:   util.Ptr("as far as I got"),
-		Artifact: &workerclient.ArtifactPayload{RelativePaths: []string{"result.md", "notes.md"}},
+		Status:  string(coretask.RunStatusCanceled),
+		EndedAt: &endedAt,
+		Output:  util.Ptr("as far as I got"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -164,15 +163,15 @@ func TestPatchWorkerTaskRun_CanceledKeepsArtifactsAndSyncsTheTask(t *testing.T) 
 	if runs.TaskList[0].Status != string(coretask.RunStatusCanceled) {
 		t.Errorf("task status = %q, want CANCELED", runs.TaskList[0].Status)
 	}
-	if got := runs.Artifacts[taskRunID]; len(got) != 2 {
-		t.Errorf("registered artifacts = %v, want both files the run wrote", got)
+	if runs.Runs[0].Output == nil || *runs.Runs[0].Output != "as far as I got" {
+		t.Errorf("run output = %v, want the partial reply the run produced", runs.Runs[0].Output)
 	}
 }
 
 // A run interrupted by its worker shutting down reports FAILED, because nothing
 // chose to stop it and it did not finish — but it produced real work first, and
 // the status must not be what decides whether that work is kept.
-func TestPatchWorkerTaskRun_InterruptedFailedKeepsArtifacts(t *testing.T) {
+func TestPatchWorkerTaskRun_InterruptedFailedKeepsReply(t *testing.T) {
 	taskRunID := "run-interrupted"
 	runs := &mock.MockTaskRunStore{
 		Runs:     []coretask.Run{{ID: taskRunID, TaskID: "task-1", Status: string(coretask.RunStatusRunning)}},
@@ -188,7 +187,6 @@ func TestPatchWorkerTaskRun_InterruptedFailedKeepsArtifacts(t *testing.T) {
 		EndedAt:      &endedAt,
 		Output:       util.Ptr("as far as I got"),
 		ErrorMessage: util.Ptr(coretask.ErrRunInterrupted.Error()),
-		Artifact:     &workerclient.ArtifactPayload{RelativePaths: []string{"result.md", "notes.md"}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -208,14 +206,13 @@ func TestPatchWorkerTaskRun_InterruptedFailedKeepsArtifacts(t *testing.T) {
 	if runs.TaskList[0].Status != string(coretask.RunStatusFailed) {
 		t.Errorf("task status = %q, want FAILED", runs.TaskList[0].Status)
 	}
-	if got := runs.Artifacts[taskRunID]; len(got) != 2 {
-		t.Errorf("registered artifacts = %v, want both files the run wrote before it was stopped", got)
+	if runs.Runs[0].Output == nil || *runs.Runs[0].Output != "as far as I got" {
+		t.Errorf("run output = %v, want the partial reply the run produced before it was stopped", runs.Runs[0].Output)
 	}
 }
 
-// A run that failed at its own work reports no artifact, and must not have one
-// invented for it.
-func TestPatchWorkerTaskRun_PlainFailureRegistersNothing(t *testing.T) {
+// A run that failed at its own work still syncs its task to FAILED.
+func TestPatchWorkerTaskRun_PlainFailureSyncsTheTask(t *testing.T) {
 	taskRunID := "run-failed"
 	runs := &mock.MockTaskRunStore{
 		Runs:     []coretask.Run{{ID: taskRunID, TaskID: "task-1", Status: string(coretask.RunStatusRunning)}},
@@ -240,9 +237,6 @@ func TestPatchWorkerTaskRun_PlainFailureRegistersNothing(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
-	}
-	if got := runs.Artifacts[taskRunID]; len(got) != 0 {
-		t.Errorf("registered artifacts = %v, want none", got)
 	}
 	if runs.TaskList[0].Status != string(coretask.RunStatusFailed) {
 		t.Errorf("task status = %q, want FAILED", runs.TaskList[0].Status)

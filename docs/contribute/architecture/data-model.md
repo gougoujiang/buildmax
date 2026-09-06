@@ -127,7 +127,6 @@ erDiagram
     space ||--o{ plugin_activation : activates
 
     task ||--o{ task_run : "attempted as"
-    task_run ||--o{ task_run_artifact : produces
 
     space ||--o{ artifact : keeps
 
@@ -909,28 +908,6 @@ resolves directly against run-global storage — a test in
 The scheduler claims work by polling for the oldest pending run
 (`GetNextPendingTaskRun`); GORM's logger is configured to swallow
 `ErrRecordNotFound` so an idle server does not log a miss every poll.
-
-### `task_run_artifact`
-
-Files a run produced, by path. Contents live in object storage
-(`internal/infra/objectstore`), not in MySQL.
-
-| Column | Type | Null | Notes |
-|---|---|---|---|
-| `id` | `bigint unsigned` | no | Internal primary key |
-| `task_run_id` | `bigint unsigned` | no | `task_run.id` |
-| `relative_path` | `varchar(512)` | no | Path relative to the run directory |
-
-Indexes: PK `id`; unique `uq_task_run_artifact_run_path` on (`task_run_id`,
-`relative_path`).
-
-This table has no public handle and no timestamps — it is a set, and the
-composite unique index makes re-recording the same artifact idempotent. It
-replaced the older `artifact` / `artifact_item` pair and the `task_run_output_file`
-table; both migrations are in `internal/infra/db/migration.go`.
-
-It is not `artifact`, below. This is a run's index of the files it left in its
-own output directory; that is a durable object a space keeps.
 
 ### `workspace_checkpoint`
 

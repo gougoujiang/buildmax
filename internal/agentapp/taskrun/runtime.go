@@ -140,7 +140,6 @@ type RunTaskInput struct {
 	SessionID              string
 	Paths                  RuntimePaths
 	Persist                blob.PersistStorage
-	RunOutputStorage       blob.RunOutputStorage
 	Updater                TaskRunUpdater
 	StreamSender           workerclient.StreamSender
 	Model                  config.ModelEntry
@@ -224,8 +223,8 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	if task == nil || run == nil {
 		return errors.New("runtime: task and run must not be nil")
 	}
-	if input.Paths == nil || input.Persist == nil || input.RunOutputStorage == nil || input.Updater == nil {
-		return errors.New("runtime: paths, persist, runOutputStorage and updater must not be nil")
+	if input.Paths == nil || input.Persist == nil || input.Updater == nil {
+		return errors.New("runtime: paths, persist and updater must not be nil")
 	}
 	dirs := resolveRunDirs(input.Paths, task, run)
 	scope := RunScope{SpaceID: task.SpaceID, TaskID: task.ID, TaskRunID: run.ID}
@@ -252,7 +251,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	}
 
 	reportPersistedRunState(ctx, input.Persist, scope, dirs, result)
-	if err := reportRunOutcome(ctx, scope, result, coretask.RunStatusSucceeded, "", input.RunOutputStorage, input.Updater); err != nil {
+	if err := reportRunOutcome(ctx, scope, result, coretask.RunStatusSucceeded, "", input.Updater); err != nil {
 		return err
 	}
 	componentLog().Info("run succeeded", "task_run_id", run.ID)
@@ -350,7 +349,7 @@ func finishStoppedRun(ctx context.Context, scope RunScope, result runResult, dir
 		result.EndTime = time.Now().UTC()
 	}
 	reportPersistedRunState(reportCtx, input.Persist, scope, dirs, result)
-	return reportRunOutcome(reportCtx, scope, result, status, errMessage, input.RunOutputStorage, input.Updater)
+	return reportRunOutcome(reportCtx, scope, result, status, errMessage, input.Updater)
 }
 
 func resolveRunDirs(paths RuntimePaths, task *coretask.Task, run *coretask.Run) runDirs {
@@ -677,7 +676,7 @@ func reportRunFailure(ctx context.Context, taskRunID string, err error, tracePat
 	_ = updater.UpdateRunStatus(ctx, taskRunID, req)
 }
 
-// reportRunOutcome uploads a run's artifacts and records its terminal status.
+// reportRunOutcome records a run's terminal status and reply.
 //
 // Every outcome that leaves something behind shares it — succeeded, canceled,
 // and interrupted — because they leave the same thing: the reply and the tokens
@@ -685,19 +684,16 @@ func reportRunFailure(ctx context.Context, taskRunID string, err error, tracePat
 // or as far as the run got, and errMessage, when there is one, is what tells
 // them why it is the latter.
 //
-// The reply is the run's one persisted output. Files a run means to keep are
-// published deliberately through UploadArtifact to the Artifact service; the
-// runtime no longer scans a directory for incidental output. See
+// The reply, carried on the status patch, is the run's one persisted output.
+// Files a run means to keep are published deliberately through UploadArtifact to
+// the Artifact service; the runtime neither scans a directory for incidental
+// output nor stores a separate result file. See
 // docs/design/task-workspace-checkpoints.md §4.
-func reportRunOutcome(ctx context.Context, scope RunScope, result runResult, status coretask.RunStatus, errMessage string, runOutputStorage blob.RunOutputStorage, updater TaskRunUpdater) error {
-	if putErr := runOutputStorage.PutResult(ctx, blob.RunRef(scope), result.Output); putErr != nil {
-		componentLog().Error("failed to write result to artifact storage", "task_run_id", scope.TaskRunID, "err", putErr)
-	}
+func reportRunOutcome(ctx context.Context, scope RunScope, result runResult, status coretask.RunStatus, errMessage string, updater TaskRunUpdater) error {
 	req := &workerclient.PatchTaskRunRequest{
-		Status:   string(status),
-		EndedAt:  &result.EndTime,
-		Output:   &result.OutputStr,
-		Artifact: &workerclient.ArtifactPayload{RelativePaths: []string{"result.md"}},
+		Status:  string(status),
+		EndedAt: &result.EndTime,
+		Output:  &result.OutputStr,
 	}
 	if result.PromptTokens != nil {
 		req.PromptTokens = result.PromptTokens

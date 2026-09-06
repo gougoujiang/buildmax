@@ -220,14 +220,11 @@ export interface ApiIssueOutput {
   id: string
   title: string
   kind: string
-  relative_path?: string
-  /** Set when kind is "artifact": the whole address, no run needed. */
-  artifact_id?: string
+  /** The artifact's whole address, no run needed. */
+  artifact_id: string
   filename?: string
   media_type?: string
   size_bytes?: number
-  preview?: string
-  preview_truncated: boolean
   source: ApiOutputSource
   created_at: string
 }
@@ -273,10 +270,8 @@ export interface ApiTask {
   error_message: string | null
   agent_id?: string | null
   issue_id?: string | null
-  /** The run behind the current status. Keys the trace and file routes. */
+  /** The run behind the current status. Keys the trace route. */
   last_run_id?: string | null
-  /** Runs of this task that stored output files, newest first. */
-  artifact_run_ids?: string[]
 }
 
 export interface ApiTaskRun {

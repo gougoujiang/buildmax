@@ -90,7 +90,6 @@ func newRunForTest(t *testing.T, s *Store, label string) (task *coretask.Task, r
 		t.Fatal("CreateTask did not create its first run")
 	}
 	t.Cleanup(func() {
-		_ = s.db.Delete(&taskRunArtifactRow{}, "task_run_id = ?", canonicalPublicID(*task.LastRunID)).Error
 		_ = s.db.Delete(&taskRunRow{}, "public_id = ?", canonicalPublicID(*task.LastRunID)).Error
 		_ = s.db.Delete(&taskRow{}, "public_id = ?", canonicalPublicID(task.ID)).Error
 		_ = s.db.Delete(&conversationRow{}, "public_id = ?", canonicalPublicID(conversation.ID)).Error
@@ -141,12 +140,11 @@ func TestTransitionTaskRunHasOneWinnerUnderContention(t *testing.T) {
 			ExpectedStatus: coretask.RunStatusRunning,
 			EndedAt:        &endedAt,
 		}
-		// Half report success with an artifact, half report failure. Whichever
-		// commits, the run and its task must tell the same story afterwards.
+		// Half report success, half report failure. Whichever commits, the run
+		// and its task must tell the same story afterwards.
 		if i%2 == 0 {
 			in.NewStatus = coretask.RunStatusSucceeded
 			in.Output = util.Ptr("worker result")
-			in.ArtifactRelativePaths = []string{"result.md"}
 		} else {
 			in.NewStatus = coretask.RunStatusFailed
 			in.ErrorMessage = util.Ptr("reaper outcome")
@@ -171,21 +169,6 @@ func TestTransitionTaskRunHasOneWinnerUnderContention(t *testing.T) {
 	if stored.Status != run.Status {
 		t.Errorf("task status = %q but its run says %q; the projection was written by a losing caller",
 			stored.Status, run.Status)
-	}
-
-	// The artifact rows belong to the same transaction as the status. A
-	// SUCCEEDED run must have its artifact and a FAILED one must not have
-	// acquired the winner's -- either way the count follows the outcome.
-	artifacts, err := s.GetTaskRunOutputFiles(ctx, runID)
-	if err != nil {
-		t.Fatalf("GetTaskRunOutputFiles: %v", err)
-	}
-	wantArtifacts := 0
-	if run.Status == string(coretask.RunStatusSucceeded) {
-		wantArtifacts = 1
-	}
-	if len(artifacts) != wantArtifacts {
-		t.Errorf("run ended %s with %d artifact rows, want %d", run.Status, len(artifacts), wantArtifacts)
 	}
 }
 

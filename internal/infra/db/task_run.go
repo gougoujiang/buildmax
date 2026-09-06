@@ -103,14 +103,6 @@ type taskRunRow struct {
 
 func (taskRunRow) TableName() string { return "task_run" }
 
-type taskRunArtifactRow struct {
-	ID           uint64 `gorm:"primaryKey;autoIncrement"`
-	TaskRunID    uint64 `gorm:"column:task_run_id;not null;uniqueIndex:uq_task_run_artifact_run_path"`
-	RelativePath string `gorm:"type:varchar(512);not null;uniqueIndex:uq_task_run_artifact_run_path"`
-}
-
-func (taskRunArtifactRow) TableName() string { return "task_run_artifact" }
-
 // taskRunReadRow is the row plus the handles its references resolve to. A
 // pointer field is one a LEFT JOIN may leave NULL.
 type taskRunReadRow struct {
@@ -182,23 +174,6 @@ func toTaskRun(row *taskRunReadRow) *coretask.Run {
 	if row.Row.SourceMessageID != nil {
 		from := derefPublicID(row.SourceMessagePublicID)
 		out.SourceMessageID = &from
-	}
-	return out
-}
-
-func toTaskRunArtifact(row *taskRunArtifactRow) *coretask.RunOutputFile {
-	if row == nil {
-		return nil
-	}
-	return &coretask.RunOutputFile{
-		RelativePath: row.RelativePath,
-	}
-}
-
-func toTaskRunArtifacts(rows []taskRunArtifactRow) []coretask.RunOutputFile {
-	out := make([]coretask.RunOutputFile, len(rows))
-	for i := range rows {
-		out[i] = *toTaskRunArtifact(&rows[i])
 	}
 	return out
 }
@@ -684,9 +659,9 @@ func (s *Store) ListLostWorkerTaskRuns(ctx context.Context, cutoff time.Time, li
 }
 
 // TransitionTaskRun moves a run only from the status the caller observed. The
-// run, its task projection, and any artifact index rows commit together, so a
-// worker and a recovery loop cannot overwrite one another's outcome or leave
-// the task disagreeing with its last run.
+// run and its task projection commit together, so a worker and a recovery loop
+// cannot overwrite one another's outcome or leave the task disagreeing with its
+// last run.
 func (s *Store) TransitionTaskRun(ctx context.Context, in coretask.TransitionRunInput) (bool, error) {
 	if !coretask.ValidRunStatusTransition(in.ExpectedStatus, in.NewStatus) {
 		return false, fmt.Errorf("%w: %s -> %s", coretask.ErrInvalidRunTransition, in.ExpectedStatus, in.NewStatus)
@@ -721,11 +696,6 @@ func (s *Store) TransitionTaskRun(ctx context.Context, in coretask.TransitionRun
 		var run taskRunRow
 		if err := tx.Where("public_id = ?", id).First(&run).Error; err != nil {
 			return err
-		}
-		for _, relativePath := range in.ArtifactRelativePaths {
-			if err := tx.Create(&taskRunArtifactRow{TaskRunID: run.ID, RelativePath: relativePath}).Error; err != nil {
-				return err
-			}
 		}
 		taskUpdates := map[string]interface{}{
 			"last_run_id":   run.ID,

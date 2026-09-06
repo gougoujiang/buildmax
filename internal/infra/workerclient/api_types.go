@@ -116,24 +116,18 @@ type TaskRunTask struct {
 
 // PatchTaskRunRequest is the JSON body for PATCH /api/worker/task-runs/{task_run_id} (snake_case).
 type PatchTaskRunRequest struct {
-	Status           string           `json:"status"`
-	SessionID        *string          `json:"session_id,omitempty"`
-	StartedAt        *time.Time       `json:"started_at,omitempty"`
-	EndedAt          *time.Time       `json:"ended_at,omitempty"`
-	Output           *string          `json:"output,omitempty"`
-	ErrorMessage     *string          `json:"error_message,omitempty"`
-	Artifact         *ArtifactPayload `json:"artifact,omitempty"`
-	PromptTokens     *int             `json:"prompt_tokens,omitempty"`
-	CompletionTokens *int             `json:"completion_tokens,omitempty"`
+	Status           string     `json:"status"`
+	SessionID        *string    `json:"session_id,omitempty"`
+	StartedAt        *time.Time `json:"started_at,omitempty"`
+	EndedAt          *time.Time `json:"ended_at,omitempty"`
+	Output           *string    `json:"output,omitempty"`
+	ErrorMessage     *string    `json:"error_message,omitempty"`
+	PromptTokens     *int       `json:"prompt_tokens,omitempty"`
+	CompletionTokens *int       `json:"completion_tokens,omitempty"`
 	// TracePath locates the run's durable trace inside run-global storage, e.g.
 	// "traces/<session>/rt_….jsonl". Sent on both success and failure; omitted
 	// when no trace was written.
 	TracePath *string `json:"trace_path,omitempty"`
-}
-
-// ArtifactPayload is the artifact field in PATCH when status is SUCCEEDED (run output files).
-type ArtifactPayload struct {
-	RelativePaths []string `json:"relative_paths,omitempty"` // all files in the run output (e.g. result.md)
 }
 
 // StreamDeltaRequest is the JSON body for POST /api/worker/task-runs/{task_run_id}/stream (snake_case).

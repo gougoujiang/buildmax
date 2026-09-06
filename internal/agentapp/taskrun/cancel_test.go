@@ -3,48 +3,12 @@ package taskrun
 import (
 	"context"
 	"errors"
-	"io"
 	"testing"
 	"time"
 
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 )
-
-// fakeRunOutputStorage records what a run left behind, and refuses work on a
-// dead context the way a real backend's HTTP client would.
-type fakeRunOutputStorage struct {
-	result []byte
-	files  []string
-	err    error
-}
-
-func (f *fakeRunOutputStorage) PutResult(ctx context.Context, _ blob.RunRef, data []byte) error {
-	if err := ctx.Err(); err != nil {
-		f.err = err
-		return err
-	}
-	f.result = data
-	return nil
-}
-
-func (f *fakeRunOutputStorage) GetResult(context.Context, blob.RunRef) ([]byte, error) {
-	return f.result, nil
-}
-
-func (f *fakeRunOutputStorage) PutRunOutputFile(ctx context.Context, ref blob.RunObjectRef, _ io.Reader) error {
-	if err := ctx.Err(); err != nil {
-		f.err = err
-		return err
-	}
-	f.files = append(f.files, ref.RelPath)
-	return nil
-}
-
-func (f *fakeRunOutputStorage) GetRunOutputFile(context.Context, blob.RunObjectRef) ([]byte, error) {
-	return nil, nil
-}
 
 // fakeUpdater records the one status report a run makes.
 type fakeUpdater struct {
@@ -86,7 +50,6 @@ func TestRunCanceledOnlyRecognisesACancelCause(t *testing.T) {
 // Its own context is dead by definition, so the reporting runs on a detached
 // one — without that, cancelling would also destroy the evidence of the work.
 func TestReportCanceledRunKeepsPartialWork(t *testing.T) {
-	storage := &fakeRunOutputStorage{}
 	updater := &fakeUpdater{}
 	scope := RunScope{SpaceID: "tm1", TaskID: "t1", TaskRunID: "r1"}
 	result := runResult{
@@ -98,16 +61,12 @@ func TestReportCanceledRunKeepsPartialWork(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	cancel(coretask.ErrRunCanceled)
 	err := reportCanceledRun(ctx, scope, result, runDirs{runGlobal: t.TempDir()}, RunTaskInput{
-		Persist:          newFakePersistStorage(),
-		RunOutputStorage: storage,
-		Updater:          updater,
+		Persist: newFakePersistStorage(),
+		Updater: updater,
 	})
 
 	if !errors.Is(err, coretask.ErrRunCanceled) {
 		t.Fatalf("err = %v, want ErrRunCanceled", err)
-	}
-	if storage.err != nil {
-		t.Fatalf("the result upload ran on the canceled context: %v", storage.err)
 	}
 	if updater.req == nil {
 		t.Fatal("the run never reported an outcome")
@@ -115,17 +74,11 @@ func TestReportCanceledRunKeepsPartialWork(t *testing.T) {
 	if updater.req.Status != string(coretask.RunStatusCanceled) {
 		t.Errorf("status = %q, want CANCELED", updater.req.Status)
 	}
+	// The reply is the run's one persisted output, carried on the status patch.
 	if updater.req.Output == nil || *updater.req.Output != "as far as I got" {
 		t.Errorf("output = %v, want the partial reply the run had produced", updater.req.Output)
 	}
 	if updater.req.EndedAt == nil || !updater.req.EndedAt.Equal(result.EndTime) {
 		t.Errorf("ended_at = %v, want %v", updater.req.EndedAt, result.EndTime)
-	}
-	// The reply is the run's one output; the runtime no longer scans a directory.
-	if updater.req.Artifact == nil || len(updater.req.Artifact.RelativePaths) != 1 || updater.req.Artifact.RelativePaths[0] != "result.md" {
-		t.Fatalf("artifact = %v, want [result.md]", updater.req.Artifact)
-	}
-	if string(storage.result) != "as far as I got" {
-		t.Errorf("stored result = %q, want the partial output", storage.result)
 	}
 }

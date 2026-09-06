@@ -71,14 +71,6 @@ func (s *testPersistStorage) GetRunGlobal(ctx context.Context, ref blob.RunObjec
 	return nil, apierr.ErrNotFound
 }
 
-func (s *testPersistStorage) PutRunArtifacts(ctx context.Context, ref blob.RunObjectRef, r io.Reader) error {
-	return nil
-}
-
-func (s *testPersistStorage) GetRunArtifacts(ctx context.Context, ref blob.RunObjectRef) ([]byte, error) {
-	return nil, apierr.ErrNotFound
-}
-
 func TestSpaceScopedFilesHandlers(t *testing.T) {
 	spaceA := "tm_personal_u1"
 	spaceB := "tm_shared_u1"

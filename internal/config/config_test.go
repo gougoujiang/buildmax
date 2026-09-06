@@ -466,33 +466,6 @@ func TestPersistentWorkspaceDir(t *testing.T) {
 	}
 }
 
-func TestRuntimeTaskRunHomeDir(t *testing.T) {
-	tmp := t.TempDir()
-	got := RuntimeTaskRunHomeDir(tmp, "ws-1", "chat-456", "run-789")
-	want := filepath.Join(filepath.Clean(tmp), "ws-1", "tasks", "chat-456", "run-789", "home")
-	if got != want {
-		t.Errorf("RuntimeTaskRunHomeDir = %q, want %q", got, want)
-	}
-}
-
-func TestRuntimeTaskRunArtifactsDir(t *testing.T) {
-	tmp := t.TempDir()
-	got := RuntimeTaskRunArtifactsDir(tmp, "ws-1", "chat-456", "run-789")
-	want := filepath.Join(filepath.Clean(tmp), "ws-1", "tasks", "chat-456", "run-789", "artifacts")
-	if got != want {
-		t.Errorf("RuntimeTaskRunArtifactsDir = %q, want %q", got, want)
-	}
-}
-
-func TestRuntimeTaskRunGlobalDir(t *testing.T) {
-	tmp := t.TempDir()
-	got := RuntimeTaskRunGlobalDir(tmp, "ws-1", "chat-456", "run-789")
-	want := filepath.Join(filepath.Clean(tmp), "ws-1", "tasks", "chat-456", "run-789", "global")
-	if got != want {
-		t.Errorf("RuntimeTaskRunGlobalDir = %q, want %q", got, want)
-	}
-}
-
 func TestLogLevel(t *testing.T) {
 	if got := LogLevel("warn"); got != "warn" {
 		t.Errorf("LogLevel(settings=warn) = %q, want warn", got)
@@ -549,26 +522,5 @@ func TestLoadSettings_LocalEntryNeedsNoKey(t *testing.T) {
 		t.Errorf("api_key = %q, want none", m.APIKey)
 	case m.KeepAlive != "30m":
 		t.Errorf("keep_alive = %q, want 30m", m.KeepAlive)
-	}
-}
-
-// TestRunOutputDir_DisjointFromRuntimeArtifacts locks the invariant a regression
-// once broke: the local-FS run-output store copies a run's produced files out of
-// the runtime artifacts dir into its own directory. If that directory were the
-// artifacts dir (or nested with it), the copy would open a file for writing while
-// reading the same path and truncate result.md to nothing — the compose smoke's
-// "artifact content = \"\"" failure. Keep the two trees disjoint.
-func TestRunOutputDir_DisjointFromRuntimeArtifacts(t *testing.T) {
-	const ws, space, task, run = "/ws", "space1", "task1", "run1"
-	out := RunOutputDir(ws, space, task, run)
-	art := RuntimeTaskRunArtifactsDir(ws, space, task, run)
-	sep := string(filepath.Separator)
-	switch {
-	case out == art:
-		t.Fatalf("run-output dir equals runtime artifacts dir: %q", out)
-	case strings.HasPrefix(out, art+sep):
-		t.Fatalf("run-output dir %q is nested under runtime artifacts dir %q", out, art)
-	case strings.HasPrefix(art, out+sep):
-		t.Fatalf("runtime artifacts dir %q is nested under run-output dir %q", art, out)
 	}
 }

@@ -237,13 +237,10 @@ export function apiIssueOutputToIssueOutput(api: ApiIssueOutput): IssueOutput {
     id: api.id,
     title: api.title,
     kind: api.kind,
-    relativePath: api.relative_path,
     artifactId: api.artifact_id,
     filename: api.filename,
     mediaType: api.media_type,
     sizeBytes: api.size_bytes,
-    preview: api.preview,
-    previewTruncated: api.preview_truncated,
     source: apiOutputSourceToOutputSource(api.source),
     createdAt: api.created_at,
   }

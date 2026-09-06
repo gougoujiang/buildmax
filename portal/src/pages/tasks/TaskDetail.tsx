@@ -9,7 +9,6 @@ import { useSpace } from "../../contexts/SpaceContext"
 import { cancelTask, continueTask, getTask, getTaskRuns, retryTask, streamTaskOutput } from "../../features/tasks"
 import { getAgent } from "../../features/agents"
 import { RunTraceModal } from "../../features/runs"
-import { TaskFilesModal } from "../../features/conversations"
 import { runStatusLabel } from "../../features/conversations/thread"
 import { navigate } from "../../router"
 import type { ApiTask, ApiTaskRun } from "../../lib/api/types"
@@ -66,7 +65,6 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
   const [error, setError] = useState<string | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [traceRunId, setTraceRunId] = useState<string | null>(null)
-  const [filesRunId, setFilesRunId] = useState<string | null>(null)
   const [streamingText, setStreamingText] = useState("")
 
   const load = useCallback(async () => {
@@ -263,7 +261,6 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
   }
 
   const traceRun = task?.last_run_id ?? runs[runs.length - 1]?.id ?? null
-  const filesRun = task?.artifact_run_ids?.[0] ?? null
 
   return (
     <div className="page-chat task-thread">
@@ -384,18 +381,6 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
                 View trace
               </button>
             ) : null}
-            {filesRun ? (
-              <button
-                type="button"
-                className="page-activity__action-btn page-activity__action-btn--sm"
-                onClick={() => {
-                  setDetailsOpen(false)
-                  setFilesRunId(filesRun)
-                }}
-              >
-                Files
-              </button>
-            ) : null}
           </div>
           </div>
         </BaseModal>
@@ -429,13 +414,6 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
         token={token}
         taskRunId={traceRunId}
         onClose={() => setTraceRunId(null)}
-      />
-      <TaskFilesModal
-        open={filesRunId != null}
-        spaceId={currentSpaceId}
-        token={token}
-        taskRunId={filesRunId}
-        onClose={() => setFilesRunId(null)}
       />
     </div>
   )

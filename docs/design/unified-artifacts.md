@@ -30,6 +30,13 @@
   implemented too: `ArtifactRetainer` applies `ExpiresAt` and reclaims
   tombstoned objects, and `max_storage_bytes` on the quota tier is a hard
   admission check — §8 and §12 question 2. Phase 4 follow-ons stay open)
+- The legacy per-run "output files" feature (the `task_run_artifact` table, its
+  `RunOutputStorage`/`result.md` object namespace, the `.../artifacts` listing
+  routes, and Portal's run-files modal) has since been removed. An artifact is
+  now the only durable file a run produces; a run's reply is recorded on the
+  TaskRun, and a Task's working files are recovered through its workspace
+  checkpoint (see [task-workspace-checkpoints.md](./task-workspace-checkpoints.md)).
+  §3 and §5 below describe that superseded baseline as historical context.
 - follows: [surface-positioning.md](./surface-positioning.md) and
   [space-governance.md](./space-governance.md)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)

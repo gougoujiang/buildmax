@@ -268,35 +268,6 @@ func PersistentWorkspaceDir(workspacesDir, workspaceID string) string {
 	return filepath.Join(workspacesDir, workspaceID, "home")
 }
 
-// RuntimeTaskRunDir returns the run directory for a specific task run.
-func RuntimeTaskRunDir(workspacesDir, workspaceID, taskID, taskRunID string) string {
-	return filepath.Join(workspacesDir, workspaceID, "tasks", taskID, taskRunID)
-}
-
-// RuntimeTaskRunHomeDir returns the run's home dir (materialized workspace home).
-func RuntimeTaskRunHomeDir(workspacesDir, workspaceID, taskID, taskRunID string) string {
-	return filepath.Join(RuntimeTaskRunDir(workspacesDir, workspaceID, taskID, taskRunID), "home")
-}
-
-// RuntimeTaskRunArtifactsDir returns the run's artifacts dir.
-func RuntimeTaskRunArtifactsDir(workspacesDir, workspaceID, taskID, taskRunID string) string {
-	return filepath.Join(RuntimeTaskRunDir(workspacesDir, workspaceID, taskID, taskRunID), "artifacts")
-}
-
-// RuntimeTaskRunGlobalDir returns the run's global dir (BUILDMAX_HOME for that run).
-func RuntimeTaskRunGlobalDir(workspacesDir, workspaceID, taskID, taskRunID string) string {
-	return filepath.Join(RuntimeTaskRunDir(workspacesDir, workspaceID, taskID, taskRunID), "global")
-}
-
-// RunOutputDir returns the durable run-output directory the local-FS run-output
-// store reads and writes. It is a sibling of the runtime task-run tree, never
-// inside it: the store copies the run's produced files out of the runtime
-// artifacts dir into this one, so if the two aliased, that copy would open a
-// file for writing while reading the same path and truncate it to nothing.
-func RunOutputDir(workspacesDir, workspaceID, taskID, taskRunID string) string {
-	return filepath.Join(workspacesDir, workspaceID, "run-outputs", taskID, taskRunID)
-}
-
 // ---------------------------------------------------------------------------
 // Settings loader
 // ---------------------------------------------------------------------------

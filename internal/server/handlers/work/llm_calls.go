@@ -104,7 +104,7 @@ func (h *Handler) listTaskRunLLMCallsHandler(w http.ResponseWriter, r *http.Requ
 	// read, so a member of one space cannot enumerate another's spending by
 	// guessing run ids. This check is the whole authorization: ledger rows carry
 	// no space of their own, and a run belongs to exactly one.
-	if _, _, ok = h.getArtifactRunAndTaskForSpace(w, r, spaceID, taskRunID); !ok {
+	if _, _, ok = h.runAndTaskForSpace(w, r, spaceID, taskRunID); !ok {
 		return
 	}
 

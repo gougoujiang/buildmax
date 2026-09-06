@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import type { Agent, Issue, IssueFlow, IssueFlowRun, IssueOutput, Workflow } from "../../lib/types"
+import type { Agent, Issue, IssueFlow, IssueFlowRun, Workflow } from "../../lib/types"
 import type { ApiIssueComment, ApiIssueFlowResponse, ApiSpaceMember } from "../../lib/api/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
@@ -21,7 +21,6 @@ import {
   getIssueFlow,
   IssueDiscussion,
   OutputsList,
-  OutputViewerModal,
   runIssueAgent,
   updateIssue,
 } from "../../features/issues"
@@ -87,7 +86,6 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   const [cancelingTaskId, setCancelingTaskId] = useState<string | null>(null)
   const [retryingTaskId, setRetryingTaskId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [viewerOutput, setViewerOutput] = useState<IssueOutput | null>(null)
   const [subIssueTitle, setSubIssueTitle] = useState("")
   const [addingSubIssue, setAddingSubIssue] = useState(false)
   // Owned by the Discussion panel's fetch and mirrored here so the timeline can
@@ -574,7 +572,6 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
             <OutputsList
               outputs={flow.outputs}
               token={token}
-              onOpenFull={(o) => setViewerOutput(o)}
               onOpenConversation={(conversationId) => navigate({ name: "conversation", conversationId })}
               onOpenRun={(workflowRunId) => navigate({ name: "workflowRun", workflowRunId })}
               onOpenTrace={(taskRunId) => setTraceRunId(taskRunId)}
@@ -794,13 +791,6 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
           </section>
         </div>
       )}
-      <OutputViewerModal
-        open={viewerOutput != null}
-        spaceId={currentSpaceId}
-        token={token}
-        output={viewerOutput}
-        onClose={() => setViewerOutput(null)}
-      />
       <RunTraceModal
         open={traceRunId != null}
         spaceId={currentSpaceId}

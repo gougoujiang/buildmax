@@ -54,32 +54,6 @@ func PersistObjectKey(prefix, spaceID, relPath string) (string, error) {
 	return path.Join(prefix, spaceID, "home", clean), nil
 }
 
-// RunOutputResultKey returns the S3 object key for a run's result.md (one artifact per task run).
-func RunOutputResultKey(prefix, spaceID, taskID, taskRunID string) string {
-	return runOutputResultKey(runKeyScope{
-		Prefix: prefix, SpaceID: spaceID, TaskID: taskID, TaskRunID: taskRunID,
-	})
-}
-
-// RunOutputFileKey returns the S3 object key for one file under a run's output. relPath is validated with CleanRelPath.
-func RunOutputFileKey(prefix, spaceID, taskID, taskRunID, relPath string) (string, error) {
-	return runOutputFileKey(runKeyScope{
-		Prefix: prefix, SpaceID: spaceID, TaskID: taskID, TaskRunID: taskRunID,
-	}, relPath)
-}
-
-func runOutputResultKey(scope runKeyScope) string {
-	return path.Join(scope.Prefix, scope.SpaceID, "tasks", scope.TaskID, scope.TaskRunID, "artifacts", "result.md")
-}
-
-func runOutputFileKey(scope runKeyScope, relPath string) (string, error) {
-	clean, err := CleanRelPath(relPath)
-	if err != nil {
-		return "", err
-	}
-	return path.Join(scope.Prefix, scope.SpaceID, "tasks", scope.TaskID, scope.TaskRunID, "artifacts", clean), nil
-}
-
 // PersistPrefix returns the key prefix under which all persist files for a space live (for ListObjectsV2).
 func PersistPrefix(prefix, spaceID string) string {
 	return path.Join(prefix, spaceID, "home") + "/"
@@ -99,22 +73,6 @@ func taskRunGlobalKey(scope runKeyScope, relPath string) (string, error) {
 		return "", err
 	}
 	return path.Join(scope.Prefix, scope.SpaceID, "tasks", scope.TaskID, scope.TaskRunID, "global", clean), nil
-}
-
-// RunArtifactsObjectKey returns the S3 object key for a task run artifacts dir file (run output files).
-// relPath is validated with CleanRelPath (no .., no absolute).
-func RunArtifactsObjectKey(prefix, spaceID, taskID, taskRunID, relPath string) (string, error) {
-	return taskRunArtifactsKey(runKeyScope{
-		Prefix: prefix, SpaceID: spaceID, TaskID: taskID, TaskRunID: taskRunID,
-	}, relPath)
-}
-
-func taskRunArtifactsKey(scope runKeyScope, relPath string) (string, error) {
-	clean, err := CleanRelPath(relPath)
-	if err != nil {
-		return "", err
-	}
-	return path.Join(scope.Prefix, scope.SpaceID, "tasks", scope.TaskID, scope.TaskRunID, "artifacts", clean), nil
 }
 
 // PluginPackagesPrefix is where every published package lives.

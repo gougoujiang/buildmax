@@ -805,7 +805,7 @@ worker_api:                          # the internal listener serving /api/worker
 
 storage:
   persist_backend: local_fs          # or minio — space uploads
-  artifact_backend: local_fs         # or minio — run outputs and artifacts
+  artifact_backend: local_fs         # or minio — artifact content
   max_artifact_mb: 0                 # per-file upload cap; 0 uses the default
   artifact_share_ttl_hours: 0        # public share link lifetime bound; 0 uses the default (30 days)
   artifact_purge_after_days: 0       # 0 — reclaim a deleted artifact's bytes

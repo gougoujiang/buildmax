@@ -84,16 +84,6 @@ func (s *LocalFSPersistStorage) GetRunGlobal(ctx context.Context, ref RunObjectR
 	return nil, apierr.ErrNotFound
 }
 
-// PutRunArtifacts is a no-op for local FS (run artifacts already live on worker disk).
-func (s *LocalFSPersistStorage) PutRunArtifacts(ctx context.Context, ref RunObjectRef, r io.Reader) error {
-	return nil
-}
-
-// GetRunArtifacts returns apierr.ErrNotFound; run artifacts are not in the persist root for local_fs (caller uses local path).
-func (s *LocalFSPersistStorage) GetRunArtifacts(ctx context.Context, ref RunObjectRef) ([]byte, error) {
-	return nil, apierr.ErrNotFound
-}
-
 // MaterializeToDir copies all persistent files from the space into dstDir.
 // If the persist root does not exist or is empty, no error (empty dst).
 func (s *LocalFSPersistStorage) MaterializeToDir(ctx context.Context, spaceID string, dstDir string) error {

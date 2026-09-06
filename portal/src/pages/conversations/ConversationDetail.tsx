@@ -2,7 +2,6 @@ import { useAuth } from "../../contexts/AuthContext"
 import { useSpace } from "../../contexts/SpaceContext"
 import {
   ConversationDetailView,
-  TaskFilesModal,
   useConversationDetail,
   useConversationTasks,
 } from "../../features/conversations"
@@ -54,13 +53,6 @@ export function ConversationDetail({
         queuedMessages={conversationDetail.queuedMessages}
         user={user}
         onSend={conversationDetail.handleSend}
-      />
-      <TaskFilesModal
-        open={taskCards.filesRunId != null}
-        spaceId={currentSpaceId}
-        token={token}
-        taskRunId={taskCards.filesRunId}
-        onClose={taskCards.closeFiles}
       />
       <RunTraceModal
         open={taskCards.traceRunId != null}

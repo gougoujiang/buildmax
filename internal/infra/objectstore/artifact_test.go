@@ -19,8 +19,8 @@ func TestArtifactObjectKeyIsDisjointFromTheOtherKeySpaces(t *testing.T) {
 		t.Fatalf("key = %q", got)
 	}
 	// Unified artifacts retain their own literal "spaces" namespace while run
-	// output and home files live directly under the owning space's ID.
-	runOutput, err := RunOutputFileKey("workspaces", "tm_1", "t_1", "r_1", "out.md")
+	// global and home files live directly under the owning space's ID.
+	runGlobal, err := RunGlobalObjectKey("workspaces", "tm_1", "t_1", "r_1", "logs/buildmax.log")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +28,7 @@ func TestArtifactObjectKeyIsDisjointFromTheOtherKeySpaces(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, other := range []string{runOutput, home} {
+	for _, other := range []string{runGlobal, home} {
 		if strings.HasPrefix(other, got) || strings.HasPrefix(got, other) {
 			t.Errorf("artifact key %q overlaps %q", got, other)
 		}
