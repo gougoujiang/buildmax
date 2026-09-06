@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -99,6 +100,10 @@ func TestFinalizeSuccessfulAdvancesHeadAndPartialDoesNot(t *testing.T) {
 		t.Fatalf("finalize seed: %v", err)
 	}
 
+	// Continue is refused while a run is active, so the first run finishes
+	// before the second is created — as it does in the real flow.
+	finishRun(t, s, ctx, run1)
+
 	// A Continue run whose base is the seed (set here as Phase 2 will at restore).
 	run2, err := s.CreateTaskRun(ctx, coretask.CreateRunInput{TaskID: taskID, Input: "continue", CreatedBy: newTestUser(t, s, "c2")})
 	if err != nil {
@@ -129,6 +134,7 @@ func TestFinalizeSuccessfulAdvancesHeadAndPartialDoesNot(t *testing.T) {
 	}
 
 	// A partial checkpoint on a later run never advances the head.
+	finishRun(t, s, ctx, run2.ID)
 	run3, err := s.CreateTaskRun(ctx, coretask.CreateRunInput{TaskID: taskID, Input: "again", CreatedBy: newTestUser(t, s, "c3")})
 	if err != nil {
 		t.Fatalf("CreateTaskRun: %v", err)
@@ -146,6 +152,17 @@ func TestFinalizeSuccessfulAdvancesHeadAndPartialDoesNot(t *testing.T) {
 	).Scan(&headPub)
 	if headPub != result.ID {
 		t.Errorf("task head after partial = %q, want it unchanged at %q", headPub, result.ID)
+	}
+}
+
+// finishRun moves a run to a terminal status so Continue, which is refused
+// while a run is active, may create the next one.
+func finishRun(t *testing.T, s *Store, ctx context.Context, runPublicID string) {
+	t.Helper()
+	if err := s.db.WithContext(ctx).Model(&taskRunRow{}).
+		Where("public_id = ?", runPublicID).
+		Update("status", string(coretask.RunStatusSucceeded)).Error; err != nil {
+		t.Fatalf("finish run %s: %v", runPublicID, err)
 	}
 }
 
