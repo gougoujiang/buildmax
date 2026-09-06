@@ -70,6 +70,7 @@ export function parseHash(hash: string): Route {
     return { name: "space", section: "overview" }
   }
   if (parts[0] === SEGMENT.admin) {
+    if (parts[1] === "administrators") return { name: "admin", section: "administrators" }
     if (parts[1] === "accounts") return { name: "admin", section: "accounts" }
     if (parts[1] === "spaces") return { name: "admin", section: "spaces" }
     if (parts[1] === "models") return { name: "admin", section: "models" }
@@ -168,6 +169,8 @@ export function buildHash(route: Route): string {
       }
     case "admin":
       switch (route.section) {
+        case "administrators":
+          return `#/${SEGMENT.admin}/administrators`
         case "accounts":
           return `#/${SEGMENT.admin}/accounts`
         case "spaces":

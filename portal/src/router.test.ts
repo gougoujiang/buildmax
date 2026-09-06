@@ -29,6 +29,7 @@ describe("hash router", () => {
     // Deployment administration is a separate area from space settings, and
     // its sections are linkable for the same reason the space ones are.
     ["#/admin", { name: "admin", section: "overview" }],
+    ["#/admin/administrators", { name: "admin", section: "administrators" }],
     ["#/admin/accounts", { name: "admin", section: "accounts" }],
     ["#/admin/spaces", { name: "admin", section: "spaces" }],
     ["#/account/plugins", { name: "account", section: "plugins" }],
@@ -60,6 +61,7 @@ describe("hash router", () => {
     [{ name: "account", section: "general" }, "#/account"],
     [{ name: "account", section: "usage" }, "#/account/usage"],
     [{ name: "admin", section: "overview" }, "#/admin"],
+    [{ name: "admin", section: "administrators" }, "#/admin/administrators"],
     [{ name: "admin", section: "accounts" }, "#/admin/accounts"],
     [{ name: "admin", section: "spaces" }, "#/admin/spaces"],
     [{ name: "account", section: "plugins" }, "#/account/plugins"],

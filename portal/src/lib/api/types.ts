@@ -606,6 +606,11 @@ export interface ApiAdminMe {
   grants: ApiSystemGrant[]
 }
 
+/** Everyone who can operate the deployment, from GET /api/admin/grants. */
+export interface ApiSystemGrantsResponse {
+  grants: ApiSystemGrant[]
+}
+
 /** One account as an administrator sees it. Never a hash, never a token. */
 export interface ApiAdminUser {
   id: string

@@ -17,6 +17,8 @@ import type {
   ApiAuditEventsResponse,
   ApiPluginReleasesResponse,
   ApiPluginsResponse,
+  ApiSystemGrant,
+  ApiSystemGrantsResponse,
 } from "../../lib/api/types"
 
 /**
@@ -52,6 +54,29 @@ function send<T>(method: string, path: string, token: string, body?: unknown): P
 /** Whether the caller may operate this deployment. A rejection means no. */
 export function getAdminMe(token: string): Promise<ApiAdminMe> {
   return get<ApiAdminMe>("/me", token)
+}
+
+/**
+ * Everyone who can operate the deployment. includeRevoked adds the retired
+ * grants, which is how the trail of who held authority is read.
+ */
+export function listAdminGrants(token: string, includeRevoked?: boolean): Promise<ApiSystemGrantsResponse> {
+  return get<ApiSystemGrantsResponse>("/grants", token, {
+    include_revoked: includeRevoked ? "true" : undefined,
+  })
+}
+
+/** Grants deployment-administrator authority to an existing account. */
+export function createAdminGrant(token: string, userId: string): Promise<ApiSystemGrant> {
+  return send<ApiSystemGrant>("POST", "/grants", token, { user_id: userId })
+}
+
+/**
+ * Revokes an account's authority. The server refuses the last effective holder;
+ * that refusal surfaces as the error message it carries.
+ */
+export function revokeAdminGrant(token: string, userId: string): Promise<void> {
+  return send<void>("DELETE", `/grants/${encodeURIComponent(userId)}`, token)
 }
 
 export function getAdminSystem(token: string): Promise<ApiAdminSystem> {

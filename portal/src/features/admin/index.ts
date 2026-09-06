@@ -1,4 +1,5 @@
 export { AdminAccounts } from "./AdminAccounts"
+export { AdminAdministrators } from "./AdminAdministrators"
 export { AdminAudit } from "./AdminAudit"
 export { AdminModels } from "./AdminModels"
 export { AdminOverview } from "./AdminOverview"
