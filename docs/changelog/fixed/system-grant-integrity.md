@@ -3,3 +3,5 @@
   disable at the same time and leave the deployment with no one able to reach its
   admin area; a disabled account no longer counts as a holder; and granting a
   role to a disabled account is refused instead of stored as unusable authority.
+
+  > **简体中文：** [阅读中文镜像](../../zh-CN/changelog/fixed/system-grant-integrity.md)

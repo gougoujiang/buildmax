@@ -5,3 +5,5 @@
   refused rather than stored in the clear. Credential-free models (for example
   an Ollama target) are unaffected. Existing plaintext credentials are not
   migrated — re-add those models once an encryption key is configured.
+
+  > **简体中文：** [阅读中文镜像](../../zh-CN/changelog/changed/model-credential-encryption.md)
