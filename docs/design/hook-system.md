@@ -1,5 +1,7 @@
 # Hook System v2
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/hook-system.md)
+
 ## Contents
 
 - [Status](#status)

@@ -1,5 +1,7 @@
 # gVisor Worker Runtime
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/gvisor-worker-runtime.md)
+
 > **Audience:** contributors and operators · **Status:** planned — qualification required before support
 
 Related: [Agent Core trust harness](trust-harness.md), [Sandbox

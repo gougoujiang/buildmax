@@ -1,5 +1,7 @@
 # Verification Program
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/verification-program.md)
+
 > **Audience:** maintainers and contributors · **Status:** planned — implementation backlog
 
 Related records: [Local end-to-end verification](end-to-end-testing.md),

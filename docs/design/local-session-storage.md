@@ -1,5 +1,7 @@
 # Local Session Storage
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/local-session-storage.md)
+
 > **Audience:** contributors and security reviewers · **Status:** implemented
 >
 > Related: [session architecture](../contribute/architecture/session.md),

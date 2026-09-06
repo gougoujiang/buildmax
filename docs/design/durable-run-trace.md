@@ -1,5 +1,7 @@
 # Durable Run Trace
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/durable-run-trace.md)
+
 ## Contents
 
 - [Status](#status)

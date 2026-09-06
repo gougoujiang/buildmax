@@ -1,5 +1,7 @@
 # Design Records
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/README.md)
+
 > **Audience:** contributors · **Status:** current
 
 Why BuildMax is built the way it is. These are **rationale, not user

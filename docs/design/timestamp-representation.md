@@ -1,5 +1,7 @@
 # Timestamp Representation
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/timestamp-representation.md)
+
 > **Audience:** contributors and database reviewers · **Status:** implemented
 
 How BuildMax spells "this happened at a moment in time". One rule across three

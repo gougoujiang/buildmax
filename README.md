@@ -114,7 +114,7 @@ boundaries; do not expose a deployment before reading the
 | [Hooks](help/hooks.md) · [Sandbox](help/sandbox.md) | Controlling what the agent may do |
 | [Compose quickstart](docs/deploy/compose.md) · [Local kind](docs/deploy/local-kind.md) · [Deployment](docs/deploy/overview.md) · [Authentication](docs/deploy/authentication.md) | Running it for a space |
 | [Configuration](docs/reference/configuration.md) · [CLI](help/cli.md) · [Webhook](docs/reference/webhook.md) | Reference |
-| [docs/ROADMAP.md](docs/ROADMAP.md) · [Design records](docs/design/README.md) | Where it is going, and why |
+| [docs/ROADMAP.md](docs/ROADMAP.md) · [Design records](docs/design/README.md) · [简体中文设计文档](docs/zh-CN/design/README.md) | Where it is going, and why |
 | [Contributing](CONTRIBUTING.md) · [Support](.github/SUPPORT.md) · [Changelog](CHANGELOG.md) | Project participation and releases |
 
 ## Help Shape BuildMax

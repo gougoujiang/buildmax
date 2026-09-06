@@ -445,7 +445,7 @@ func TestDocumentedMakeCommandsExist(t *testing.T) {
 		// Design records describe the plan of the day. AGENTS.md settles a
 		// conflict in favour of current code, so a record naming a command that
 		// has since been renamed is history rather than drift.
-		if strings.HasPrefix(rel, "docs/design/") {
+		if isDesignRecord(rel) {
 			continue
 		}
 		body, err := os.ReadFile(file)
@@ -525,7 +525,7 @@ func TestDocumentedFilePathsExist(t *testing.T) {
 		// plan has not written yet — that is what a record is for. Its tables
 		// are the exception: a "where this lives" row is a reader's index, and
 		// an index that points nowhere is drift rather than history.
-		if strings.HasPrefix(rel, "docs/design/") {
+		if isDesignRecord(rel) {
 			text = tableRowsOnly(text)
 		}
 		for _, m := range documentedFileRe.FindAllStringSubmatch(text, -1) {
@@ -550,6 +550,11 @@ func TestDocumentedFilePathsExist(t *testing.T) {
 		}
 	}
 	assertAllReported(t, "staleFilePaths", staleFilePaths, seen)
+}
+
+func isDesignRecord(path string) bool {
+	return strings.HasPrefix(path, "docs/design/") ||
+		strings.HasPrefix(path, "docs/zh-CN/design/")
 }
 
 // undocumentedCLICommands is a command the binary offers that the reference

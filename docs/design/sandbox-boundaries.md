@@ -1,5 +1,7 @@
 # Sandbox And Execution Boundaries
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/sandbox-boundaries.md)
+
 ## Contents
 
 - [Status](#status)

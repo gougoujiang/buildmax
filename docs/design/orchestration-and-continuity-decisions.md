@@ -1,5 +1,7 @@
 # Decision: Agent Orchestration And Task Workspace Continuity
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/orchestration-and-continuity-decisions.md)
+
 > **Audience:** contributors, product designers, and operators · **Status:** decision record — decisions taken on the points below; the orchestration model (§3) is deliberately deferred. It reconciles the records listed and, where it decides a question, supersedes their overlap.
 
 Related and reconciled here:

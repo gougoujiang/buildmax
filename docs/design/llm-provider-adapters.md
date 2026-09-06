@@ -1,5 +1,7 @@
 # LLM Provider Adapters
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/llm-provider-adapters.md)
+
 > **Audience:** contributors · **Status:** all three phases shipped
 >
 > Shipped: the three adapters and the shared retry, timeout, and error

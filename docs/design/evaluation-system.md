@@ -1,5 +1,7 @@
 # BuildMax Evaluation And Qualification System
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/evaluation-system.md)
+
 > **Audience:** contributors, operators, and product designers · **Status:**
 > partly implemented — the [section 18](#18-vertical-slice-implementation-plan) vertical slice has
 > shipped for the CLI and worker surfaces; conversation and deployment adapters

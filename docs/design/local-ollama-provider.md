@@ -1,5 +1,7 @@
 # Local Ollama Provider
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/local-ollama-provider.md)
+
 > **Audience:** contributors · **Status:** phases 1 and 2 shipped. The adapter,
 > the always-sent `num_ctx`, minted tool-call identifiers, local inventory,
 > `buildmax init --ollama`, `buildmax models --local`, the `doctor` branch, the

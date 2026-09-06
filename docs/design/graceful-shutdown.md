@@ -1,5 +1,7 @@
 # Graceful Shutdown
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/graceful-shutdown.md)
+
 > **Audience:** contributors · **Status:** implemented. The ladder, the draining
 > state, watcher-stream drain, turn quiescing, the managed terminal callbacks,
 > HTTP timeouts, the manifests, a worker that reports what it produced when it

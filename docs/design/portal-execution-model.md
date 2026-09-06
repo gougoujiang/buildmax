@@ -1,5 +1,7 @@
 # Portal Execution Model: Tier 1, Tier 2, And What Carries Them
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/portal-execution-model.md)
+
 ## Contents
 
 - [Status](#status)

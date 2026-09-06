@@ -1,5 +1,7 @@
 # Local Background Jobs
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/local-background-jobs.md)
+
 > **Audience:** contributors · **Status:** stages 1–3 implemented — background
 > `Bash` and `Task` jobs, the `Monitor` tool with line events and
 > backpressure, typed non-user provenance, serialized wake-up

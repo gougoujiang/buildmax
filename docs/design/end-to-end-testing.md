@@ -1,5 +1,7 @@
 # Local End-to-End Verification
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/end-to-end-testing.md)
+
 ## Contents
 
 - [Status](#status)

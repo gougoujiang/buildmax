@@ -1,0 +1,413 @@
+# 沙箱与执行边界
+
+> **翻译说明：** 本文是[英文原文](../../design/sandbox-boundaries.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `92f35c391084e963d9a2109a46be2e2ff6e2989cfe289d5336febbd3db1b95dc`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+
+## 目录
+
+- [状态](#状态)
+- [1. 目的](#1-目的)
+- [2. 方向](#2-方向)
+- [3. 架构形状](#3-架构形状)
+- [4. 配置](#4-配置)
+- [5. 沙箱模式](#5-沙箱模式)
+- [6. `dangerously_disable_sandbox` 逃逸入口](#6-dangerously_disable_sandbox-逃逸入口)
+- [7. 操作系统后端的工作方式](#7-操作系统后端的工作方式)
+- [8. `buildmax sandbox` 命令](#8-buildmax-sandbox-命令)
+- [9. 边界执行摘要](#9-边界执行摘要)
+- [10. 使用面默认值](#10-使用面默认值)
+- [11. 可见性](#11-可见性)
+- [12. Hook 集成](#12-hook-集成)
+- [13. 实施步骤](#13-实施步骤)
+- [14. 明确不在范围内](#14-明确不在范围内)
+- [15. 验收](#15-验收)
+
+## 状态
+
+- roadmap_priority: `P0.5`
+- status: `已实现阶段 A–E（包括进程限制和钩子传输），阶段 F 的 worker 表面选择、生产 Pod 验证和降级标记` (§13; 文档和 `buildmax sandbox overrides` 保持不变——基于 [Claude Code 的沙箱文档](https://code.claude.com/docs/en/sandboxing))
+- follows: [trust-harness.md](./trust-harness.md), [hook-system.md](./hook-system.md)
+- roadmap: [../ROADMAP.md](../../ROADMAP.md)
+- created_at: `2026-05-23`
+
+## 1. 目的
+
+P0.5 §3.2 要求对命令和工具执行提供明确的沙箱模式，在工作区文件系统、外部目录、网络、环境变量、进程限制以及 worker/容器执行方面设置一流的边界。
+
+当前的 Agent Core 具有：
+
+- 通过 `internal/util.ResolvePath`（仅工作区根目录）对进程内文件工具实现**文件系统限制**。
+- 在 `internal/tool/safety.go` 中实现 **Bash 启发式规则**（灾难性拒绝 + 危险请求）。命令仍然在完整的父环境、完整的网络、没有 rlimits、没有 FS 隔离下运行。
+
+我们尽可能照搬 Claude Code 的模型。引用 [docs](https://code.claude.com/docs/en/sandboxing)：“沙箱隔离了 Bash 子进程。其他工具在不同的边界下运行。” 这是我们模仿的设计：
+
+- **沙箱 = Bash 子进程隔离。** Bash 命令及其子进程在操作系统沙箱（在 Linux/WSL2 上是 `bwrap`，在 macOS 上是 `sandbox-exec`/Seatbelt）下运行，受设置驱动的文件系统和网络策略的限制。Bash 沙箱是本文档增加的唯一一项强制执行。
+- **非 Bash 工具继续使用权限系统。** Read/Write/Edit/Glob/Grep/WebFetch 保持其当前的 Go 级别检查（`ResolvePath`、`safety.go`）以及 `internal/agentapp/policy.go` 中的批准策略。它们没有被附加到一个新的保护层上。
+
+这在提供用户期望的“沙箱”能力的同时，保持了攻击范围的最小化。
+
+## 2. 方向
+
+从 Claude Code 文档中提炼出的三个原则：
+
+1. **沙箱 Shell，而非参数。** 模式匹配 Bash 字符串是不可靠的；操作系统级别的隔离是持久的答案。macOS 使用 Seatbelt；Linux/WSL2 使用 `bubblewrap` + `socat`。
+2. **用户选择加入，操作员选择退出。** 默认设置 worker 的 `enabled: false` on local CLI/Desktop (no regression). **Default `enabled: true` with `fail_if_unavailable: true`，以满足信任护栏的“比受信任的本地更严格”的要求。
+3. **可见的失败优于静默的失败开放。** 当 `enabled: true` 但后端无法启动（缺少 `bwrap`，不支持的平台）时，显示清晰的启动消息。在 worker 上，拒绝启动。
+
+我们**不**发布我们自己的 `@anthropic-ai/sandbox-runtime` 克隆。我们从 Go 中调用 `bwrap` / `sandbox-exec`，并通过一个小的 Go 端的 HTTP/SOCKS 代理进行网络出口过滤。
+
+## 3. 架构形状
+
+镜像 hooks v2 的布局：
+
+| 层级 | Hooks v2 | 沙箱 |
+|---|---|---|
+| 领域契约 | `core/agent/hook.go` | `core/agent/sandbox.go` — `SandboxConfig`、`SandboxView` 接口 |
+| 外部系统实现 | `infra/hook/*` | `infra/sandbox/*` — `manager.go`（外观），`bwrap_linux.go`、`seatbelt_darwin.go`、`unsupported_windows.go`、`proxy.go`（HTTP/SOCKS）、`violation_store.go`、`deps.go`（依赖检查） |
+| 应用组装 | `agentapp/hook_manager.go` | `agentapp/sandbox.go` — 解析+合并设置，将管理器注入 Bash 工具，暴露 `Status` |
+| 配置 | `config/hooks.go` + `<ws>/.buildmax/hooks.yaml` | `config/sandbox.go` — `sandbox:` 块位于现有的 `settings.yaml` 中（以及可选的 `policy.yaml`） |
+
+`infra/sandbox.Manager` 镜像 Claude Code 的 `SandboxManager`：
+- `Enabled() bool`、`Mode() string`（`"auto_allow"` | `"regular"`）
+- `WrapBashCommand(ctx, cmd, shell) (wrapped string, error)`
+- `ShouldSandboxCommand(cmd) bool`（遵守 `excluded_commands`）
+- `Dependencies() DepsReport`、`UnavailableReason() string`
+- `Refresh(cfg) error`、`Reset()`、`Close()`
+- `Violations() *ViolationStore`
+
+只有 Bash 工具和 `command` 钩子传输依赖于 `SandboxView`（因此 `command` 钩子不能用于逃逸）。
+
+## 4. 配置
+
+沙箱配置内嵌在现有的 `settings.yaml` 中，就像 Claude Code 的 `sandbox` 块位于 `settings.json` 中一样。键遵循 CLAUDE.md §6.1 中的蛇形命名法，但结构与上游相同。
+### 4.1 源
+
+| 范围 | 路径 | 备注 |
+|---|---|---|
+| 用户 | `<BUILDMAX_HOME>/settings.yaml` 在 `sandbox:` 下 | 默认位置 |
+| 策略（操作员） | `<BUILDMAX_HOME>/policy.yaml` 在 `sandbox:` 下 | 可选的锁定 |
+| 环境 | `BUILDMAX_SANDBOX_ENABLED` | 每个进程的覆盖 |
+| CLI 运行 | `--sandbox [--sandbox-mode auto_allow\|regular]` | 必须用于一个 TUI 或打印模式运行；如果不可用则失败关闭 |
+| Bash 调用 | `dangerously_disable_sandbox: true` | 按调用配置的逃逸出口 |
+
+标量值的解析顺序是：策略 > CLI 运行 > 环境 > 用户 > surface。CLI 层可以要求但不能禁用沙箱，并且一个明确的 `--sandbox` 也会强制执行 `fail_if_unavailable`。策略可以设置 `allow_managed_domains_only: true` 和 `allow_managed_read_paths_only: true` 来锁定特定数组——设置后，较低级别的源仍然可以**添加拒绝条目**，但它们对该字段的**允许条目会被忽略**（与 Claude Code 的 `allowManagedDomainsOnly` / `allowManagedReadPathsOnly` 匹配）。
+
+对于没有管理专用标志（`excluded_commands`、`allow_write` 等）的数组键，来自每个范围的条目被并集起来——与 Claude Code 相同。
+
+未来的每个工作区 `<workspace>/.buildmax/settings.yaml` 是项目特定覆盖的正确位置；我们不在此文档中引入它，也不创建沙箱专用工作区文件。
+
+### 4.2 完整键引用
+
+镜像 Claude Code SDK 中的 `SandboxSettings` (`src/entrypoints/sandboxTypes.ts`)。从上游移除的键在此部分的末尾被提及。
+```yaml
+sandbox:
+  enabled: false              # master switch
+  fail_if_unavailable: false  # refuse to start if backend can't run
+  auto_allow_bash_if_sandboxed: true   # skip approval prompt for sandboxed bash
+  allow_unsandboxed_commands: true     # honor dangerously_disable_sandbox
+
+  excluded_commands: []       # bash patterns to run *outside* the sandbox
+                              # (convenience, not a security boundary)
+
+  filesystem:
+    allow_write: []           # extra writable paths beyond CWD
+    deny_write: []            # explicit denials (override allow)
+    allow_read: []            # re-allow within deny_read regions
+    deny_read: []             # block reads
+    allow_managed_read_paths_only: false  # policy-only knob
+
+  network:
+    allowed_domains: []       # host globs (e.g. "api.github.com", "*.npmjs.org")
+    denied_domains: []
+    allow_unix_sockets: []    # macOS only
+    allow_all_unix_sockets: false
+    allow_local_binding: false
+    http_proxy_port: 0        # 0 = pick free port; non-zero = use custom proxy
+    socks_proxy_port: 0
+    allow_managed_domains_only: false  # policy-only knob
+
+  ignore_violations: {}       # map[string][]string of violations to suppress
+                              # (per-tool, claude-code parity)
+
+  # Not part of upstream SandboxSettings; BuildMax's own extension for the
+  # process-limits boundary trust-harness.md §3.2 lists. 0 = no limit from
+  # this layer. max_memory_mb has no effect on macOS -- Darwin's setrlimit
+  # does not support RLIMIT_AS, and Seatbelt's .sb grammar has no
+  # resource-limit primitive either (§7.1) -- so it is Linux-only in
+  # practice.
+  process:
+    max_cpu_seconds: 0
+    max_memory_mb: 0
+    max_processes: 0
+    max_open_files: 0
+
+  enable_weaker_nested_sandbox: false   # allow inside Docker w/o privileged ns
+  enable_weaker_network_isolation: false # macOS: allow trustd for Go CLIs
+```
+我们**不**从上游传输的键：
+- `enabledPlatforms` (Claude Code 的 NVIDIA-rollout 逃逸；我们暂时不需要它)。
+- `ripgrep` 覆盖 (我们暂时不捆绑 ripgrep)。
+
+### 4.3 路径前缀约定
+
+对于 `sandbox.filesystem.*` 路径，我们与 Claude Code 完全匹配：
+
+| 前缀 | 含义 | 示例 |
+|---|---|---|
+| `/path` | 文件系统根目录下的绝对路径 | `/tmp/build` |
+| `~/path` | 相对于主目录的相对路径 | `~/.cache` |
+| `./path` 或 `path` | 相对于设置文件目录（当存在 `<workspace>/.buildmax/settings.yaml` 时为项目根目录；为用户设置时为 `<BUILDMAX_HOME>`） | `./output` |
+
+我们故意不复制上游的 `//path` 权限规则约定（他们特殊的“通过权限规则的绝对路径”前缀）。
+BuildMax 还没有 `Edit(/path)` 权限规则语法，因此促使 `//path` 的模糊性不会产生。
+
+### 4.4 默认值
+
+在开箱即用状态下，当设置了 `enabled: true` 且其他未设置时，行为与 Claude Code 的默认值一致：
+
+- **文件系统写入**: 仅当前工作目录及其子树。
+- **文件系统读取**: 整个计算机，减去 `deny_read`。
+  *注意*: 此默认设置仍然允许读取 `~/.aws/credentials`、`~/.ssh/` 等。关心这些权限的操作员必须将它们添加到 `deny_read` 中。我们将在 `config-examples/sandbox.example.yaml` 和 `CLAUDE.md` 中记录此注意事项。
+- **网络**: 预先允许的域名无。每个新域通过现有的批准流程（交互式界面）进行提示，或直接拒绝（非交互式——`applyPolicyAndExecute` 在没有设置 ApprovalHandler 时已经将 Ask→Deny）。
+- **设置文件自保护**: `<BUILDMAX_HOME>/settings.yaml` 和 `<BUILDMAX_HOME>/policy.yaml` 在每个范围内自动添加到 `deny_write` 中。
+
+## 5. 沙箱模式
+
+两种模式（镜像 Claude Code 的 `/sandbox` 模式标签）：
+
+- **`auto_allow`** — 无需提示运行的沙箱 bash 命令。
+  自动批准是有条件的：明确的 `deny` 权限规则仍然适用，并且与 `tool/safety.go`（`rm -rf /` 等）中受保护的路径匹配的 bash 调用仍然会经过常规的批准流程。
+- **`regular`** — 沙箱的 bash 仍然会经过常规的批准流程。沙箱是强制执行；批准仍然是必需的。
+
+模式由 `sandbox.auto_allow_bash_if_sandboxed` 选择：
+- `true`（当 `enabled: true` 时默认）→ `auto_allow`
+- `false` → `regular`
+
+两种模式都应用相同的操作系统级别的 FS + 网络限制；只有批准行为不同。
+
+`auto_allow` 是唯一一个替代提示的约束所在，它保持在 `Bash` 范围内。它故意不扩展到 `Write` 和 `Edit`：沙箱存在是为了限制工作区**外部**的写入，工作区内部的写入正是它允许的，因此它不包含提示所涉及的行为。参见 [tool-permissions.md](./tool-permissions.md) §5.7。
+
+## 6. `dangerously_disable_sandbox` 逃逸口
+
+镜像 Claude Code 的 `dangerouslyDisableSandbox`。
+
+Bash 工具接受一个可选参数：
+```json
+{ "command": "docker ps", "dangerously_disable_sandbox": true }
+```
+行为：
+
+- 如果 `sandbox.enabled: false` → 被忽略；bash 以今天的状态运行。
+- 如果 `sandbox.allow_unsandboxed_commands: false` → 被忽略；调用无论如何都是沙箱化的。状态中显示为“严格沙箱模式”（与 `/sandbox` 覆盖标签匹配）。
+- 否则 → bash 在**外部**沙箱中运行并经过正常的审批流程（Ask→用户提示；非交互式→拒绝）。
+
+LLM 在 Bash 工具描述中被告知这个旋钮，以便它可以尝试自我恢复，遵循 Claude Code 的说法：“Claude 分析失败并可能使用 `dangerouslyDisableSandbox` 参数重试命令。”
+
+每次禁用的调用都会向违规存储写入一个 `Violation{kind: sandbox_disabled}`，以便 [hook-system.md](./hook-system.md) 中描述的审计钩子可以看到它。
+
+## 7. OS 后端的工作方式
+
+我们完全遵循 Claude Code 的平台支持：macOS、Linux、WSL2。原生 Windows **不支持**；Windows 用户在 WSL2 或使用 `enabled: false` 运行 BuildMax。
+
+### 7.1 macOS — 安全带
+
+`infra/sandbox/seatbelt_darwin.go` 在 `<BUILDMAX_HOME>/sandbox/profiles/` (模式 0600) 下为每个会话生成一个 Seatbelt 配置文件 (`.sb`)，然后调用：
+```
+sandbox-exec -f <profile.sb> /bin/sh -c <wrapped-command>
+```
+该配置文件源自 `FSConfig` + `NetConfig` + `EnvConfig`，
+使用 `(allow file-read*)`、`(allow file-write*)`，
+`(deny network-outbound)` 加上目标化设置允许代理端口。
+
+`enable_weaker_network_isolation` 打开了 `com.apple.trustd.agent`，因此
+Go CLI (`gh`、`gcloud`、`terraform`) 可以通过 MITM 代理验证 TLS——与 Claude Code 文档的权衡相同。
+
+### 7.2 Linux / WSL2 — bubblewrap + socat
+
+`infra/sandbox/bwrap_linux.go` 从设置中构建 `bwrap` 的 argv：
+`--ro-bind`、`--bind`、`--dev`、`--proc`、`--unshare-net`、
+`--setenv`、`--rlimit`。网络出口通过 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` 环境中的 Go 侧 HTTP/SOCKS 代理进行；在需要时，`socat` 转发 Unix-domain 代理套接字。
+
+主机上所需的包：
+- `bubblewrap` (the `bwrap` 二进制文件)
+- `socat`
+
+可选：
+- seccomp 过滤器（用于 Unix-socket 阻塞）通过上游 `@anthropic-ai/sandbox-runtime` 包安装或手动复制其 `vendor/seccomp/*` 文件；`infra/sandbox/deps.go` 将其报告为状态中的“可选”。
+
+### 7.3 Ubuntu 24.04 + AppArmor
+
+上游的记录的注意事项：Ubuntu 24.04 的默认 AppArmor 配置文件会阻止未授权用户命名空间。检测方法：读取 `/proc/sys/kernel/apparmor_restrict_unprivileged_userns`；如果 `1`，则在 `buildmax sandbox` 状态中报告清晰的补救消息（引用上游的 `tee` 片段以添加一个 `bwrap` 配置文件）。
+
+### 7.4 容器 — `enable_weaker_nested_sandbox`
+
+镜像上游。当设置时，bwrap 会绑定挂载容器现有的 `/proc` 而不是挂载一个新的。这被记录为较弱的选项；仅在外部容器已经提供隔离时使用。
+
+## 8. The `buildmax sandbox` 命令
+
+镜像 Claude Code 的 `/sandbox` 面板。
+
+子命令：
+
+- `buildmax sandbox status` — 等同于 Config 标签。打印已解析的设置、源层、模式、后端、依赖项检查、最近的违规情况。
+- `buildmax sandbox deps` — 等同于 Dependencies 标签。显示 `bwrap`、`socat`、ripgrep、seccomp 过滤器是否存在，并提供每平台的安装提示。
+- `buildmax sandbox mode <auto_allow|regular>` — 将 `auto_allow_bash_if_sandboxed` 写入用户设置。
+- `buildmax sandbox overrides <strict|permissive>` — 将 `allow_unsandboxed_commands` 写入用户设置。
+- `buildmax sandbox enable` / `disable` — 写入 `sandbox.enabled`。
+
+当缺少必需的依赖项时，`status` 和 `deps` 是唯一有用的命令（与上游的“直到你安装它，Dependencies 标签是唯一显示的标签”相匹配）。
+
+## 9. 边界强制总结
+
+| 类别 | 由谁强制执行 | 在哪里 |
+|---|---|---|
+| Bash 文件系统 | OS 后端（`bwrap` bind/ro-bind；Seatbelt `file-read*` / `file-write*`） | `infra/sandbox/bwrap_linux.go`、`seatbelt_darwin.go` |
+| Bash 网络出口 | Go HTTP/SOCKS 代理（allow_list/deny_list）；沙箱强制 `HTTP_PROXY` 环境 | `infra/sandbox/proxy.go` |
+| Bash 环境 | 秘密形状的变量（`*_TOKEN`、`*_KEY`、`*_SECRET`，加上一个精确列表）被剥离，除了运行声明为 Space Secret 的变量的名称（`Manager.AllowEnvNames`）；`BUILDMAX_API_KEY`、`BUILDMAX_RUN_TOKEN`、`BUILDMAX_JWT_SECRET` 是 `alwaysDenyExact` 并且不允许重新添加允许列表。参见 [space-secrets.md](space-secrets.md) §13.1 | `infra/sandbox/env_scrub.go` |
+| Bash 进程限制 | 附加到包装的 `/bin/sh -c` 命令上的 `ulimit` shell 语句，每个限制一个——而不是 `syscall.Setrlimit`，它没有预执行钩子可以仅应用于子进程；`max_memory_mb` 对 macOS（Darwin 的 setrlimit 缺少 `RLIMIT_AS`）没有影响 | `infra/sandbox/unix_rlimit.go` |
+| `command` 钩子 | 与 Bash 相同的包装 + 环境（因此钩子无法逃脱） | `infra/hook/command.go` 咨询 `SandboxView` |
+| `http` 钩子 | 与 `allowed_domains` / `denied_domains` 匹配器相同 | `infra/hook/http.go` 咨询 `SandboxView` |
+| 非 Bash 工具（读/写/编辑/Glob/Grep/WebFetch） | **现有权限流**（`policy.go`、`safety.go`、`util.ResolvePath`）——本文档未更改 | `internal/tool/*` |
+
+两个层（Bash 的沙箱；其他所有内容的权限）
+完全镜像 Claude Code 的文档：“内置文件工具：读、编辑和写入直接使用权限系统，而不是通过沙箱运行。”
+
+## 10. 表面默认值
+
+| 表面 | 默认值 | 锁定？ |
+|---|---|---|
+| CLI (`buildmax`) | `enabled: false`（无回归） | 否 |
+| Desktop | `enabled: false` | 否 |
+| Worker (`buildmax-worker`) | `enabled: true`、`fail_if_unavailable: true`、`allow_unsandboxed_commands: false`、狭窄的 `allowed_domains`、`deny_read: ["~/.aws", "~/.ssh"]` | 是，通过 `policy.yaml` 与 worker 容器镜像一起发布 |
+| Portal 内置转换 | 继承 worker 默认值 | 是 |
+| TUI 子代理 | 继承父级 | 不适用 |
+
+worker 配置是 [trust-harness.md](./trust-harness.md) §3.2 中“比受信任的本地更严格的默认值”的具体实现。一个因覆盖而解析到 `enabled: false` 的 worker 会发出一个启动 `WARN`，标记跟踪 `sandbox.downgraded=true`，并在 `SessionStart` 钩子载荷中暴露覆盖的源（参见 §11.2）。
+这张表说明的是边界“是什么”，而不是谁有权选择它。关于一个部署范围内的配置文件与分层操作符/空间/任务配置的比较，以及不适用的配置文件是导致运行失败或记录警告而降级，这个问题在 [trust-harness.md](./trust-harness.md) §3.9 以及集群级别的 egress（本文档不拥有的部分）中是开放的。下方的 in-agent 代理通过主机名过滤一个沙箱化的 bash 子进程；它不是 pod egress 边界。
+
+## 11. 可见性
+
+### 11.1 表面显示
+
+- **CLI / TUI 底部**: `sandbox: on(auto)`, `sandbox: on(regular)`, `sandbox: off` 或 `sandbox: missing`（已启用但后端不可用——与上游警告行为一致）。
+- **Desktop**: 会话信息面板显示相同内容以及一个“查看边界”的披露。
+- **Portal task-run 头部**: 显示是否启用？+ 模式 + 允许的域和写入路径的数量。
+- **Worker 启动日志**: 完整的解析后的 config JSON + 依赖检查结果。
+
+### 11.2 Hook 有效载荷
+
+每个 `agent.HookInput` 都会获得一个 `Sandbox` 字段：
+```go
+type SandboxInfo struct {
+    Enabled     bool
+    Mode        string   // "auto_allow" | "regular"
+    Backend     string   // "seatbelt" | "bwrap" | "none"
+    Sources     []string // ordered chain of overrides applied
+    Downgraded  bool     // worker only; true if forced off by override
+}
+```
+### 11.3 违规存储 + `ignore_violations`
+
+按 session id 键的有界环形缓冲区：
+```go
+type Violation struct {
+    Time     time.Time
+    Kind     string  // "fs_deny" | "net_deny" | "sandbox_disabled" | "backend_unavailable"
+    Tool     string
+    Argument string  // redacted
+    Reason   string
+    Source   string  // "go_proxy" | "bwrap" | "seatbelt"
+}
+```
+`sandbox.ignore_violations` 严格遵循上游：a
+`map[string][]string` (例如 `{ "Bash": ["net_deny:metrics.example.com"] }`)
+抑制状态/跟踪显示中的匹配违规。它们仍然在内部用于调试计数。
+
+## 12. Hook 集成
+
+Sandbox 和 hooks 是互补的：
+
+- Sandbox 是*合同级别的拒绝*：确定性的，由操作系统强制执行的，为 LLM 量身定制的（CLAUDE.md §6.4）。
+- Hooks 是*命令式检查*：策略调用、审计、格式化器（[hook-system.md](./hook-system.md) )）。它们在 sandbox 接受*之后*运行。sandbox 的拒绝会触发 `Notification{kind: sandbox_denied}`，因此审计 hook 仍然可以看到它。
+
+Hook 传输遵守 sandbox，因此不能用于绕过它（参见 §9 — `command` 和 `http` hooks 咨询 `SandboxView`）。
+
+## 13. 实现步骤
+
+分阶段实施，因此每一步都可以独立发布。每个阶段在 Linux + macOS 上都以可运行的二进制文件结束。
+
+实施了阶段 A–E（提交 `ef9617a`）。对以下计划的偏差，以及所有仍未解决的问题，都收集在 §13.1 中。
+
+**阶段 A — 配置 + 合约，无行为更改。** ✅
+- `core/agent/sandbox.go`，`core/agent/sandbox_defaults.go`。
+- `config/sandbox.go` + `LoadPolicySandbox` + `ResolveSandbox` + 测试。
+- `agentapp.NewAgentApp` 解析并存储配置；暴露 `Sandbox() agent.SandboxConfig`。运行时保持不变。
+- `buildmax sandbox status` 显示已解析的配置 + 来源。
+
+**阶段 B — macOS 安全带 + Linux bwrap 后端。** ✅
+- `infra/sandbox/{seatbelt_darwin.go, bwrap_linux.go, unsupported_windows.go, deps.go, manager.go}`。
+- 当 `Manager.Enabled() && Manager.ShouldSandboxCommand(cmd)` 时，Bash 工具通过 `WrapBashCommand` 进行包装。
+- 实现 `excluded_commands` 匹配（镜像上游 `bashPermissionRule` 语义）。
+- `sandbox-exec` 黄金测试；`bwrap` argv 黄金测试。
+- `buildmax sandbox deps` 子命令。
+
+**阶段 C — 网络代理。** ✅
+- `infra/sandbox/proxy.go`（HTTP + SOCKS5，允许/拒绝匹配器，违规发射）。
+- `bwrap --unshare-net`，Seatbelt `(deny network-outbound)` + 针对代理端口的定向允许。
+- 测试：被拒绝的主机返回代理友好的 403；`Refresh()` 在没有重启的情况下获取新的允许列表。
+
+**阶段 D — 环境擦除、rlimits、dangerously_disable_sandbox、忽略违规。** ✅
+- `core/agent.BuildChildEnv` + 秘密拒绝列表。
+- `infra/sandbox/unix_rlimit.go`：将 `ulimit` 语句前缀到包装的命令上，而不是 Windows 特定的路径——Windows 完全没有 sandbox 后端（§14），因此没有可以添加限制的路径。
+- Bash 工具：`dangerously_disable_sandbox` 参数 + 显示“严格的 sandbox 模式”。
+- `ignore_violations` 显示过滤器。
+
+**阶段 E — 自动允许模式 + 违规存储 + 表面。** ✅
+- Bash `CheckArgs` 在 `Manager.Enabled() && mode==auto_allow && ShouldSandboxCommand(cmd)` 情况下返回 `ToolActionAllow`，除非命令匹配始终提示列表（`rm -rf /`，等，从 `safety.go` 中保留）。
+- TUI 底部；`buildmax sandbox mode` / `enable` / `disable`。
+- `SessionStart` hook 有效载荷填充了 `SandboxInfo`。
+
+**阶段 F — Worker 强化 + 文档。** ⚠️ 完成了表面选择、k8s-pod 验证和降级标记；文档仍待开放
+- Worker 引导：硬编码 `enabled: true, fail_if_unavailable: true, allow_unsandboxed_commands: false`，除非由 `policy.yaml` 明确覆盖。✅
+- 降级标记上的 WARN + 跟踪标记。✅ `config.ResolveSandboxForRun` 通过比较已解析的配置与表面自身的基线（`sandboxWeakerThan`，`internal/config/sandbox.go`）来计算 `SandboxResolution.Downgraded`；在第二个运行时信号中进行 OR 操作——已解析的配置请求了 sandbox，但实时视图报告禁用，因为后端不可用，并且 `fail_if_unavailable` 为 false——并且 `buildAgentApp` 在构建时记录一个 `slog.Warn`，当两者中任一条件为真时。`SessionStart` hook 有效载荷和每次运行的 `sandbox_boundary` 跟踪记录都携带了组合结果。
+- `config-examples/sandbox.example.yaml`，CLAUDE.md §4.1 更新，ROADMAP.md 更新。
+
+### 13.1 实现状态
+
+已在 `ef9617a` 中落地：`core/agent/sandbox.go`（`SandboxView`，`NoopSandbox`，`SandboxInfo`），`config/sandbox.go`（加载 + 策略合并 + `ResolveSandbox` 带有每个表面的默认值），`infra/sandbox/`（管理器外观，Seatbelt 和 bwrap 后端，依赖报告，HTTP/SOCKS 代理，主机匹配器，排除命令匹配器，环境擦除，违规存储），`agentapp/sandbox.go`（`SandboxStatus`，管理器构建），bash-tool 包装带有自动允许降级和 `dangerously_disable_sandbox`，TUI 底部标签，以及 `buildmax sandbox status|deps|mode|enable|disable`。
+
+仍未开放——这些会阻止 §15 的接受：
+
+1. ✅ **Worker 默认值现已选择并与生产 Pod 安全上下文进行验证。** `agentapp/taskrun/runtime.go` 设置了 `SandboxSurface: config.WorkerSandboxSurface()`，而不是最初尝试的无条件 `SandboxSurfaceWorker`：这破坏了在裸 Linux 主机上没有 `bwrap` 的每个 worker task，以及所有原生的 Windows worker（它们都因为没有后端而触发了 `fail_if_unavailable: true`），被 `evaluation` 的黑盒 worker-surface 测试和 Windows CI 捕获，而不是在 Mac 上的本地开发中，在那里 Seatbelt 始终存在，并且失败从未重现。`WorkerSandboxSurface` 仅在设置了 `BUILDMAX_SANDBOX_BACKEND_INSTALLED` 时选择严格基线——在 `Dockerfile.buildmax`/`Dockerfile.release` 中的一行，存在于从任一镜像构建的任何容器中，因此在任何 `k8s_job` worker pod 中，但在裸主机上不存在。单独选择它也不够：`RuntimeDefault` seccomp 会丢弃 worker pod 能力需要的所有系统调用，一旦 worker pod 的能力为空，并且在 `--unshare-pid` 下进行一次新的 `/proc` 挂载会触发内核的“挂载过于暴露”保护，独立于 seccomp。两者都已修复——[`deployment/seccomp/README.md`](../../../deployment/seccomp/README.md) 包含了完整的根本原因链以及它如何与承载 worker 确切安全上下文的真实 pod 进行验证。
+与计划的命名偏差，无害：不支持的平台存根是`unsupported_other.go`（而不是`unsupported_windows.go`），环境变量黑名单位于`infra/sandbox/env_scrub.go`中作为`ScrubEnvList`而不是`core/agent.BuildChildEnv`，阶段A中放入`core/agent/sandbox_defaults.go`的内容在`defaultSandbox`中，并与消耗它们的解析一起。`AgentApp.Sandbox()` 返回该记录其余名称，而不是阶段A列表的`SandboxConfig`。
+
+**延迟（在P0.5之后）。**
+- 允许编辑/读取/WebFetch的权限规则语法以向`sandbox.filesystem.*`和`sandbox.network.allowed_domains`提供输入——解锁上游的“权限规则和沙箱合并”行为（`Edit(/foo/**)`在`allow_write`中添加`/foo/**`）。
+- 自定义代理端口（`http_proxy_port` / `socks_proxy_port`）连接到企业MITM代理。
+- 通过`infra/sandbox/container.go`实现容器后端（k8s pod, Docker）。
+- 对Portal对话中的每请求沙箱覆盖。
+- `enabled_platforms`旋钮（当我们需要按平台启用时镜像上游）。
+
+## 14. 范围之外（明确）
+
+- 对`@anthropic-ai/sandbox-runtime`的从头开始的Go重新实现。我们调用`bwrap` / `sandbox-exec`。
+- 原生Windows操作系统级别的bash沙箱（仅WSL2，与上游相同）。
+- 将非bash工具（Read/Write/Edit/Glob/Grep/WebFetch）放入沙箱中。它们的边界是现有的权限流。
+- TLS检查代理。内置代理仅按主机名过滤；`enable_weaker_network_isolation` + 自定义代理端口是TLS检查的上游文档化路径。
+- 在运行时动态切换配置文件；沙箱配置在运行开始时是固定的（一个`Refresh()`调用仍然要求下一次运行拾取它）。
+
+## 15. 验收
+
+§3.2 在以下情况下达成：
+
+- CLI、Desktop、Worker和Portal任务运行解析并显示一个沙箱配置（`enabled`、模式、后端、来源）。
+- Worker 默认值为 `enabled: true, fail_if_unavailable: true, allow_unsandboxed_commands: false`；Worker会拒绝在缺少后端（backend）的平台上启动。降级情况被记录、跟踪、对钩子可见。
+- Linux/macOS上的Bash命令在`bwrap` / Seatbelt内部运行；子进程继承相同的边界。
+- 从bash沙箱内部的网络出口由Go侧代理使用`allowed_domains` / `denied_domains`进行过滤。
+- `excluded_commands`选项将特定命令排除在沙箱之外；`dangerously_disable_sandbox`遵守`allow_unsandboxed_commands`。
+- 秘密形状的环境变量除非明确列出，否则永远不会泄露到沙箱中。
+- `command`和`http`钩子传输遵守相同的边界。
+- `buildmax sandbox`子命令镜像Claude Code的`/sandbox`面板（状态、依赖、模式、覆盖、启用/禁用）。
+
+---
+
+*本文档的阶段A–E已实现；请参阅§13.1以了解在满足§15验收列表之前仍有待解决的内容。*

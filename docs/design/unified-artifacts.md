@@ -1,5 +1,7 @@
 # Unified Artifacts
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/unified-artifacts.md)
+
 ## Contents
 
 - [Status](#status)

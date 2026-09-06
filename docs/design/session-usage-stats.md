@@ -1,5 +1,7 @@
 # Session Usage Stats
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/session-usage-stats.md)
+
 > **Audience:** contributors · **Status:** partly implemented — per-session
 > statistics on the CLI and in the TUI, and the metering fixes they required,
 > are shipped; cross-session aggregation is designed and not built

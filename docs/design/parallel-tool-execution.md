@@ -1,5 +1,7 @@
 # Parallel Tool Execution
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/parallel-tool-execution.md)
+
 ## Contents
 
 - [Status](#status)

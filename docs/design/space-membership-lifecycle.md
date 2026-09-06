@@ -1,5 +1,7 @@
 # Space Membership Lifecycle
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/space-membership-lifecycle.md)
+
 ## Contents
 
 - [Status](#status)

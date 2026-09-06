@@ -1,0 +1,657 @@
+# 系统管理
+
+> **翻译说明：** 本文是[英文原文](../../design/system-administration.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `509439894b48d4d83084e59510901c30bb6dc3b8cdda8128011279c56e0ae0e7`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+
+
+## 内容
+
+- [状态](#状态)
+- [1.决定](#1决定)
+- [2.产品目标](#2产品目标)
+- [3。 现行基准](#3-现行基准)
+- [4。 基本原则和每个目标](#4-基本原则和每个目标)
+- [5.权威模式](#5权威模式)
+- [6。 启动和锁定恢复](#6-启动和锁定恢复)
+- [7。 服务器管理 API](#7-服务器管理-api)
+- [8。 账户禁用语义](#8-账户禁用语义)
+- [9。 审计活动](#9-审计活动)
+- [10。 Portal 管理表面](#10-portal-管理表面)
+- [11。 授权矩阵](#11-授权矩阵)
+- [12. 范围外事项](#12-范围外事项)
+- [13。 后端计划](#13-后端计划)
+- [14。 前端计划](#14-前端计划)
+- [15。 验证](#15-验证)
+- [16。 风险](#16-风险)
+- [17. 开放问题](#17-开放问题)
+
+## 状态
+
+- roadmap_priority:`P4`
+- 状态：`implemented`。M1–M6 已交付：授权模型、管理员路由授权、账户路由、账户禁用、系统状态和脱敏配置路由、跨 Space 审计搜索、Space 元数据路由、Portal 管理区域以及模型目录使用面。剩余事项见 §17，且不影响第一阶段。
+- 后者:[空间管理.md](./space-governance.md)和
+[企业部署.md](./enterprise-deployment.md)
+- 涉及:[企业身份和访问](../../proposals/enterprise-identity-and-access.md)
+关于"欧盟国际信息与信息技术委员会"的提案，
+- 路线图:[其他地方的路线图](../../ROADMAP.md)
+- created_at:`2026-08-18`
+
+## 1. 决策
+
+BuildMax 引入一个使用面范围的主体：**System Administrator**。它作为用户上的可撤销授权持久化，绝不从 Space 成员身份推导。
+
+经过审议和拒绝的三个选择：
+
+- **把运营工作留在 CLI、数据库和集群中。** 这就是当前状态；日常账户管理需要数据库密码，也不会留下谁做了什么的可追责记录。
+- **把 Space owner 视为全局管理员。** 这会压扁产品真正拥有的边界。Space 是 Issue、Conversation、Artifact 和 trace 的所有权边界；能跨 Space 阅读的 owner 会让这个边界形同虚设。
+- **配置一个静态管理员邮箱。** 它可以用一行完成引导，但之后无法支持第二个管理员、无重新部署撤销，也只能在审计记录中写入配置文件里的字符串。
+
+持久化授权是唯一同时支持多管理员、无需重新部署撤销和记录真实账户的选择。
+
+System Administrator 可以创建和禁用账户、读取系统状态、跨 Space 搜索审计记录，以及查看 Space 和配额元数据。除非成为该 Space 的成员，否则不能读取其提示、工具输出、Artifact、文件或运行 trace。这由所有其他调用者也必须通过的 Space 检查强制，并由测试证明，而不是靠本文承诺。
+
+## 2.产品目标
+
+个人部署的运营商应能够在没有数据库客户端,`kubectl exec`或JWT密码的情况下回答这些问题：
+
+- 谁有账户，他们最后什么时候登录了，他们仍然可以登录吗？
+- 现在有人要离开，我怎么阻止他们进入呢？
+- 别人忘了密码，怎么能回来？
+- 部署是否健康，在哪种版本，使用哪种方案？
+- 谁改变了接入，模型或配置，在哪个空间，什么时候？
+- 它们有哪些空间，它们有多大，它们使用什么？
+
+他们应该无法通过这个表面回答"这个空间在做什么"。
+
+## 3. 现行基准
+
+现在的设计，
+
+- Space 角色和空间授权助理：
+`internal/core/space/space.go`， `internal/core/space/policy.go`。
+- 对于每个JWT路线的用户身份的单一道:`Guard.ActiveUser`
+查看`internal/server/access`。 每个认证处理器都达到用户ID
+通过它。
+- 路线所有权：每个处理器子包的`Register`方法，覆盖范围
+在`space_authz_matrix_test.go`中进行检测，检测到它们中的每一个，但失败
+无权限行在航天航线上。
+- 仅附录审计轨道:`internal/core/audit/audit.go`，
+光 `internal/service/audit` `internal/infra/db/audit.go`
+仅限所有者:`GET /api/spaces/{space_id}/audit-events`。
+- 已运行数据库凭证的操作员命令：
+高达相关标识符 (高达相关标识符) 建立了用户服务器 `internal/bootstrap/user_admin.go`
+设置密码，登录码`) and `internal/bootstrap/model_admin.go`
+(`buildmax-server model add | list | enable | disable`)。
+- 会议:`model.RefreshTokenStore`可以取消一次会议
+服务器永远不会使用 JWT `RevokeSession`
+商店。
+- 活力，准备性和版本:`internal/server/health.go`，
+子代理 `readinessChecks` `internal/bootstrap/server.go`
+`config.VersionString()`。
+- 方案状态:`schema_migration`表在`internal/infra/db/migration.go`中。
+
+五个空白从这个列表中，
+
+1. 没有部署范围的资本。 `system_admin`
+存在任何形式，包括`user`的旗。
+2. 编写 **没有审计事件**。 创建账户， `buildmax-server user ...`
+最敏感的行动
+运营商不记录， `model_admin.go`确实记录了其变化，
+这不是政策，而是不一致。
+3. 任何东西都不能禁用一个帐户。
+4. 没有任何列出或取消用户的会议。 `docs/deploy/authentication.md`
+现在已经说了：签下一个人，意味着删除
+采用手工编写`user_refresh_token`行。
+5. 空间的配额级别设置一次，从`default_quota_tier`，在空间
+子代理 `internal/infra/db/quota_tier.go` `GetQuotaTier`
+后面没有办法分配其他层次。 `SeedDefaultQuotaTiers`
+
+## 4. 基本原则和每个目标
+
+威胁模型是主导的表，因为这个设计必须防止的失败是一个主导方地获得另一个影响力。
+
+| 校长 | 通过 | 可能达到 | 没有达到 |
+|---|---|---|---|
+| 用户 | 从密码或登录代码中获取代码 | 它们所属空间的资源，按其作用 | 任何东西在一个空间他们不在 |
+| **Space的所有者** | 同样的代币，加上`owner`成员列 | 成员，共享自动化，以及该空间的审计轨迹 | 任何其他空间；任何部署范围的表面 |
+| 系统管理员 | 同样的代币，加上一个活跃的补贴行 | 账户，资助，系统状态，编辑配置，跨空间**元数据**和审计，模型目录状态 | 提示，消息，工具输出，Artifact，文件，并运行它们不在的空间的痕迹 |
+| 子代理 Worker | 一个运行标志命名一个运行 | 运行的四个`/api/worker/*`路线 | 每个用户路线；每一个其他运行 |
+| **基础设施运营商** | 数据库，集群和秘密访问 | 通过建设，一切 | — |
+
+两种后果值得说，而不是暗示。
+
+**系统管理员不是阶梯的顶部.** 他们是一个主管，权威的轴系不同.一个空间主在一个空间内有深度；一个管理员在部署的运营范围上有宽度，而无深度.权威与会员并非添加：一个也是一个空间的成员的管理员在其中得到了完全的成员的范围。
+
+**基础设施运营商仍然比系统管理员更强大**，这种设计不会改变这一点.它减少了任何人都需要*成为基础设施运营商的频率，这是实际目标：通过审计的表面进行例行工作的运营商停止为其发送数据库密码。
+
+两次攻击形成了以下细节：
+
+- 爆炸半径由API所限制。
+任何行动都会被录取，
+审计轨迹与演员的用户身份。
+其他管理员或操作员命令，取消该用户的会议。
+- **一个跨空间阅读尝试.**一个管理员调用一个空间内容路线没有
+由于管理者路线被拒绝加入，
+没有任何其他资金，但可以提供资金。 `authorizeSpaceAction`
+根据第11条，这是一种测试而不是断言。
+
+## 5.权威模式
+
+### 5.1 一个角色，持续作为一个补贴
+
+```go
+// internal/core/identity/system_grant.go
+const SystemRoleAdmin = "system_admin"
+
+// SystemGrant is one deployment-scoped authority held by one user.
+type SystemGrant struct {
+    ID            uint   `json:"-"`
+    SystemGrantID string `json:"system_grant_id"`
+    UserID        string `json:"user_id"`
+    Role          string `json:"role"`
+    GrantedBy     string `json:"granted_by"`
+    GrantedAt     int64  `json:"granted_at"`
+    // RevokedAt is nil while the grant is active. Revoking sets it rather
+    // than deleting the row: who held authority and when is the question an
+    // investigation asks, and a deleted row cannot answer it.
+    RevokedAt *int64 `json:"revoked_at,omitempty"`
+}
+
+type SystemGrantStore interface {
+    // ActiveSystemRoles returns the roles userID currently holds. Empty for
+    // almost every caller, so it must stay a single indexed read.
+    ActiveSystemRoles(ctx context.Context, userID string) ([]string, error)
+    ListSystemGrants(ctx context.Context, includeRevoked bool) ([]SystemGrant, error)
+    GrantSystemRole(ctx context.Context, userID, role, grantedBy string, now int64) (*SystemGrant, error)
+    // RevokeSystemRole revokes the active grant and reports whether one was
+    // found. Revoking an absent grant is not an error.
+    RevokeSystemRole(ctx context.Context, userID, role string, now int64) (bool, error)
+    CountActiveSystemGrants(ctx context.Context, role string) (int, error)
+}
+```
+
+在单一表中,相关标识符 继续使用`system_grant`，具有`(user_id, role, revoked_at)`的独特指数，因此一个用户不能拥有两个相同角色的活跃资助.`SystemGrantID`使用新`sg_`前，注册于`internal/util/id.go`和[贡献/公约.md](../../contribute/conventions.md)。 `systemGrantRow`
+
+现在，我们要做一个好事。
+
+- **一个`role`列，而不是布尔式.** 提议的第1问题是：
+现在需要一个只读的`system_observer`和一个支持角色。
+没有人要求他们，发明一个未使用的角色是错误
+现在的价格是1个`varchar`
+后面添加一个角色和后面迁移一个布尔式之间的区别。
+商店接受`system_admin`，直到第二个角色有调用人。
+- **`user`上没有旗.*** 旗没有授权主角，没有时间，没有
+历史，这三个是全部的重点。
+- **没有`superuser`.** 没有书面的许可增长
+每个管理者路线都给出了所需的角色，
+如果没有，
+
+### 5.2 如何检查
+
+另一个助手，在空间旁边，从来没有在空间里。
+
+```go
+// internal/server/handlers/system_authz.go
+func (h *Handler) requireSystemAdmin(w http.ResponseWriter, r *http.Request) (userID string, ok bool)
+```
+
+在写回复之前，它将`requireAuth`，然后是`ActiveSystemRoles`，并在拒绝记录中则是`access.denied`。 `space_id`
+
+补助不是对空间检查的论点；如果它成为一个，第4节的边界将不再是真实的，没有测试会注意到。 `authorizeSpaceAction`
+
+### 5.3 状态代码
+
+- 无证书，或无效： **401**，与其他航线一样。
+- 没有补助的有效证书： **403**。
+
+隐藏`/api/admin/*`的存在是不可能的 路线在开源路线注册和Portal捆绑中 ，假装不一样的成本是正确状态代码的清晰度.不得泄漏的数据,403没有.这是与现有的仅拥有者审计路线相同的形状,Portal已经读取403为"不是为你"而不是bug。
+
+## 6. 启动和锁定恢复
+
+首次授予来自操作员命令，而不是配置：
+
+```text
+buildmax-server admin grant <email>     # grant system_admin
+buildmax-server admin revoke <email>    # revoke it
+buildmax-server admin list              # who holds one, and who used to
+```
+
+它加入`user`和`model`， 根据相同的规则， 两个已经遵循： 它读取了服务器读取的`server.yaml`，
+
+对于此，我们需要在`server.yaml`中列出一个`system_admins:`列表，这是审计轨道无法描述的第二个权威来源，撤销不能在没有重新部署的情况下达到，并且在每个边缘案件中都必须赢得或输掉表。 一个来源，一个故事。
+
+恢复从同一个选择中得到了效果：命令是否存在零或十个管理员，不需要运行服务器，也不需要Portal帐户.没有破解玻璃的凭证来存储，旋转或泄漏，因为恢复路径是普通的路径。
+
+两个变量之间存在的差距是：
+
+- 士相关标识符**拒绝撤销最后一个活跃的士相关标识符补助， `system_admin` API
+管理员不能离开部署没有任何
+通过点击。
+- 命令允许，并打印它意味着什么。
+管理员离开了公司需要的，他们已经持有了
+限制无意义的证书。
+
+拒绝通过API可以自行撤销，如果另一个管理员仍然存在，拒绝只意味着要求同事做同样的事情。
+
+## 7. 服务器管理 API
+
+所有路线都是`/api/admin/*`，所有路线都需要`system_admin`，没有一个路线参数是`space_id` 一个看起来太空范围的管理路线将邀请完全的混乱 §4存在防止。
+
+### 7.1 第一片
+
+| 路线 | 返回 | 拒绝回来 |
+|---|---|---|
+| `GET /api/admin/me` | 申请人：职位，授予，授予 | — |
+| `GET /api/admin/grants` | 积极的补贴，要求撤销的补贴 | — |
+| `POST /api/admin/grants` | 授予`system_admin`的用户身份 | 没有账户的补贴 |
+| `DELETE /api/admin/grants/{user_id}` | 撤销了 | 最后的活跃补贴 (§6) |
+| `GET /api/admin/users` | 账户，最新的第一,`?q=`在电子邮件上，页面 | 密码哈希，登录代码，代币值 |
+| `GET /api/admin/users/{user_id}` | 一个帐户：电子邮件，名称，配额级别，最后的登录和平台,`has_password`,`disabled_at`，空间会员，角色，活跃的会话数 | 在上列的所有东西 |
+| `POST /api/admin/users` | 创建一个帐户和个人空间 | — |
+| `POST /api/admin/users/{user_id}/login-code` | 单次使用的Issues代码，显示一次 | 代码可以稍后再读 |
+| `POST /api/admin/users/{user_id}/disable` | 禁用账户 (§8) | — |
+| `POST /api/admin/users/{user_id}/enable` | 恢复功能 | — |
+| `DELETE /api/admin/users/{user_id}/sessions` | 取消每次更新，返回数量 | — |
+| `GET /api/admin/system` | 版本，提交，应用的方案迁移，准备检查及其状态，工作者运行模式，注册和沙箱设置，按状态计算运行 | 任何有证书的东西 |
+| `GET /api/admin/config` | 有效配置，编辑，加上计算机警告 | 每个秘密只有存在，没有长度，没有前，没有哈希，每个秘密都缩小了搜索一个有答案的人，想要秘密的人。 |
+| `GET /api/admin/spaces` | 编制于： Spaces | 任何类型的Space含量 |
+| `GET /api/admin/spaces/{space_id}` | 同样，加上成员和角色，加上对层次的使用 | 类型： ，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，，， Issues |
+| `GET /api/admin/audit-events` | 通过`space_id`,`actor_id`,`action`,`since`,`until`，过的每个空间的轨迹，页面 | 任何事件尚未发生的东西 |
+| `GET /api/admin/llm/models` | 产品目录：名称，供应商，模型，功能，启用 | 任何形式的`api_key` |
+| `POST /api/admin/llm/models/{model_id}/enable` · `/disable` | 退休或恢复目录模型 | — |
+
+运营商希望用户登录，则会作为第二次，单独审计的电话发出登录代码.创建一个帐户和进入一个帐户是两个决定，而CLI已经因为同一个原因分开了它们。 `POST /api/admin/users`
+
+### 7.2 什么不包含在其中，为什么
+
+- **模型创建和提供商的认证书.** `buildmax-server model add`
+仅仅将API键放入目录的唯一方法。
+要求机构，代理日志和中文中提供商的凭证 HTTP
+无论浏览器对表格做了什么。
+运营半端，没有秘密，所以他们运输； `add`
+- **配置写字.** `GET /api/admin/config`仅可阅读，
+原因是机械的，而不是谨慎的:`server.yaml`在过程中被读取
+复制文件的复制文件的复制文件的复制文件。
+通过Portal将改变一个复制品的世界观，
+配置保持源控制，直到设置存储，
+这就回答了第六个问题。
+- 没有记录终点。 这回答了提案问题4，
+答案是：原始日志保持在部署的观察性
+建立一个编辑日志浏览器意味着拥有一个编辑器，
+模式是将提示器或钥匙泄漏到安全设计的表面，并且
+审计轨迹加上现有运行视图 `GET /api/admin/system`
+如果有证据，
+是一个字符串的字符串，
+通过猜测来建立的日志观看器，
+- 没有任何提示，Artifact，文件或
+答案是"不，不是在这个片子里"。
+支持到达空间内容的路径需要自己的设计覆盖
+要求，空间同意，过期，编辑，以及单独的审计行动；
+在表中，不是路线上的参数。
+- **配额级别分配.** `GET /api/admin/spaces/{space_id}`显示了级别
+改变它需要一种不需要
+存在 (§3，区间 5)，而这里唯一的元素是特征而不是
+运营商的现有状态窗口。
+读取表面已经显示了哪些空间实际上需要它。
+
+## 8. 账户禁用语义
+
+这就回答了建议第3问题，该问题需要每一个受影响的证书而不是一个句子。
+
+对于普通账户,`disabled_at *int64`列在`userRow`上是零的。
+
+| 什么？ | 禁用的效果 | 为什么？ |
+|---|---|---|
+| 密码登录 | 已被拒绝后，密码验证，使用`account_disabled`和403 | 检查之前的验证将告诉未认证的通话者有哪些地址注册。 |
+| 登录码 | 任何出炉的代码都会被花费 | 在禁令之前发行的代码不能作为回入的途径 |
+| 清新 | 拒绝；在禁用时，所有会议都被取消 | 这是一个可以撤销的证书，所以它被撤销了。 |
+| 访问符号 | 在下一次请求上被拒绝 | 下面见 |
+| 网页密钥 | 拒绝在`POST /api/webhook` | 路线已经解决了钥匙的所有者；检查是一个行上的一个字段 |
+| 置任务运行 | 发送时失败，原因在`error_message`中 | 没有什么开始，让它们排队意味着禁账户在禁账之后开始工作。 *取消*是这里最初的词，并证明命名一个状态 BuildMax没有 |
+| 运行任务运行 | 剩下一个完结 | 杀死一个人失去了工作， *空间* 拥有， 运行的凭证已经被扩展到那个运行， 已经过期。 空间，不是离开的用户， 是被杀害的当事人 |
+| **已发明的Run代币** | 无可撤销 | 签名，而不是一行。 根据`worker.run_token_ttl`的范围和范围，如[部署/验证.md](../../deploy/authentication.md)已经证明 |
+
+访问令牌是有趣的.它是一个签名的JWT服务器不会存储，所以"撤销"意味着"停止尊重它"，唯一可能发生的地方是身份的解决:`requireAuth`。 添加该支票的成本是每一个认证请求的首要密钥读取。
+
+这种成本是负担得起的，值得精确地解释为什么：产品中的每一个空间测量路线都在每个请求上已经调用`ListSpaceMembers`，这比这个更广泛的读数.在`requireAuth`中登陆的禁用检查比已经完成的相同请求工作更便宜.如果一个配置文件说出相反的话，该修正是它面前的短TTL缓存，并诚实地指出缓存是禁用帐户仍然运行的窗口.在第一次实现中没有缓存。
+
+另一个选择是等待访问代币TTL，默认为7天，但被拒绝。 "禁用这个帐户" (即"大约一周后") 并不是该功能。
+
+没有`CANCELED`运行状态，并且这个设计没有添加一个.引入终端状态是运行周期的改变：计划器,`syncTaskStatusFromRun`，以及每个Portal标志都必须学习，并且有一半读者不处理的状态是运行停止如何解释自己。 运输的反而重复使用已经在计划器中的发送时间拒绝  运行过程中不能获得其凭证  所以运行达到终端状态并说为什么在`error_message`中分辨。
+
+由于该运行的凭证被定向到该运行，并且过期，并且账户的会话已经消失了。
+
+让人转换状态，而仅仅是这样。 会议被取消， 失败的时间失败，
+
+## 9. 审计活动
+
+新的行动，一旦写成，是永久性的：
+
+```go
+AuditSystemAdminGranted = "system.admin_granted"
+AuditSystemAdminRevoked = "system.admin_revoked"
+AuditUserCreated        = "user.created"
+AuditUserDisabled       = "user.disabled"
+AuditUserEnabled        = "user.enabled"
+AuditLoginCodeIssued    = "user.login_code_issued"
+AuditSessionsRevoked    = "user.sessions_revoked"
+AuditModelEnabled       // exists
+AuditModelDisabled      // exists
+AuditAccessDenied       // exists; reused for admin routes, with space_id empty
+```
+
+所有的字母都是用`space_id`空格写的，因为它们中的任何一个都没有太空测量.`AuditEvent`的形状已经允许它被设计为`user.login`，因此不需要改变方案。
+
+添加这些东西会导致两件事：
+
+**运营商命令记录.** `buildmax-server user create`,`set-password`，和`login-code`写出与他们的API相当于`actor_type: system`和`actor_id: "buildmax-server"`的相同行动。 运营商ID`model_admin.go`已经写出了，因此一个行为不会获得两个名称。 `user_admin.go`
+
+**该线路需要一个没有空间扫描的读者.** `ListAuditEvents(spaceID, ...)`无法返回登录或补贴，因为这些没有空间。 `GET /api/admin/audit-events`
+
+```go
+SearchAuditEvents(ctx context.Context, f AuditFilter, limit, offset int) ([]AuditEvent, int, error)
+```
+
+采用可选的`AuditFilter`,`SpaceID`,`ActorID`,`Action`,`Since`,`Until`.现有的仅限所有者航线保持其狭窄的方法：一个空间所有者提出一个更狭窄的问题，不得不意外获得更广泛的问题。
+
+失败政策不会改变.一个失败的审计写作被记录下来，而不是失败的行动，就像今天的`internal/service/audit`文件一样.该政策被决定而不是在待定见[空间管理.md](./space-governance.md) §12问题 2 ，这个设计不会重新开放.它所做的就是化一个仍然开放的部分：添加的行动是最弱的最佳努力论点，因为一个赠款是做出的，而不是记录的案例是调查最需要的案例.是否赠款是获得交易记录的行动是剩余，而这个设计使得它更紧迫而不是回答它。
+
+## 10. Portal 管理表面
+
+区别是产品声明：这是一个空间所有者不多的东西。 `/admin`
+
+- 在`portal/src/router.ts`中，新型`admin`段，有部分
+类型：相关页面：`overview`、`accounts`、`spaces`、`models`、`audit`
+- 对于API客户端和页面，一个新的`portal/src/features/admin/`。
+它分享了演示的组成部分，
+太空客户端仍然是这样的。 `features/audit/`
+- 可见性来自`GET /api/admin/me`。 A 403意味着没有导航输入
+没有路线：一个不管理员输入`#/admin`的首页，而不是一个
+禁止屏幕，因为没有什么可以告诉他们。
+- 服务器不管怎么说拒绝， § 11 是
+什么证明了这一点。
+
+页面顺序取决于第2节的问题，而不是资源列表：
+
+1. **概述** 版本，方案状态，准备检查，工作模式，运行
+首先是因为它回答"这件事是好的"。
+2. **账户** 搜索，检查，创建，发行代码，禁用，撤销
+网页，一个运营商在连接或离开日开放。
+3. **Spaces** 空间，大小，配额级别，使用。 显然标记为
+没有链接到空间内容，因为一个链接403s读为
+它们是虫，而不是边界。
+4. **模型** 目录状态，启用和禁用， `add`被记录为
+命令而不是隐藏。
+5. 
+事件到账户或空间中。
+
+每页面都以一个行列表示其范围。 "这显示空间元数据，而不是空间内容"不是装饰：假设不这样的操作员最终会报告一个缺失的特征，实际上是设计。
+
+## 11. 授权矩阵
+
+空间路线矩阵在`space_authz_matrix_test.go`存在，因为检查在处理器辅助器中而不是在一个中间件中，所以忘记调用路线不是编译错误.管理者路线具有完全相同的属性，所以它们得到了完全相同的处理一个兄弟姐妹`system_authz_matrix_test.go`：
+
+1. **每条`/api/admin/*`路线，包装登记有一行。
+构建失败，一个已不存在的路线命名的行也失败了，
+因为一个死行读为覆盖。 运送在M1，并通过添加验证
+一个未经监视的路线，
+解雇的方法不太有效。
+2. **四位通话者将每条路线都作为真实的请求**：系统管理员，空间
+没有补贴的老板，普通用户，以及匿名的通话者。
+两百四十三，四十三，四十一。
+3. **被撤销的授权是非管理员.**
+相关标识符，每行得到403。 这证明撤销是 `RevokeSystemRole`
+实际上，这只是一个实时检查，而不是一个初始检查。
+4. **一个补助不是一个空间密钥.**一个没有会员的系统管理员驱动
+测试中，每一个测试中，
+根据第4条的表格，如果有人
+建议在`authorizeSpaceAction`内查看补助.M4重申了这一点
+在表面上，最看起来像一个例外：一个管理员
+读一个空间的名字，大小和配额仍然不能打开它的问题。
+5. **没有管理者反应包含秘密.** 答案机构的声明
+对于`api_key`,`password`,`hash`,`secret`的帐户和配置路线，以及
+，它抓住了现实性的失败：有人回一个行 `token`
+转载在M2中，这是第一个
+路线可以带上一个出现。
+
+项目14在M1中发送，以及两件图表没有命名：一个补助存储错误拒绝而不是承认，拒绝的管理员请求被记录在空格中，而一个未认证的记录没有什么。
+
+提案的"需要证据"列表要求一个端到端授权矩阵和一个锁定练习。 14项是矩阵.锁定练习是商店级测试：授权，撤销通过API，直到一个仍然存在，观看API拒绝，撤销最后一个命令，然后再次授权所有没有直接触摸数据库。
+
+## 12. 范围外事项
+
+- 系统的第二或第三个角色，直到一个调用者 (§5.1)。
+- 组织层次，定制角色，每资源的 ACL。
+- 其他技术，包括： [身份提议](../../proposals/enterprise-identity-and-access.md)
+设计的唯一限制是：
+提供商可以*增加*补贴，操作员命令必须继续工作，因此
+无线电停机不能锁定部署在自己的管理层。
+- 记录查看器，记录搜索器或任何SIEM形状的设备 (7.2段)。
+- 配置写 (§7.2)。
+- 任何类型的跨空间内容访问 (7.2.§)。
+- 检查出口，保留政策和删除控制。
+相关内容 [空间管理.md](./space-governance.md)
+改变他们的答案。
+- 清算和任何要求严格控制支出。 `llm_call`
+报告后的支出；没有保留。
+
+## 13. 后端计划
+
+### 授予模式，指挥和授权 完成
+
+相关标识符和`SystemGrantStore`,`systemGrantRow`在`system_grant`上,`sg_`前,`buildmax-server admin grant | revoke | list`,`requireSystemAdmin`，审计行动，以及第一条路线  `GET /api/admin/me` ，以便从开始进行矩阵测试。 `identity.SystemGrant`
+
+接受得到了：可以从命令行中进行赠款，列出并撤销；一个获得的用户获得200个`/api/admin/me`，一个未获得的用户获得403；每个转型都在审计轨道中。
+
+两件事与上面的草图不同，
+
+- **审计行为者是`buildmax-server`，而不是`cli`.**`model_admin.go`
+已经写了同一类的行为，和两条轨迹
+单个演员的名字比只说哪个二进制运行的名字更糟糕。
+由于相同的原因,`system_grant.granted_by`具有相同的字符串。
+- **`requireSystemAdmin`在检查商店**之前验证了
+检查商店先会回答一个问题： `withUserAndStore`
+无名调用者，有"系统管理未配置"，
+关于部署给一个没有证明的
+他们自己。
+
+### 计数 完成
+
+`/api/admin/users`路线,`disabled_at`，登录/更新/网页链接拒绝，会议撤销，时间表监督,`requireActiveUser`检查，以及账户审计行动.`/api/admin/grants`路线也落地在这里，而不是M1：最后一次授予的变量需要路线来执行它，账户生命周期和权威生命周期是同一运营商的工作。
+
+接受完成：操作员可以创建一个帐户，发出代码，禁用它，并在下一个请求中看到被拒绝的禁用帐户。
+
+现在，我们要做什么？
+
+- **由于第8节的原因，未经运行的运行失败而不是取消**。
+- **`requireActiveUser`仅拒绝现有且已被禁用的帐户.**
+商店没有账户的代号可以通过
+没有任何东西删除账户，所以这不是一个状态部署
+现在，我们可以在每一个路线上决定一个未知的主体意味着什么。
+对于残疾人来说，这是一个独立的变化。
+- **一个管理员不能禁用自己的帐户.**
+只有运营商命令才能回来，
+容易犯错误，不用允许。
+
+### 系统状态和编辑配置已完成
+
+编辑是可以显示的字段的白名单，而不是必须隐藏的字段的黑名单。 编辑是可以显示的字段的白名单，而不是必须隐藏的字段的黑名单。 编辑是可以显示的字段的黑名单。 `GET /api/admin/system` `GET /api/admin/config` `/readyz` API
+
+接受了，有三个决定值得记录：
+
+- **编辑的视图在`internal/config`**中存在，作为`ServerConfig.Redacted()`，
+当有人添加一个配置字段时，
+现在，我们已经在编辑的文件中显示了它。
+测试行程为标记为凭证的字段进行`ServerConfig`
+没有人知道，就失败了，所以白名单不能沉默地落下。
+在结构后面。
+- **从启动线上传达版本和部署事实.** `internal/server`可能
+建筑测试强制执行  `internal/config`
+保持基础设施细节在准备终点之外的同样的规则
+让配置细节不涉及这个。
+- **`sandbox_surface`被报告为空**，不再因为
+没有报道:`internal/agentapp/taskrun`现在通过
+工人决定要做什么，取决于工人对其工作的要求。 `config.WorkerSandboxSurface()`
+工作者在工作环境中运行，
+它们同意今天发送的每一个部署都来自
+只有一个人能理解，
+无视的边界可以错误地命名
+一.报告一个实际解决的运行与该运行的边界，
+已经将其层次进行审计；将其连接到这个终点是
+开放工作而不是这个记录做出的决定。
+
+由于一个回答500个问题，当一个五个问题无法回答时，不告诉操作员什么，而 `GET /api/admin/system`不失败：每个阅读都是最好的努力，因为一个状态页面在他们打开的停机期间对操作员什么都不告诉.一个失败的依赖是命名的，而不是解释的，匹配`/readyz` 连接错误带有DSN，终点和桶名，原因属于操作员已经必须在日志。
+
+### 跨度Space审计和Space元数据 完成
+
+空间线路是无干的，故意：一个空间主问了一个更窄的问题，并向读者提供更广泛的方法是如何一个空间测量线路安静地获得一个部署测量答案。 `SearchAuditEvents` `AuditFilter` `GET /api/admin/audit-events`
+
+两件值得记录的细节：
+
+- **`space_id=none`是一个过值.**一个空的`space_id`已经意味着"任何
+太空"，所以没有太空范围的读者能看到的事件
+需要自己的拼写才能要求。
+- **`AuditFilter`没有自由文本字段，并且不应该增加一个字段.**
+持有谁做了什么对什么对象；一个文本查询会邀请一个`Detail LIKE`
+扫描一个列，其全部目的是保持小和结构化。
+
+测试中没有任何成员写的或代理制作的字段.该边界的压力是真实的，并且将作为一个合理听起来的请求来到问题数量，然后列表，然后标题，所以测试声称响应没有提到任何问题，对话，Artifact，任务，工作流或痕迹。 `AdminSpace`
+
+### `/admin` Portal
+
+路由器段,`features/admin/`，和第10节的五页中的四页.模型是第五个，并落地M6，因为没有什么可显示，直到目录路线存在。
+
+接受得到：一个管理员看到该区域，一个非管理员看到没有进入， 并且被送回家而不是被禁止的屏幕，
+
+值得记录的三个东西：
+
+- **每页都显示出没有显示的内容.** 空间页面显示成员和
+空间按名称和角色列出，而不是工作。
+只有一个操作员，最终假设他不会做出任何其他事情。
+报告缺失的特征，实际上是边界。
+- 没有链接从空间到内容。
+作为一个错误而不是一个边界，所以页面没有提供一个。
+- **破坏性行为说他们会做什么，
+禁用每个凭证的名称，它停止，说会话被取消，
+排队工作不会开始，并表示它不是删除。
+发现后面是如何
+操作员学会不信任表面。
+
+浏览器覆盖范围为`portal/e2e/admin.spec.ts`，该帐户需要测试账户才能获得补贴 `./make e2e`现在在登录代码旁边发行一个。
+
+### M6。 模型目录阅读和转换 完成
+
+采用 `GET /api/admin/llm/models`和启用/禁用路线，重新利用 `model_admin.go`已经写的审计行动。 `add`仍然是一个命令。
+
+接受：一个模型可以从Portal中退出，目录回应没有钥匙，并且轨迹不区分CLI开关与API开关，除非由演员命令命名二进制，路线命名一个人。
+
+简单的答案是表示该模型名称是部署默认的**.每个启用的目录入口可由部署的每个用户调用，其独特的名称是稳定客户端面向标识符;Space的号层和每个[客户端模式.md](client-modes.md)的模型政策被撤销。
+
+如果需要，配额级别分配将在M6之后，以其自己的存储方法和自己的审计行动。
+
+## 14. 前端计划
+
+1. **门和子.**`getAdminMe`,`admin`路线段，以及一个航行入口
+答案是预期的答案，而不是错误吐司
+已有相同的公约`features/audit/api.ts`文件。
+2. **概述.** `GET /api/admin/system`的状态卡，失败
+准备检查名称和未解释，与`/readyz`的功能相匹配，
+原因是相同的。
+3. ** 账户.** 可搜索的列表，详细面板，以及确认对话
+禁用和召开会议时，说明会话将发生什么，
+登录代码显示一次，在登录代码之前表示
+产生的，而不是之后的。
+4. **Spaces.** 含有第10节范围线的元数据表。
+5. **审计.** 通过重复使用`features/audit/describe.ts`的跨空间轨道，
+已经使一个未被识别的行为字面上  保持一个
+由于隐藏事件,Portal比其服务器更老。
+6. **模型.** 卡塔罗表，设置/禁用以及`add`命令如下：
+复制可用的文本。
+
+## 15. 验证
+
+后端：
+
+```sh
+go test ./internal/server/handlers ./internal/infra/db ./internal/service/audit ./internal/bootstrap
+```
+
+前端：
+
+```sh
+cd portal && npm run build && npm test
+```
+
+完整：
+
+```sh
+./make check ci
+```
+
+动手情景，每一个都是本文中的索赔：
+
+1. 允许，列出，并撤销命令线对空置部署。
+2. 获得许可的用户达到`/admin`；没有补助的空间所有者则无法达到。
+3. 拒绝一个系统管理员在没有成员身份的情况下调用空间内容路线。
+4. 撤销补助将在下一次请求上结束管理者的访问，而不是在
+标志性到期。
+5. 克斯拒绝撤销最后的补贴，命令允许，并表示这样。 API
+6. 禁用账户：在飞行中未能执行请求，更新未能执行，
+密码登录表示`account_disabled`，一个网关关被拒绝，等待
+运行被取消，一个运行结束。
+7. 任何一步都会在合适的演员的跨空间审计轨道上出现。
+8. 现在,`buildmax-server user create`现在出现在轨道上，作为系统参与者。
+9. 没有管理员响应包含API密钥，哈希或代币。
+
+## 16. 风险
+
+- 钱是最重要的。
+允许，有人将在空间检查中寻求补助。 §11 4
+考试失败，应该留下解释原因的评论。
+- **管理器API成为一个基础设施控制台.**
+没有目标是正确的:BuildMax应该报告自己的状态，而不是成为一个
+取代`kubectl`。 每种补充应与第2条的规定进行检查。
+问问名单。
+- "只能在问题标题"是一个字母的元数据
+规则：如果一个空间成员写下或一个
+代理人生产了它，它很满意。
+- **通过配置值进行启动.**
+根据"Helm chart"的规定，
+追踪无法描述的权威。
+- **一个最佳努力审计写在补助金上.**
+传统的政策是最好的努力政策本身。
+现在，我们已经解决了问题，
+问题2  是否是获得交易的行动
+记录。
+- **禁用不能删除.*** 这里没有任何东西删除帐户或其数据，
+如果一个操作员读到"禁用"为"删除"则会错误.删除属于
+现在没有答案的10号问题。
+
+## 17. 开放问题
+
+1. 是否有真正的调用器在`system_observer`角色中？
+只有一个人需要给一个人身份和审计
+没有账户控制。
+2. ~~`disabled_at` 是否也应阻止 Space 中其他成员重试被禁用用户在个人 Space 里的现有 TaskRun？~~ **决定：不阻止。** 这遵循 §8 对运行中任务采用的原则：工作属于 Space，离开的用户并不是丢失工作后受损的一方。禁用会撤销该账户请求新工作的能力，但不会隔离其他成员状态正常的 Space 所拥有的积压任务。调度器根据运行自身的 `created_by` 执行防护，因此由其他人发起重跑时，会创建一个由未禁用参与者拥有的新运行并正常调度。真正未决的问题处在更低层，属于 Space 模型而非系统管理：系统并未阻止 Owner 向*个人* Space 添加成员，而这也是该场景唯一可达的原因。
+3. 管理员需要限制速度吗？ API
+没有车 ([部署/验证.md](../../deploy/authentication.md))，
+通过`GET /api/admin/users?q=`进行账户清单是较小的
+现在，我们需要一个新的表面，
+4. 没有数据库的部署管理员会看到什么？
+设计上是无限的，路线将达到503号；是否应该使用Portal
+显示该州的区域根本没有解决。
+5. 经过一项项目，该项目将获得资助，
+问题被重新链接到一个新的用户行，未接收的补贴是锁定，
+接下来是没有人批准的特权转移。
+6. 没有人能区分一个被残疾人阻止的跑步与失败的跑步？
+现在，这两个都是`FAILED`，只有`error_message`分开它们，所以一个Portal
+解决方案是运行寿命变化
+
+7. 账户的网关是否能存活在禁用时？
+在账户被关闭时被拒绝，并在重新启动时再次工作，
+防止操作员不得不重新发送任何调用器的钥匙
+如果一个离开者的整合会永久死亡，那么
+禁用与禁用不同。
+8. 模型号应该通过API进行编辑吗？
+相关标识符 删除了称层：客户端命名 [客户端模式](client-modes.md)
+直接实现单独的部署范围内的目录输入，以及管理员响应名称
+配置的默认。

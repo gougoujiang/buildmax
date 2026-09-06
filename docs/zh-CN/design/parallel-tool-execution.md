@@ -1,0 +1,552 @@
+# 并行工具执行
+
+> **翻译说明：** 本文是[英文原文](../../design/parallel-tool-execution.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `07ec90cb9148b1b3e420a9dc5559532bb58b28e4821bee44310888a5d0b122a9`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+
+
+## 内容
+
+- [状态](#状态)
+- [1.目的](#1目的)
+- [2。 现行基准](#2-现行基准)
+- [3。 缺口](#3-缺口)
+- [4.方向](#4方向)
+- [5。 范围](#5-范围)
+- [6. 范围外事项](#6-范围外事项)
+- [7。 Runtime流量](#7-runtime流量)
+- [8。 实施步骤](#8-实施步骤)
+- [9。 接受  满足 ✅](#9-acceptance-met)
+- [10。 序列](#10-序列)
+- [11。 开放的问题](#11-开放的问题)
+
+## 状态
+
+- roadmap_priority:`unscheduled`  性能工作，尚未投入
+[其他地方的路线图](../../ROADMAP.md)
+- 状态:`implemented` (第8阶段1-5次登陆；表现和追踪
+部分11的问题仍然存在)
+- 取决于:[工具许可.md](./tool-permissions.md)，定义了
+本设计进行调度所依据的 `Access` 分类。该记录应先交付，
+见第11条。
+- 接下来:[子系统.md](./hook-system.md)，
+[耐用运行追踪.md](./durable-run-trace.md)，
+[信用.md](./trust-harness.md)
+- 接触:`internal/core/llm`,`internal/core/agent`,`internal/tool`，
+`internal/agentapp`， `internal/service/conversation`，
+`internal/interface/cli`， `internal/interface/desktop`， `internal/config`
+- created_at： `2026-08-20`
+
+## 1.目的
+
+机器已经进行了工具调用，运行时间并没有同时运行。
+
+通信线路传输方式表示：一个助理消息携带N通话，并且阻塞和流媒体客户端都重建完整列表 (`internal/infra/llm/client.go:115`,`:247`).然后`executeToolCalls` ([阅读中文镜像](parallel-tool-execution.md)) 在一个简单的循环中运行它们。 `DefaultSystemPrompt` `internal/agentapp/prompt.go:51` `Glob` `internal/core/agent/agent.go:347` `for`
+
+现在的批量买到一个东西 少的LLM回路.它买不到墙钟时间.一个回路读五份文件，支付五份文件读到最后；一个回路带来三个URL，支付三次连续的网络回路，网络链接工具是损失最大的地方。
+
+本文定义了如何同时运行相邻工具调用**，而不会改变运行产生的**：相同的消息历史，相同的连序列，相同的批准提示，在相同的顺序，无论调度器做什么。
+
+## 2. 现行基准
+
+现在已经有什么工作，哪些接假设一个工具正在飞行。
+
+**每次通话管道是一个功能.**对于每次通话,`executeToolCalls`解调参数，查看工具，发射`EventToolStart`，检查循环保护器，并向`applyPolicyAndExecute`传递，该系统解决了政策，要求批准，运行了`PreToolUse`，调用`tool.Execute`，发射`EventToolEnd`，并运行`PostToolUse`.结果附加到历史，循环继续运行。
+
+**事件已经载有呼叫ID.** `Event.ToolCallID`设置在`EventToolStart`,`EventToolEnd`,`EventToolDenied` (`internal/core/agent/event.go:69`)，跟踪记录器和Desktop都在此.因此事件流已经为同步进行了塑造;CLI TUI是唯一消费者抛弃ID。
+
+**该管道接触的情况，以及它是否能存活同时发生：**
+
+| 组件 | 共同国家 | 现在的货币安全 |
+|---|---|---|
+| `trace.Recorder.Record` | 文件，缓冲器，计数器 | 是的 `r.mu`每次写都会守护 |
+| `HookManager.Run` | 匹配缓存，配置 | 缓存是的；配置号 在5.7.1修正 |
+| `Read`， `Glob`， `Grep`， `Skill` | 没有 | 是的 无国字在工作空间根上 |
+| `WebFetch` | 响应缓存 | 是的  `cacheMu sync.RWMutex` |
+| `Bash` | 没有 (`WithSandbox`返回副本) | 对结构的确，对效果的确不 |
+| `loopGuard.counts` | `map[string]int` | 没有 非同步地图 |
+| `Session.Append`， `SetNotes`， `SetTodos` | 会议上的切片 | 没有 |
+| `Model.currentToolArgs` (TUI) | 现场通话的一个插槽 |  |
+| `DesktopApprovalHandler.pending` | 一个响应道 | 第二个请求孤儿第一 |
+
+前五项说明：读取、搜索和抓取这些有效载荷已经可以安全地并发运行。
+
+## 3. 缺口
+
+### 3.1 循环根本没有并发
+
+`executeToolCalls` 只是顺序遍历 `toolCalls`。`internal/core/agent` 和 `internal/tool` 都没有启动 goroutine。
+
+### 3.2 运行时不知道哪些工具会写入
+
+`llm.Tool` 目前没有 effect 概念，策略层也无法恢复这种分类：`ReadFile.CheckArgs` 和 `WriteFile.CheckArgs` 对敏感路径逐字节相同，都会返回 `Ask` 而不是 `Allow`（`internal/tool/read_file.go:57`、`internal/tool/write_file.go:51`）。唯一可用的轴是*敏感性*。
+
+因此运行时无法区分读文件和写文件，也没有依据进行调度。
+
+### 3.3 循环保护和 Session 都假设单写者
+
+`loopGuard.exceeded` 会增长计数；`Session.Append`、`Session.SetNotes` 和 `SetTodos` 修改 Session 内的切片但没有锁，`NoteWrite`/`TodoWrite` 则通过 `Execute` 从 `NoteStoreFromContext` 进入 Session。
+
+### 3.4 TUI 将结果与错误绑定到单次调用
+
+`eventSinkToChannel` 在构建 TUI 模型时丢弃 `toolStartMsg` 和 `toolEndMsg`（`internal/interface/cli/tui_model.go:151`），模型只保留一个 `currentToolArgs` 字符串供 `handleToolEnd` 使用。并发时，第二次调用的参数会覆盖第一次调用的结果关联；事件流本身已有 `ToolCallID`，但 TUI 没有保留它。
+
+### 3.5 批准提示跨越运行时边界（已修复） ✅
+
+由于 `RequestApproval` 存储一个 `pending` 通道，两个并发提示会让第一个请求失去响应。该缺陷在实施阶段 1 中已被发现；批准仍由循环 goroutine 处理（D1），因此处理器不会看到并发调用。
+
+实际缺陷是取消，它根本不需要同步.`ApprovalHandler.RequestApproval`没有任何背景，并封锁了一个频道.一个用户在提示时取消了Desktop运行，离开了运行规律，等待没有人能回答；其推迟的清理从来没有运行，因此`runCancels[projectID]`从来没有被删除，项目永久停留"运行已经在进行中"。
+
+通过给操作员运行的背景来修复，并让两个实现都在`ctx.Done()`上选择.单个`pending`槽仍然存在，因为没有任何同步的实现达到它。
+
+## 4.方向
+
+六个不变，第5节的全部都从它们中得出。
+
+- **D1  序列决定，同时执行.** 论点分析，循环
+警卫，政策解决，批准，以及`PreToolUse`门都运行在
+只有`tool.Execute`在一个工人上运行。
+- **D2——绝不重排。** 调用按模型给出的顺序运行。
+随着每次写作，每次写作都是障碍。
+- **D3  历史是独立于安排者.** 结果在调用中附加
+运行的消息列表必须是字节相同的，
+限制是1或16个。
+- **D4——每次调用始终对应一个结果。** 助理消息中的每个 `tool_call`
+消息得到了一个`role: "tool"`消息，包括拒绝，
+半执行的批量仍然留下了
+从而为下一次 LLM 调用保留格式正确的历史。
+- **D5  只有读取通话重叠，只有当声明时.** 一种工具
+任何未宣布的东西都会被视为写作，然后运行。
+像今天一样，
+- **D6 可实现的序列停留.** 一次恢复的同时限制
+现在的行为，正如一个支持逃跑口。
+
+## 5. 范围
+
+### 5.1 关于此规定的
+
+分类本身不在本文定义。`llm.Access` 和 `llm.AccessDeclarer` 由
+[工具权限](./tool-permissions.md)第 5.1 节定义，工具通过它声明一次调用是否会修改状态：
+
+```go
+const (
+    AccessWrite Access = iota // zero value: undeclared tools are writes
+    AccessReadOnly
+)
+```
+
+这种设计消耗了该声明，并增加了一个义务：
+
+> **`AccessReadOnly` 是一次调用与相邻调用重叠执行的必要条件，但并不充分。**
+> 该调用还必须能由多个 goroutine 安全地并发执行；只读并不能自动保证这一点。
+
+`WebFetch` 正好说明了两者的差别：它对工作区只读，但仍会修改进程内的响应
+缓存。只有因为 `cacheMu` 保护了该缓存，它才适合并发。若移除 mutex，
+它依然是只读调用、权限判断依然是 `Allow`，却不再适合调度器并发执行。
+
+因此，调度器的资格规则是：
+
+```text
+eligible = Access(args) == AccessReadOnly  AND  the tool is goroutine-safe
+```
+
+后一项是工具作者在声明 `AccessReadOnly` 时接受的契约，记录在
+`docs/contribute/architecture/tools.md` 中，并由 `./make test race` 而非
+类型系统验证。未声明访问类型的工具按 `AccessWrite` 处理并单独运行，
+这正是 D5，也意味着本功能落地时不必修改所有既有工具。
+
+权限层会把同一分类映射为不同结果：只读通常对应 `Allow`，写入通常对应
+`Ask`，具体工具仍可覆盖。两个消费者可以合理地得出不同结论：`TodoWrite`
+和 `NoteWrite` 在权限层是 `Allow`（只修改 Agent 自身的临时状态），但不适合
+并发调度（该状态没有并发保护）。一份事实，两种映射；参见
+[工具权限](tool-permissions.md)第 5.2 节。
+
+### 5.2 分组
+
+解析调用——反序列化参数并在注册表中查找工具——没有副作用，因此可在整批
+执行前完成。随后只遍历一次已解析调用，查询每个调用的 `Access`，并在每个
+非只读调用处切分新组：
+
+```text
+[Read a, Read b, Grep c]              -> one group of 3
+[Read a, Write b, Read c]             -> [Read a] [Write b] [Read c]
+[Read a, Read b, Bash x, Read c]      -> [Read a, Read b] [Bash x] [Read c]
+```
+
+参数无法反序列化或工具未知的调用会独占一组，绝不与相邻调用合并。
+
+各组严格按顺序处理。组内门控按调用顺序执行，实际执行可以重叠，提交仍按
+调用顺序进行。只有一个调用的组与原有代码路径完全一致，因此 D6 的实现成本很低。
+
+### 5.3 重写后的循环——已交付 ✅
+
+```go
+func executeToolCalls(ctx context.Context, opts RunLoopOpts, toolCalls []llm.ToolCall, guard *loopGuard) (int, error) {
+    count := 0
+    for _, group := range groupCalls(opts.ToolRegistry, toolCalls, opts.MaxParallelTools) {
+        // 1. Gate — loop goroutine, call order: guard, policy, approval, PreToolUse.
+        for i := range group {
+            gate(ctx, opts, guard, &group[i])
+        }
+        // 2. Run — workers, bounded, only for calls the gate let through.
+        runGroup(ctx, opts, group)
+        // 3. Commit — loop goroutine, call order: PostToolUse, then history.
+        for i := range group {
+            firePostHook(ctx, opts, &group[i])
+            if err := opts.History.Append(llm.Message{
+                Role: "tool", Content: group[i].result, ToolCallID: group[i].call.ID,
+            }); err != nil {
+                return count, err
+            }
+            count++
+        }
+    }
+    return count, nil
+}
+```
+
+`runGroup` 使用信号量限制并发，并从工具 panic 中恢复，避免一个坏调用拖垮
+整次运行或使同组调用无法收尾：
+
+```go
+func runGroup(ctx context.Context, opts RunLoopOpts, group []pendingCall) {
+    sem := make(chan struct{}, opts.MaxParallelTools)
+    var wg sync.WaitGroup
+    for i := range group {
+        if group[i].decided { // denied, unknown, or bad arguments
+            continue
+        }
+        wg.Add(1)
+        go func(c *pendingCall) {
+            defer wg.Done()
+            defer func() {
+                if r := recover(); r != nil {
+                    c.result = fmt.Sprintf("error: tool %q panicked: %v", c.call.Name, r)
+                }
+            }()
+            sem <- struct{}{}
+            defer func() { <-sem }()
+            c.result = execute(ctx, opts, c) // tool.Execute + EventToolEnd
+        }(&group[i])
+    }
+    wg.Wait()
+}
+```
+
+每个 Worker 只写入 `group` 中属于自己的元素；提交循环读取结果前会经过
+`wg.Wait()` 所建立的 happens-before 边界，因此结果本身不需要加锁。
+
+### 5.4 各步骤在哪里运行
+
+| 步骤 | goroutine | 顺序 |
+|---|---|---|
+| 解析参数、查找注册表 | 主循环 | 调用顺序 |
+| `EventToolStart` | 主循环 | 调用顺序 |
+| 循环保护器 | 主循环 | 调用顺序，计数与原来一致 |
+| 策略解析、批准提示 | 主循环 | 调用顺序，每次只出现一个提示 |
+| `PreToolUse` | 主循环 | 调用顺序，在任何同组调用执行前 |
+| `tool.Execute` | Worker | 重叠执行 |
+| `EventToolEnd` | Worker | 完成顺序 |
+| `EventToolDenied` | 主循环 | 调用顺序，拒绝均在门控阶段决定 |
+| `PostToolUse` / `PostToolUseFailure` | 主循环 | 组汇合后按调用顺序 |
+| `History.Append` | 主循环 | 调用顺序 |
+
+两种不对称是故意的。
+
+**`EventToolEnd` 在工具真正结束时由 Worker 发出。**事件流是实时反馈，
+每个事件都携带 `ToolCallID`；若等到最慢的同组调用返回后才报告完成，UI 就会
+错误显示哪些工具仍在运行。
+
+**`PostToolUse` 在组汇合后按调用顺序触发。**后置钩子的决策会被忽略，但它们
+也是审计界面，追加日志的脚本应得到确定顺序。代价是后置钩子必须等待组内最慢
+成员；相比几百毫秒延迟，审计顺序在负载下漂移是更严重的问题。未来若需要按
+完成时间通知，应新增事件，而不是改变现有事件顺序。
+
+在整组任何成员执行前运行全部 `PreToolUse`，确实会改变那些在相邻调用之间
+检查文件系统的钩子行为。
+
+### 5.5 事件契约
+
+`RunLoopOpts.EventSink` 的契约从“由 RunLoop goroutine 同步调用”调整为：
+“由主循环或工具 Worker 调用；运行时会串行化这些调用，因此接收方一次只会看到
+一个事件，但仍不得阻塞”。
+
+`RunLoop` 在入口处只包装调用方的 sink 一次：
+
+```go
+func serializedSink(sink func(Event)) func(Event) {
+    if sink == nil {
+        return nil // nil stays nil: no allocation, no lock, zero overhead
+    }
+    var mu sync.Mutex
+    return func(e Event) {
+        mu.Lock()
+        defer mu.Unlock()
+        sink(e)
+    }
+}
+```
+
+这样由运行时统一保证串行调用，无需 TUI、Desktop、追踪和 Portal 各自处理。
+
+### 5.6 批准和两个UI
+
+通过仍然保持循环调节 (D1)，因此`ApprovalHandler`从来没有看到同步调用，并且处理器都不需要重新进入.因此,Desktop处理器上的单个`pending`插槽是独自的：它看起来存在的问题是取消，而不是同步，并且通过给处理器运行的背景 (§3.5) 解决了这一问题。
+
+拒绝不取消兄弟姐妹.拒绝的呼叫作为结果得到了拒绝链，其余的组运行如今，拒绝不停止下列批次的呼叫。
+
+TUI在两个地方发生变化：工具消息载有`CallID`，而`currentToolArgs string`成为订购的`[]activeTool`。
+
+### 5.7 哪些工具是符合条件的
+
+工具许可.md §6 中分配的`Access`值。
+
+| 工具 | 访问 | 资格 | 原因 |
+|---|---|---|---|
+| `Read` | 只读 | 是 | 在工作区根目录下解析并打开读取；无共享状态 |
+| `Glob` | 只读 | 是 | 只遍历文件系统 |
+| `Grep` | 只读 | 是 | 只遍历文件系统 |
+| `Skill` | 只读 | 是 | 查询映射后调用 `os.ReadFile` |
+| `WebFetch` | 只读 | 是 | 会写自身缓存，但由 `cacheMu` 保护；网络受限，因此收益最大 |
+| `Write` | 写入 | 否 | 创建或截断文件 |
+| `Edit` | 写入 | 否 | 读—改—写依赖文件内容 |
+| `Bash` | 写入 | 否 | 任意副作用，无法从命令字符串可靠判断 |
+| `TodoWrite` | 写入 | 否 | 修改未加锁的 `Session` |
+| `NoteWrite` | 写入 | 否 | 修改未加锁的 `Session` |
+| `Task` | 取决于 Agent 类型 | 有时 | 嵌套 `RunLoop` 的效果取决于子 Agent 工具集；该工具集已声明，见第 5.7.1 节 |
+| MCP 工具 | 写入 | 否 | 第三方服务器未对访问效果或并发安全作出承诺 |
+
+两个有趣的行列是显示轴为什么是 *效果*而不是 *触摸文件系统*：
+
+- `TodoWrite` 和 `NoteWrite` 从不写文件，却仍不符合资格。它们通过
+  `NoteStoreFromContext` 和 `Session.SetNotes` 修改未加锁的会话状态
+  （`internal/core/session/session.go:139`）。进程内状态同样是状态。
+- `WebFetch` 恰好相反：每次调用都会写入缓存，但只写入由 mutex 保护的单个
+  缓存，因此可以并发执行。
+
+`Bash` 是有意接受的性能损失。许多 Agent 命令确实只是运行 `git status`、
+`ls`、`cat` 或测试的只读前半段，但运行时无法仅凭命令字符串可靠分类；
+因此它始终单独运行。
+
+#### 5.7.1 根据代理类型的`Task`答案
+
+上表最初把 `Task` 一律视为写入，因为嵌套 `RunLoop` 会产生其子 Agent 工具的
+全部效果。但这个问题可以回答：运行开始前，子 Agent 的工具名称已解析为
+`AgentTypeConfig.Tools`，无需从提示中猜测。
+
+因此，`TaskTool.Access(args)` 读取请求的 `subagent_type`；只有当该类型可访问的
+所有工具都声明为只读时，才返回 `AccessReadOnly`。内置 `explore`
+（`Read`、`Glob`、`Grep`）符合条件；`general` 和 `shell` 不符合，
+`tools:` 列表中包含写入工具的自定义 Agent 也不符合。
+
+- **未知类型**，因为调用即将失败，而失败调用不应与任何其他调用重叠。
+- **`run_in_background: true`**，因为它会修改任务管理器并启动生命周期超过
+  当前调用的工作；它本就立即返回，也没有并发提速需求。
+- **`nil` 参数**，因为这是能力枚举（`internal/agentapp/app.go` 在没有具体调用时
+  报告工具访问类型），不是待调度调用。
+
+空工具集也按写入处理：如果一个类型的所有工具名称都解析失败，不能因为没有
+反例就被判定为可并发。
+
+这样做是安全的，因为答案来自哪里。 这里没有什么可以从参数字符串中推断效果；分类读取了每个工具已经做出的声明，所以它只像这些声明一样错误，而且它们是序列路已经依赖许可的相同的声明。
+
+第 5.1 节规则的并发安全条件由子 Agent 运行本身满足。每次运行都会创建自己的
+`session.NewSession`、注册表和 `NoteStore`；它的 `EventSink` 写入自己的追踪
+记录器，而非父级 sink；`RunLoopOpts` 不携带 `Approval`，所以
+`interactive()` 为 false，不可能触发批准提示。生产环境中嵌套运行本来就会与
+父级重叠：自本地后台任务阶段 1 起，`run_in_background` 已把子 Agent 交给
+独立的任务管理器。让这种重叠改为同步且有界，比初稿设想的变化更小。
+
+确有一处共享边界需要修复：`HookManager.Run` 读取 `m.cfg` 时没有持有
+`m.mu`，而 `Refresh` 会在锁内写它。串行门控掩盖了问题；多个重叠子 Agent
+从不同 goroutine 调用 `Run` 后，竞态检测器即可发现。现在 `Run` 会在锁内
+复制配置，再基于副本分派，从而关闭第 11 节最后一项问题。
+
+#### 5.7.2 子 Agent 也进行并发调度
+
+`MaxParallelTools` 原本只传到一层 `RunLoop`。子 Agent 的嵌套循环得到零，
+使每个组只能容纳一个调用；于是刚被本设计判定为可并发的只读 Agent 类型，
+内部仍会串行读取和搜索。现在运行器通过 `WithSubAgentMaxParallelTools`
+继承父级限制。
+
+采用 Portal 对话运行时间，由于同样的原因，也存在相同的差距.其仅读工具是 `ListTasks` 和 `GetTask`；现在都声明 `Access`，转换运行在默认限制。 `StartTask` 和 `ContinueTask` 保持写和保持障碍。
+
+### 5.8 配置
+
+```yaml
+agent:
+  max_parallel_tools: 4   # 1 disables parallel execution entirely
+```
+
+`config.Settings` 下新增 `AgentConfig`，使用 `max_parallel_tools`
+mapstructure 标签，并映射到 `RunLoopOpts.MaxParallelTools`。零表示未设置，
+解析为默认值 4；最终值限制在 `[1, 16]`。
+
+默认值是 4，而非“不限”：上限用于保护文件描述符、大文件读取占用的内存，
+以及 `WebFetch` 和未来 MCP 调用面对的远程速率限制。模型生成的实际批次通常
+只有两到五个调用，因此 4 已能覆盖大多数收益，同时让故障模式保持简单。
+
+### 5.9 取消和失败
+
+- **上下文被取消。** Worker 共享运行上下文。执行中的工具返回各自的上下文
+  错误，并把它作为调用结果字符串。提交循环仍为每个调用追加一个结果（D4），
+  因此历史保持完整，`RunLoop` 继续像原来一样返回部分回复。
+- **工具返回错误。** 行为不变：错误字符串就是结果，并在提交阶段触发
+  `PostToolUseFailure`。
+- **工具发生 panic。** 每个 Worker 都会恢复 panic 并转换为错误结果。原先
+  `Execute` 中的 panic 会终止整个进程；这是分组汇合机制顺带带来的小幅改进。
+- **`History.Append` 失败。** 与原来一样，立即返回当前计数；已提交调用保留结果。
+
+## 6. 范围外事项
+
+- ~~**并行执行 `Task` 子 Agent。**~~ 已交付，参见第 5.7.1 节和第 8 节
+  阶段 5。初稿列出的三个阻碍——嵌套运行自身的事件流、批准提示和会话状态——
+  其实都已由子 Agent 运行器解决；追踪归属也在本文排期前由持久运行追踪和
+  本地后台任务完成。真正剩下的问题是“嵌套循环是否会写入”，而答案来自已声明
+  的工具集，无需推断。
+- **在文件级锁后，并行 `Bash`或 `Edit`.** 预测文件
+运行时间不能诚实地执行。
+- **让下一次 LLM 调用与工具执行重叠。**
+执行是不同的设计，风险配置不同。
+- **跨度代式平行性.** 一个辅助信息是单元。
+
+## 7. Runtime流量
+
+```text
+assistant message: [Read a] [Read b] [Write c] [Grep d]
+                          |
+                   parse + group
+                          |
+        +-----------------+--------------+-----------+
+        |                                |           |
+   group 1 (parallel)              group 2 (solo)  group 3 (solo)
+   [Read a, Read b]                [Write c]       [Grep d]
+        |                                |           |
+   gate a, gate b       (loop, in order) gate c      gate d
+        |                                |           |
+   exec a || exec b     (workers)        exec c      exec d
+        |                                |           |
+   join                                  |           |
+        |                                |           |
+   post+append a, then b (loop, in order) post+append post+append
+```
+
+批次后的历史：结果a，结果b，结果c，结果d总是，在任何同步限制。
+
+## 8. 实施步骤
+
+### 
+
+- 克 `RunLoop` `EventSink` `serializedSink` `RunLoopOpts`
+现在说一个洗手间可以从一个工人那里调用，必须对应工具事件
+通过`ToolCallID`而不是通过抵达。
+- 类型： 相关内容 `CallID` `toolStartMsg` `toolEndMsg` `toolDeniedMsg` TUI
+取代`currentToolArgs`的采用已订单的`[]activeTool`。
+图表，所以直播视图不会在框架之间重新排序；匹配回落到
+没有身份证，所以没有表面可以泄漏
+一个旋转器。
+- 批准取决于运行的背景，并在取消时返回 (§3.5)。
+调用**不**按键排队；参见第 3.5 节，了解为什么 Desktop 的 `pending`
+对于正确的虫子来说，这是错误的补救。
+
+### 阶段 2：拆分循环（无行为变化）——已交付
+
+- 从 `executeToolCalls` 提取 `runGroup`；流程仍是串行的。分组逻辑已启用，
+  但 `MaxParallelTools` 为 0，因此每个调用各自成组。
+- 现在，我们在`internal/core/agent`中做过的每一个测试都没有修改。
+如果重点是错误的，它将是错误的，
+没有相机的图像。
+- 组是批量窗口 (`calls[start:end]`)，而不是副本，因此
+阶段突变了实际元素，而提交阶段看到运行阶段
+由于一个`copy`后滑进来，
+结果是默默而不是大声。
+- `TestHistoryIsSchedulerIndependent`在限量1比较了完整的消息列表
+现在，它已经通过了，因为单独的组合并不能重新排序，
+现在写下来，所以第三阶段不能没有保持真相下降。
+
+### 阶段 3：声明与 Worker——已交付
+
+- `runGroup` 在有界 Worker 中执行同组调用，并从工具 panic 中恢复，避免
+  panic 逃逸或使同组调用无法收尾。
+- 门随之移动。 门随之移动。 `applyPolicyAndExecute`
+批准提示，以及`PreToolUse`现在是`gateCall`的循环部分
+执行是`executeCall`在一个工人，和杆
+虽然这不是3阶段的工作，但第5.4条要求
+没有加上戈鲁丁，就会给工人带来批准提示。
+- `settings.yaml` 中的 `agent.max_parallel_tools` 通过 `config.ResolveMaxParallelTools` 解析，
+默认4号，附加在`[1, 16]`上。 `config.ResolveMaxParallelTools`
+错误的标签产生零，
+设置似乎在没有做任何事情的情况下工作。
+- 对于单次通话组，这是每个组在 `runGroup`
+没有任何常见的情况。
+
+### 阶段 4：文档——已交付 ✅
+
+- 工具执行部分，包含： `contribute/architecture/agent-loop.md`
+两者是个共同的目标。
+它们的相对不同。
+- 利率： 利率： 利率： 利率： 利率： `contribute/architecture/tools.md`
+责任`AccessReadOnly`承担，其中`WebFetch`是证明
+仅读和同时安全的特性不同。
+- `reference/configuration.md` 和 `guide/tools.md` 面向用户说明
+  `agent.max_parallel_tools`。
+- `design/hook-system.md` 说明 `PreToolUse` 在组执行前运行，而后置钩子仍按
+  调用顺序触发。
+- 在 `CHANGELOG.md` 的 `## [Unreleased]` 下记录变更。
+
+### 阶段 5：子 Agent——已交付 ✅
+
+- 采用要求的代理类型的工具集 (§5.7.1) 的`TaskTool.Access`答案。
+类别在`NewTask`中计算一次，因为集不
+之后，每次通话都会进行一次通话。
+- 通过 `WithSubAgentMaxParallelTools` 把限制传给嵌套循环，Portal 对话运行时
+  也使用默认限制（第 5.7.2 节）。`ListTasks` 和 `GetTask` 声明为
+  `AccessReadOnly`；没有该限制时仍不会并发。
+- 修复 `HookManager.Run` 的锁问题；修复前的代码无法通过对应的 `-race` 测试。
+
+## 9. 接受  满足 ✅
+
+现在，我们需要一个测试，每个条件都需要一个测试。 `internal/core/agent`
+
+| 情况 | 测试 |
+|---|---|
+| 1， 2，和 8 边界的字节相同历史 | `TestHistoryIsSchedulerIndependent` |
+| 具有8个宽度仅读组的`./make test race`清洁 | 包装套件，以`-race`为标题 |
+| 三次 100ms 调用在 250ms 内结束；限制为 1 时不会重叠 | `TestParallel_ReadsOverlap`，`TestParallel_SequentialWhenLimitIsOne` |
+| 通过入/出时间标签，一个写字从来不重叠一个邻居 | `TestParallel_WriteIsABarrier` |
+| 环保结果在限量1和限量8相同 | `TestParallel_LoopGuardIsSchedulerIndependent` |
+| 集团内部的`Ask`一次按呼叫顺序调用 | `TestParallel_AskInsideAGroupPromptsOnceInOrder` |
+| 否认，让兄弟姐妹逃跑。 | `TestParallel_DenialLeavesSiblingsRunning` |
+| 取消中组仍然会每次调用一个结果 | `TestParallel_CancellationStillCommitsEveryCall` |
+| 一个恐慌工具既不会杀死逃跑者，也不会杀死兄弟姐妹。 | `TestParallel_PanicIsContained` |
+| 组合永远不会重新排序，组合是窗户，不是副本 | `TestGroupCalls_NeverReorders`， `TestGroupCalls_GroupsAreWindows` |
+| 只有读取的代理类型是符合条件的；只有一个写字符，一个未知的类型，一个背景运行，和零的args的类型是不符合条件的 | `TestTaskTool_Access` (`internal/tool`) |
+| 实际内置和用户定义的类型将被预期的类别分类为现实注册表 | `TestAgentTypeAccess` (`internal/agentapp`) |
+| 副代理的自行循环覆盖其读数， | `TestSubAgentRunner_MaxParallelToolsReachesTheNestedLoop` (`internal/tool`) |
+| 随着`HookManager.Run`的使用,`-race`在`Refresh`下保持清洁 | `TestHookManager_RunIsSafeAlongsideRefresh` (`internal/agentapp`) |
+
+## 10. 序列
+
+首先是`tool-permissions.md`，而且不仅仅是因为它拥有`Access`。
+
+阶段1引入了表面概念，并触及了这个设计的同五个`RunLoopOpts`呼叫站点.将它们降落在另一种顺序中意味着将`Access`通过循环进行调节，然后重新推出对用户提示的意思，使用了选择后的许可模型来适应为 goroutines 构建的分类.用户可见的决定应该塑造分类；调节者应该按照给定的情况进行。
+
+实际上，前提条件是狭窄：工具许可.md阶段1和3 `Access`在每个构建中，包括MCP路径上.其阶段2,4和5 (会议授权，配置，文档) 是独立的，可以与此工作并行。
+
+这个设计的第一阶段是事件沉没序列化,TUI呼叫身份证修正，以及Desktop批准键，完全没有依赖性，可以随时登陆.不管如何，它值得提前登陆:3.5节是现场局，工具许可.md第二阶段增加了第三个结果。
+
+## 11. 开放的问题
+
+- **TUI染.** 通过四种工具进行直播,TUI是否显示了活跃的列表
+列表，数值，还是最新的？
+值得一看，后面的转录是如何读的，
+由于四个读数的批量目前呈现为四个连续行。
+- **追踪是否需要显式记录工具组？** `tool_start`/`tool_end`、调用 ID 和时间戳
+  已足以重建重叠关系；显式 `tool_group` 记录可以让代价结构更直观。
+- **MCP.** 货币可以按服务器声明而不是被全面拒绝
+一旦门户成为一个能力描述器。
+- **子 Agent 是否应该拥有独立的并发限制？**
+目前四个父级调用各自运行四个嵌套工具时，最多会有 16 个调用
+飞行，这是一个没有人要求的门。
+实际的批量要小得多，所以这是一个问题
+测量而不是猜测。
+- ~~`HookManager.Run`读为`m.cfg`，没有持有`m.mu`.~~ 固定在5阶段；
+它们的重叠是使其可达的。

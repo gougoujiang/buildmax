@@ -81,6 +81,49 @@ a user-configurable feature, the user-facing half belongs in the `help/` manual
 (or in `reference/` when it is a lookup table), and the design document links to
 it and keeps the trade-offs and open gaps.
 
+## Languages And Translations
+
+English is the authoritative language for repository documentation and the
+only source of truth for product and architecture decisions. Simplified Chinese
+design records are maintained as a derived mirror so Chinese-speaking readers
+can review the same rationale without creating a second decision stream.
+
+The mirror has one fixed shape:
+
+- every Markdown file under `docs/design/`, including its index and any future
+  subdirectories, has exactly one counterpart at the same relative path under
+  `docs/zh-CN/design/`;
+- every English design record links to its Chinese counterpart immediately
+  after the title;
+- every Chinese record links back to its English source and carries the
+  SHA-256 digest of the exact English file it translates;
+- the Chinese notice says that the translation is derived, identifies its
+  synchronization status, and makes the English text controlling when the two
+  differ.
+
+The digest is synchronization evidence, not a new source of product state. The
+normal documentation check recomputes it from `docs/design/` and rejects a
+missing, orphaned, or stale mirror. Do not update the digest without reviewing
+the corresponding translation, and do not resolve a disagreement by editing
+only the Chinese record. Correct the English source first, then synchronize the
+translation in the same change.
+
+Translate prose, headings, tables, link labels, and contents lists completely.
+Preserve code, commands, identifiers, paths, URLs, schema and configuration
+keys, route patterns, and BuildMax domain names whose capitalization identifies
+a product concept. In particular, keep `Agent`, `Task`, `TaskRun`, `Space`,
+`Issue`, `Workflow`, `Run`, `CLI`, `TUI`, `Portal`, `Desktop`, `Project`, and
+`Artifact` in English. Chinese prose may explain a concept around those names,
+but must not replace one with a new domain term. Links between Chinese design
+records stay inside the Chinese mirror; links to documentation outside the
+mirrored tree continue to point to the authoritative English page.
+
+The author of any English design change owns synchronization of its Chinese
+counterpart. Reviewers verify semantic fidelity in proportion to the decision's
+risk; the automated check verifies coverage and freshness, not translation
+quality. Other documentation remains English unless its directory receives an
+explicit mirror policy here.
+
 ## Retiring A Document
 
 There is no archive directory. A document that no longer describes the current
@@ -157,6 +200,7 @@ the build on the ways documentation rots silently:
 | Test | Fails when |
 |---|---|
 | `TestDocsLinksResolve` | A relative markdown link points at a file that does not exist |
+| `TestDesignTranslationsMirrorEnglish` | A Chinese design mirror is missing, orphaned, linked incorrectly, or older than its English source |
 | `TestEnvVarsDocumented` | `config.EnvVars()` gains a variable missing from [reference/configuration.md](../reference/configuration.md) |
 | `TestToolNamesDocumented` | A tool name constant is missing from [help/tools.md](../../help/tools.md) |
 | `TestArchitectureToolInventoryCoversEveryToolNameConstant` | A tool declared in `internal/tool/names.go` is missing from the contributor [tool inventory](architecture/tools.md) |
@@ -190,7 +234,8 @@ Everything else is convention, upheld in review.
 
 ## Style
 
-- Written in English so every contributor can read it.
+- Write authoritative documentation in English; follow the mirror policy above
+  for Simplified Chinese design records.
 - Cite documents by repository-relative path so links survive being moved.
 - Prefer a table to a bulleted list when the content is a lookup.
 - State the gap. A document that quietly omits what does not work yet is worse

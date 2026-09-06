@@ -1,5 +1,7 @@
 # Workspace Root And Worktrees
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/workspace-root-and-worktrees.md)
+
 > **Audience:** contributors · **Status:** implemented, phases 1-5
 
 Related: [roadmap](../ROADMAP.md) step 5,

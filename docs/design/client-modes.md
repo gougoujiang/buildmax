@@ -1,5 +1,7 @@
 # Client Modes: Local And Managed
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/client-modes.md)
+
 > **Audience:** contributors · **Status:** implemented
 >
 > This record revised decisions in [llm-gateway.md](llm-gateway.md); where the
