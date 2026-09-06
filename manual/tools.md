@@ -132,6 +132,10 @@ agent decides whether to fetch the new host.
 **`Read` returns the first 1000 lines by default.** Large files are read in
 ranges via `offset` and `limit` rather than all at once.
 
+**`Write` confirms the resolved path and UTF-8 byte count.** This lets the
+agent verify which file changed and how much content was written without a
+follow-up read.
+
 **`NoteWrite` and `TodoWrite` outlive the conversation history.** Both replace
 what they store rather than adding to it, so each call carries the complete
 list. What they hold is shown to the agent on every turn and is not part of the

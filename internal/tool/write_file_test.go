@@ -2,6 +2,7 @@ package tool
 
 import (
 	"context"
+	"fmt"
 	"github.com/gougoujiang/buildmax/internal/util"
 	"os"
 	"path/filepath"
@@ -66,15 +67,16 @@ func TestWriteFile_Execute(t *testing.T) {
 	t.Run("write new file under root", func(t *testing.T) {
 		dir := t.TempDir()
 		w := NewWriteFile(util.FixedRoot(testWorkspace(t, dir)))
-		content := "hello\nworld"
+		content := "hello 🌍\nworld"
 		result, err := w.Execute(ctx, map[string]any{"file_path": "a.txt", "content": content})
 		if err != nil {
 			t.Fatalf("Execute: %v", err)
 		}
-		if result == "" {
-			t.Error("result should not be empty")
-		}
 		path := filepath.Join(dir, "a.txt")
+		wantResult := fmt.Sprintf("Wrote %d bytes to %s.", len(content), path)
+		if result != wantResult {
+			t.Errorf("result = %q, want %q", result, wantResult)
+		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("ReadFile after write: %v", err)

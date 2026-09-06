@@ -3,6 +3,7 @@ package tool
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -59,7 +60,8 @@ func (w *WriteFile) CheckArgs(args map[string]any) llm.ToolAction {
 }
 
 // Execute writes args["content"] to the file at args["file_path"] if the path is under the tool's root.
-// Creates parent directories if needed; overwrites if the file exists. Returns a short success message or error.
+// Creates parent directories if needed; overwrites if the file exists. Returns the resolved path and
+// byte count on success, or an error.
 func (w *WriteFile) Execute(ctx context.Context, args map[string]any) (string, error) {
 	filePath, err := parseRequiredString(args, "file_path")
 	if err != nil {
@@ -94,5 +96,5 @@ func (w *WriteFile) Execute(ctx context.Context, args map[string]any) (string, e
 		return "", normalizeOSError(err)
 	}
 
-	return "File written successfully.", nil
+	return fmt.Sprintf("Wrote %d bytes to %s.", len(content), resolved), nil
 }
