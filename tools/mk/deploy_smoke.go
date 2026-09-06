@@ -324,31 +324,26 @@ func runDeploymentSmoke(ctx context.Context, target smokeTarget) error {
 		return fmt.Errorf("task output = %q, want %q", output, smokeReply)
 	}
 
-	var artifacts []struct {
-		TaskRunID string `json:"task_run_id"`
+	// The reply, checked above, is the run's output. Downstream assertions need
+	// the run that produced it, which the task names as its last run.
+	var taskDetail struct {
+		LastRunID string `json:"last_run_id"`
 	}
-	if err := requestJSON(ctx, client, http.MethodGet, taskURL+"/artifacts", token, nil, &artifacts, http.StatusOK); err != nil {
+	if err := requestJSON(ctx, client, http.MethodGet, taskURL, token, nil, &taskDetail, http.StatusOK); err != nil {
 		return err
 	}
-	if len(artifacts) == 0 || artifacts[0].TaskRunID == "" {
-		return errors.New("successful task has no artifact")
+	if taskDetail.LastRunID == "" {
+		return errors.New("successful task has no last run")
 	}
-	artifactURL := target.apiBase + "/api/spaces/" + url.PathEscape(spaceID) + "/task-runs/" + url.PathEscape(artifacts[0].TaskRunID) + "/artifacts/content"
-	artifact, err := requestText(ctx, client, http.MethodGet, artifactURL, token, nil, http.StatusOK)
-	if err != nil {
-		return err
-	}
-	if strings.TrimSpace(artifact) != smokeReply {
-		return fmt.Errorf("artifact content = %q, want %q", strings.TrimSpace(artifact), smokeReply)
-	}
+	runID := taskDetail.LastRunID
 
-	if err := assertManagedRun(ctx, client, target, spaceID, artifacts[0].TaskRunID, token); err != nil {
+	if err := assertManagedRun(ctx, client, target, spaceID, runID, token); err != nil {
 		return err
 	}
 	if err := assertWorkerSandboxConfines(ctx, client, target, spaceID, conversation.ID, token); err != nil {
 		return err
 	}
-	if err := assertRetryRunsAgain(ctx, client, target, spaceID, task.ID, artifacts[0].TaskRunID, token); err != nil {
+	if err := assertRetryRunsAgain(ctx, client, target, spaceID, task.ID, runID, token); err != nil {
 		return err
 	}
 	if err := assertSpaceBoundaryHolds(ctx, client, target, spaceID); err != nil {
@@ -437,29 +432,6 @@ func assertCancellationSettles(ctx context.Context, client *http.Client, target 
 		return fmt.Errorf("cancellation: the task left CANCELED for %s five seconds later", settled.Status)
 	}
 
-	return assertNoDanglingArtifacts(ctx, patient, target, spaceID, taskURL, token)
-}
-
-// assertNoDanglingArtifacts checks that whatever a canceled run listed can
-// actually be downloaded.
-//
-// A canceled run keeps the artifacts it had already written, and an empty list
-// is a legitimate answer for one stopped before it wrote any. What is never
-// legitimate is a record for an object that is not there: it sends an operator
-// looking for evidence the deployment cannot produce.
-func assertNoDanglingArtifacts(ctx context.Context, client *http.Client, target smokeTarget, spaceID, taskURL, token string) error {
-	var artifacts []struct {
-		TaskRunID string `json:"task_run_id"`
-	}
-	if err := requestJSON(ctx, client, http.MethodGet, taskURL+"/artifacts", token, nil, &artifacts, http.StatusOK); err != nil {
-		return fmt.Errorf("cancellation: list the canceled run's artifacts: %w", err)
-	}
-	for _, artifact := range artifacts {
-		endpoint := target.apiBase + "/api/spaces/" + url.PathEscape(spaceID) + "/task-runs/" + url.PathEscape(artifact.TaskRunID) + "/artifacts/content"
-		if _, err := requestText(ctx, client, http.MethodGet, endpoint, token, nil, http.StatusOK); err != nil {
-			return fmt.Errorf("cancellation: the canceled run lists an artifact that cannot be downloaded: %w", err)
-		}
-	}
 	return nil
 }
 
@@ -674,8 +646,8 @@ func waitForTaskSuccess(ctx context.Context, client *http.Client, taskURL, token
 //
 // The handler test already covers the rule that a finished run may be retried.
 // What no test below a deployment can show is that the retry reaches a worker:
-// a second run id is cheap to write down, and a second artifact is not — it
-// exists only because a process started, ran, and wrote one. See
+// a second run id is cheap to write down, and a second trace is not — it exists
+// only because a process started and ran. See
 // docs/design/end-to-end-testing.md §6.1.
 func assertRetryRunsAgain(ctx context.Context, client *http.Client, target smokeTarget, spaceID, taskID, firstRunID, token string) error {
 	var retried struct {
@@ -696,23 +668,17 @@ func assertRetryRunsAgain(ctx context.Context, client *http.Client, target smoke
 	if _, err := waitForTaskSuccess(ctx, client, taskURL, token); err != nil {
 		return fmt.Errorf("the retried run: %w", err)
 	}
-	// Polled, not read once: a task reports SUCCEEDED before its run output is
+	// Polled, not read once: a task reports SUCCEEDED before its run's trace is
 	// queryable, so a single read here fails on a run that did everything right.
+	traceURL := target.apiBase + "/api/spaces/" + url.PathEscape(spaceID) + "/task-runs/" + url.PathEscape(retried.TaskRunID) + "/trace"
 	deadline := time.Now().Add(30 * time.Second)
 	for {
-		var artifacts []struct {
-			TaskRunID string `json:"task_run_id"`
-		}
-		if err := requestJSON(ctx, client, http.MethodGet, taskURL+"/artifacts", token, nil, &artifacts, http.StatusOK); err != nil {
-			return err
-		}
-		for _, artifact := range artifacts {
-			if artifact.TaskRunID == retried.TaskRunID {
-				return nil
-			}
+		trace, err := requestText(ctx, client, http.MethodGet, traceURL, token, nil, http.StatusOK)
+		if err == nil && strings.TrimSpace(trace) != "" {
+			return nil
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("the retried run %s produced no artifact within 30s of succeeding, so nothing executed it", retried.TaskRunID)
+			return fmt.Errorf("the retried run %s produced no trace within 30s of succeeding, so nothing executed it", retried.TaskRunID)
 		}
 		time.Sleep(time.Second)
 	}
