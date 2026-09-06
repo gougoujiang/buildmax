@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { ApiAdminSession, ApiAdminUser, ApiAdminUserDetail } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
+import { pageWindow } from "./pagination"
 import {
   createAdminUser,
   getAdminUser,
@@ -50,16 +51,18 @@ export function AdminAccounts({ token }: { token: string | null }) {
   const [newEmail, setNewEmail] = useState("")
   const [busy, setBusy] = useState(false)
   const [loginCode, setLoginCode] = useState<string | null>(null)
+  const [offset, setOffset] = useState(0)
 
   const load = useCallback(
-    (q: string) => {
+    (q: string, off: number) => {
       if (!token) return
       setLoading(true)
       setError(null)
-      listAdminUsers(token, { q, limit: PAGE_SIZE })
+      listAdminUsers(token, { q, limit: PAGE_SIZE, offset: off })
         .then((res) => {
           setUsers(res.users)
           setTotal(res.total)
+          setOffset(off)
         })
         .catch((err) => setError(getErrorMessage(err, "Failed to load accounts")))
         .finally(() => setLoading(false))
@@ -68,7 +71,7 @@ export function AdminAccounts({ token }: { token: string | null }) {
   )
 
   useEffect(() => {
-    load("")
+    load("", 0)
   }, [load])
 
   function openDetail(userId: string) {
@@ -90,7 +93,7 @@ export function AdminAccounts({ token }: { token: string | null }) {
     try {
       const result = await run()
       setNotice(done(result))
-      load(query)
+      load(query, offset)
       if (selected) openDetail(selected.id)
     } catch (err) {
       setError(getErrorMessage(err, "The action did not complete"))
@@ -126,7 +129,7 @@ export function AdminAccounts({ token }: { token: string | null }) {
           className="admin-toolbar"
           onSubmit={(e) => {
             e.preventDefault()
-            load(query)
+            load(query, 0)
           }}
         >
           <input
@@ -181,6 +184,35 @@ export function AdminAccounts({ token }: { token: string | null }) {
             })}
           </ul>
         )}
+
+        {total > PAGE_SIZE
+          ? (() => {
+              const page = pageWindow(offset, PAGE_SIZE, total)
+              return (
+                <div className="admin-pager">
+                  <button
+                    type="button"
+                    className="admin-button"
+                    disabled={loading || !page.hasPrev}
+                    onClick={() => load(query, page.prevOffset)}
+                  >
+                    Previous
+                  </button>
+                  <span className="admin-pager__status">
+                    {page.from}&ndash;{page.to} of {total}
+                  </span>
+                  <button
+                    type="button"
+                    className="admin-button"
+                    disabled={loading || !page.hasNext}
+                    onClick={() => load(query, page.nextOffset)}
+                  >
+                    Next
+                  </button>
+                </div>
+              )
+            })()
+          : null}
       </section>
 
       <section className="settings-page__section">
