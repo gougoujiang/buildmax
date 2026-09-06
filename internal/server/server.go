@@ -29,6 +29,7 @@ import (
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/server/handlers"
+	workerroutes "github.com/gougoujiang/buildmax/internal/server/handlers/worker"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
@@ -40,6 +41,7 @@ import (
 	secretsvc "github.com/gougoujiang/buildmax/internal/service/secret"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 	"github.com/gougoujiang/buildmax/internal/service/workflow"
+	workspacesvc "github.com/gougoujiang/buildmax/internal/service/workspace"
 )
 
 //go:embed static/openapi.json static/swagger.html
@@ -96,6 +98,10 @@ type StoresConfig struct {
 	ArtifactShareStore coreartifact.ShareStore
 	// SecretStore is the Space Secret store. Nil disables the secret feature.
 	SecretStore coresecret.Store
+	// WorkspaceCheckpointStore reads a run's base checkpoint and records its
+	// restore outcome for the worker API. Nil disables the base and restore
+	// routes.
+	WorkspaceCheckpointStore workerroutes.WorkspaceRunStore
 }
 
 // ServicesConfig holds application services the handlers reach through rather
@@ -108,6 +114,10 @@ type ServicesConfig struct {
 	// Secret backs the Space Secret management routes. Nil when no KEK file is
 	// configured; those routes then report the feature off.
 	Secret *secretsvc.Service
+	// WorkspaceCheckpoints finalizes a seed a worker captured and uploaded. Nil
+	// disables the worker checkpoint route, which is what a deployment with no
+	// checkpoint storage has.
+	WorkspaceCheckpoints *workspacesvc.Service
 }
 
 // StorageConfig holds blob storage and workspace paths.
@@ -301,6 +311,8 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		SecretStore:              cfg.Stores.SecretStore,
 		PluginService:            cfg.Services.Plugin,
 		SecretService:            cfg.Services.Secret,
+		WorkspaceCheckpoints:     cfg.Services.WorkspaceCheckpoints,
+		WorkspaceCheckpointStore: cfg.Stores.WorkspaceCheckpointStore,
 		Deployment:               cfg.Deployment,
 		DependencyProbes:         dependencyProbes(cfg.Readiness),
 		RedactedConfig:           cfg.RedactedConfig,

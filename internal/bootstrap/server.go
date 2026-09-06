@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
+	workspacesvc "github.com/gougoujiang/buildmax/internal/service/workspace"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -342,6 +343,9 @@ type blobStorage struct {
 	persist  blob.PersistStorage
 	artifact artifactsvc.ContentStore
 	packages pluginsvc.PackageStore
+	// checkpoint reads workspace checkpoint payloads: the finalizer verifies a
+	// worker's uploaded bytes and derives their canonical key through it.
+	checkpoint workspacesvc.PayloadStore
 	// packageKeyPrefix scopes package keys inside whichever backend holds them.
 	packageKeyPrefix string
 }
@@ -367,10 +371,18 @@ func buildBlobStorage(ctx context.Context, sc config.ServerStorageConfig, worksp
 	if err != nil {
 		return blobStorage{}, fmt.Errorf("artifact storage: %w", err)
 	}
+	// A single content-addressed tree for all spaces; the space id is inside the
+	// key. Under "checkpoints" so it cannot collide with a space's home or the
+	// artifacts tree.
+	checkpointStore, err := BuildCheckpointPayloadStore(wsCfg, filepath.Join(workspacesDir, "checkpoints"), s3Client)
+	if err != nil {
+		return blobStorage{}, fmt.Errorf("checkpoint storage: %w", err)
+	}
 	packages, packagePrefix := BuildPluginPackageStorage(wsCfg, workspacesDir, s3Client)
 	return blobStorage{
 		persist:          persistStorage,
 		artifact:         artifactStorage,
+		checkpoint:       checkpointStore,
 		packages:         packages,
 		packageKeyPrefix: packagePrefix,
 	}, nil
@@ -447,28 +459,33 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			RefreshRotationGrace: sc.RefreshRotationGrace,
 		},
 		Stores: httpserver.StoresConfig{
-			UserStore:           st,
-			LoginCodeStore:      st,
-			PasswordStore:       st,
-			RefreshTokenStore:   st,
-			SpaceStore:          st,
-			WorkflowStore:       st,
-			AgentStore:          st,
-			IssueStore:          st,
-			IssueCommentStore:   st,
-			TaskStore:           st,
-			TaskRunStore:        st,
-			LLMCallStore:        st,
-			UserWebhookKeyStore: st,
-			AuditStore:          st,
-			SystemGrantStore:    st,
-			SchemaStore:         st,
-			LLMModelStore:       st,
-			ArtifactStore:       st,
-			ArtifactShareStore:  st,
-			SecretStore:         secretStore,
+			UserStore:                st,
+			LoginCodeStore:           st,
+			PasswordStore:            st,
+			RefreshTokenStore:        st,
+			SpaceStore:               st,
+			WorkflowStore:            st,
+			AgentStore:               st,
+			IssueStore:               st,
+			IssueCommentStore:        st,
+			TaskStore:                st,
+			TaskRunStore:             st,
+			LLMCallStore:             st,
+			UserWebhookKeyStore:      st,
+			AuditStore:               st,
+			SystemGrantStore:         st,
+			SchemaStore:              st,
+			LLMModelStore:            st,
+			ArtifactStore:            st,
+			ArtifactShareStore:       st,
+			SecretStore:              secretStore,
+			WorkspaceCheckpointStore: st,
 		},
-		Services: httpserver.ServicesConfig{Plugin: pluginService, Secret: secretService},
+		Services: httpserver.ServicesConfig{
+			Plugin:               pluginService,
+			Secret:               secretService,
+			WorkspaceCheckpoints: workspacesvc.New(st, storage.checkpoint),
+		},
 		Storage: httpserver.StorageConfig{
 			PersistStorage:   storage.persist,
 			ArtifactStorage:  storage.artifact,

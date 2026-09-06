@@ -93,6 +93,11 @@ func (h *Handler) buildWorkerHandler() *worker.Handler {
 		// the feature flag: recording is fail-open. Nil when no secret store is
 		// configured, which records nothing.
 		SecretAudit: h.secretGrantRecorder(),
+		// Workspace checkpoints: seed finalization and base/restore bookkeeping.
+		// Nil disables the routes, which is what a deployment with no checkpoint
+		// storage has.
+		Checkpoints:   h.cfg.WorkspaceCheckpoints,
+		WorkspaceRuns: h.cfg.WorkspaceCheckpointStore,
 	})
 }
 
