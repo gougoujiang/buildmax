@@ -1,0 +1,99 @@
+# 模型与模式
+
+BuildMax 以两种模式之一运行，一条命令在它们之间切换。
+
+| | 本地模式 | 托管模式 |
+|---|---|---|
+| 你处于 | 已登出 | 已登入 |
+| 模型来自 | 本机上的 `settings.yaml` | 你登入的那个部署 |
+| 提供商凭据 | 你的，在 `settings.yaml` 中 | 部署的；从不发给你 |
+| 提示词和工具结果去往 | 直接到每个提供商 | 到那个部署 |
+
+```bash
+buildmax models       # 你处于哪种模式，以及它提供什么
+buildmax login        # 切换到某个部署的模型
+buildmax logout       # 切换回 settings.yaml
+```
+
+没有别的东西配置这一点。它没有按模型的设置，因为一个会话要么处于这种模式要么处于那种模式，
+其中的每个提示词都去往同一个地方。
+
+## 本地模式
+
+默认模式，也是没有服务器时的整个产品：`settings.yaml` 列出模型，
+每个都有自己的端点和 API 密钥，Agent 从本机调用它们。用 [`buildmax init`](quickstart.md) 启动一个。
+
+`default_model` 指明一个新会话从哪个条目开始：
+
+```yaml
+default_model: GPT-5.6 Luna
+models:
+  - model: openai/gpt-5.6-luna
+    name: GPT-5.6 Luna
+    # …
+```
+
+不填它，则第一个条目是默认。在一个会话内部，`/model` 仅为那次对话切换——
+下一次会话又从默认开始。
+
+## 托管模式
+
+登入之后，模型变成部署的：
+
+```bash
+buildmax login
+```
+
+```text
+Server URL [http://localhost:5678]: https://buildmax.example.com
+Email: you@example.com
+Password (leave blank to use a login code): ********
+Logged in as you@example.com on https://buildmax.example.com
+```
+
+那个部署提供的每个模型都对你可用——一个 Space 是你与谁协作，而不是什么在给模型设卡。
+`buildmax models` 列出它们并说明提示词去往哪里：
+
+```text
+Signed in to https://buildmax.example.com. Prompts, tool schemas, and tool
+results go there.
+
+Models this deployment offers:
+  NAME    CONTEXT   DEFAULT
+  Fast    128000
+  Deep    200000    yes
+```
+
+在你登入期间，你的 `settings.yaml` 模型原封未动且不被使用。`buildmax logout` 把它们带回来。
+
+你得到的是：部署持有提供商凭据，所以你的机器上从不存有其中之一，并且它记录每次调用的花费。
+改变的是你的数据去往哪里：**提示词、工具模式和工具结果都经过那个服务器。**
+这正是这种模式的意义所在，也正是为什么每个界面都说明你处于哪一种——
+`buildmax models`、`/model` 面板，以及 TUI 页脚。
+
+## 二者从不混合
+
+一个已登入的会话只看到部署的模型。一个已登出的只看到 `settings.yaml`。二者互不替补：
+
+- **一个宕机的部署不会回退到你的本地模型。** 会话拒绝启动并说明原因。
+  回退会把你为一个受治理的部署所写的提示词改发给一个用你自己密钥的提供商。
+- **一个过期的登入不会自行变成本地模式。** BuildMax 会说会话结束了并等待：
+  重新登入，或用 `buildmax logout` 转到本地工作。
+
+因此离线工作就是 `buildmax logout`——一条命令，以及一个关于你的提示词去往哪里的明确决定。
+
+## 检查它
+
+`buildmax doctor` 把模式作为一项自身的检查来报告，同时报告它背后的模型是否真的能用：
+
+```text
+✓ mode         signed in to https://buildmax.example.com: its models serve every prompt
+```
+
+登出时，它报告本地模式，然后检查 `settings.yaml` 中的每一个条目——
+一个端点、一个密钥、一个没在运行的本地守护进程。
+
+## 相关
+
+- [工具](tools.md) — 每次运行都会得到的内置工具
+- [会话与追踪记录](sessions-and-traces.md) — 一个会话记录什么
