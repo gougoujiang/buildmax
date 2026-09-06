@@ -1,6 +1,7 @@
 package flock
 
 import (
+	"bufio"
 	"errors"
 	"os"
 	"os/exec"
@@ -8,6 +9,11 @@ import (
 	"strings"
 	"testing"
 )
+
+// helperReady is the line the helper prints once it holds the lock. It is a
+// fixed token, not a word like "held", so the helper's own failure output can
+// never be mistaken for the ready signal: ErrHeld's message contains "held".
+const helperReady = "flock-helper-holds-the-lock"
 
 func TestAcquireAndRelease(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "held")
@@ -55,14 +61,21 @@ func TestHeldByAnotherProcess(t *testing.T) {
 		_ = helper.Wait()
 	}()
 
-	// The helper prints one line once it holds the lock.
-	buf := make([]byte, 64)
-	n, err := stdout.Read(buf)
-	if err != nil || !strings.Contains(string(buf[:n]), "held") {
-		t.Fatalf("helper did not report holding the lock: %q, %v", string(buf[:n]), err)
+	// The helper prints one line once it holds the lock. Read a whole line and
+	// match it exactly: a partial read or the helper's own failure output must
+	// not be taken for the ready signal, or the lock check below runs before the
+	// lock is held and fails intermittently.
+	line, err := bufio.NewReader(stdout).ReadString('\n')
+	if err != nil || strings.TrimSpace(line) != helperReady {
+		t.Fatalf("helper did not report holding the lock: %q, %v", line, err)
 	}
 
-	if _, err := TryAcquire(path, []byte("session-b")); !errors.Is(err, ErrHeld) {
+	// Capture the lock so it can be released: if it is wrongly granted, leaking
+	// the handle would leave the file open and turn the assertion failure into a
+	// confusing TempDir cleanup error on Windows, where a held file cannot be
+	// deleted.
+	if l, err := TryAcquire(path, []byte("session-b")); !errors.Is(err, ErrHeld) {
+		_ = l.Release()
 		t.Fatalf("TryAcquire while held = %v, want ErrHeld", err)
 	}
 	if got := string(Holder(path)); !strings.Contains(got, "helper") {
@@ -92,6 +105,6 @@ func TestHelperHoldsLock(t *testing.T) {
 		t.Fatalf("helper TryAcquire: %v", err)
 	}
 	defer func() { _ = l.Release() }()
-	os.Stdout.WriteString("held\n")
+	os.Stdout.WriteString(helperReady + "\n")
 	select {} // killed by the parent
 }
