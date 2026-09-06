@@ -6,6 +6,7 @@ import type {
   ApiAdminMe,
   ApiAdminModel,
   ApiAdminModelsResponse,
+  ApiAdminSessionsResponse,
   ApiAdminSessionsRevoked,
   ApiAdminSystem,
   ApiAdminSpaceDetail,
@@ -119,6 +120,24 @@ export function setAdminUserDisabled(
 
 export function revokeAdminUserSessions(token: string, userId: string): Promise<ApiAdminSessionsRevoked> {
   return send<ApiAdminSessionsRevoked>("DELETE", `/users/${encodeURIComponent(userId)}/sessions`, token)
+}
+
+/** An account's live login chains — safe metadata to recognise a device by. */
+export function listAdminUserSessions(token: string, userId: string): Promise<ApiAdminSessionsResponse> {
+  return get<ApiAdminSessionsResponse>(`/users/${encodeURIComponent(userId)}/sessions`, token)
+}
+
+/** Revoke one login chain, leaving the account's other sessions live. */
+export function revokeAdminUserSession(
+  token: string,
+  userId: string,
+  sessionId: string,
+): Promise<ApiAdminSessionsRevoked> {
+  return send<ApiAdminSessionsRevoked>(
+    "DELETE",
+    `/users/${encodeURIComponent(userId)}/sessions/${encodeURIComponent(sessionId)}`,
+    token,
+  )
 }
 
 /**

@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import type { ApiAdminUser, ApiAdminUserDetail } from "../../lib/api/types"
+import type { ApiAdminSession, ApiAdminUser, ApiAdminUserDetail } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import {
   createAdminUser,
   getAdminUser,
   issueAdminLoginCode,
+  listAdminUserSessions,
   listAdminUsers,
+  revokeAdminUserSession,
   revokeAdminUserSessions,
   setAdminUserDisabled,
 } from "./api"
@@ -37,6 +39,7 @@ export function AdminAccounts({ token }: { token: string | null }) {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [selected, setSelected] = useState<ApiAdminUserDetail | null>(null)
+  const [sessions, setSessions] = useState<ApiAdminSession[]>([])
   const detailRef = useRef<HTMLElement | null>(null)
 
   // The detail panel renders below the list, so on a long list it opens off
@@ -74,6 +77,9 @@ export function AdminAccounts({ token }: { token: string | null }) {
     getAdminUser(token, userId)
       .then(setSelected)
       .catch((err) => setError(getErrorMessage(err, "Failed to load the account")))
+    listAdminUserSessions(token, userId)
+      .then((res) => setSessions(res.sessions))
+      .catch(() => setSessions([]))
   }
 
   async function act<T>(run: () => Promise<T>, done: (result: T) => string): Promise<void> {
@@ -224,7 +230,14 @@ export function AdminAccounts({ token }: { token: string | null }) {
                 {selected.session_count === 1 ? "" : "s"}
               </p>
             </div>
-            <button type="button" className="admin-button" onClick={() => setSelected(null)}>
+            <button
+              type="button"
+              className="admin-button"
+              onClick={() => {
+                setSelected(null)
+                setSessions([])
+              }}
+            >
               Close
             </button>
           </div>
@@ -250,6 +263,44 @@ export function AdminAccounts({ token }: { token: string | null }) {
             Spaces are listed by name and role only. Reaching what is in one still
             requires membership.
           </p>
+
+          <h3 className="settings-page__section-title">Sessions</h3>
+          {sessions.length === 0 ? (
+            <p className="admin-empty">No live sessions.</p>
+          ) : (
+            <ul className="admin-list">
+              {sessions.map((session) => (
+                <li key={session.session_id} className="admin-list__row">
+                  <span className="admin-list__main">{session.platform || "unknown platform"}</span>
+                  <span className="admin-list__meta">
+                    signed in {whenever(session.created_at)} · expires {whenever(session.expires_at)}
+                  </span>
+                  <button
+                    type="button"
+                    className="admin-button admin-button--danger"
+                    disabled={busy}
+                    onClick={() => {
+                      if (
+                        !window.confirm(
+                          `Sign this ${session.platform || ""} session out?\n\n` +
+                            "Only this device is revoked; the account's other sessions stay " +
+                            "signed in. An access token it already holds keeps working until it " +
+                            "expires.",
+                        )
+                      )
+                        return
+                      act(
+                        () => revokeAdminUserSession(token!, selected.id, session.session_id),
+                        () => "Session revoked.",
+                      )
+                    }}
+                  >
+                    Revoke
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
 
           {loginCode ? (
             <div className="admin-code" role="status">

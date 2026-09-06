@@ -50,6 +50,23 @@ test("the Administrators section lists who can operate the deployment", async ({
   await expect(page.locator(".settings-section__error")).toHaveCount(0)
 })
 
+test("an account's detail lists its live sessions", async ({ page }) => {
+  const email = process.env.BUILDMAX_E2E_EMAIL
+  test.skip(!email, "BUILDMAX_E2E_EMAIL not set")
+
+  await page.goto("/#/admin/accounts")
+  await expect(page.getByRole("heading", { name: "Accounts" })).toBeVisible()
+
+  // Open the signed-in operator's own account — it is guaranteed to have a live
+  // session, the one this browser is signed in with. Revoking it is deliberately
+  // not exercised here: it would sign the test out.
+  await page.getByRole("button", { name: email! }).first().click()
+  await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible()
+  await expect(page.getByText("No live sessions")).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Revoke" }).first()).toBeVisible()
+  await expect(page.locator(".settings-section__error")).toHaveCount(0)
+})
+
 test("the audit search reaches the events that have no space", async ({ page }) => {
   await page.goto("/#/admin/audit")
   await expect(page.getByRole("heading", { name: "Audit trail" })).toBeVisible()
