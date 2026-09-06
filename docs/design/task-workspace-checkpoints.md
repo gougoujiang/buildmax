@@ -1060,6 +1060,48 @@ Before handoff, run the relevant `./make test`, `./make test mysql`,
 `./make check go`, `./make check docs`, `./make lint`, and `git diff --check`
 scopes. The deployment evidence is not replaced by unit tests.
 
+### 16.5 Current Coverage
+
+The sections above state the intended verification. What is implemented today:
+
+- The checkpoint unit and property tests of 16.1 are in place — archive
+  round-trip and adversarial rejection, digest-mismatch and interrupted-restore
+  safety, base selection, partials never advancing the head, and idempotent
+  finalization. The Plugin-environment bullets belong to the separate Plugin
+  work below and are not part of this feature.
+- 16.2's referenced-payload retention query and 16.3's object-store contract,
+  content-addressing, and orphan-on-DB-failure behaviors are covered by the
+  MySQL-gated and object-store tests.
+- The kind suite demonstrates the normal-continuation and paired-restore rows
+  of 16.4: a first run seeds, a Continue restores its base, and successful and
+  failed runs capture result and partial checkpoints — shown by the deployment
+  smoke, the Portal run-trace browser test, and direct database assertions.
+
+The destructive rows of 16.4 and the failure matrix in section 13 —
+cancellation and SIGTERM partial capture, forced Pod loss, object-store denial,
+and database commit races — are proven by the unit tests rather than by
+deployment automation. Each is a fail-closed or fail-open behavior those tests
+exercise directly: restore refuses on missing or mismatched bytes and records a
+failed outcome; a result or partial that cannot commit leaves the accepted run
+outcome and the Task head unmoved; and the head advance is a compare-and-set
+that a duplicate or late report cannot move past one linear step. Injecting
+object-store denial, Pod kills, and commit races into the shared deployment
+cluster is fragile scaffolding for behavior already proven, so these rows are
+recorded here rather than scripted; a future change may automate the one
+deterministic real-cluster row — object-store denial making a restore fail
+visibly — which the run-details `restore_status` now makes assertable.
+
+The Task-scoped autonomous Plugin installation row (16.4 item 7) and the
+Plugin-environment continuity bullets are separate Plugin-distribution work, not
+part of the workspace-checkpoint feature, and remain unbuilt.
+
+Not yet built within this feature: setting and surfacing a
+`workspace_checkpoint_status=failed` record for a successful run whose checkpoint
+could not commit, and the Continue gating that reads it. Today such a failure is
+fail-open — the run's outcome stands and the head does not advance — and is
+visible in the run's logs and in the head staying put; the Portal shows the
+committed and restored states read-only.
+
 ## 17. Alternatives Rejected
 
 ### 17.1 One PVC Per Task As The Default
