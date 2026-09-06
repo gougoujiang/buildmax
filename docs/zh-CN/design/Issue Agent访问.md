@@ -1,6 +1,6 @@
 # Issue Agent 访问：Agent 自己的工单
 
-> **翻译说明：** 本文是[英文原文](../../design/issue-agent-access.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `c98d77e45624561c04bcd64452d629933b43ebec3947ea8a6f29657a28ad6308`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../design/issue-agent-access.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `a29cae0a6d8afa075a06129125754b19c179075139b42b1e271ae4ff97869c01`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 
 
 ## 目录
@@ -22,7 +22,7 @@
 ## 状态
 
 - roadmap_priority：`unscheduled` — 本记录决定了已实施的 Issue 模型刻意留出的 Agent 修改权限问题；该工作尚未列入 [ROADMAP.md](../../ROADMAP.md)
-- status：`implemented` — §10 已在两个执行平面交付：从 Issue 启动的 Worker 运行，以及通过 `--issue` 启动的本地 CLI 会话。`GetIssue` 中的 Artifact 引用仍被推迟，原因见 §5.1
+- status：`implemented` — §10 已在两个执行平面交付：从 Issue 启动的 Worker 运行，以及通过 `buildmax issue start` 启动的本地 CLI 会话。`GetIssue` 中的 Artifact 引用仍被推迟，原因见 §5.1
 - follows：[tool-permissions.md](./工具权限.md)、[unified-artifacts.md](./统一工件.md)
 - relates：[surface-positioning.md](./界面定位.md)、[portal-execution-model.md](./Portal执行模型.md)
 - precedes：[local-issue-work-bridge.md](../../proposals/local-issue-work-bridge.md)。该提案询问 Agent 可以通过工具执行哪些上下文修改；本记录给出答案。桥接方案的本地部分使用这里的工具，而不另行定义 Issue 访问方式
@@ -183,7 +183,7 @@ Worker运行报告被存储为`agent`：写的运行代币是Agent的自己的�
 |---|---|---|---|
 | 采用Worker从Issue开始运行 | 没有 | 没有 | 任务带有Issue ID；运行令牌授权 |
 | 没有Worker运行，没有Issue | 缺席 | 缺席 | 没有任何范围 |
-| 地方CLI/TUI会议开始 `--issue` | 没有 | 没有 | 需要登录；报告为`local_agent`， §6.1 |
+| 通过 `buildmax issue start` 启动的本地 CLI/TUI 会话 | 有 | 有 | 需要登录；报告为 `local_agent`，§6.1 |
 | 会议时间： Desktop | 没有 | 没有 | 没有Desktop界面提供它 |
 | 没有连接的本地会议或未登录 | 缺席 | 缺席 | 地方工作不变 |
 | 级别1的对话 | 延迟 | 延迟 | §11 |
@@ -229,7 +229,7 @@ Worker不会自己组织。
 现有空间Issue路线，可授权运行代币对
 他们。
 6. 实现登录本地中`internal/interface/client`的端口
-界面，并将一个会议范围扩展到Issue，并使用`buildmax --issue <id>`。
+界面，并使用 `buildmax issue start <id>` 将一个会话的范围限定到某个 Issue。
 报告通过空间评论路线进行`local_agent` (6.1节)。
 
 步骤15是Worker平面工作，站着独自；步骤6是当地的Issue桥的第一块， Desktop
@@ -260,6 +260,6 @@ Worker不会自己组织。
 报告是传递者承担责任的索赔；使其成为证据
 需要地方会议拥有自己的证书，
 长久的Agent-会议问题，而不是这个问题。
-7. **如何在本地会议中选择其Issue?** `--issue`范围一
+7. **本地会话如何持久地选择其 Issue？** `buildmax issue start` 范围一
 桥梁的`IssueLink`侧车是耐用的
 设计的建议是这样的。
