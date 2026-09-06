@@ -3,10 +3,20 @@ package workerclient
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/gougoujiang/buildmax/internal/infra/httpclient"
 )
+
+// ErrWorkspaceCheckpointsUnsupported reports that the server this run reached
+// does not run the workspace-checkpoint contract: it has no such route (404) or
+// has it but no checkpoint storage configured (503). It is not a failure of the
+// run — an evaluation control plane and a deployment with checkpoints turned off
+// both answer this way, and such a run simply seeds and restores nothing. A real
+// server that supports checkpoints always answers a valid run with 204 or 200,
+// never 404, because the route is registered unconditionally.
+var ErrWorkspaceCheckpointsUnsupported = errors.New("worker: server does not support workspace checkpoints")
 
 // WorkspaceBaseResponse is the checkpoint a run restores its workspace from. It
 // carries no storage key: the worker addresses the payload from its own space
@@ -44,7 +54,10 @@ type SeedCheckpointResponse struct {
 }
 
 // GetWorkspaceBase fetches the run's base checkpoint descriptor, or (nil, nil)
-// when the run has none — the first run of a Task, which seeds instead.
+// when the run has none — the first run of a Task, which seeds instead. A server
+// that does not run the checkpoint contract at all returns
+// ErrWorkspaceCheckpointsUnsupported (404 for no route, 503 for no storage), so
+// the caller can distinguish "no base yet" from "no checkpoints here".
 func GetWorkspaceBase(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID string) (*WorkspaceBaseResponse, error) {
 	pathSuffix := "/api/worker/task-runs/" + taskRunID + "/workspace-base"
 	resp, err := workerDo(ctx, cfg, http.MethodGet, pathSuffix, nil)
@@ -52,7 +65,10 @@ func GetWorkspaceBase(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID 
 		return nil, err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNoContent || resp.StatusCode == http.StatusNotFound {
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusServiceUnavailable {
+		return nil, ErrWorkspaceCheckpointsUnsupported
+	}
+	if resp.StatusCode == http.StatusNoContent {
 		return nil, nil
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
