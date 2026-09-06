@@ -3,11 +3,11 @@
 > **翻译说明：** 本文是[英文原文](../../design/tool-permissions.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `a856201e28ff70d2894721c08701783e6b6aeb098e4ea4960b725b21e318d5b2`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 
 
-## 内容
+## 目录
 
 - [状态](#状态)
 - [1. 目的](#1-目的)
-- [2. 当前基础](#2-当前基础)
+- [2. 当前基线](#2-当前基线)
 - [3. 缺口](#3-缺口)
 - [4. 方向](#4-方向)
 - [5. 范围内](#5-范围内)
@@ -41,7 +41,7 @@ BuildMax 目前只会在两种工具调用前询问用户：路径看起来敏�
 - 用户或运维人员在哪里覆盖默认值，以及如何查看最终生效的值。
 
 本记录还定义 `Access` 效果分类，供 [parallel-tool-execution.md](./parallel-tool-execution.md) 判断哪些调用可以重叠。并行工具设计虽先写成并暂时承载了该分类，但它应归属于权限设计，并以权限作为首个使用者。
-## 2. 当前基础
+## 2. 当前基线
 
 **解析顺序已经存在，但大部分层为空。** `resolveAction` 与 `applyPolicyAndExecute` 依次处理五层：
 
@@ -60,52 +60,40 @@ BuildMax 目前只会在两种工具调用前询问用户：路径看起来敏�
 **MCP 界面没有保护，而唯一信号被丢弃。** LLM 通过 `CallMcpTool(server, tool_name, arguments)` 访问 MCP，该工具未实现任何可选接口，因此所有 MCP 调用都是 `Allow`。与此同时，`serverState.toolsByName` 保存 `map[string]*mcpsdk.Tool`（`internal/infra/mcp/registry.go:27`），其中 `mcpsdk.Tool.Annotations` 带有连接时从 `tools/list` 获取的 `ReadOnlyHint`。注册表会读取 `.Description` 和 `.InputSchema`，却丢弃 `.Annotations`。数据已经在内存中，只是无人使用。
 ## 3. 缺口
 
-### 3.1 声明层是空的
+### 3.1 声明层为空
 
-没有工具说明它是什么。 `PolicyProvider`没有实现，因此运行时间无法区分读取文件和写入文件，而五层分辨率的3层是死码。
+没有工具声明自身的效果。`PolicyProvider` 没有实现，因此运行时无法区分读文件和写文件，五层解析中的第 3 层也就成了死代码。
 
-### 3.2 书面是沉默的
+### 3.2 写入不会提示
 
-对于可靠的本地工作空间来说，这是一个可辩护的默认；问题是，它不是一个默认，它是缺席。 `Write` `Edit` MCP
+`Write`、`Edit` 和所有 MCP 调用都会执行，除非路径恰好触发敏感性检查，否则不会提示。对受信任的本地工作区来说这可以是合理默认；问题在于当前行为并不是明确默认，而是没有默认。
 
-### 3.3 MCP被遗漏所信任
+### 3.3 MCP 因缺少判断而被信任
 
-第三方服务器得到了像构建文件一样的未宣布执行， 让运行时间分辨两个的`readOnlyHint`被SDK分析并丢弃。
+第三方 Server 获得了与内置文件读取相同的静默执行权限，而本可帮助运行时区分二者的 `readOnlyHint` 已被 SDK 解析后丢弃。
 
-### 3.4 任何违约的加算将使每个工人都破产
+### 3.4 直接增加默认值会破坏所有 Worker
 
-现在一个工人写文件，因为`WriteFile.CheckArgs`返回`Allow`.给`Write`一个类别默认的`Ask`，而一个工人没有`ApprovalHandler` ，它解决为`Deny`.Task运行停止能够写文件。
+当前 Worker 能写文件，是因为 `WriteFile.CheckArgs` 返回 `Allow`。如果把 `Write` 的类别默认值改为 `Ask`，Worker 没有 `ApprovalHandler`，最终就会得到 `Deny`，TaskRun 将无法写入文件。
 
-倒置更糟糕.让自主表面解决`Ask`到`Allow`也会促进从`Bash.CheckArgs`的*风险基于*`Ask`，因此一个工人会开始执行他目前拒绝的风险命令。
+反向修复更糟：让自主界面把 `Ask` 解析为 `Allow`，也会放行 `Bash.CheckArgs` 产生的*风险型* `Ask`，于是 Worker 会开始执行当前明确拒绝的危险命令。
 
-### 3.5 用户没有过渡权，运营商没有可访问的权限
+### 3.5 用户无法覆盖，运维人员也没有可达的覆盖层
 
-操作员也不能说"没有MCP打电话给工人"，并且根据 §2 文件看起来应该载有该指令，根本无法到达工人.用户的差距在这里可以解决；操作员的差距不是， §7 则说这样，而不是将一个头发送到一个头，而无声无声无声无声。 `Write` `ToolPolicy`
+运维人员也无法表达“Worker 禁止所有 MCP 调用”；§2 中看似承载该指令的文件根本到不了 Worker。用户的覆盖需求可以在本设计中解决，运维人员的覆盖需求不能靠一个实际不生效的开关伪装解决，§7 会明确这一点。
 
-### 3.6 没有人能看到现实
+### 3.6 无法查看当前生效配置
 
-没有任何东西显示每个工具的解决行动，就像`buildmax sandbox status`显示一个解决的沙盒一样。 `/tools` `internal/interface/cli/chat_tools.go`
+`/tools` 只列出名称和描述（`internal/interface/cli/chat_tools.go`），没有显示每个工具解析后的动作，也没有类似 `buildmax sandbox status` 的生效配置视图。
 
 ## 4. 方向
 
-- 声明效果，获得许可.** 一个工具表示它*做了什么.*
-运行时间决定要问什么。 一个可以自行分配`Allow`的工具，
-最终，这个分类将不再意味着任何东西。
-- **P2  `Ask`的意思是"问一个人"，而类别级别只存在于
-有一个.一个没有人附加的表面没有一个类别。
-根据风险的`Ask`，今天的崩保持在`Deny`。
-- 没有沉默的回归。
-运输的默认变化
-只有互动表面；自主表面是字节相同的。
-- **P4 MCP默认不值得信任.**`readOnlyHint`通知一个提示
-只有一个运营商或用户许可证。
-- **P5  包含可能取代提示，它实际上包含。
-概括`Bash`自动允许的原则；不要扩大其范围
-相信。
-- **P6  过渡可在过渡实际上可以降落的地方.** `settings.yaml`
-对于用户，一个命令将其解决表印出
-运营商控制自主表面由服务器提供，
-空间范围，这是P4工作，而不是本地文件 §7。
+- **P1——声明效果，再推导权限。**工具声明它*做什么*，运行时决定何时询问。允许工具自行指定 `Allow`，最终会让分类失去意义。
+- **P2——`Ask` 意味着“询问人”，类别层只存在于有人可回答的界面。**没有人工参与的界面不会产生类别提示；风险型 `Ask` 仍按今天的规则解析为 `Deny`。
+- **P3——不允许静默回归。**每个内置工具在每个界面的最终动作都在 §6 明确并由测试覆盖。已交付默认值只改变交互界面；自主界面保持字节级兼容。
+- **P4——MCP 默认不受信任。**`readOnlyHint` 只能影响提示默认值，不能授予权限；只有运维人员或用户的 allowlist 才能授予权限。
+- **P5——只有在确实完成隔离时，隔离才可以替代提示。**推广 `Bash` 自动允许背后的原则，但不能凭推测扩大适用范围。
+- **P6——覆盖层必须真正能够生效。**用户使用 `settings.yaml`，并通过命令查看带来源的解析表。自主界面的运维控制由 Server 按 Space 范围下发，属于 P4 工作，而不是本地文件，见 §7。
 
 ## 5. 范围内
 
@@ -142,58 +130,58 @@ type AccessDeclarer interface {
 }
 ```
 
-没有声明的工具是`AccessWrite`。 没有现有的工具需要改变，以便分类到登陆。
+未声明的工具默认为 `AccessWrite`。现有工具无需为了参与分类而改变接口。
 
-### 5.2 导出默认的数据，以及证明需要覆盖的两个工具
+### 5.2 从 Access 推导默认动作，以及两个需要覆盖的工具
 
-导向默认是一个行： **仅阅读 → `Allow`，写 → `Ask`.**
+默认推导规则只有一行：**只读 → `Allow`，写入 → `Ask`。**
 
-根据P1 ，一个可以命名自己的动作的工具最终将取代`Allow`，而分类将变为正式性。
+根据 P1，工具最终可以声明自己的默认动作，而分类只负责表达效果。
 
-但仅仅是推导是两个工具的错误，它们值得指出，因为它们是最清楚的证据，
+但仅靠效果推导会误判两个工具，因此需要明确覆盖；它们是最清楚的例外：
 
-| 工具 | `Access` | 准备好 | 适当的时间表 |
+| 工具 | `Access` | 默认动作 | 并发调度 |
 |---|---|---|---|
-| `TodoWrite` | 写作 | `Allow` | 没有平行资格 |
-| `NoteWrite` | 写作 | `Allow` | 没有平行资格 |
+| `TodoWrite` | 写入 | `Allow` | 不具备并发资格 |
+| `NoteWrite` | 写入 | `Allow` | 不具备并发资格 |
 
-它们都通过相关标识符转变到`NoteStoreFromContext`，而`Session.SetNotes`没有锁 (`internal/core/session/session.go:139`) ，所以它们真正写作过程状态，并且真正不能重叠.但是它们写的是代理的自己的划痕状态，而不是用户拥有的任何东西.促使用户批准代理自己写一个托多将是荒谬的。 `Session`
+二者都通过 `Session` 转到 `NoteStoreFromContext`，而 `Session.SetNotes` 没有锁（`internal/core/session/session.go:139`），因此它们确实写入进程状态，也确实不能重叠。但它们写的是 Agent 自己的临时状态，而不是用户拥有的内容；要求用户批准 Agent 更新自己的 todo 或 note 没有意义。
 
-接口自写以来一直空的接口成为过渡。 `TodoWrite`和 `NoteWrite`是它的第一两个实现，也是它存在的原因。 `PolicyProvider.DefaultAction`
+这个接口自引入以来一直为空，正是因为它在等待这两个例外。`TodoWrite` 和 `NoteWrite` 是它最早的两个实现，也是它存在的原因。工具默认动作由 `PolicyProvider.DefaultAction` 提供。
 
-决议命令将成为：
+解析顺序将变为：
 
-| # | 层 | 改变 |
+| # | 层 | 变化 |
 |---|---|---|
-| 1 | 禁令，赢得了完全的胜利 | 现在是真实的 (§5.6) |
-| 2 | 相关标识符 水平风险 `ArgChecker.CheckArgs` | 没有变化 |
-| 3 | 配置 **允许/要求** 用户的类别偏好 | 现在真实了 |
-| 4 | 相关标识符 明确工具默认 `PolicyProvider.DefaultAction` | 现在已经实施 |
-| 5 | **从`Access`中提取** | ，，，，，， |
-| 6 | 子代理，然后默认的 `Allow` `PreToolUse` | 没有变化 |
+| 1 | `deny`，优先级最高 | 已实现（§5.6） |
+| 2 | 风险层 `ArgChecker.CheckArgs` | 不变 |
+| 3 | 配置的用户类别偏好 | 已实现 |
+| 4 | 工具显式默认 `PolicyProvider.DefaultAction` | 已实现 |
+| 5 | 从 `Access` 推导 | 新增 |
+| 6 | `PreToolUse` Hook，然后默认 `Allow` | 不变 |
 
-相关标识符 划分在层1和层3上，而不是坐在上方，而不是分离是点。 相关标识符 意思是"停止问我读物"；它也不能意味着"打开`~/.ssh/id_rsa`而不告诉我".只有一个配置的`deny` 超过风险检查.配置的偏好位于工具本身默认的上，因为用户超过工具作者。 `ToolPolicy` `Read: allow`
+类别偏好分布在第 1 层和第 3 层，而不是另加一层，这是有意的。`ToolPolicy` 中 `Read: allow` 的含义是“不要再询问读取”，不能变成“允许不告知地读取 `~/.ssh/id_rsa`”。只有配置的 `deny` 能覆盖风险检查；配置偏好位于工具默认值之上，因为用户优先于工具作者。
 
-**`ToolPolicy.Check`返回`(action, bool)`.**`ToolActionAllow`意味着*在其他层中*避免*，因此返回的政策永远不能说"允许这，停止问"，这是唯一的理由来配置一个。 bool 载有政策是否有任何意见.这是MCP在第5.4节中遇到的陷。
+**`ToolPolicy.Check` 返回 `(action, bool)`。** `ToolActionAllow` 表示“本层没有意见，继续后续层”，不是“最终允许”；第二个返回值表示策略是否确实给出了意见。这也是配置层必须返回布尔值的原因，并解释了 §5.4 中 MCP 遇到的陷阱。
 
-### 5. 3 表面基线
+### 5.3 界面基线
 
-4层，只有4层在表面上有人体的门口：
+第 4 层只有在界面存在人工审批入口时才会生效：
 
 ```go
 // interactive reports whether a human can answer a permission prompt.
 func (o RunLoopOpts) interactive() bool { return o.Approval != nil }
 ```
 
-这开始是一个名为`PermissionSurface`的`RunLoop`通话网站，反映`config.SandboxSurface`。 实施表明这是错误的形状：批准处理器的存在已经是事实。 互动表面设置一个，自主表面不是,`applyPolicyAndExecute`总是读出相同的零检查，以决定是否可以回答`Ask`。 一个平行字段将是一个事实的第二个来源，并且它可以添加的唯一状态是不一致的，一个自称为没有任何方式的互动表面。
+最初的方案曾想在 `RunLoop` 调用中加入类似 `config.SandboxSurface` 的 `PermissionSurface`。实现证明这不是正确形状：`ApprovalHandler` 是否存在已经是事实。交互界面有它，自主界面没有；`applyPolicyAndExecute` 始终读取同一个 nil 检查来判断是否有人能回答 `Ask`。再增加一个并行字段只会引入第二个事实来源和不一致状态，而且调用方没有办法声明一个没有人工入口的交互界面。
 
-在自主表面上，衍生的类型`Ask`根本没有产生.它不是"决定允许"也不"决定否认"它永远不会存在，因为没有人可以通知.层13仍然运行，因此从`Ask`的风险基 相关标识符仍然像今天一样崩成`Deny`。 `Bash.CheckArgs`
+在自主界面上，效果推导出的类别型 `Ask` 根本不会产生。它既不是“决定允许”，也不是“决定拒绝”，而是因为没有人可通知而不存在。风险型 `Ask` 仍按第 2 层运行，并像今天一样解析为 `Deny`，例如 `Bash.CheckArgs` 的风险命令。
 
-这就是 §3.4 的可处理性.它还回答了问题的形状而不是症状：一个类别提示是*与用户的对话*，并且无法默认解决对话.一个想要限制员工的操作员使用层1，该层是明确的和可审计的。 `Ask`
+这解释了 §3.4 的兼容性，也回答了根本问题：类别提示是*与用户的对话*，不能由默认值代替。需要限制 Worker 的运维人员应使用第 1 层，因为那里明确且可审计。
 
 ### 5.4 MCP
 
-采用了`CallMcpTool`的可选界面，需要两者.之前的草案只使用`ArgChecker`；实现显示不能产生第6行。
+`CallMcpTool` 需要同时实现两个可选接口。早期草案只使用 `ArgChecker`；实现过程证明这样无法表达第 6 行的语义。
 
 ```go
 func (t *callMCPToolTool) Access(args map[string]any) llm.Access {
@@ -207,41 +195,41 @@ func (t *callMCPToolTool) CheckArgs(args map[string]any) llm.ToolAction {
 }
 ```
 
-两者覆盖不同的半径，因为`Allow`在2层意味着*弃权*，而不是*许可*：
+二者覆盖不同维度，因为第 2 层的 `Allow` 意味着*放弃判断*，而不是最终授权：
 
-| 电话 | 层2 | 层4 | 结果 |
+| 调用 | 第 2 层 | 第 4 层 | 结果 |
 |---|---|---|---|
-| 仅可读，任何表面 | 弃权 | 没有问 `AccessReadOnly` | 允许 |
-| 写作，互动 | `Ask` | 没有达到 | 快速 |
-| 写作，自主 | `Ask` | 封闭 | 拒绝 (没有处理器) |
+| 只读，任意界面 | 放弃判断 | `AccessReadOnly` 不提示 | 允许 |
+| 写入，交互界面 | `Ask` | 不会到达 | 询问用户 |
+| 写入，自主界面 | `Ask` | 关闭 | 拒绝（没有处理器） |
 
-只有`CheckArgs`，只读取的电话将在2层中避免使用，然后在4层中被问到，因为`Access`默认写.只有`Access`，在自主表面上永远不会拒绝写，因为4层不会运行在那里.`Registry.ToolIsReadOnly`读取注释，注册表已经持有，并且之前丢弃;`LoadMcpTools`声明`AccessReadOnly`。
+只有 `CheckArgs` 时，只读调用会在第 2 层放弃判断，却因 `Access` 默认写入而在第 4 层被询问。只有 `Access` 时，自主界面不会拒绝写入，因为第 4 层在那里不运行。`Registry.ToolIsReadOnly` 读取注册表已经持有的注释，`LoadMcpTools` 据此声明 `AccessReadOnly`。
 
-**`AccessReadOnly`不能暗示同步安全.** 这就是显而易见的:`CallMcpTool`仅在第三方的字体上报告阅读，这无法通过运行时间进行.接口文档现在这样说，并必须要求一个规划器作为单独的条件。 见[实现的平行工具.md](./parallel-tool-execution.md) §5.1。
+**`AccessReadOnly` 不代表并发安全。**`CallMcpTool` 只报告第三方 Server 自己声明的读取属性，运行时无法验证。接口文档必须明确这一点，调度器还必须单独判断是否可以并发；见[并行工具执行](./parallel-tool-execution.md) §5.1。
 
-这三种限制：
+这里有三个限制：
 
-**缺失和假是无法区分的.** 在go-sdk v1.7.0 中,`ToolAnnotations.ReadOnlyHint` 是`bool`，而不是`*bool`，因此，省略注释解码的服务器与`false`相同.这两个服务器都落地在`Ask`上.这是安全的方向，这意味着一个不含提示的良好行为只读服务器会提示.逃脱只是5.6条的允许器，而不是默认的放松器。
+**缺失和 `false` 无法区分。** 在 go-sdk v1.7.0 中，`ToolAnnotations.ReadOnlyHint` 是 `bool` 而不是 `*bool`，因此省略注释的服务器与显式写入 `false` 的服务器会得到同样的结果；两者都会落到 `Ask`。这是偏安全的方向：一个行为良好但未提供提示的只读服务器会触发询问。只有 §5.6 的显式允许配置可以绕过它，而不是默认放宽。
 
-**提示是服务器对自己的声明.**它通知即时默认，并没有给予任何 (P4).一个撒谎的服务器在通话中得到`Allow`，这就是为什么允许者，而不是提示，是信任机制。
+**提示只是服务器对自己的声明。** 它只影响即时默认值，并不授予任何权限（P4）。撒谎的服务器可能在调用时得到 `Allow`，所以真正的信任机制是允许列表，而不是提示本身。
 
-该记录最初指定了一个批准提示条，将该索赔归因于服务器 (`server github reports: not read-only`)。 **未实现.** 它需要一个工具到提示道，它将存在于一个文字行，提示条已经显示了`server`和`tool_name`。 答案是为什么这个问题被问是什么相关标识符§2F相关标识符 (5.6) 直接回答.如果用户问。 `buildmax tools status`
+设计记录最初还设想过一条审批提示栏，把服务器的声明显示为“server github reports: not read-only”。**这部分尚未实现。** 它需要从工具传递到提示界面的额外通道；目前提示栏只显示 `server` 和 `tool_name`。因此，用户如果想知道当前生效规则，应直接运行 `buildmax tools status`，而不是依赖未实现的提示文案。
 
-**自动接口的表面没有改变。 ** 根据5.3 节，衍生层不运行在那里，并且`CheckArgs`返回`Ask`的非读取式MCP调用，崩到`Deny` ，这是今天的毯子`Allow`的 *紧缩。
+**自主界面的行为没有改变。** 根据 §5.3，效果推导层不会在那里运行；`CheckArgs` 对非只读 MCP 调用返回 `Ask` 时，仍会收敛为 `Deny`。这比今天对所有调用一律 `Allow` 更严格，但不是放宽权限。
 
-### 5.5 会议补助
+### 5.5 会话授权
 
-通过一个提示，可以获得三个结果：
+用户回答提示后，有三种结果：
 
-| 选择 | 关键 | 影响 |
+| 选择 | 按键 | 影响 |
 |---|---|---|
-| 允许一次 | `y` | 只有这个电话 |
-| 允许此次会议 | `a` | 根据下列范围的记忆存储的补助 |
-| 否认 | `n` / `Esc` | 今天的否认 |
+| 允许一次 | `y` | 仅允许这一次调用 |
+| 允许本会话 | `a` | 在下方定义的范围内记住授权 |
+| 拒绝 | `n` / `Esc` | 与当前行为相同，拒绝调用 |
 
-补助金在`SessionGrants`商店里生活，从来没有触摸磁盘，并且随着这个过程而死亡.坚持"总是允许"意味着代表用户写给`settings.yaml`，并且是故意不适用的 (§7) 内存层是使功能可用的；耐用层是使其危险的。
+授权保存在 `SessionGrants` 中，不写入磁盘，并随进程结束而消失。“始终允许”意味着代表用户写入 `settings.yaml`，因此有意不在本设计范围内（§7）。内存层让功能可用；持久化层会让它变得危险。
 
-**在解决后进行咨询，而不是在1.** 赠款是已向用户提出的问题的缓存答案，而`Deny`从来没有成为问题.在解决之前应用它将使一个批准通过政策或敏感性检查，因此它仅适用于`Ask`：
+**在解析之后应用授权，而不是在第 1 层之前。** 授权只是已经向用户提出的问题的缓存答案，而 `Deny` 从来不是一个问题。若在解析前应用授权，就可能绕过策略或敏感性检查；因此它只适用于 `Ask`：
 
 ```go
 action := resolveAction(...)
@@ -250,15 +238,15 @@ if action == llm.ToolActionAsk && opts.Grants.granted(scope) {
 }
 ```
 
-**范围是工具名称，工具在发送时缩小。 ** 这个名称是提示提示给用户显示的，所以它是他们认为他们批准的。 `llm.GrantScoper`让到达其他地方的工具说这样。  `CallMcpTool`返回 `server/tool_name`，因为否则批准一次MCP会议调用将批准每个配置服务器上的工具。
+**范围以工具名称为基础，并在发出授权时收窄。** 工具名称会显示在提示中，代表用户实际批准的对象。`llm.GrantScoper` 允许需要更细粒度范围的工具自行定义它。`CallMcpTool` 返回 `server/tool_name`，否则允许一次 MCP 会话调用就会放行每个已配置服务器上的同名工具。
 
-一个早期的草案在循环保护器的`toolFingerprint`前上提供了键.它被放弃了：一个来自 arg 的键在提示时是不透明的，因此用户无法判断他们给予什么，任何前的选择都是任意的.给一个会议`Write`不应该需要重新批准每个路径，这正是一个名字扩展的授予所提供的。
+早期草案曾尝试在循环保护器的 `toolFingerprint` 前加入参数键，但后来放弃了：由参数生成的键在提示中不可读，用户无法判断自己批准了什么，而且任何截断方案都很武断。允许本会话使用 `Write` 不应要求用户为每条路径重新批准，这正是按名称授予授权所解决的问题。
 
-**每次会议，而不是每次运行.**`AgentApp.grantsFor(sessionID)`拥有商店.Desktop在每次消息上重建其`SessionContext`，因此，在包装上保留的赠款不会超过它被交给的转折。
+**按会话保存，而不是按运行保存。** `AgentApp.grantsFor(sessionID)` 持有授权存储。Desktop 会在每条消息上重建 `SessionContext`，因此授权不会超出它所属的会话或转折。
 
 ### 5.6 配置和可见性
 
-在`settings.yaml`中，有一个来源：
+`settings.yaml` 中的配置是其中一个来源：
 
 ```yaml
 tools:
@@ -268,11 +256,11 @@ tools:
     "CallMcpTool:github/*": allow   # server/tool qualifier
 ```
 
-由于第2节的原因,[阅读中文镜像](tool-permissions.md)将表面默认层，然后设置，返回`Sources`列表 与`ResolveSandbox` (`internal/config/sandbox.go:170`) 相同的形状，减去政策层。 `config.ResolvePermissions`
+出于第 2 节所述的原因，`config.ResolvePermissions` 应公开默认层和设置层，并返回 `Sources` 列表。其形状应与 `ResolveSandbox`（`internal/config/sandbox.go:170`）一致，只是不包含策略层。
 
-没有`policy.yaml`块.添加一个将面向操作员的按放入一个文件，一个工人从来没有阅读，这比不提供它更糟糕：操作员写出规则，状态命令确认，而工人忽略它。
+这里没有 `policy.yaml` 块。增加它会把面向运维人员的配置放进 Worker 从不读取的文件，反而比不提供更糟：运维人员写下规则，状态命令确认它存在，但 Worker 仍然忽略。
 
-可见性，反射`buildmax sandbox status`：
+可见性应仿照 `buildmax sandbox status`，提供类似下面的输出：
 
 ```text
 $ buildmax tools status
@@ -284,150 +272,99 @@ CallMcpTool   write       ask     derived
   github/*    read-only   allow   settings
 ```
 
-现在只显示名称和描述。 `/tools`
+目前 `/tools` 只显示名称和描述，不能反映权限来源；状态命令应补充这一层可见性。
 
-### 5.7 遇到沙箱的地方
+### 5.7 与沙箱的交界
 
-`Bash`自动允许 (`internal/tool/bash.go:107`) 是现有的P5：当OS边界包含命令时，提示器没有添加任何东西，因此它被降级.该行为保持了它。
+`Bash` 的自动允许（`internal/tool/bash.go:107`）是 P5 的现有实例：当操作系统边界已经包含命令时，提示不会增加额外保护，因此会将其降级。这个行为保持不变。
 
-沙盒的目的是包含工作空间之外的写作；工作空间内写作正是它允许的.不包含该行为的内容不能被问及。 `Write` `Edit`
+这条规则不会扩展到 `Write` 和 `Edit`。沙箱的作用是限制工作空间之外的写入；工作空间内的写入正是它允许的行为。无法包含当前行为的边界，不能替代对该行为的询问。
 
-工人走进哪个边界是[沙盒-边界.md](./sandbox-boundaries.md)；谁选择它是开放的[信用.md](./trust-harness.md) §3.9。
+Worker 运行在哪个边界内，见[沙箱边界](./sandbox-boundaries.md)；由谁选择边界，见[信任工具链](./trust-harness.md) §3.9。本记录假定边界已经确定，并在边界之前拦截调用。
 
 ## 6. 最终行为
 
-两面上都有前后的每一个结构。
+这是 P3 的证明：列出每个内置工具在两个界面上的变更前后行为。
 
 | 工具 | `Access` | 交互界面：变更前 | 交互界面：变更后 | 自主执行：变更前 | 自主执行：变更后 |
 |---|---|---|---|---|---|
-| `Read` | 仅可阅读 | 允许 (问如果敏感) | 没有变化 | 允许 (如果敏感，拒绝) | 没有变化 |
-| `Glob` | 仅可阅读 | 允许 | 没有变化 | 允许 | 没有变化 |
-| `Grep` | 仅可阅读 | 允许 (问如果敏感) | 没有变化 | 允许 (如果敏感，拒绝) | 没有变化 |
-| `Skill` | 仅可阅读 | 允许 | 没有变化 | 允许 | 没有变化 |
-| `WebFetch` | 仅可阅读 | 允许 | 没有变化 | 允许 | 没有变化 |
-| `Write` | 写作 | 允许 (问如果敏感) | 问问 | 允许 (如果敏感，拒绝) | 没有变化 |
-| `Edit` | 写作 | 允许 (问如果敏感) | 问问 | 允许 (如果敏感，拒绝) | 没有变化 |
-| `Bash` | 写作 | 问如果风险，否认如果灾难性 | 没有变化1 | 否则，否则是风险的 | 没有变化 |
-| `TodoWrite` | 写作 | 允许 | 没有变化 (第5.2条的过失) | 允许 | 没有变化 |
-| `NoteWrite` | 写作 | 允许 | 没有变化 (第5.2条的过失) | 允许 | 没有变化 |
-| `Task` | 写或仅阅读的每种代理类型2 | 允许 | **问**除非代理类型仅可读 | 允许 | 没有变化 |
-| `LoadMcpTools` | 仅可阅读 | 允许 | 没有变化 | 允许 | 没有变化 |
-| `CallMcpTool` | 写作 | 允许 | 只有`readOnlyHint` | 允许 | **拒绝**除非`readOnlyHint` |
+| `Read` | 只读 | 允许（敏感时询问） | 不变 | 允许（敏感时拒绝） | 不变 |
+| `Glob` | 只读 | 允许 | 不变 | 允许 | 不变 |
+| `Grep` | 只读 | 允许（敏感时询问） | 不变 | 允许（敏感时拒绝） | 不变 |
+| `Skill` | 只读 | 允许 | 不变 | 允许 | 不变 |
+| `WebFetch` | 只读 | 允许 | 不变 | 允许 | 不变 |
+| `Write` | 写入 | 允许（敏感时询问） | **询问** | 允许（敏感时拒绝） | 不变 |
+| `Edit` | 写入 | 允许（敏感时询问） | **询问** | 允许（敏感时拒绝） | 不变 |
+| `Bash` | 写入 | 风险时询问，灾难性时拒绝 | 不变¹ | 风险时拒绝 | 不变 |
+| `TodoWrite` | 写入 | 允许 | 不变（§5.2 覆盖） | 允许 | 不变 |
+| `NoteWrite` | 写入 | 允许 | 不变（§5.2 覆盖） | 允许 | 不变 |
+| `Task` | 按代理类型为写入或只读² | 允许 | **询问**，除非代理类型只读 | 允许 | 不变 |
+| `LoadMcpTools` | 只读 | 允许 | 不变 | 允许 | 不变 |
+| `CallMcpTool` | 写入 | 允许 | **询问**，除非 `readOnlyHint` | 允许 | **拒绝**，除非 `readOnlyHint` |
 
-只有一个自动缩， 没有其他动作。
+新增四个交互式提示，收紧一处自主执行行为，其余不变。
 
-2 `Task`是一个平面的写字在这里.它现在每次回复，遵循[实现的平行工具.md](./parallel-tool-execution.md) §5.7.1，需要知道是否一个委托运行写：一个`subagent_type`，其整个工具集声明`AccessReadOnly` 内置的相关标识符，或者一个用户定义的代理限制在相同的方式 是仅阅读，并由衍生层允许.两个消费者在这里同意，而不是不同意，他们为相关标识符：一个只阅读的子代理只能达到工具，不要求他们在相关标识符 `explore` `TodoWrite` `ApprovalHandler` `general` `shell`
+² `Task` 过去按固定的写入工具处理，现在按调用分别判断，见[并行工具执行](./parallel-tool-execution.md) §5.7.1。整个工具集声明 `AccessReadOnly` 的 `subagent_type`（内置的 `explore`，或以同样方式受限的用户代理）属于只读类型，因此由推导层允许。两个消费者在这里保持一致：只读子代理只能访问本来不会触发提示的工具；其嵌套循环没有 `ApprovalHandler`，敏感路径会被拒绝而不是询问。允许这种委托等同于允许读取。`general`、`shell` 或任何能访问写入工具的代理类型仍会触发提示。
 
-1 `Bash`仅仅因为它声明`PolicyProvider.DefaultAction() = Allow`。 实施表明，衍生层将在风险分类器上应用，并为每一个`ls`和`git status` 最快的方法来实现一个即时许可，人们关闭.衍生层是无人自判断的工具的倒退;`Bash`有一个，而一个更敏。
+¹ `Bash` 保持不变，只因为它声明了 `PolicyProvider.DefaultAction() = Allow`。否则推导层会叠加在风险分类器之上，让每个 `ls` 和 `git status` 都触发提示，最终用户会直接关闭提示。推导层是没有自身判断工具的后备机制；`Bash` 已经有更精确的判断。
 
-在自主表面上,`CallMcpTool`是没有人决定的变化的一行.它在这里被声明，并在变更日志中被调用.它也是最想要一个操作员过关的行，根据 §7 在该表面还没有存在，因此基于非读取的MCP 调用任务运行内部的调用必须通过服务器传递的道表示这一点，当P4构建它时.否认是安全的方向。
+在自主界面上，`CallMcpTool` 是唯一一行无需人工决定就会改变的行为。本节明确列出它，变更日志也会特别说明。它同样最需要运维覆盖；但按 §7，自主界面目前还没有覆盖通道，因此依赖非只读 MCP 调用的任务运行必须等 P4 建立服务器下发通道后再表达这一需求。在此之前，停留在 `Deny` 是安全方向。
 
 ## 7. 范围之外
 
-- **持续的"总是允许"补贴.** 通过写信给`settings.yaml`
-为了用户；内存层次的船只首先告诉我们
-实际上是格兰特。
-- **`Bash`风险分类的变化.**`isRiskyBashCommand`和
-保持目前的行为，并保持权威 `isCatastrophicBash`
-弹命令。
-- **操作员控制自动接地。 ** 故意没有解决，
-工作人员的`BUILDMAX_HOME`是创建的新
-通过运行 (§2)，所以唯一达到它的通道是它已经使用的通道
-服务器交付， 范围到空间。
-现在，我们在这个记录中， [空间管理.md](./space-governance.md)
-服务器必须有东西交付
-在此之前，一个自主表面运行衍生的
-根据第6条的违反规定，
-- **一个权限模式开关** ("接受修改"， "绕过所有")。
-设置`settings.yaml`中的每个工具为`allow`；命名模式是糖和
-现在我们可以等待人们想要的证据。
-- ** 拒绝作为一流的用户优惠.** `deny` 在配置语法中
-因为操作员需要它；一个面向用户的"阻止这个工具"UX不是
-设计在此。
+- **持久化的“始终允许”授权。** 代表用户写入 `settings.yaml`；先交付内存层，观察用户实际授予什么。
+- **改变 `Bash` 的风险分类。** `isRiskyBashCommand` 和 `isCatastrophicBash` 保持现有行为，继续作为 shell 命令的权威判断。
+- **运维人员控制自主界面。** 本记录有意不解决，也不通过本地文件解决。Worker 的 `BUILDMAX_HOME` 每次运行都会重新创建（§2），能到达它的唯一通道是当前模型策略和运行令牌使用的服务器下发通道，并且按 Space 限定。这是[空间治理](./space-governance.md)的 P4 工作；本记录的 §5.1–§5.4 是前置条件。在此之前，自主界面只运行 §6 的推导默认值，不接受其他覆盖。
+- **权限模式开关**（“接受修改”“全部绕过”）。将 `settings.yaml` 中每个工具设为 `allow` 已经可以达到效果；命名模式只是语法糖，可等有证据表明用户需要后再做。
+- **把拒绝做成面向用户的一等选项。** 配置语法中保留 `deny` 是因为运维人员需要它；面向用户的“阻止此工具”交互不在本设计范围内。
 
 ## 8. 实施步骤
 
-### 阶段1 分类和衍生
+### 阶段 1：分类和推导
 
-- 加入`llm.Access`和`llm.AccessDeclarer`；在每个 `Access`
-根据第6条的规定，
-- 执行`PolicyProvider.DefaultAction`在`TodoWrite`和`NoteWrite`上。
-- 加入 `resolveAction`的4层，加在 `RunLoopOpts.interactive()`上。
-- 导出`ResolveToolAction`和`DeclaredAccess` 状态命令在
-阶段4和平行工具执行中的规划器需要相同的答案
-循环计算， 并且任何一个都不应该重新推出。
-- 面对每一个问题，每一个问题都会被证明是个问题。
-作为一个自主行动，它就等于变化前的决议。
-整个阶段。
+- 加入 `llm.Access` 和 `llm.AccessDeclarer`，并按 §6 为每个内置工具声明 `Access`。
+- 为 `TodoWrite` 和 `NoteWrite` 实现 `PolicyProvider.DefaultAction`。
+- 将四层 `resolveAction` 接入 `RunLoopOpts.interactive()`。
+- 导出 `ResolveToolAction` 和 `DeclaredAccess`；第 4 阶段的状态命令和并行工具执行规划器需要同一份答案，不能各自重新推导。
+- 对每个现有工具验证：在自主界面上，推导动作与变更前的决议一致。
 
-### 第二阶段 会议补助
+### 阶段 2：会话授权
 
-- 存储`SessionGrants`，在TUI和Desktop中的三个结果提示，层1
-咨询。
-- 没有它，第一阶段是任何编辑者使用性下降
-两阶段可以一起登陆，第一阶段不能单独登陆。
+- 存储 `SessionGrants`，并在 TUI 和 Desktop 中支持三种提示结果；授权只在第 1 层之后参与解析。
+- 没有它，阶段 1 会让所有编辑都变成一次性提示；两个阶段必须一起上线，阶段 1 不能单独上线。
 
-### 阶段3  MCP
+### 阶段 3：MCP
 
-- 读取已记忆中的注释。 `Registry.ToolIsReadOnly`
-- `CallMcpTool.CheckArgs`；`LoadMcpTools` 声明 `AccessReadOnly`。
-- 快速文字将只读取的索赔归因于服务器。
+- 读取已保存的注释，实现 `Registry.ToolIsReadOnly`。
+- 实现 `CallMcpTool.CheckArgs`；让 `LoadMcpTools` 声明 `AccessReadOnly`。
+- 在提示文本中明确这是服务器对只读属性的自我声明。
 
-### 阶段4 配置和可见性
+### 阶段 4：配置和可见性
 
-- 相关内容 `tools.permissions` `settings.yaml` `config.ResolvePermissions`
-表面默认设置，使用`Sources`。
-- 已解决的操作列在`/tools`面板中。 `buildmax tools status`
+- 支持 `settings.yaml` 中的 `tools.permissions`，由 `config.ResolvePermissions` 叠加界面默认值，并返回 `Sources`。
+- 在 `buildmax tools status` 和 `/tools` 面板中显示解析后的动作及其来源。
 
-### 五阶段 文件
+### 阶段 5：文档
 
-- 一个任务导向的页面，说明什么提示以及如何阻止它。 `docs/guide/`
-- `docs/reference/configuration.md` — `tools.permissions`。
-- `docs/contribute/architecture/tools.md` `Access`
-声明。
-- `docs/design/sandbox-boundaries.md`
-- 附在该部分末尾的`CHANGELOG.md`，以`## [Unreleased]`为标题，
-通过名称调用`CallMcpTool`自动缩。
+- 在 `docs/guide/` 增加任务导向页面，说明哪些操作会提示以及如何阻止。
+- 更新 `docs/reference/configuration.md` 的 `tools.permissions`。
+- 更新 `docs/contribute/architecture/tools.md` 中的 `Access` 声明。
+- 更新 `docs/design/sandbox-boundaries.md`。
+- 在 `CHANGELOG.md` 的 `## [Unreleased]` 下记录按名称收紧 `CallMcpTool` 的行为。
 
 ## 9. 验收标准
 
-- 通过表6的表表，通过表驱动测试在两个表面。
-- 工作者任务运行编写文件，编辑文件，运行非危险的 shell
-没有批准处理器的命令 预变的转录和
-变更后的转录是相同的。
-- 工人仍然被拒绝接受危险的炮弹命令。
-- 传输到服务器上的MCP电话没有被提示， `readOnlyHint: true`
-服务器的非仅阅读工具会进行互动提示，并且在一个
-工作者。
-- 对于`Write`的会议补贴在随后的电话中存活下来，
-在下一次运行中。
-- 在 `settings.yaml` 中,`tools.permissions` 取代了衍生的默认，并且
-`buildmax tools status`为每行命名源。
-- 现在,`PreToolUse`仍然阻止了每一个早期的电话。
+- 通过表 6 的表驱动测试，覆盖两个界面。
+- Worker 任务在没有 `ApprovalHandler` 时写文件、编辑文件和运行非危险 shell 命令；变更前后的转录一致。
+- Worker 仍然拒绝危险 shell 命令。
+- `readOnlyHint: true` 的 MCP 调用不提示；没有只读提示的服务器工具在交互界面触发询问，并在 Worker 中被拒绝。
+- 对 `Write` 的会话授权在后续调用中保留，但不会跨运行保留。
+- `settings.yaml` 中的 `tools.permissions` 覆盖推导默认值，`buildmax tools status` 为每一行标明来源。
+- `PreToolUse` 仍然阻止所有原本会被阻止的调用。
 
 ## 10. 开放问题
 
-- **现有沙箱政策层具有相同的缺陷.** §2 确定
-工人无法达到`<BUILDMAX_HOME>/policy.yaml`，
-运营商的锁定记录在 `LoadPolicySandbox`
-子代理 [沙盒-边界.md](./sandbox-boundaries.md)
-仅在本地CLI上运行，所有者和用户是 `docs/guide/sandbox.md`
-这是一个运输行为缺陷，而不是这个设计，
-需要自己的解决方案要么将文件配置到`runGlobal`或移动
-按第7条的服务器传输频道的沙箱政策。
-因为这项调查发现了它； 追踪它是个独立的工作。
-- ** 合适的授予细分度是什么?** 每个工具太粗 (`Write`)
-任何地方的会议)，根据确切的论点太好 (每个路径
-建议使用工具加上指纹的稳定前，
-预写必须与真实转录相比。
-- **`Task`是否值得一个类别提示?** §6对可以
-写 一个子器运行无限数量的工具调用，并且它自己的门
-通过母方是批准政策而不是
-只有读类型是免除的 (足迹2)
-对于代表团来说，模型最为重要的问题是
-剩下的提示是否应载有代理类型：没有
-批准一次`shell`代表团的会议 `GrantScope`
-每次后来的`general`也是这样。
-- **是否应将敏感性检查折叠成`Access`?** `Ask`
-值得重点看一旦有了4层，
-值得在同一笔钱里做。
+- **现有沙箱策略层也有同样的缺陷。** §2 说明 Worker 无法读取 `<BUILDMAX_HOME>/policy.yaml`；`LoadPolicySandbox` 中记录的运维锁定只在本地 CLI 生效，所有者和用户文档见 `docs/guide/sandbox.md`。这是部署缺陷，不属于本设计，应单独解决：要么把文件纳入 `runGlobal`，要么按 §7 将沙箱策略移到服务器下发通道。本调查发现了它，但修复应作为独立工作跟踪。
+- **合适的授权粒度是什么？** 仅按工具名（如 `Write`）对整个会话授权可能过粗；按精确参数又可能过细。早期建议是工具名加稳定的指纹前缀，但必须先与真实转录对比。
+- **`Task` 是否值得单独的类别提示？** §6 允许一个可写的子代理运行任意数量的工具调用，而其入口由父级审批策略保护；只有只读类型免于提示（见脚注 2）。对委托而言，剩余提示是否应携带代理类型仍是开放问题：不能因为曾批准一次 `shell` 委托，就让之后的 `general` 委托自动获得同样的会话授权。
+- **是否应将敏感性检查并入 `Access`？** 在四层解析到位后，`Ask` 的语义值得重新审视；也许可以在同一轮工作中统一这两种判断，但本记录暂不做决定。
