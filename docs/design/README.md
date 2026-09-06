@@ -19,6 +19,7 @@ Durable product decisions that guide more than one roadmap phase.
 | [Product vision](product-vision.md) | Long-range product model, ownership boundaries, and rules for future bets |
 | [Surface positioning](surface-positioning.md) | How Agent Core, CLI, Desktop, and Portal relate |
 | [Agent execution and Task threads](agent-execution-and-task-threads.md) | Agent definitions execute directly through Team-owned Task/TaskRun threads; Conversation is an optional foreground origin, not an execution parent |
+| [Task workspace continuity](task-workspace-continuity.md) | Proposed: a Task carries one linear, forward-only workspace snapshot in the object store, restored atomically with the session; a three-way split keeps Team Home, Task workspace, and Artifacts distinct. Narrow continuity only — no workspace history, rollback, or Team Home write-back |
 
 ## Active Roadmap Plans
 
