@@ -48,10 +48,12 @@ func assertWorkerBoundsHold(t *testing.T, cfg config.ServerConfig) {
 	}
 	r := cfg.Worker.K8s.Resources
 	if _, err := (k8s.PodResources{
-		CPURequest:    r.CPURequest,
-		CPULimit:      r.CPULimit,
-		MemoryRequest: r.MemoryRequest,
-		MemoryLimit:   r.MemoryLimit,
+		CPURequest:              r.CPURequest,
+		CPULimit:                r.CPULimit,
+		MemoryRequest:           r.MemoryRequest,
+		MemoryLimit:             r.MemoryLimit,
+		EphemeralStorageRequest: r.EphemeralStorageRequest,
+		EphemeralStorageLimit:   r.EphemeralStorageLimit,
 	}).Requirements(); err != nil {
 		t.Errorf("the manifest would not start: %v", err)
 	}

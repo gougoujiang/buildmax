@@ -92,6 +92,13 @@ type PodResources struct {
 	CPULimit      string
 	MemoryRequest string
 	MemoryLimit   string
+	// EphemeralStorageRequest and EphemeralStorageLimit bound the pod's local
+	// scratch disk. They matter as much as memory for a checkpointing worker: the
+	// materialized workspace, the compressed payload staged for upload, and tool
+	// output all consume it, and an unbounded pod fills the node's disk instead
+	// of being evicted. The limit is also the sizeLimit of each emptyDir.
+	EphemeralStorageRequest string
+	EphemeralStorageLimit   string
 }
 
 func (p PodConfig) homeDir() string {
@@ -125,6 +132,14 @@ func (p PodResources) Requirements() (corev1.ResourceRequirements, error) {
 	if err != nil {
 		return corev1.ResourceRequirements{}, err
 	}
+	ephemeralRequest, err := positiveQuantity("ephemeral_storage_request", p.EphemeralStorageRequest)
+	if err != nil {
+		return corev1.ResourceRequirements{}, err
+	}
+	ephemeralLimit, err := positiveQuantity("ephemeral_storage_limit", p.EphemeralStorageLimit)
+	if err != nil {
+		return corev1.ResourceRequirements{}, err
+	}
 	// Kubernetes rejects these at admission, which surfaces as every run
 	// failing to schedule with no obvious cause. Naming the pair here costs one
 	// comparison and answers the question the API server's error does not.
@@ -136,14 +151,20 @@ func (p PodResources) Requirements() (corev1.ResourceRequirements, error) {
 		return corev1.ResourceRequirements{}, fmt.Errorf(
 			"worker.k8s.resources: memory_limit %q is below memory_request %q", p.MemoryLimit, p.MemoryRequest)
 	}
+	if ephemeralLimit.Cmp(ephemeralRequest) < 0 {
+		return corev1.ResourceRequirements{}, fmt.Errorf(
+			"worker.k8s.resources: ephemeral_storage_limit %q is below ephemeral_storage_request %q", p.EphemeralStorageLimit, p.EphemeralStorageRequest)
+	}
 	return corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
-			corev1.ResourceCPU:    cpuRequest,
-			corev1.ResourceMemory: memoryRequest,
+			corev1.ResourceCPU:              cpuRequest,
+			corev1.ResourceMemory:           memoryRequest,
+			corev1.ResourceEphemeralStorage: ephemeralRequest,
 		},
 		Limits: corev1.ResourceList{
-			corev1.ResourceCPU:    cpuLimit,
-			corev1.ResourceMemory: memoryLimit,
+			corev1.ResourceCPU:              cpuLimit,
+			corev1.ResourceMemory:           memoryLimit,
+			corev1.ResourceEphemeralStorage: ephemeralLimit,
 		},
 	}, nil
 }
@@ -289,19 +310,36 @@ func (r *K8sJobRunner) podEnv(runToken string) []corev1.EnvVar {
 	return out
 }
 
+// emptyDirSizeLimit returns the pod's ephemeral-storage limit as a per-volume
+// cap, or nil when none is configured — a runner built without resource bounds,
+// as some tests do. The returned pointer is a copy, safe to hand to a volume.
+func emptyDirSizeLimit(res corev1.ResourceRequirements) *resource.Quantity {
+	q, ok := res.Limits[corev1.ResourceEphemeralStorage]
+	if !ok {
+		return nil
+	}
+	c := q.DeepCopy()
+	return &c
+}
+
 // podVolumes returns the writable home volume plus, when configured, the
 // ConfigMap carrying server.yaml.
 func (r *K8sJobRunner) podVolumes() ([]corev1.Volume, []corev1.VolumeMount) {
 	home := r.pod.homeDir()
+	// Cap each scratch volume at the pod's ephemeral-storage limit. Writing past
+	// a sizeLimit evicts the pod cleanly, so a runaway workspace or a checkpoint
+	// payload too large to stage is stopped at the volume rather than filling the
+	// node's disk. The container limit bounds the sum; this bounds each volume.
+	sizeLimit := emptyDirSizeLimit(r.resources)
 	volumes := []corev1.Volume{{
 		Name:         homeVolumeName,
-		VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+		VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{SizeLimit: sizeLimit}},
 	}, {
 		// The root filesystem is read-only, and shell commands assume a
 		// writable /tmp. Without this the worker runs but ordinary tooling
 		// fails in ways that look like the tool is broken.
 		Name:         tmpVolumeName,
-		VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+		VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{SizeLimit: sizeLimit}},
 	}}
 	mounts := []corev1.VolumeMount{
 		{Name: homeVolumeName, MountPath: home},
