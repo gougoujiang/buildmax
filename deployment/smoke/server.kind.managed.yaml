@@ -23,6 +23,13 @@ workspaces_dir: /buildmax/workspaces
 # suites verify.
 default_quota_tier: pro
 
+# Two server replicas share live state through the in-cluster Redis. See
+# docs/design/server-coordination.md.
+coordination:
+  mode: redis
+  redis:
+    address: buildmax-redis.buildmax.svc.cluster.local:6379
+
 database:
   host: mysql.db.svc.cluster.local
   port: 3306

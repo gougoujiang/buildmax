@@ -361,31 +361,39 @@ func deploymentReplicas(t *testing.T, path, name string) int {
 	return 0
 }
 
-// TestProductionServerReplicasRequireCoordination is the honest-topology gate: a
+// TestServerReplicasRequireCoordination is the honest-topology gate: a shipped
 // manifest that runs more than one server replica must configure a coordination
 // backend, or its streaming, connection events, and conversation turn
-// serialization are silently split across processes. See
+// serialization are silently split across processes. It covers every manifest
+// that carries a buildmax-config ConfigMap. See
 // docs/design/server-coordination.md.
-func TestProductionServerReplicasRequireCoordination(t *testing.T) {
+func TestServerReplicasRequireCoordination(t *testing.T) {
 	root := repoRoot(t)
-	path := filepath.Join(root, "deployment", "production", "buildmax.yaml")
-	replicas := deploymentReplicas(t, path, "buildmax-server")
+	for _, rel := range []string{
+		filepath.Join("deployment", "production", "buildmax.yaml"),
+		filepath.Join("deployment", "buildmax-deploy.yaml"),
+	} {
+		t.Run(rel, func(t *testing.T) {
+			path := filepath.Join(root, rel)
+			replicas := deploymentReplicas(t, path, "buildmax-server")
 
-	home := t.TempDir()
-	if err := os.WriteFile(filepath.Join(home, "server.yaml"), []byte(configMapServerYAML(t, path)), 0o600); err != nil {
-		t.Fatalf("write server.yaml: %v", err)
-	}
-	t.Setenv(config.EnvKeyBuildmaxHome, home)
-	cfg, err := config.LoadServerConfig()
-	if err != nil {
-		t.Fatalf("LoadServerConfig: %v", err)
-	}
+			home := t.TempDir()
+			if err := os.WriteFile(filepath.Join(home, "server.yaml"), []byte(configMapServerYAML(t, path)), 0o600); err != nil {
+				t.Fatalf("write server.yaml: %v", err)
+			}
+			t.Setenv(config.EnvKeyBuildmaxHome, home)
+			cfg, err := config.LoadServerConfig()
+			if err != nil {
+				t.Fatalf("LoadServerConfig: %v", err)
+			}
 
-	if replicas > 1 && !cfg.Coordination.RedisEnabled() {
-		t.Errorf("buildmax-server runs %d replicas but coordination.mode is not redis; live state would be process-local across them", replicas)
-	}
-	if err := cfg.Coordination.Validate(); err != nil {
-		t.Errorf("coordination config would refuse startup: %v", err)
+			if replicas > 1 && !cfg.Coordination.RedisEnabled() {
+				t.Errorf("buildmax-server runs %d replicas but coordination.mode is not redis; live state would be process-local across them", replicas)
+			}
+			if err := cfg.Coordination.Validate(); err != nil {
+				t.Errorf("coordination config would refuse startup: %v", err)
+			}
+		})
 	}
 }
 
