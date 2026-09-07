@@ -46,6 +46,8 @@ Windows 上使用 `make.bat build cli`。`./make` 并非 GNU make，而是 `tool
 - 为已经正常工作的行为补充缺失测试。
 - 尝试快速入门时遇到的 CLI 或 TUI 体验问题。
 
+要认领一个 issue 让别人知道你在做，在该 issue 下评论 `/assign`——机器人会把它指派给你，无需仓库权限。评论 `/unassign` 可释放。
+
 开始更大的工作前，请阅读 [manual/support.md](../../../manual/support.md)。其中说明项目目前支持哪些界面和部署路径，以及 alpha 阶段明确不支持哪些内容，避免工作超出维护者能够接受的范围。
 
 代码位置见 [repo-layout.md](repo-layout.md)。子系统工作原理见[架构](architecture/README.md)。

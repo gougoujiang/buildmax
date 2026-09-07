@@ -68,6 +68,9 @@ In order of how easy they are to get merged:
 - A missing test for behavior that already works.
 - A CLI or TUI rough edge you hit while trying the quickstart.
 
+To claim an issue so others know you are on it, comment `/assign` on it — a bot
+assigns you, no repository permission required. Comment `/unassign` to release it.
+
 Before starting anything larger, read [manual/support.md](../../manual/support.md).
 It says which surfaces and deployment paths the project supports today and which
 things are deliberately out of scope for the alpha, so your work does not land

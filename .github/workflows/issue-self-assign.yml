@@ -1,0 +1,66 @@
+name: Issue Self-Assign
+
+# Let any contributor claim an issue by commenting "/assign" (and release it
+# with "/unassign"), without needing triage permission on the repository.
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-self-assign-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  self-assign:
+    # Ignore comments on pull requests; only issues are claimable this way.
+    if: >-
+      github.event.issue.pull_request == null &&
+      (startsWith(github.event.comment.body, '/assign') ||
+       startsWith(github.event.comment.body, '/unassign'))
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.comment.body.trim();
+            const commenter = context.payload.comment.user.login;
+            const issue = context.payload.issue;
+            const common = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+            };
+            const assignees = (issue.assignees || []).map((a) => a.login);
+
+            if (body.startsWith('/unassign')) {
+              if (!assignees.includes(commenter)) {
+                return;
+              }
+              await github.rest.issues.removeAssignees({
+                ...common,
+                assignees: [commenter],
+              });
+              return;
+            }
+
+            // "/assign": claim the issue when it is unclaimed or already the
+            // commenter's own, otherwise report who holds it.
+            if (assignees.length === 0 || assignees.includes(commenter)) {
+              await github.rest.issues.addAssignees({
+                ...common,
+                assignees: [commenter],
+              });
+              return;
+            }
+
+            await github.rest.issues.createComment({
+              ...common,
+              body: `@${commenter} this issue is already assigned to ` +
+                assignees.map((a) => `@${a}`).join(', ') +
+                `. Comment \`/unassign\` on it once free, or ask them to release it.`,
+            });
