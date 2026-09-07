@@ -213,6 +213,12 @@ surface; details belong there rather than being copied into this file.
 - User documentation is task-oriented, contributor architecture is factual,
   and rationale belongs in design records. Follow
   [`docs/contribute/documentation.md`](docs/contribute/documentation.md).
+- After implementing a feature or behavior change, review the related
+  documentation against the final code and update it in the same contribution
+  before declaring the work complete. Check affected user guides, reference
+  documentation, architecture, examples, current-state documentation, and
+  roadmap entries; remove or correct stale descriptions. In the handoff, name
+  the documentation updated, or explain why no documentation change is needed.
 - Documents under `docs/proposals/` and `docs/design/` open with an accurate
   `## Contents` list of their top-level sections.
 - Add a changelog file for user-visible changes with
