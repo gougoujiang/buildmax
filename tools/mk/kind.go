@@ -1012,7 +1012,18 @@ func applyKindSecret() error {
 // server mounts it at /buildmax/kek/kek.json and the smoke config points
 // secret.kek_file there, so the Secrets feature is on in kind. The key is thrown
 // away with the cluster, exactly like the JWT secret.
+//
+// It is create-if-absent, not overwrite. Unlike the JWT secret, the KEK wraps
+// data that outlives a `kind up`: MySQL keeps a seeded managed model's encrypted
+// credential across an `up`, so rotating the KEK bytes under the same key id
+// would leave that credential un-unwrappable and crash-loop the server it is
+// configured on. The key is still ephemeral with the cluster — `kind down`
+// removes the Secret and the database together, and the next `up` mints a fresh
+// pair.
 func applyKindKEK() error {
+	if succeeds("kubectl", "--context", kindContext(), "get", "secret", "buildmax-kek", "-n", "buildmax") {
+		return nil
+	}
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return fmt.Errorf("generate KEK: %w", err)
