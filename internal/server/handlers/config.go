@@ -163,8 +163,22 @@ type Config struct {
 	WebhookEngine      conversation.TurnEngine
 	WebhookMessagePath string
 
-	// Hub is optional; if nil NewHandler creates one. Injectable for testing.
+	// Hub is optional; if nil NewHandler creates an in-memory one. A Redis-backed
+	// hub is injected here when coordination.mode is redis, so the stream a worker
+	// pushes on one replica is readable on another. See
+	// docs/design/server-coordination.md.
 	Hub wsconn.StreamHub
+
+	// EventBus is optional. When set (coordination.mode redis), connection-registry
+	// broadcasts are published to it and this replica delivers what it receives to
+	// its own connections, so an event raised on one replica reaches sockets on
+	// another. Nil keeps broadcasts process-local.
+	EventBus EventBus
+
+	// TurnLocker is optional. When set (coordination.mode redis), the turn queue
+	// serializes a conversation's turns across replicas. Nil serializes within this
+	// process only, which is correct for a single-replica deployment.
+	TurnLocker turnqueue.Locker
 
 	// OnTaskRunTerminal is an optional external callback fired when a worker run reaches
 	// terminal status (after the internal hub/registry callbacks run).
@@ -177,6 +191,18 @@ type Config struct {
 	// it. Nil means nothing ever drains, which is what a test has.
 	// See docs/design/graceful-shutdown.md §5.
 	Drain <-chan struct{}
+}
+
+// EventBus is the cross-replica connection-event fan-out the handler wires the
+// connection registry to. It is satisfied by the Redis-backed bus in
+// internal/server/coordination; kept an interface so this package does not depend
+// on it.
+type EventBus interface {
+	// PublishEvent sends one already-encoded broadcast to every replica.
+	PublishEvent(payload []byte)
+	// Incoming carries the broadcasts this replica must deliver to its own
+	// connections.
+	Incoming() <-chan []byte
 }
 
 // Handler serves all HTTP routes: auth, user API, worker API, inbound webhook.
@@ -204,17 +230,26 @@ type Handler struct {
 	conversations *conversation.Service
 }
 
-// NewHandler returns a configured Handler. If cfg.Hub is nil a new StreamHub is created internally.
+// NewHandler returns a configured Handler. If cfg.Hub is nil a new in-memory
+// StreamHub is created internally. When cfg.EventBus and cfg.TurnLocker are set,
+// the handler coordinates streaming, connection events, and turn serialization
+// across replicas; nil keeps each process-local. See
+// docs/design/server-coordination.md.
 func NewHandler(cfg Config) *Handler {
 	hub := cfg.Hub
 	if hub == nil {
 		hub = wsconn.NewStreamHub()
 	}
+	connRegistry := wsconn.NewConnRegistry()
+	if cfg.EventBus != nil {
+		connRegistry.SetPublisher(cfg.EventBus.PublishEvent)
+		go connRegistry.Consume(cfg.EventBus.Incoming())
+	}
 	h := &Handler{
 		cfg:          cfg,
 		hub:          hub,
-		connRegistry: wsconn.NewConnRegistry(),
-		turns:        turnqueue.NewRegistry(),
+		connRegistry: connRegistry,
+		turns:        turnqueue.NewRegistry(cfg.TurnLocker),
 		terminal:     runterminal.NewGroup(),
 	}
 	h.artifacts = h.buildArtifactService()

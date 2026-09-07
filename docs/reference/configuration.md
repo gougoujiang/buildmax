@@ -72,6 +72,7 @@ value alone.
 | `BUILDMAX_STORAGE_MINIO_ACCESS_KEY` | `storage.minio.access_key` |
 | `BUILDMAX_STORAGE_MINIO_SECRET_KEY` | `storage.minio.secret_key` |
 | `BUILDMAX_CONVERSATION_MODEL_API_KEY` | `conversation.model.api_key` |
+| `BUILDMAX_COORDINATION_REDIS_PASSWORD` | `coordination.redis.password` |
 
 The split to aim for: **`server.yaml` carries shape and non-secret values; the
 environment carries credentials.** That is exactly how
@@ -961,6 +962,35 @@ then falls through to the AWS SDK's default credential chain, which is how a
 pod reaches a bucket through IRSA, workload identity, or an instance profile —
 no long-lived key for the deployment to store, ship to workers, or rotate. Set
 them for a store that has no such mechanism, such as MinIO.
+
+### Multi-Replica Coordination — the `coordination` block
+
+Durable state lives in MySQL and object storage, but three pieces of live state
+are held in a server process's own memory: the buffer that streams a run's deltas
+to the browser watching it, the registry that fans a connection event to every
+socket in a space, and the queue that serializes a conversation's turns so two
+never write its history at once. With one server replica that is correct. With
+more than one, a worker's delta and the browser reading it can land on different
+replicas, an event can reach only the sockets one replica holds, and two turns
+for one conversation can run at once.
+
+`coordination.mode` decides how those are shared:
+
+- `local` (the default) keeps them in-process. It is correct **only for a single
+  server replica**, which is the supported topology whenever the mode is `local`.
+- `redis` shares all three through Redis, so any number of replicas stay
+  consistent. Set `coordination.redis.address` to a Redis every replica reaches;
+  `username`, `db`, and `tls` are optional, and the password comes from
+  `BUILDMAX_COORDINATION_REDIS_PASSWORD` rather than the file.
+
+`redis` **fails closed**: a server configured for it that cannot reach Redis at
+startup refuses to start, rather than serving with process-local coordination
+under a multi-replica manifest. Redis here carries live state only — it needs no
+persistence volume, and a restart costs at most in-flight stream deltas and a
+brief re-acquire of conversation leases. The production reference
+(`deployment/production/buildmax.yaml`) runs two server replicas and ships a
+Redis for exactly this; a single-replica deployment sets `mode: local` and drops
+it. See [design/server-coordination.md](../design/server-coordination.md).
 
 ### Managed models — the `llm_model` table and `llm` policy
 

@@ -328,6 +328,67 @@ func TestProductionReferenceLoads(t *testing.T) {
 	assertListenersValid(t, cfg)
 }
 
+// deploymentReplicas returns spec.replicas for the named Deployment in the
+// manifest at path. A missing replicas field defaults to 1, as Kubernetes does.
+func deploymentReplicas(t *testing.T, path, name string) int {
+	t.Helper()
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	dec := yaml.NewDecoder(strings.NewReader(string(body)))
+	for {
+		var doc struct {
+			Kind     string `yaml:"kind"`
+			Metadata struct {
+				Name string `yaml:"name"`
+			} `yaml:"metadata"`
+			Spec struct {
+				Replicas *int `yaml:"replicas"`
+			} `yaml:"spec"`
+		}
+		if err := dec.Decode(&doc); err != nil {
+			break
+		}
+		if doc.Kind == "Deployment" && doc.Metadata.Name == name {
+			if doc.Spec.Replicas == nil {
+				return 1
+			}
+			return *doc.Spec.Replicas
+		}
+	}
+	t.Fatalf("no Deployment %q found in %s", name, path)
+	return 0
+}
+
+// TestProductionServerReplicasRequireCoordination is the honest-topology gate: a
+// manifest that runs more than one server replica must configure a coordination
+// backend, or its streaming, connection events, and conversation turn
+// serialization are silently split across processes. See
+// docs/design/server-coordination.md.
+func TestProductionServerReplicasRequireCoordination(t *testing.T) {
+	root := repoRoot(t)
+	path := filepath.Join(root, "deployment", "production", "buildmax.yaml")
+	replicas := deploymentReplicas(t, path, "buildmax-server")
+
+	home := t.TempDir()
+	if err := os.WriteFile(filepath.Join(home, "server.yaml"), []byte(configMapServerYAML(t, path)), 0o600); err != nil {
+		t.Fatalf("write server.yaml: %v", err)
+	}
+	t.Setenv(config.EnvKeyBuildmaxHome, home)
+	cfg, err := config.LoadServerConfig()
+	if err != nil {
+		t.Fatalf("LoadServerConfig: %v", err)
+	}
+
+	if replicas > 1 && !cfg.Coordination.RedisEnabled() {
+		t.Errorf("buildmax-server runs %d replicas but coordination.mode is not redis; live state would be process-local across them", replicas)
+	}
+	if err := cfg.Coordination.Validate(); err != nil {
+		t.Errorf("coordination config would refuse startup: %v", err)
+	}
+}
+
 // TestProductionReferenceRefusesToRunUnedited asserts the file cannot be
 // applied by accident. Every dependency address is a placeholder, so an
 // unedited apply fails loudly instead of coming up against the wrong database.

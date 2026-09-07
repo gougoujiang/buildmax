@@ -242,6 +242,21 @@ worker_api:
 audit:
   retention_days: 0
 
+# Cross-replica coordination. Live server state — streamed deltas, connection
+# events, and conversation turn serialization — is process-local by default, so
+# the default mode is correct only for a single server replica. Run more than one
+# replica only with mode: redis, backed by a Redis every replica shares.
+# See docs/design/server-coordination.md.
+coordination:
+  mode: local   # or: redis
+  redis:
+    address: redis:6379   # host:port; required when mode is redis
+    username: ""          # optional, for a Redis 6+ ACL user
+    # password comes from BUILDMAX_COORDINATION_REDIS_PASSWORD, not this file
+    password: ""
+    db: 0                 # logical database number
+    tls: false            # dial Redis over TLS
+
 storage:
   persist_backend: local_fs   # or minio
   artifact_backend: local_fs  # or minio

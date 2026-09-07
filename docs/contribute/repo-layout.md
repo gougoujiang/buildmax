@@ -217,6 +217,9 @@ internal/
 │                       source of truth for tool names.
 │
 ├── infra/              External-system implementations
+│   ├── coordination/   Shared Redis primitives for a multi-replica server:
+│   │                   publish/subscribe, per-conversation leases, per-task
+│   │                   replayable streams. Free of server types.
 │   ├── db/             MySQL/GORM implementation of the core repositories
 │   ├── objectstore/    Local FS and S3/MinIO storage: space home, run output,
 │   │                   and artifact content — three key spaces, one backend
@@ -269,6 +272,8 @@ internal/
 │   │   ├── work/       Issues, workflows, tasks, conversations, and their runs
 │   │   └── worker/     Worker API; authenticates with a run token, not a session
 │   ├── access/         Who is calling, which space, and whether they may
+│   ├── coordination/   Redis-backed adapters that make the stream hub, connection
+│   │                   events, and turn serialization work across replicas
 │   ├── authtoken/      Signs and verifies the run token a worker presents
 │   ├── httputil/       Shared request/response helpers
 │   ├── scheduler/      Claims pending task runs and spawns workers

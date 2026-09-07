@@ -69,6 +69,81 @@ type ServerConfig struct {
 	Storage   ServerStorageConfig   `mapstructure:"storage"`
 	Audit     ServerAuditConfig     `mapstructure:"audit"`
 	Secret    ServerSecretConfig    `mapstructure:"secret"`
+	// Coordination selects how live server state — streamed deltas, connection
+	// events, and conversation turn serialization — is shared across replicas.
+	// Its zero value is the single-instance in-process backend. See
+	// docs/design/server-coordination.md.
+	Coordination ServerCoordinationConfig `mapstructure:"coordination"`
+}
+
+// Coordination backend modes for coordination.mode.
+const (
+	// CoordinationModeLocal keeps live state in one process's memory. It is the
+	// default and the only correct mode for a single server replica.
+	CoordinationModeLocal = "local"
+	// CoordinationModeRedis shares live state through Redis so more than one
+	// server replica stays consistent.
+	CoordinationModeRedis = "redis"
+)
+
+// ServerCoordinationConfig selects and configures the cross-replica coordination
+// backend. A deployment that runs more than one server replica must set
+// mode: redis; the default single-replica topology needs nothing here. See
+// docs/design/server-coordination.md.
+type ServerCoordinationConfig struct {
+	// Mode is CoordinationModeLocal (default) or CoordinationModeRedis. Any other
+	// value is a configuration error the server refuses to start on, rather than
+	// silently choosing a backend the operator did not name.
+	Mode  string                  `mapstructure:"mode"`
+	Redis ServerCoordinationRedis `mapstructure:"redis"`
+}
+
+// ServerCoordinationRedis holds the connection settings for the Redis
+// coordination backend. They are read only when mode is redis.
+type ServerCoordinationRedis struct {
+	// Address is the Redis endpoint as host:port.
+	Address string `mapstructure:"address"`
+	// Username is optional and used with Redis 6+ ACLs.
+	Username string `mapstructure:"username"`
+	// Password is optional. It follows the same pattern as database.password:
+	// BUILDMAX_COORDINATION_REDIS_PASSWORD overrides the file so the credential
+	// need not sit on disk.
+	Password string `mapstructure:"password"`
+	// DB is the logical Redis database number.
+	DB int `mapstructure:"db"`
+	// TLS dials Redis over TLS.
+	TLS bool `mapstructure:"tls"`
+}
+
+// Mode returns the coordination mode, defaulting to local when unset so the
+// zero-value config is the single-instance one.
+func (c ServerCoordinationConfig) mode() string {
+	if c.Mode == "" {
+		return CoordinationModeLocal
+	}
+	return c.Mode
+}
+
+// Validate reports the first problem that would make the coordination backend
+// unusable, so a misconfigured deployment refuses to start rather than serving
+// with process-local coordination under a multi-replica manifest.
+func (c ServerCoordinationConfig) Validate() error {
+	switch c.mode() {
+	case CoordinationModeLocal:
+		return nil
+	case CoordinationModeRedis:
+		if c.Redis.Address == "" {
+			return errors.New("coordination.redis.address is required when coordination.mode is redis")
+		}
+		return nil
+	default:
+		return fmt.Errorf("coordination.mode %q is not one of %q or %q", c.Mode, CoordinationModeLocal, CoordinationModeRedis)
+	}
+}
+
+// RedisEnabled reports whether the Redis coordination backend is selected.
+func (c ServerCoordinationConfig) RedisEnabled() bool {
+	return c.mode() == CoordinationModeRedis
 }
 
 // ServerWorkerAPIConfig configures the second HTTP listener that serves only
@@ -461,6 +536,8 @@ const (
 	EnvKeyBuildmaxMinIOSecretKey = "BUILDMAX_STORAGE_MINIO_SECRET_KEY"
 	// BUILDMAX_CONVERSATION_MODEL_API_KEY overrides conversation.model.api_key.
 	EnvKeyBuildmaxConversationAPIKey = "BUILDMAX_CONVERSATION_MODEL_API_KEY"
+	// BUILDMAX_COORDINATION_REDIS_PASSWORD overrides coordination.redis.password.
+	EnvKeyBuildmaxCoordinationRedisPassword = "BUILDMAX_COORDINATION_REDIS_PASSWORD"
 )
 
 // BUILDMAX_CORS_ORIGIN overrides cors_origin.
@@ -537,6 +614,8 @@ func LoadServerConfig() (ServerConfig, error) {
 	v.SetDefault("database.password", "buildmax")
 	v.SetDefault("database.name", "buildmax")
 	v.SetDefault("conversation.model.context_window", 0)
+	v.SetDefault("coordination.mode", CoordinationModeLocal)
+	v.SetDefault("coordination.redis.db", 0)
 
 	// Environment overrides for values the file cannot hold: credentials that
 	// should not be on disk, and cors_origin, which only the deployment knows.
@@ -550,6 +629,7 @@ func LoadServerConfig() (ServerConfig, error) {
 	_ = v.BindEnv("storage.minio.access_key", EnvKeyBuildmaxMinIOAccessKey)
 	_ = v.BindEnv("storage.minio.secret_key", EnvKeyBuildmaxMinIOSecretKey)
 	_ = v.BindEnv("conversation.model.api_key", EnvKeyBuildmaxConversationAPIKey)
+	_ = v.BindEnv("coordination.redis.password", EnvKeyBuildmaxCoordinationRedisPassword)
 	_ = v.BindEnv("worker.llm.transport", EnvKeyBuildmaxWorkerLLMTransport)
 	_ = v.BindEnv("llm.default_model", EnvKeyBuildmaxLLMDefaultModel)
 	_ = v.BindEnv("conversation.model_target", EnvKeyBuildmaxConversationModelTarget)

@@ -8,7 +8,7 @@ import (
 )
 
 func TestDrainRefusesNewTurns(t *testing.T) {
-	r := NewRegistry()
+	r := NewRegistry(nil)
 	r.Drain()
 
 	if _, err := r.Submit("conv-1", NewJob(func() {})); !errors.Is(err, ErrDraining) {
@@ -20,7 +20,7 @@ func TestDrainRefusesNewTurns(t *testing.T) {
 }
 
 func TestWaitLetsARunningTurnFinish(t *testing.T) {
-	r := NewRegistry()
+	r := NewRegistry(nil)
 	release := make(chan struct{})
 	finished := make(chan struct{})
 
@@ -54,7 +54,7 @@ func TestWaitLetsARunningTurnFinish(t *testing.T) {
 }
 
 func TestWaitReturnsWhenNothingIsRunning(t *testing.T) {
-	r := NewRegistry()
+	r := NewRegistry(nil)
 	r.Drain()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -66,7 +66,7 @@ func TestWaitReturnsWhenNothingIsRunning(t *testing.T) {
 // A queued turn is the running goroutine's responsibility, so the count must
 // not double for it — otherwise Wait would never see zero.
 func TestQueuedTurnsDoNotLeakTheActiveCount(t *testing.T) {
-	r := NewRegistry()
+	r := NewRegistry(nil)
 	release := make(chan struct{})
 	started := make(chan struct{})
 

@@ -40,10 +40,11 @@ type RedactedServerConfig struct {
 
 	JWTSecret SecretStatus `json:"jwt_secret"`
 
-	Database RedactedDBConfig      `json:"database"`
-	Storage  RedactedStorageConfig `json:"storage"`
-	Worker   RedactedWorkerConfig  `json:"worker"`
-	LLM      RedactedLLMConfig     `json:"llm"`
+	Database     RedactedDBConfig           `json:"database"`
+	Storage      RedactedStorageConfig      `json:"storage"`
+	Worker       RedactedWorkerConfig       `json:"worker"`
+	LLM          RedactedLLMConfig          `json:"llm"`
+	Coordination RedactedCoordinationConfig `json:"coordination"`
 
 	// Warnings are configuration states worth an operator's attention. They are
 	// not errors — the server is running — and they are computed rather than
@@ -110,6 +111,16 @@ type RedactedModel struct {
 	APIKey      SecretStatus `json:"api_key"`
 }
 
+// RedactedCoordinationConfig shows how live state is shared across replicas.
+// The Redis address is a location, not a credential; the password is reported
+// only as configured or not.
+type RedactedCoordinationConfig struct {
+	Mode          string       `json:"mode,omitempty"`
+	RedisAddress  string       `json:"redis_address,omitempty"`
+	RedisTLS      bool         `json:"redis_tls,omitempty"`
+	RedisPassword SecretStatus `json:"redis_password"`
+}
+
 // Redacted returns the operator-facing view of the configuration.
 func (sc ServerConfig) Redacted() RedactedServerConfig {
 	out := RedactedServerConfig{
@@ -156,6 +167,12 @@ func (sc ServerConfig) Redacted() RedactedServerConfig {
 				ModelTarget: sc.Conversation.ModelTarget,
 				APIKey:      secretStatus(sc.Conversation.Model.APIKey),
 			},
+		},
+		Coordination: RedactedCoordinationConfig{
+			Mode:          sc.Coordination.mode(),
+			RedisAddress:  sc.Coordination.Redis.Address,
+			RedisTLS:      sc.Coordination.Redis.TLS,
+			RedisPassword: secretStatus(sc.Coordination.Redis.Password),
 		},
 	}
 	if sc.AccessTokenTTL > 0 {

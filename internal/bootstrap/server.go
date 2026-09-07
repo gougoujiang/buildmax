@@ -18,6 +18,7 @@ import (
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	coresecret "github.com/gougoujiang/buildmax/internal/core/secret"
+	infracoord "github.com/gougoujiang/buildmax/internal/infra/coordination"
 	"github.com/gougoujiang/buildmax/internal/infra/db"
 	"github.com/gougoujiang/buildmax/internal/infra/k8s"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
@@ -25,6 +26,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	httpserver "github.com/gougoujiang/buildmax/internal/server"
 	"github.com/gougoujiang/buildmax/internal/server/authtoken"
+	servercoord "github.com/gougoujiang/buildmax/internal/server/coordination"
 	"github.com/gougoujiang/buildmax/internal/server/scheduler"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
@@ -106,6 +108,13 @@ func RunServer(ctx context.Context, portOverride int) error {
 		return fmt.Errorf("listener configuration: %w", err)
 	}
 
+	// Fail closed on an unusable coordination mode before anything binds: an
+	// unnamed backend or a redis mode with no address is a topology the operator
+	// did not choose.
+	if err := sc.Coordination.Validate(); err != nil {
+		return fmt.Errorf("coordination configuration: %w", err)
+	}
+
 	workspacesDir, err := resolveWorkspacesDir(sc.WorkspacesDir)
 	if err != nil {
 		return err
@@ -124,6 +133,26 @@ func RunServer(ctx context.Context, portOverride int) error {
 	serverConfig, err := buildHTTPServerConfig(port, jwtSecret, sc, workspacesDir, store, storage)
 	if err != nil {
 		return err
+	}
+
+	// Cross-replica coordination. Nil backend is the single-instance default;
+	// coordination.mode redis makes streaming, connection events, and turn
+	// serialization consistent across replicas. Construction fails closed: a
+	// configured-but-unreachable Redis stops startup rather than serving with
+	// process-local coordination under a multi-replica manifest.
+	coordCtx, coordCancel := context.WithCancel(context.Background())
+	defer coordCancel()
+	coordBackend, err := buildCoordination(coordCtx, sc.Coordination)
+	if err != nil {
+		return err
+	}
+	if coordBackend != nil {
+		defer func() { _ = coordBackend.Close() }()
+		serverConfig.Hub = servercoord.NewStreamHub(coordCtx, coordBackend)
+		serverConfig.EventBus = servercoord.NewEventBus(coordCtx, coordBackend)
+		serverConfig.TurnLocker = servercoord.NewTurnLocker(coordBackend)
+		slog.Info("coordination backend enabled: multi-replica streaming, events, and turn serialization are shared through redis",
+			"address", sc.Coordination.Redis.Address)
 	}
 
 	// The budget is resolved before anything starts, because the scheduler's
@@ -329,6 +358,27 @@ func resolveWorkspacesDir(fromConfig string) (string, error) {
 		return fromConfig, nil
 	}
 	return abs, nil
+}
+
+// buildCoordination constructs the Redis coordination backend when it is
+// selected, and returns a nil backend for the single-instance default. A
+// configured redis backend that cannot be reached returns an error so the caller
+// fails closed. See docs/design/server-coordination.md §3.
+func buildCoordination(ctx context.Context, cc config.ServerCoordinationConfig) (*infracoord.Backend, error) {
+	if !cc.RedisEnabled() {
+		return nil, nil
+	}
+	b, err := infracoord.New(ctx, infracoord.Options{
+		Address:  cc.Redis.Address,
+		Username: cc.Redis.Username,
+		Password: cc.Redis.Password,
+		DB:       cc.Redis.DB,
+		TLS:      cc.Redis.TLS,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("coordination backend: %w", err)
+	}
+	return b, nil
 }
 
 func openStore(ctx context.Context, db_ config.ServerDBConfig) (*db.Store, error) {

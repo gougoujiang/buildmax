@@ -108,7 +108,7 @@ func New(cfg Config) *Handler {
 		cfg.Hub = wsconn.NewStreamHub()
 	}
 	if cfg.Turns == nil {
-		cfg.Turns = turnqueue.NewRegistry()
+		cfg.Turns = turnqueue.NewRegistry(nil)
 	}
 	h := &Handler{cfg: cfg}
 	h.tasks = newTaskService(cfg)
