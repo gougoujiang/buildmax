@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/infra/httpclient"
 	"github.com/gougoujiang/buildmax/internal/interface/client"
 )
 
@@ -87,6 +89,17 @@ func ResolveModelSource(ctx context.Context) (ModelSource, error) {
 	}
 	models, err := client.NewClient(serverURL).ListServerModels(ctx, token)
 	if err != nil {
+		// A 401 here is the other shape of §8's expired login: the credential is
+		// on disk and not locally expired, so TokenForServer handed it over, but
+		// the deployment rejects it — the session was revoked or the server no
+		// longer trusts the token. That is not a reason to fail bare; it is the
+		// same dead login, and the user needs the same choice (sign in again or
+		// return to local mode), so report it as ErrLoginExpired too.
+		var httpErr *httpclient.Error
+		if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusUnauthorized {
+			return ModelSource{}, fmt.Errorf("%w: signed in to %s, but it rejected the credential (%v)",
+				ErrLoginExpired, serverURL, err)
+		}
 		return ModelSource{}, fmt.Errorf("list the models %s offers: %w", serverURL, err)
 	}
 	if len(models) == 0 {
