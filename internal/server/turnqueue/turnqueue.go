@@ -9,11 +9,31 @@ package turnqueue
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 )
+
+// Locker serializes a conversation's turns across server replicas. A nil Locker
+// selects the single-instance path, where the in-process queue is the only
+// serialization needed. See docs/design/server-coordination.md §7.
+type Locker interface {
+	// Acquire blocks until this replica holds the conversation's lease or ctx is
+	// cancelled. The returned Lease is held until Release.
+	Acquire(ctx context.Context, conversationID string) (Lease, error)
+}
+
+// Lease is a held cross-replica conversation lock.
+type Lease interface {
+	// Fence is the monotonic token issued when the lease was granted; a later
+	// grant always carries a higher token.
+	Fence() int64
+	// Release drops the lease so another replica may run the conversation's next
+	// turn.
+	Release()
+}
 
 // MaxQueued caps how many turns may wait behind the one running in a
 // conversation. Past that a submission is refused rather than silently accepted:
@@ -70,10 +90,27 @@ type Registry struct {
 	// which http.Server.Shutdown does not wait for — without this, an answer
 	// being written would simply vanish when the process exits.
 	active sync.WaitGroup
+	// locker serializes a conversation's turns across replicas. Nil is the
+	// single-instance path.
+	locker Locker
+	// lockCtx bounds every lease acquisition. Drain cancels it so a turn waiting
+	// on another replica's lease during shutdown is abandoned rather than started
+	// on a process that will not finish it — the same intent as ErrDraining.
+	lockCtx    context.Context
+	lockCancel context.CancelFunc
 }
 
-func NewRegistry() *Registry {
-	return &Registry{queues: make(map[string]*convQueue)}
+// NewRegistry returns a turn registry. Pass a Locker to serialize a
+// conversation's turns across replicas; nil keeps serialization in this process
+// only, which is correct for a single-replica deployment.
+func NewRegistry(locker Locker) *Registry {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Registry{
+		queues:     make(map[string]*convQueue),
+		locker:     locker,
+		lockCtx:    ctx,
+		lockCancel: cancel,
+	}
 }
 
 // Submit hands a turn to the conversation's queue. It returns 0 when the turn
@@ -117,11 +154,14 @@ func (r *Registry) Submit(conversationID string, job *Job) (int, error) {
 }
 
 // Drain refuses new turns. Turns already running are left alone — Wait is what
-// gives them their moment to finish.
+// gives them their moment to finish. It also cancels pending lease acquisitions,
+// so a turn blocked waiting for another replica's conversation lease stops
+// waiting rather than starting on a process that is going away.
 func (r *Registry) Drain() {
 	r.mu.Lock()
 	r.draining = true
 	r.mu.Unlock()
+	r.lockCancel()
 }
 
 // Wait blocks until every running turn has finished or ctx expires, and reports
@@ -178,7 +218,7 @@ func (r *Registry) Waiting(conversationID string) int {
 func (r *Registry) drain(conversationID string, q *convQueue, job *Job) {
 	for job != nil {
 		if !job.Dropped.Load() {
-			job.run()
+			r.runLocked(conversationID, job)
 		}
 		close(job.Done)
 
@@ -195,6 +235,27 @@ func (r *Registry) drain(conversationID string, q *convQueue, job *Job) {
 			job.OnDequeue()
 		}
 	}
+}
+
+// runLocked runs a turn while holding the conversation's cross-replica lease.
+// With no locker it runs directly — the in-process queue already serializes it.
+// If the lease cannot be acquired (the server is draining, or the coordination
+// backend is unreachable), the turn is not run: starting it without the lease
+// could interleave with a turn on another replica, which is the corruption the
+// lease exists to prevent. The caller's Done still closes, so a waiter unblocks.
+func (r *Registry) runLocked(conversationID string, job *Job) {
+	if r.locker == nil {
+		job.run()
+		return
+	}
+	lease, err := r.locker.Acquire(r.lockCtx, conversationID)
+	if err != nil {
+		slog.With("component", "turnqueue").Warn("skip turn: conversation lease not acquired",
+			"conversation_id", conversationID, "err", err)
+		return
+	}
+	defer lease.Release()
+	job.run()
 }
 
 // forget removes an idle queue so a long-lived server does not accumulate one

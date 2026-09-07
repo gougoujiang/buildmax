@@ -31,6 +31,8 @@ import (
 	"github.com/gougoujiang/buildmax/internal/server/handlers"
 	workerroutes "github.com/gougoujiang/buildmax/internal/server/handlers/worker"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
+	wsconn "github.com/gougoujiang/buildmax/internal/server/websocket"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
@@ -191,6 +193,14 @@ type Config struct {
 	// endpoint reports ready without verifying anything, and says so by
 	// returning an empty check list.
 	Readiness []ReadinessCheck
+	// Hub, EventBus, and TurnLocker are the cross-replica coordination backends.
+	// All nil is the single-instance default: an in-memory stream hub, local
+	// connection-event fan-out, and in-process turn serialization. They are set
+	// together when coordination.mode is redis. See
+	// docs/design/server-coordination.md.
+	Hub        wsconn.StreamHub
+	EventBus   handlers.EventBus
+	TurnLocker turnqueue.Locker
 }
 
 // Server wraps the HTTP server and runs it.
@@ -348,6 +358,9 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		WebhookMessagePath:       msgPath,
 		OnTaskRunTerminal:        buildOnTaskRunTerminal(cfg),
 		Drain:                    drain,
+		Hub:                      cfg.Hub,
+		EventBus:                 cfg.EventBus,
+		TurnLocker:               cfg.TurnLocker,
 	}
 }
 

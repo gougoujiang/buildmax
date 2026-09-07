@@ -213,6 +213,13 @@ func (wc *Conn) sendEvent(eventType string, payload any) {
 		return
 	}
 	componentLog().Debug("send", "user_id", wc.userID, "type", eventType)
+	wc.sendRaw(data)
+}
+
+// sendRaw writes an already-encoded frame to this connection. It is what a
+// broadcast delivered from the coordination bus uses, where the event was encoded
+// once on the replica that raised it.
+func (wc *Conn) sendRaw(data []byte) {
 	select {
 	case <-wc.closed:
 		return
@@ -222,7 +229,7 @@ func (wc *Conn) sendEvent(eventType string, payload any) {
 	case wc.writeCh <- data:
 	case <-wc.closed:
 	default:
-		componentLog().Warn("write channel full, dropping event", "type", eventType, "user_id", wc.userID)
+		componentLog().Warn("write channel full, dropping event", "user_id", wc.userID)
 	}
 }
 

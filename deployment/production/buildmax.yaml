@@ -128,6 +128,19 @@ data:
         cert_file: /buildmax/tls/worker-api/tls.crt
         key_file: /buildmax/tls/worker-api/tls.key
 
+    # Cross-replica coordination. Required because this manifest runs more than
+    # one server replica: live streaming, connection events, and conversation
+    # turn serialization are process-local without it, so two replicas would
+    # split a stream and race a conversation's turns. See
+    # docs/design/server-coordination.md. A single-replica deployment may set
+    # mode: local and drop the buildmax-redis Deployment below.
+    coordination:
+      mode: redis
+      redis:
+        address: buildmax-redis:6379
+        # password comes from BUILDMAX_COORDINATION_REDIS_PASSWORD when the Redis
+        # requires auth; the in-cluster Redis below runs without it.
+
     conversation:
       model:
         name: default
@@ -156,6 +169,8 @@ stringData:
   BUILDMAX_CONVERSATION_MODEL_API_KEY: REPLACE_ME
   # BUILDMAX_STORAGE_MINIO_ACCESS_KEY: REPLACE_ME
   # BUILDMAX_STORAGE_MINIO_SECRET_KEY: REPLACE_ME
+  # Set only when coordination.redis requires auth; the in-cluster Redis does not.
+  # BUILDMAX_COORDINATION_REDIS_PASSWORD: REPLACE_ME
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -254,6 +269,60 @@ spec:
             path: /var/lib/kubelet/seccomp
             type: DirectoryOrCreate
 ---
+# Redis backs cross-replica coordination (coordination.mode: redis). It carries
+# live state only — streamed deltas, connection-event fan-out, and conversation
+# turn leases — never durable data, so it needs no persistence volume: a restart
+# costs at most in-flight stream deltas and a brief re-acquire of conversation
+# leases. One replica is the first supported topology; an operator who needs
+# Redis HA points coordination.redis.address at their own Sentinel or Cluster.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: buildmax-redis
+  namespace: buildmax
+  labels:
+    app: buildmax-redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: buildmax-redis
+  template:
+    metadata:
+      labels:
+        app: buildmax-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args: ["--save", "", "--appendonly", "no"]
+          ports:
+            - containerPort: 6379
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: "1"
+              memory: 256Mi
+          readinessProbe:
+            tcpSocket:
+              port: 6379
+            initialDelaySeconds: 2
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildmax-redis
+  namespace: buildmax
+spec:
+  selector:
+    app: buildmax-redis
+  ports:
+    - port: 6379
+      targetPort: 6379
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -262,12 +331,16 @@ metadata:
   labels:
     app: buildmax-server
 spec:
-  # Two or more so a node drain or a rollout does not take the API down. The
-  # server keeps no local state that matters — sessions live in the database,
-  # run state in object storage — so replicas do not need affinity to a volume.
+  # Two or more so a node drain or a rollout does not take the API down.
+  # Durable state lives in MySQL and object storage, so replicas need no volume
+  # affinity, and the scheduler claims runs by an atomic status transition, so
+  # more replicas mean more pollers, not duplicated work.
   #
-  # The scheduler runs in every replica and claims runs by an atomic status
-  # transition, so more replicas mean more pollers, not duplicated work.
+  # Live state — streamed deltas, connection events, and conversation turn
+  # serialization — is NOT process-local here only because coordination.mode is
+  # redis in the ConfigMap above, backed by the buildmax-redis Deployment. Set
+  # this to 1 if you set coordination.mode: local. See
+  # docs/design/server-coordination.md.
   replicas: 2
   selector:
     matchLabels:

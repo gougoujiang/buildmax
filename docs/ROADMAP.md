@@ -95,17 +95,27 @@ recommended production profile; see
 
 ### R1. Make Multi-Instance Semantics Correct Or Declare One Replica
 
-The production manifest requests two Server replicas, while stream fan-out,
-WebSocket connection registration, and conversation turn queues are held in
-process memory.
+Largely closed in mechanism. A `coordination` server setting selects a shared
+Redis backend that carries the three previously process-local structures —
+stream fan-out, WebSocket connection-event delivery, and conversation turn
+serialization — so more than one Server replica stays consistent;
+[`design/server-coordination.md`](design/server-coordination.md) records the
+design. `mode: local` (one replica) stays the default and fails no differently
+than before; `mode: redis` fails closed when Redis is unreachable, and the
+production manifest now ships a Redis and keeps two Server replicas as a
+supported topology rather than a latent defect.
 
 Required outcomes:
 
-- immediately make one Server replica the supported production topology; or
-- add shared pub/sub, delivery, and distributed conversation serialization
-  before advertising horizontal Server scaling;
-- test a worker update, browser session, reconnect, and concurrent turns across
-  the supported topology.
+- one supported topology whose live coordination actually holds — **done**:
+  either `mode: local` with one replica, or `mode: redis` with shared streaming,
+  connection-event fan-out, and a per-conversation distributed lease;
+- an honest manifest — **done**: an architecture test refuses a manifest that
+  runs more than one Server replica without a coordination backend;
+- what remains is operating evidence, not mechanism: exercise a worker update,
+  browser session, reconnect, and concurrent turns across two replicas in a
+  deployed candidate, and enforce the conversation fencing token in the
+  message-history write path (the lease already provides mutual exclusion).
 
 ### R2. Put Persistence In The Pull-Request Evidence Path
 
@@ -479,7 +489,7 @@ is recorded in [deploy/beta-readiness.md](deploy/beta-readiness.md):
 |---|---|---|
 | Candidate deployment | Production manifest, migration ledger, `/readyz`, account bootstrap, managed worker inference, and deterministic Compose/kind smoke are implemented. | Deploy immutable candidate image digests against real external MySQL and S3 over TLS. Record the cluster and dependency versions, image digests, configuration, operator, and date. |
 | Constrained execution | Per-run JWT, minimized Job environment, read-only/capability-dropped pod (root, not non-root — see `docs/reference/configuration.md`), no service-account token, required CPU/memory bounds, an explicit trace boundary, and the worker's own `SandboxSurfaceWorker` selection with `bwrap`-confined Bash calls are implemented and organically verified by the deployment smoke's own probe. | Prove process/resource limits and hook/MCP child-process treatment against the deployed candidate, not only the smoke probe. Unrestricted Bash with a recorded `none` boundary does not pass. |
-| Server topology | Durable state is shared through MySQL, but live stream fan-out, WebSocket connections, and conversation turn queues are process-local while the reference manifest requests two Server replicas. | Run exactly one Server replica, or implement and prove shared delivery plus distributed conversation serialization. Exercise cross-instance worker updates, reconnects, and concurrent turns if multiple replicas are claimed. |
+| Server topology | Durable state is shared through MySQL, and the `coordination` backend now shares live stream fan-out, WebSocket connection events, and conversation turn serialization across replicas through Redis, so the reference manifest's two Server replicas are a supported topology. An architecture test refuses a multi-replica manifest with no backend. | Prove it in a deployed candidate: exercise cross-instance worker updates, reconnects, and concurrent turns across two replicas, and confirm the single-conversation serialization guarantee holds under contention. |
 | Persistence gate | `./make test mysql` runs the store scope against a pinned MySQL service container on every pull request, refusing to skip for an absent DSN. Its case list is still narrower than [`design/verification-program.md`](design/verification-program.md) §4.2 asks for. | Attach a passing hermetic MySQL CI scope for critical schema, query, authorization, and state-transition behavior, then repeat the candidate deployment proof against its external database. |
 | Failure behavior | Cancellation, interrupted-run reporting, liveness heartbeats, lost-worker reaping, partial artifact retention, and explicit retry exist with focused tests. | In the deployed candidate, cancel a running run, kill a worker without a graceful report, interrupt database access, and deny object-storage access. Prove each run reaches the documented terminal state, retains the available evidence, and can recover or be retried without an ambiguous or dangling result. |
 | Recovery and maintenance | Forward migrations, an N-1 binary compatibility rule, environment-injected credentials, and operator-visible readiness and status surfaces exist. | Restore the database and bucket as a pair, exercise an upgrade containing a schema change followed by binary rollback, and perform the documented drain/restart credential-rotation procedure. Record recovery time, data checks, and any accepted loss. |
@@ -510,8 +520,10 @@ The active priorities define engineering order. The Beta proof then closes in
 this sequence:
 
 1. **Contain worker execution and make topology honest.** Wire and test the
-   worker boundary. Change the supported manifest to one Server replica unless
-   shared coordination lands first.
+   worker boundary. Topology is now honest in mechanism: the `coordination`
+   Redis backend makes multi-replica streaming, events, and turn serialization
+   consistent, and an architecture test refuses a multi-replica manifest without
+   it. What remains is proving it across two replicas in a deployed candidate.
 2. **Add real persistence evidence to CI.** The gate runs and the contention
    cases are written; what remains is retry, workflow revision, restart
    recovery, and artifact tombstoning per
@@ -561,6 +573,7 @@ features wait for evidence from these steps or a concrete deployment partner.
 - [design/enterprise-deployment.md](design/enterprise-deployment.md) — P3 Enterprise deployment design
 - [design/llm-gateway.md](design/llm-gateway.md) — P3 Managed LLM gateway design
 - [design/graceful-shutdown.md](design/graceful-shutdown.md) — P3 shutdown ladder for server, scheduler, and worker
+- [design/server-coordination.md](design/server-coordination.md) — R1 shared Redis coordination for multi-replica streaming, events, and turn serialization
 - [design/space-governance.md](design/space-governance.md) — P4 Space governance design
 - [design/system-administration.md](design/system-administration.md) — P4 Deployment-scoped system administration design
 - [design/space-membership-lifecycle.md](design/space-membership-lifecycle.md) — R3 space invitation, role change, ownership transfer, and member-scoped access recovery

@@ -11,6 +11,14 @@ workspaces_dir: /buildmax/workspaces
 # suites verify.
 default_quota_tier: pro
 
+# The kind deployment runs two server replicas, so live streaming, connection
+# events, and conversation turn serialization are shared through the in-cluster
+# Redis rather than held per process. See docs/design/server-coordination.md.
+coordination:
+  mode: redis
+  redis:
+    address: buildmax-redis.buildmax.svc.cluster.local:6379
+
 database:
   host: mysql.db.svc.cluster.local
   port: 3306

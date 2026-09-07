@@ -18,7 +18,7 @@ func blockedJob(started chan<- struct{}, release <-chan struct{}) *Job {
 }
 
 func TestTurnRegistrySecondTurnQueuesBehindTheFirst(t *testing.T) {
-	r := NewRegistry()
+	r := NewRegistry(nil)
 	started := make(chan struct{})
 	release := make(chan struct{})
 
@@ -62,7 +62,7 @@ func TestTurnRegistrySecondTurnQueuesBehindTheFirst(t *testing.T) {
 
 // A turn in another conversation is not held up by a busy one.
 func TestTurnRegistryConversationsAreIndependent(t *testing.T) {
-	r := NewRegistry()
+	r := NewRegistry(nil)
 	started := make(chan struct{})
 	release := make(chan struct{})
 	defer close(release)
@@ -83,7 +83,7 @@ func TestTurnRegistryConversationsAreIndependent(t *testing.T) {
 }
 
 func TestTurnRegistryOnDequeueFiresOnlyForWaitingTurns(t *testing.T) {
-	r := NewRegistry()
+	r := NewRegistry(nil)
 	started := make(chan struct{})
 	release := make(chan struct{})
 
@@ -115,7 +115,7 @@ func TestTurnRegistryOnDequeueFiresOnlyForWaitingTurns(t *testing.T) {
 }
 
 func TestTurnRegistryRejectsPastTheCap(t *testing.T) {
-	r := NewRegistry()
+	r := NewRegistry(nil)
 	started := make(chan struct{})
 	release := make(chan struct{})
 	defer close(release)
@@ -138,7 +138,7 @@ func TestTurnRegistryRejectsPastTheCap(t *testing.T) {
 }
 
 func TestTurnRegistryRunSyncWaitsForItsTurn(t *testing.T) {
-	r := NewRegistry()
+	r := NewRegistry(nil)
 	started := make(chan struct{})
 	release := make(chan struct{})
 	if _, err := r.Submit("v_1", blockedJob(started, release)); err != nil {
@@ -172,7 +172,7 @@ func TestTurnRegistryRunSyncWaitsForItsTurn(t *testing.T) {
 // A caller that goes away before its turn starts must not have its turn run: the
 // stream it would be written to is gone.
 func TestTurnRegistryRunSyncDropsOnCallerCancel(t *testing.T) {
-	r := NewRegistry()
+	r := NewRegistry(nil)
 	started := make(chan struct{})
 	release := make(chan struct{})
 	if _, err := r.Submit("v_1", blockedJob(started, release)); err != nil {
@@ -214,7 +214,7 @@ func TestTurnRegistryRunSyncDropsOnCallerCancel(t *testing.T) {
 }
 
 func TestTurnRegistryForgetsIdleConversations(t *testing.T) {
-	r := NewRegistry()
+	r := NewRegistry(nil)
 	job := NewJob(func() {})
 	if _, err := r.Submit("v_1", job); err != nil {
 		t.Fatalf("Submit: %v", err)

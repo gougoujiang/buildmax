@@ -106,11 +106,12 @@ func TestConfigWarnings(t *testing.T) {
 // fails until someone decides what the redacted view does with it.
 func TestRedactedConfigCoversTheSecretFieldsWeKnowAbout(t *testing.T) {
 	known := map[string]bool{
-		"ServerConfig.JWTSecret":      true,
-		"ServerDBConfig.Password":     true,
-		"ServerMinIOConfig.AccessKey": true,
-		"ServerMinIOConfig.SecretKey": true,
-		"ServerModelEntry.APIKey":     true,
+		"ServerConfig.JWTSecret":           true,
+		"ServerDBConfig.Password":          true,
+		"ServerMinIOConfig.AccessKey":      true,
+		"ServerMinIOConfig.SecretKey":      true,
+		"ServerModelEntry.APIKey":          true,
+		"ServerCoordinationRedis.Password": true,
 	}
 	found := map[string]bool{}
 	var walk func(t reflect.Type, seen map[reflect.Type]bool)

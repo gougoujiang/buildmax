@@ -26,10 +26,11 @@ harness for an Alpha project.
 It is also not yet a production-safe multi-tenant Agent platform. Two gaps now
 dominate the assessment: unattended worker execution now selects and passes
 the worker sandbox baseline against the production pod's own hardening, but
-MCP child processes and cluster-level network egress remain outside it,
-and the reference deployment runs multiple Server replicas while live
-coordination remains process-local. Pull-request tests do now exercise the real
-MySQL store; what is left there is the breadth of the cases, not the gate.
+MCP child processes and cluster-level network egress remain outside it. The
+reference deployment's multiple Server replicas now have a shared coordination
+backend, so what is left there is operating evidence rather than mechanism.
+Pull-request tests do now exercise the real MySQL store; what is left there is
+the breadth of the cases, not the gate.
 
 | Target | Current maturity | Assessment |
 |---|---:|---|
@@ -265,26 +266,32 @@ override, since it also runs root and Docker's default seccomp *and*
 AppArmor profiles each independently blocked a different syscall `bwrap`
 needs) — see `deployment/compose/compose.yaml`.
 
-### P0 — The Reference Replica Count Exceeds Coordination Semantics
+### P0 — Multi-Replica Coordination Now Has A Backend; Operating Evidence Is Open
+
+The three previously process-local structures — the live stream hub in
+[`internal/server/websocket/hub.go`](../internal/server/websocket/hub.go),
+WebSocket connection-event fan-out in
+[`internal/server/websocket/registry.go`](../internal/server/websocket/registry.go),
+and per-conversation turn serialization in
+[`internal/server/turnqueue/turnqueue.go`](../internal/server/turnqueue/turnqueue.go)
+— can now share state across replicas through a `coordination` backend. When
+`coordination.mode` is `redis`, streaming rides Redis Streams, connection events
+ride Redis Pub/Sub, and each conversation's turn is guarded by a Redis lease, so
+a worker update, browser connection, or conversation turn landing on different
+processes is delivered and serialized correctly. `mode: local` (one replica)
+stays the default; `mode: redis` fails closed when Redis is unreachable, since
+serving with process-local coordination under a multi-replica manifest is the
+corruption the backend exists to prevent. See
+[`design/server-coordination.md`](design/server-coordination.md).
 
 The production manifest configures two Server replicas in
-[`deployment/production/buildmax.yaml`](../deployment/production/buildmax.yaml),
-but the live stream hub explicitly identifies itself as in-memory in
-[`internal/server/websocket/hub.go`](../internal/server/websocket/hub.go).
-WebSocket connection registration and per-conversation turn serialization are
-also process-local in
-[`internal/server/websocket/registry.go`](../internal/server/websocket/registry.go)
-and [`internal/server/turnqueue/turnqueue.go`](../internal/server/turnqueue/turnqueue.go).
-
-With multiple Server replicas, a worker update, browser connection, or
-conversation turn can land on different processes. Durable database state will
-eventually converge, but live deltas, notification delivery, and the
-single-conversation serialization guarantee can be missed or split.
-
-Until distributed coordination exists, the supported production topology must
-use one Server replica. Alternatively, implement a shared stream/pub-sub,
-connection delivery strategy, and distributed conversation lock/queue before
-advertising horizontal Server scaling.
+[`deployment/production/buildmax.yaml`](../deployment/production/buildmax.yaml)
+and now ships a Redis and sets `coordination.mode: redis` to match, and an
+architecture test refuses a manifest that runs more than one replica without a
+backend. What is left is operating evidence, not mechanism: exercising cross-
+instance worker updates, reconnects, and concurrent turns across two replicas in
+a deployed candidate, and threading the conversation fencing token into the
+message-history write path (the lease already provides mutual exclusion).
 
 ### P0 — The Pull-Request Gate Now Proves MySQL Behavior, For The Cases That Are Written
 
@@ -430,8 +437,11 @@ throughput. None of these is a reason to block containment or correctness work.
    automatically by the deployment smoke. MCP is the one child process the
    boundary still does not reach — `internal/infra/mcp/transport.go` execs a
    stdio server directly.
-2. Make the production topology honest: one supported Server replica now, or
-   shared coordination before horizontal scaling.
+2. Prove the production topology across replicas. Shared coordination has landed
+   — the `coordination` Redis backend makes streaming, connection events, and
+   turn serialization multi-replica correct, and an architecture test refuses a
+   multi-replica manifest without it — so what remains is exercising two replicas
+   in a deployed candidate.
 3. Widen the persistence gate's cases. The gate runs on every pull request and
    the contention cases are written; what is missing is retry, workflow
    revision, delivery restart recovery, and artifact tombstoning per
