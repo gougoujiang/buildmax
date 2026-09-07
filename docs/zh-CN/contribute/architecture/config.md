@@ -1,10 +1,10 @@
 # 配置
 
-> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/config.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `dea2ea8b77cbc66a31ea0a41d13cb44632898e789f532fa5607a13ff978a9c2b`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/config.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 > **受众：** 贡献者 · **状态：** 当前有效
 >
 > 面向用户的字段参考：
-> [reference/configuration.md](../../../reference/configuration.md)
+> [reference/configuration.md](../../reference/configuration.md)
 
 ## 用途
 

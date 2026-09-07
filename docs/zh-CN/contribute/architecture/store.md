@@ -1,6 +1,6 @@
 # Store
 
-> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/store.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `62943be218abf871bd376d4c8487a628976baf8d4ba2576a3a5304cc01e9e988`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/store.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 > **受众：** 贡献者 · **状态：** 当前有效
 
 ## 用途
@@ -43,7 +43,7 @@
 
 加锁读取绝不 join。对 join 执行 `SELECT ... FOR UPDATE` 也会锁定关联行，因此，如果令牌轮换在加锁读取中解析所有者，就会在整个事务期间锁住账户。
 
-理由与各表的决策见 [../../design/entity-identity.md](../../../design/entity-identity.md)。
+理由与各表的决策见 [../../design/entity-identity.md](../../design/实体身份.md)。
 
 ## 说明
 

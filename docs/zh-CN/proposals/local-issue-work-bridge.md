@@ -1,82 +1,77 @@
-# Local Issue Work Bridge
+# 本地 Issue 工作桥接
 
-> **翻译说明：** 本文是[英文原文](../../proposals/local-issue-work-bridge.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `090c9088eb7b2f27f52b827992282bc644314dde9455297043c128fc50c21c48`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../proposals/local-issue-work-bridge.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
-# Local Issue Work Bridge
-
-> **Audience:** contributors, product reviewers, operators, and early adopters · **Status:** proposal — under discussion
+> **受众：** 贡献者、产品评审人员、运维人员与早期采用者 · **状态：** 提案 — 讨论中
 >
-> **Opened:** 2026-08-22
+> **提出日期：** 2026-08-22
 
-Related: [roadmap](../ROADMAP.md),
-[surface positioning](../../design/surface-positioning.md),
-[data model](../../contribute/architecture/data-model.md),
-[unified artifacts](../../design/unified-artifacts.md),
-[Desktop architecture](../../contribute/architecture/desktop.md),
-[CLI architecture](../../contribute/architecture/cli.md),
-[Issue agent access](../../design/issue-agent-access.md), and the
-[durable Agent sessions proposal](durable-agent-sessions.md).
+相关文档：[路线图](../ROADMAP.md)、
+[界面定位](../design/界面定位.md)、
+[数据模型](../contribute/architecture/data-model.md)、
+[统一 Artifact](../design/统一工件.md)、
+[Desktop 架构](../contribute/architecture/desktop.md)、
+[CLI 架构](../contribute/architecture/cli.md)、
+[Issue Agent 访问](../design/Issue Agent访问.md)，以及
+[持久化 Agent Session 提案](durable-agent-sessions.md)。
 
-## Contents
+## 目录
 
-- [Decision Question](#decision-question)
-- [Problem And Current Context](#problem-and-current-context)
-- [Current Foundations](#current-foundations)
-- [User Outcomes](#user-outcomes)
-- [Goals](#goals)
-- [Non-Goals](#non-goals)
-- [Ownership And Authority](#ownership-and-authority)
-- [Surface Boundary](#surface-boundary)
-- [Options And Trade-Offs](#options-and-trade-offs)
-- [Candidate Product Decisions](#candidate-product-decisions)
-- [Candidate First Slice](#candidate-first-slice)
-- [Offline And Conflict Semantics](#offline-and-conflict-semantics)
-- [Model, Data, And Trust Boundary](#model-data-and-trust-boundary)
-- [Relationship To Durable Agent Sessions](#relationship-to-durable-agent-sessions)
-- [Delivery Phases](#delivery-phases)
-- [Open Questions And Evidence Needed](#open-questions-and-evidence-needed)
-- [Likely Destination If Accepted](#likely-destination-if-accepted)
+- [决策问题](#决策问题)
+- [问题与当前背景](#问题与当前背景)
+- [现有基础](#现有基础)
+- [用户成果](#用户成果)
+- [目标](#目标)
+- [非目标](#非目标)
+- [所有权与权限](#所有权与权限)
+- [界面边界](#界面边界)
+- [可选方案与权衡](#可选方案与权衡)
+- [候选产品决策](#候选产品决策)
+- [候选的第一个切片](#候选的第一个切片)
+- [离线与冲突语义](#离线与冲突语义)
+- [模型、数据与信任边界](#模型数据与信任边界)
+- [与持久化 Agent Session 的关系](#与持久化-agent-session-的关系)
+- [交付阶段](#交付阶段)
+- [开放问题与所需证据](#开放问题与所需证据)
+- [若被采纳后的可能归宿](#若被采纳后的可能归宿)
 
-## Decision Question
+## 决策问题
 
-How should an authenticated CLI/TUI or Desktop client receive, execute,
-decompose, delegate, and report work from a Space Issue without becoming a local
-copy of Portal or making a BuildMax Server a requirement for local use?
+一个经过身份验证的 CLI/TUI 或 Desktop 客户端，应当如何在不沦为 Portal 的本地
+复制品、也不将 BuildMax Server 变成本地使用的必需品的前提下，接收、执行、
+拆解、委派并回报一个 Space Issue 的工作？
 
-The likely direction is:
+可能的方向是：
 
-> Issue is the Server-owned work object shared across surfaces. CLI and Desktop
-> are local execution clients for that work; Portal remains its complete
-> management surface. A local Agent Session and a remote TaskRun may both work
-> on an Issue, but they retain distinct identity, lifecycle, authority, and
-> execution boundaries.
+> Issue 是跨界面共享的、由 Server 拥有的工作对象。CLI 与 Desktop 是针对这些
+> 工作的本地执行客户端；Portal 仍然是其完整的管理界面。一个本地 Agent
+> Session 与一个远程 TaskRun 可以同时作用于同一个 Issue，但它们各自保留
+> 独立的身份、生命周期、权限与执行边界。
 
-This is not an accepted roadmap commitment. It makes the product boundary and
-the minimum useful bridge concrete enough to accept, change, or reject.
+这并不是一项已被采纳的路线图承诺。它把这一产品边界与最小可用的桥接方案
+具体化到足以被接受、修改或否决的程度。
 
-## Problem And Current Context
+## 问题与当前背景
 
-BuildMax already has two valuable operating profiles:
+BuildMax 已经拥有两种有价值的运行形态：
 
-- CLI/TUI and Desktop run the shared Agent Core against a local workspace and
-  remain useful with no BuildMax Server;
-- Server, Portal, and workers add Space work, Issues, Workflows, durable
-  background execution, shared results, and governance.
+- CLI/TUI 与 Desktop 针对本地工作区运行共享的 Agent Core，即便没有
+  BuildMax Server 也依然可用；
+- Server、Portal 与 worker 增加了 Space 工作、Issue、Workflow、持久的后台
+  执行、共享的结果与治理能力。
 
-Keeping the local surfaces independent is the right execution boundary. Keeping
-them unaware of Space work is not. In a private deployment, that leaves a person
-copying an Issue description into a local prompt, recreating its decomposition
-in personal notes, and pasting the result back into Portal. The Space cannot see
-which work is local, remote, delegated, blocked, or finished without asking the
-person to maintain a second manual trail.
+让本地界面保持独立是正确的执行边界。但让它们对 Space 工作一无所知则并不
+正确。在私有部署中，这会导致有人把一段 Issue 描述复制进本地提示词、在个人
+笔记里重新拆解一遍，再把结果粘贴回 Portal。若不要求这个人再维护第二条人工
+记录，Space 就无法看出哪些工作是本地的、哪些是远程的、哪些被委派了出去、
+哪些被阻塞、哪些已完成。
 
-The opposite direction is also wrong. Rebuilding the Portal board, Workflow
-editor, Space administration, quota, audit, and cloud file management inside
-Desktop would create two management products and weaken the local workbench.
-Putting those features into the CLI would make a direct terminal executor feel
-like a remote administration client.
+反方向同样是错误的。把 Portal 的看板、Workflow 编辑器、Space 管理、配额与
+审计，以及云端文件管理都重建到 Desktop 里，会造出两套管理产品，并削弱本地
+工作台的定位。把这些功能塞进 CLI，则会让一个直接的终端执行工具变得像是一个
+远程管理客户端。
 
-The missing product loop is narrower:
+缺失的产品闭环其实更窄：
 
 ```text
                    Server-owned Issue
@@ -88,243 +83,222 @@ The missing product loop is narrower:
                  and execution references
 ```
 
-The Issue is the shared work protocol. The execution objects on either side do
-not become the same object merely because they contribute to the same outcome.
+Issue 是共享的工作协议。等式两侧的执行对象，并不会因为它们共同促成了同一个
+结果，就变成同一个对象。
 
-## Current Foundations
+## 现有基础
 
-Several required pieces already exist:
+若干必要的部件已经具备：
 
-- An Issue belongs to a Space, may be assigned to a person, Agent, or Workflow,
-  and may have one level of child Issues.
-- Issue comments form a durable human- and Agent-readable work thread.
-- Tasks carry an optional Issue ID, so remote execution is already attributable
-  to an Issue.
-- CLI and Desktop can authenticate to a Server without moving their Agent loop
-  off the local machine.
-- Managed models let a connected local client use the deployment's model
-  catalog without holding a provider credential.
-- An authenticated local Agent can publish a unified Artifact to the Server.
-- The current surface-positioning decision already permits an assigned-work
-  inbox, starting a local Session from an Issue, and returning results.
-- `buildmax issue list` shows what a space assigned the signed-in person, across
-  every space they are in. The server-side listing filters it needs — by
-  assignee and by status — now exist; `openapi.json` had described them for a
-  while before anything implemented them.
-- `buildmax issue start <id>` scopes one local session to one Issue: the Agent can
-  read it and report back. The report is stored as `local_agent`, a claim the
-  relaying person is accountable for, never as the `agent` a worker run writes.
-  It scopes one run and remembers nothing — the durable `IssueLink` below is
-  still this proposal's to design.
-- Starting such a session prints the server, space, Issue, and where prompts go
-  before the first model call, which is the visibility rule under
-  [Model, Data, And Trust Boundary](#model-data-and-trust-boundary) in its
-  cheapest form. The Session header that shows sync state as well is still
-  unbuilt.
-- `buildmax issue show` reads one Issue, and `buildmax issue status` moves it.
-  Status stays a person's action, per
-  [Status Is A Space Statement, Not Presence](#status-is-a-space-statement-not-presence),
-  and the change carries the version it was read at.
-- How an Agent itself reads and reports on the Issue it is working is decided
-  by [Issue agent access](../../design/issue-agent-access.md): two runtime tools
-  scoped by construction to one Issue, with status, assignment, and hierarchy
-  never tool-writable. This proposal supplies the local implementation of that
-  record's port; it does not redesign the boundary.
+- 一个 Issue 归属于一个 Space，可以被分配给一个人、一个 Agent 或一个
+  Workflow，并且可以拥有一层子 Issue。
+- Issue 评论构成一条持久的、人类与 Agent 均可读的工作线索。
+- Task 携带一个可选的 Issue ID，因此远程执行已经可以归因到某个 Issue。
+- CLI 与 Desktop 可以向 Server 进行身份验证，而无需把 Agent 循环迁出本地
+  机器。
+- 托管模型让已连接的本地客户端可以使用部署方的模型目录，而无需持有某个
+  provider 的凭证。
+- 一个经过身份验证的本地 Agent 可以向 Server 发布一个统一 Artifact。
+- 当前的界面定位决策已经允许一个已分配工作收件箱、从一个 Issue 启动一个
+  本地 Session，以及回传结果。
+- `buildmax issue list` 显示当前登录用户在其所在的每一个 space 中被分配的
+  工作。它所需要的服务端筛选功能——按受理人和按状态——现已具备；
+  `openapi.json` 早在有任何实现之前就已经描述了它们。
+- `buildmax issue start <id>` 把一个本地 session 限定在一个 Issue 上：Agent
+  可以读取这个 Issue 并回报。该报告以 `local_agent` 的身份存储，这是一项由
+  转发者本人负责的申明，而绝不是 worker 运行所写下的那个 `agent`。它只作用于
+  一次运行，不记住任何东西——下文的持久 `IssueLink` 仍有待本提案设计。
+- 启动这样一个 session 会在第一次模型调用之前打印出 server、space、Issue，
+  以及提示词的去向，这正是
+  [模型、数据与信任边界](#模型数据与信任边界)中可见性规则的最简形式。
+  同时展示同步状态的 Session 头部信息尚未构建。
+- `buildmax issue show` 读取一个 Issue，`buildmax issue status` 则移动它的
+  状态。按照
+  [状态是 Space 的声明，而非在线状态](#状态是-space-的声明而非在线状态)，
+  状态变更仍然是一个人的操作，并且该变更携带着它被读取时所处的版本号。
+- Agent 本身该如何读取并回报它正在处理的 Issue，由
+  [Issue Agent 访问](../design/Issue Agent访问.md)决定：两个从构造上就限定于
+  一个 Issue 的运行时工具，状态、分配与层级关系永远不可通过工具写入。本提案
+  提供的是这份记录所定义端口的本地实现，而不是重新设计这一边界。
 
-The missing pieces are an authenticated Issue client in the local interfaces,
-a durable or explicitly local relation between an Issue and a local Session,
-and product semantics for status, offline work, result publication, model
-policy, and conflicts.
+仍然缺失的部件是：本地界面中一个经过身份验证的 Issue 客户端、Issue 与本地
+Session 之间一种持久的或明确本地化的关系，以及针对状态、离线工作、结果发布、
+模型策略与冲突的产品语义。
 
-## User Outcomes
+## 用户成果
 
-A connected local user should be able to:
+一位已连接的本地用户应当能够：
 
-1. See work assigned to them without browsing the full Space board.
-2. Open an Issue and choose the local workspace in which to handle it.
-3. Start a local Agent Session with an explicit, inspectable snapshot of the
-   selected Issue context.
-4. Keep local files, tools, approvals, and execution on the local machine.
-5. Break the current Issue into child Issues and, with confirmation, assign or
-   delegate those children through the Server.
-6. Observe related remote execution and consume its results from the local
-   workbench.
-7. Return a bounded summary, comments, Artifacts, and an explicit status update
-   to the Issue.
-8. Continue ordinary local work when no Server exists or when no Issue is
-   linked.
+1. 在不浏览整个 Space 看板的情况下，看到分配给自己的工作。
+2. 打开一个 Issue，并选择处理它所使用的本地工作区。
+3. 以一份明确、可检视的所选 Issue 上下文快照启动一个本地 Agent Session。
+4. 让本地文件、工具、审批与执行都留在本地机器上。
+5. 把当前 Issue 拆解为子 Issue，并在确认之后，通过 Server 将这些子 Issue
+   分配或委派出去。
+6. 观察相关的远程执行并在本地工作台中消费其结果。
+7. 向该 Issue 回传一份有界的摘要、评论、Artifact，以及一次明确的状态更新。
+8. 在没有 Server、或没有任何 Issue 被关联的情况下，继续正常的本地工作。
 
-A Space should be able to open the Issue in Portal and understand what was
-assigned, what ran remotely, what a person handled locally, and what result was
-returned, without Portal claiming to control the person's machine.
+一个 Space 应当能够在 Portal 中打开该 Issue，并了解哪些工作被分配了、哪些
+在远程运行、哪些由一个人在本地处理，以及回传了什么结果，而不需要 Portal
+声称自己控制着这个人的机器。
 
-## Goals
+## 目标
 
-- Make Issue the canonical cross-surface work object.
-- Let local and remote execution contribute to one Issue without conflating
-  their lifecycles.
-- Support contextual decomposition, assignment, delegation, tracking, and
-  result return from CLI/TUI and Desktop.
-- Keep Portal the complete Space management and governance surface.
-- Preserve direct local use with no Server, account, Space, or network.
-- Make Server destination, Space, model transport, sync state, and data movement
-  visible before work crosses a boundary.
-- Establish a small first slice that does not depend on full Session sync.
+- 让 Issue 成为跨界面的规范工作对象。
+- 让本地与远程执行都能为同一个 Issue 做出贡献，而不混淆它们各自的生命周期。
+- 支持从 CLI/TUI 与 Desktop 进行情境化的拆解、分配、委派、跟踪与结果回传。
+- 让 Portal 保持为完整的 Space 管理与治理界面。
+- 在没有 Server、账号、Space 或网络的情况下，保留直接的本地使用方式。
+- 在工作跨越边界之前，让 Server 目的地、Space、模型传输方式、同步状态与
+  数据流动变得可见。
+- 建立一个不依赖完整 Session 同步的、小而可用的第一切片。
 
-## Non-Goals
+## 非目标
 
-- Rebuilding the Portal Issue board or administration navigation in Desktop.
-- Adding Workflow authoring, Space membership, role, quota, audit, or deployment
-  administration to CLI or Desktop.
-- Treating a local Agent Session as a Worker TaskRun.
-- Letting the Server claim it can stop, resume, or inspect a local process when
-  the client has not implemented that contract.
-- Uploading a local workspace automatically or treating Space files and a local
-  directory as synchronized copies.
-- Synchronizing complete local Session content in the first bridge slice.
-- Making connected mode mandatory for the open-source local product.
-- Claiming that a locally reported result is tamper-proof audit evidence.
+- 在 Desktop 中重建 Portal 的 Issue 看板或管理导航。
+- 向 CLI 或 Desktop 添加 Workflow 编写、Space 成员管理、角色、配额、审计或
+  部署管理功能。
+- 把一个本地 Agent Session 当作一个 Worker TaskRun 对待。
+- 在客户端尚未实现相应契约的情况下，让 Server 声称自己可以停止、恢复或
+  检视一个本地进程。
+- 自动上传一个本地工作区，或把 Space 文件与一个本地目录当作同步副本对待。
+- 在第一个桥接切片中同步完整的本地 Session 内容。
+- 让已连接模式成为开源本地产品的强制要求。
+- 声称一个本地报告的结果是不可篡改的审计证据。
 
-## Ownership And Authority
+## 所有权与权限
 
-The bridge depends on one clear owner for each kind of fact:
+这一桥接依赖于为每一类事实确定一个明确的所有者：
 
-| Object or fact | Authority | Local surface role |
+| 对象或事实 | 权限归属 | 本地界面的角色 |
 |---|---|---|
-| Issue title, description, status, assignee, hierarchy, comments | Server | Read and perform authorized contextual mutations |
-| Local workspace and path mapping | Local client | Choose, persist locally, and never imply Server possession |
-| Local Session messages, tool state, approvals, and live process | Local client | Execute and persist under the existing local contract |
-| Task and TaskRun lifecycle | Server and Worker | Trigger or observe; never impersonate a Worker |
-| Space Artifact metadata and content | Server | Publish explicitly selected output and retain the returned reference |
-| Issue-to-local-Session relation | Open decision | Keep locally first or register bounded metadata on Server |
-| Issue work status | Server | Change only through an explicit authorized action |
-| Local execution presence | Local client | Do not derive Issue status from a process heartbeat |
+| Issue 标题、描述、状态、受理人、层级、评论 | Server | 读取，并执行经授权的情境化变更 |
+| 本地工作区与路径映射 | 本地客户端 | 选择、在本地持久化，并且绝不暗示 Server 拥有该工作区 |
+| 本地 Session 消息、工具状态、审批与正在运行的进程 | 本地客户端 | 按照现有的本地契约执行并持久化 |
+| Task 与 TaskRun 的生命周期 | Server 与 Worker | 触发或观察；绝不冒充一个 Worker |
+| Space Artifact 的元数据与内容 | Server | 发布明确选定的输出，并保留返回的引用 |
+| Issue 与本地 Session 之间的关联 | 尚待决定 | 先保存在本地，或在 Server 上注册有界的元数据 |
+| Issue 的工作状态 | Server | 只能通过一次明确的、经授权的操作来更改 |
+| 本地执行的在线状态 | 本地客户端 | 不得从进程心跳推导 Issue 状态 |
 
-Opening an Issue must not silently claim it, change its status, send its
-contents to a model, or upload local data. Those are separate user-visible
-actions.
+打开一个 Issue 绝不能默默地据为己有、更改它的状态、把它的内容发送给某个
+模型，或上传本地数据。这些都必须是各自独立、对用户可见的操作。
 
-## Surface Boundary
+## 界面边界
 
-Sharing the Issue object does not require interface parity:
+共享 Issue 对象并不要求各界面在能力上完全对等：
 
-| Capability | CLI/TUI | Desktop | Portal |
+| 能力 | CLI/TUI | Desktop | Portal |
 |---|---:|---:|---:|
-| Assigned-work inbox | Command or panel | First-class view | Full filters and board |
-| Current Issue detail, children, comments | Compact | Rich contextual view | Full detail and history |
-| Start local Session from Issue | Yes | Yes | Handoff or launcher |
-| Update current Issue status | Explicit command/action | Explicit action | Full editing |
-| Create child Issue under current Issue | Explicit, confirmed | Contextual flow | Full editing |
-| Assign or delegate a child | Explicit, confirmed | Contextual flow | Full editing |
-| Observe related TaskRuns and results | Compact | Selected subset | Full drill-down |
-| Publish summary or Artifact | Yes | Yes | View and manage |
-| Browse and reorganize the whole Space board | No | No | Yes |
-| Author Workflows or administer Space policy | No | No | Yes |
+| 已分配工作收件箱 | 命令或面板 | 一等公民视图 | 完整的筛选与看板 |
+| 当前 Issue 详情、子级、评论 | 精简形式 | 丰富的情境化视图 | 完整的详情与历史记录 |
+| 从 Issue 启动本地 Session | 支持 | 支持 | 转交或启动器 |
+| 更新当前 Issue 状态 | 显式命令/操作 | 显式操作 | 完整的编辑能力 |
+| 在当前 Issue 下创建子 Issue | 显式、需确认 | 情境化流程 | 完整的编辑能力 |
+| 分配或委派一个子 Issue | 显式、需确认 | 情境化流程 | 完整的编辑能力 |
+| 观察相关的 TaskRun 与结果 | 精简形式 | 选定子集 | 完整的下钻能力 |
+| 发布摘要或 Artifact | 支持 | 支持 | 查看与管理 |
+| 浏览与重新组织整个 Space 看板 | 不支持 | 不支持 | 支持 |
+| 编写 Workflow 或管理 Space 策略 | 不支持 | 不支持 | 支持 |
 
-The local product promise becomes:
+本地产品的承诺变成了：
 
-> Receive Space work, execute it locally, coordinate related work, and return a
-> result.
+> 接收 Space 工作、在本地执行、协调相关工作，并回传一个结果。
 
-It does not become:
+它不会变成：
 
-> Administer the Space operating system from every client.
+> 从任意客户端管理整个 Space 操作系统。
 
-## Options And Trade-Offs
+## 可选方案与权衡
 
-| Option | Strength | Main concern |
+| 方案 | 优势 | 主要顾虑 |
 |---|---|---|
-| Keep local sessions isolated; copy results manually | Smallest product and protocol | Breaks enterprise continuity, provenance, decomposition, and tracking |
-| Rebuild Portal Issue management in Desktop | Feature parity and one native UI | Duplicates product ownership and dilutes the local workbench |
-| Treat every local Session as a TaskRun | Reuses server execution records | Makes false claims about scheduling, process control, approvals, and availability |
-| Add a contextual Issue bridge around the local runtime | Preserves local execution while closing the Space work loop | Requires explicit relation, sync, policy, and conflict semantics |
-| Make the Server canonical for a live local event stream | Strong central visibility | Makes network and Server ingestion part of local correctness |
+| 让本地 session 保持隔离；手动复制结果 | 产品与协议规模最小 | 破坏了企业级的连续性、来源追溯、拆解与跟踪能力 |
+| 在 Desktop 中重建 Portal 的 Issue 管理 | 功能对等，且是原生的单一 UI | 分裂了产品所有权，稀释了本地工作台的定位 |
+| 把每一个本地 Session 都当作一个 TaskRun | 复用了服务端的执行记录 | 对调度、进程控制、审批与可用性做出了失实的声称 |
+| 在本地运行时周围加入一个情境化的 Issue 桥接 | 既保留本地执行，又闭合了 Space 工作闭环 | 需要明确的关联关系、同步、策略与冲突语义 |
+| 让 Server 成为一个实时本地事件流的规范来源 | 中心化可见性强 | 让网络与 Server 摄取成为本地正确性的一部分 |
 
-The likely direction is the contextual Issue bridge. A live event stream may
-exist later as an explicit enterprise capture policy; it is not the default
-meaning of connected local work.
+可能的方向是这种情境化的 Issue 桥接。一种实时事件流也许日后会作为一项明确
+的企业级采集策略而存在；但它并不是"已连接的本地工作"这一说法默认的含义。
 
-## Candidate Product Decisions
+## 候选产品决策
 
-### Issue Is The Shared Work Object
+### Issue 是共享的工作对象
 
-An authenticated local surface consumes the same Issue IDs and Space
-authorization as Portal. It does not create a parallel local Issue database.
-Local caching is a view and an offline aid, never a second authority.
+一个经过身份验证的本地界面，消费的是与 Portal 相同的 Issue ID 与 Space
+授权。它不会创建一个并行的本地 Issue 数据库。本地缓存只是一个视图和一种
+离线辅助手段，绝不会成为第二个权威来源。
 
-### Local Session And TaskRun Stay Distinct
+### 本地 Session 与 TaskRun 保持区分
 
-A Local Session is interactive, machine-owned, approval-capable, and possibly
-offline. A TaskRun is Server-created, Worker-executed, and durably scheduled.
-Both may relate to one Issue, and one Issue may have several of either.
+一个本地 Session 是交互式的、由机器所拥有的、可以进行审批的，并且可能是
+离线的。一个 TaskRun 是由 Server 创建、由 Worker 执行、持久化调度的。两者
+都可以关联到一个 Issue，而一个 Issue 也可以拥有若干个其中任意一类对象。
 
-The first version should link a local Session to at most one Issue at a time.
-This keeps context and result attribution legible. Starting work on a different
-Issue creates or forks a Session instead of silently reassigning its history.
+第一个版本应当把一个本地 Session 一次最多关联到一个 Issue。这样能让上下文
+与结果的归属保持清晰。开始处理一个不同的 Issue，应当创建或派生一个新的
+Session，而不是悄悄地把历史重新指派给它。
 
-### Local Issue Actions Are Contextual
+### 本地 Issue 操作是情境相关的
 
-CLI and Desktop may modify the current Issue and its immediate children when
-the authenticated user has permission. Broad board management remains in
-Portal. Remote mutations require an explicit user action or an ordinary Agent
-tool approval; merely opening or discussing an Issue changes nothing.
+当经过身份验证的用户拥有权限时，CLI 与 Desktop 可以修改当前 Issue 及其直接
+子级。更广泛的看板管理仍然留在 Portal 中。远程变更需要一次显式的用户操作，
+或者一次普通的 Agent 工具审批；仅仅打开或讨论一个 Issue 不会改变任何东西。
 
-Which of those the Agent may do at all is settled:
-[Issue agent access](../../design/issue-agent-access.md) gives it a bounded comment
-and nothing else. Status, assignment, hierarchy, and child creation are user
-actions in this proposal's surfaces, not tool calls.
+Agent 本身究竟可以做哪些操作，已经确定：
+[Issue Agent 访问](../design/Issue Agent访问.md)只赋予它一次有界的评论权限，
+别无其他。状态、分配、层级关系与子级创建，在本提案所涉及的这些界面中都是
+用户操作，而不是工具调用。
 
-### Decomposition Crosses Execution Planes
+### 拆解跨越执行平面
 
-From a linked Session, a person may create child Issues and assign them to a
-person, Agent, or Workflow. Starting the relevant remote flow remains a Server
-operation. Remote results return through durable Issue, TaskRun, comment, and
-Artifact state; they do not depend on the originating local process staying
-open.
+从一个已关联的 Session 出发，一个人可以创建子 Issue，并把它们分配给一个人、
+一个 Agent 或一个 Workflow。启动相应的远程流程仍然是一项 Server 操作。远程
+结果通过持久化的 Issue、TaskRun、评论与 Artifact 状态返回；它们并不依赖于
+发起它们的本地进程一直保持开启。
 
-### Issue Context Is A Visible Snapshot
+### Issue 上下文是可见的快照
 
-Starting a Session should build a bounded Issue context snapshot: title,
-description, relevant hierarchy, selected comments, and selected Artifact
-references. The UI shows what will be included and where the selected model
-sends it. It does not append an unbounded comment thread or automatically fetch
-every Artifact into the model context.
+启动一个 Session 应当构建一份有界的 Issue 上下文快照：标题、描述、相关的
+层级关系、选定的评论，以及选定的 Artifact 引用。界面会显示将要包含哪些内容，
+以及所选模型会把它们发送到哪里。它不会追加一整条无边界的评论线索，也不会
+自动把每一个 Artifact 都取入模型上下文。
 
-The snapshot records the Issue update time or future revision token so the
-Session can later say its starting context is stale. It remains input, not a
-live synchronized prompt.
+这份快照会记录 Issue 的更新时间或未来的修订版本令牌，以便 Session 之后可以
+说明其起始上下文已经过时。它始终是输入，而不是一个实时同步的提示词。
 
-### Workspace Mapping Is Local
+### 工作区映射是本地的
 
-The first launch from an Issue asks for a local directory. A mapping may be
-remembered by deployment, Space, and a future repository or workspace identity,
-but the Server does not infer a local path and the client does not upload the
-directory as a side effect.
+从一个 Issue 首次启动时，会询问一个本地目录。这一映射关系可以按部署、
+Space，以及未来的某种仓库或工作区身份来记忆，但 Server 不会推断本地路径，
+客户端也不会把该目录作为副作用上传上去。
 
-### Status Is A Space Statement, Not Presence
+### 状态是 Space 的声明，而非在线状态
 
-`in_progress` means the Space says work is in progress. It does not mean a local
-process is alive. Starting a local Session may offer to set the status and
-assignee, but the user confirms the mutation. Losing the client connection does
-not move the Issue back or mark it failed.
+`in_progress` 的含义是 Space 声明工作正在进行中。它并不意味着某个本地进程
+处于存活状态。启动一个本地 Session 时可以提议设置状态与受理人，但需要用户
+确认这次变更。失去客户端连接不会把 Issue 状态退回，也不会将其标记为失败。
 
-If the product later needs live local execution presence, that belongs in a
-separate execution record with honest `last_seen` semantics.
+如果产品之后需要真正的本地执行在线状态，那应当属于一条单独的执行记录，
+带有诚实的 `last_seen` 语义。
 
-### Result Return Is Explicit And Bounded
+### 结果回传是显式且有界的
 
-A local Session may post a user-authored summary, publish selected Artifacts,
-and propose a status change. Complete transcripts, traces, diffs, and workspace
-contents are not uploaded implicitly. A future durable Session relation may
-provide deeper provenance without overloading Issue comments.
+一个本地 Session 可以发布一段用户撰写的摘要、发布选定的 Artifact，并提议
+一次状态变更。完整的会话记录、trace、diff 与工作区内容都不会被隐式上传。
+未来一种持久的 Session 关联，也许能够在不使 Issue 评论超载的情况下提供更
+深入的来源追溯。
 
-## Candidate First Slice
+## 候选的第一个切片
 
-The bridge can close a useful loop before a new Server session service exists.
+在一项新的 Server session 服务出现之前，这一桥接就可以先闭合一个有用的
+闭环。
 
-### Local metadata
+### 本地元数据
 
-A sidecar record keyed by local Session ID can hold a candidate `IssueLink`:
+一条以本地 Session ID 为键的旁路记录，可以保存一个候选的 `IssueLink`：
 
 ```text
 server_url
@@ -336,187 +310,174 @@ workspace_path or workspace mapping reference
 last_sync_state
 ```
 
-This shape is illustrative, not a committed file format. Keeping it separate
-from the resumable Session payload avoids making ordinary local Session loading
-depend on Server metadata.
+这一形状只是示意，并非已经确定的文件格式。让它与可恢复的 Session 数据分开
+存放，可以避免让普通的本地 Session 加载依赖于 Server 元数据。
 
-### Server interaction
+### 与 Server 的交互
 
-Add an authenticated local client for the existing Issue routes, plus the
-smallest missing relations needed to:
+为现有的 Issue 路由添加一个经过身份验证的本地客户端，再加上最少量缺失的
+关联关系，以便能够：
 
-1. list Issues assigned to the current user;
-2. fetch one Issue, its children, comments, and selected result metadata;
-3. patch status or assignment;
-4. create an immediate child Issue;
-5. post a comment;
-6. start an existing Agent or Workflow flow when explicitly requested; and
-7. publish an Artifact and relate it to the Issue.
+1. 列出分配给当前用户的 Issue；
+2. 获取一个 Issue，及其子级、评论与选定的结果元数据；
+3. 修改状态或受理人；
+4. 创建一个直接子 Issue；
+5. 发布一条评论；
+6. 在被明确请求时，启动一个已有的 Agent 或 Workflow 流程；以及
+7. 发布一个 Artifact，并将其关联到该 Issue。
 
-The last relation must use the unified Artifact identity rather than copying an
-object-store path into a comment.
+最后一种关联必须使用统一的 Artifact 身份，而不是把一个对象存储路径复制进
+一条评论里。
 
-### Local behavior
+### 本地行为
 
-- Desktop presents an assigned-work inbox and a contextual Issue panel.
-- CLI/TUI offers discoverable commands or panels without adding Issue chatter
-  to print-mode answer output.
-- Starting local work creates a normal local Session and writes its Issue link.
-- The Session header shows Server, Space, Issue, model transport, and sync state.
-- Finishing work offers summary, Artifact, and status actions separately.
-- “Open in Portal” remains the escape hatch for full management.
+- Desktop 呈现一个已分配工作收件箱与一个情境化的 Issue 面板。
+- CLI/TUI 提供可发现的命令或面板，而不会把 Issue 相关的杂讯添加到打印模式的
+  回答输出中。
+- 开始本地工作会创建一个普通的本地 Session，并写入其 Issue 关联。
+- Session 头部会显示 Server、Space、Issue、模型传输方式与同步状态。
+- 完成工作时会分别提供摘要、Artifact 与状态操作。
+- "在 Portal 中打开"仍然是完整管理功能的退路。
 
-No Server schema is required merely to remember the first local link. The
-first slice should validate whether users actually move work through this loop
-before committing to a general synchronized Session resource.
+仅仅是记住第一个本地关联，并不需要任何 Server 端 schema。第一个切片应当先
+验证用户是否真的会通过这一闭环推进工作，再决定是否投入构建一个通用的、
+可同步的 Session 资源。
 
-## Offline And Conflict Semantics
+## 离线与冲突语义
 
-Local execution must not fail merely because the Server becomes unavailable.
-Remote mutations, however, must never be reported as complete when they are
-not.
+本地执行不应仅仅因为 Server 变得不可用就失败。但远程变更绝不能在没有完成时
+被报告为已完成。
 
-Two defensible first-slice choices are:
+以下两种选择都可以作为可行的第一切片方案：
 
-| Choice | Behavior | Cost |
+| 选择 | 行为 | 代价 |
 |---|---|---|
-| Fail remote actions explicitly | Local Session continues; publish and status actions say Server unavailable | Small and honest, but no offline completion queue |
-| Persist a bounded outbox | Actions show pending and retry after authentication/network recovery | Better continuity, but requires idempotency, ordering, and conflict UX |
+| 显式使远程操作失败 | 本地 Session 继续运行；发布与状态操作会提示 Server 不可用 | 小巧且诚实，但没有离线完成队列 |
+| 持久化一个有界的发件箱 | 操作显示为待处理，并在身份验证/网络恢复后重试 | 连续性更好，但需要幂等性、顺序与冲突方面的用户体验设计 |
 
-Silent best-effort writes are not an option. If an outbox is added, each entry
-needs an idempotency key and visible `pending`, `failed`, or `conflict` state.
+静默的尽力而为式写入不是一个可选项。如果加入发件箱，每一条记录都需要一个
+幂等键，以及可见的 `pending`、`failed` 或 `conflict` 状态。
 
-Issue mutation needs an optimistic concurrency contract, such as an update
-version or `updated_at` precondition. A stale local snapshot must not overwrite
-a newer assignee, status, description, or hierarchy without a conflict the user
-can resolve.
+Issue 变更需要一份乐观并发契约，例如一个更新版本号或 `updated_at` 前置条件。
+一份过期的本地快照，绝不能在没有一个用户可以解决的冲突的情况下，覆盖掉更新的
+受理人、状态、描述或层级关系。
 
-## Model, Data, And Trust Boundary
+## 模型、数据与信任边界
 
-Connected local work creates a data-boundary decision that ordinary local work
-does not: Space Issue content may be sent to a personal direct model.
+已连接的本地工作会带来一个普通本地工作所没有的数据边界决策：Space Issue
+的内容可能会被发送给一个个人的直连模型。
 
-Before the first model call, the client must make visible:
+在第一次模型调用之前，客户端必须让以下内容可见：
 
-- the source Server and Space;
-- which Issue context will be included;
-- whether the model is `direct` or `buildmax` managed; and
-- the destination the model entry names.
+- 来源 Server 与 Space；
+- 将会包含哪些 Issue 上下文；
+- 该模型是 `direct` 还是由 `buildmax` 托管；以及
+- 该模型条目所指名的目的地。
 
-A deployment may eventually require managed models for Space-linked work. The
-current local policy mechanisms are not a strong enforcement boundary, so the
-product must not claim this restriction until client policy distribution and
-enforcement are designed and verified.
+一个部署也许最终会要求对与 Space 关联的工作强制使用托管模型。当前的本地
+策略机制并不是一个强有力的强制边界，因此在客户端策略分发与强制执行被设计
+并验证之前，产品不得声称已经具备这一限制能力。
 
-Issue descriptions, comments, and remote results are also untrusted model
-input. Their provenance should remain visible, and inserting them into context
-must not relabel them as system instructions.
+Issue 描述、评论与远程结果同样是不可信的模型输入。它们的来源应当保持可见，
+把它们插入上下文时不得把它们重新标记为系统指令。
 
-Other trust requirements:
+其他信任方面的要求：
 
-- Space authorization is checked on every Server operation, not only when the
-  Issue is first linked.
-- Removing Space membership stops further remote reads and writes but cannot
-  erase a local copy already downloaded.
-- Local result provenance is a client report unless a stronger append-time
-  evidence mode is implemented.
-- A Portal viewer must not imply that Server governance covered direct model
-  calls, local shell execution, or unsynchronized work it never observed.
+- 每一次 Server 操作都会检查 Space 授权，而不仅仅是在 Issue 首次被关联时
+  检查一次。
+- 移除 Space 成员资格会阻止后续的远程读写，但无法擦除已经下载到本地的副本。
+- 除非实现了更强的、在追加数据时生成证据的模式，否则本地结果的来源追溯只是
+  客户端的一份报告。
+- 一个 Portal 查看者不得暗示 Server 治理覆盖了它从未观察到的直连模型调用、
+  本地 shell 执行或未同步的工作。
 
-## Relationship To Durable Agent Sessions
+## 与持久化 Agent Session 的关系
 
-The Issue bridge and durable Session sync solve different problems:
+Issue 桥接与持久化 Session 同步解决的是不同的问题：
 
-- the bridge connects work intake, decomposition, delegation, status, and
-  results;
-- durable Sessions provide recovery, revisioned checkpoints, sharing,
-  provenance, and cross-device continuation.
+- 这一桥接连接的是工作接收、拆解、委派、状态与结果；
+- 持久化 Session 提供的是恢复、带修订版本的检查点、分享、来源追溯与跨设备
+  续接。
 
-The first bridge should not wait for full Session sync. It should preserve a
-clean upgrade path: a later Server-side Session resource can become the target
-of the Issue relation without turning the Session into a Portal Conversation or
-a TaskRun.
+第一个桥接不应等待完整的 Session 同步。它应当保留一条干净的升级路径：未来
+的一个 Server 端 Session 资源，可以成为该 Issue 关联的目标，而不需要把
+Session 变成一个 Portal Conversation 或一个 TaskRun。
 
-If durable Sessions are accepted first, this proposal should reuse their
-identity, authorization, visibility, and revision contracts rather than invent
-a second local-execution record.
+如果持久化 Session 先被采纳，那么本提案应当复用它们的身份、授权、可见性与
+修订版本契约，而不是再发明第二套本地执行记录。
 
-## Delivery Phases
+## 交付阶段
 
-### Phase 1: Receive, Work, Return
+### 阶段一：接收、处理、回传
 
-- assigned Issue listing — **done**, `buildmax issue list`;
-- Issue detail and bounded context snapshot — **done**, `buildmax issue show`
-  for a person and `GetIssue` for the Agent;
-- local Session link and workspace mapping — **not done**. `buildmax issue start`
-  scopes one run and remembers nothing, and the workspace is wherever the command ran.
-  Both wait on open questions 1 and 4;
-- explicit summary, Artifact, and status return — **done** for a summary
-  (`ReportToIssue`) and status (`buildmax issue status`); an Artifact published
-  from a runless Session still has nowhere to appear in the Issue's Results
-  panel, which is open question 5; and
-- clear Server, Space, model destination, and sync state — **partly**: the first
-  three print before the first model call. There is no sync state to show yet,
-  because nothing is synchronized.
+- 已分配 Issue 列表 —— **已完成**，`buildmax issue list`；
+- Issue 详情与有界的上下文快照 —— **已完成**，面向个人的 `buildmax issue
+  show`，以及面向 Agent 的 `GetIssue`；
+- 本地 Session 关联与工作区映射 —— **未完成**。`buildmax issue start` 只作用
+  于一次运行且不记住任何东西，工作区就是该命令运行所在的位置。两者都在等待
+  开放问题 1 与 4；
+- 显式的摘要、Artifact 与状态回传 —— 摘要（`ReportToIssue`）与状态
+  （`buildmax issue status`）**已完成**；从一个无运行记录的 Session 发布的
+  Artifact，在 Issue 的结果面板中仍然无处呈现，这是开放问题 5；以及
+- 清晰的 Server、Space、模型目的地与同步状态 —— **部分完成**：前三项会在
+  第一次模型调用之前打印出来。目前还没有同步状态可以显示，因为还没有任何
+  东西被同步。
 
-### Phase 2: Decompose And Coordinate
+### 阶段二：拆解与协调
 
-- child Issue creation from the current Issue;
-- contextual assignment to person, Agent, or Workflow;
-- explicit remote execution trigger;
-- related TaskRun/result notifications in the local surface; and
-- conflict-safe updates and a durable outbox if evidence justifies it.
+- 从当前 Issue 创建子 Issue；
+- 情境化地分配给一个人、一个 Agent 或一个 Workflow；
+- 显式的远程执行触发；
+- 在本地界面中呈现相关 TaskRun/结果通知；以及
+- 如果有证据支持，则加入冲突安全的更新与一个持久化的发件箱。
 
-### Phase 3: Continue And Govern
+### 阶段三：续接与治理
 
-- relation to a durable Server-side Agent Session;
-- checkpoint publication and cross-device view or fork;
-- optional or required enterprise capture policy;
-- managed-model and local-tool policy for Space-linked work; and
-- Portal projection of bounded local execution metadata and provenance.
+- 与一个持久化的 Server 端 Agent Session 建立关联；
+- 检查点发布与跨设备查看或派生；
+- 可选或强制的企业级采集策略；
+- 针对 Space 关联工作的托管模型与本地工具策略；以及
+- Portal 对有界本地执行元数据与来源追溯的投影展示。
 
-Each phase must leave unconnected local execution complete and must avoid
-claiming Server authority over behavior the Server cannot observe or control.
+每一个阶段都必须让未连接的本地执行保持完整，并且必须避免声称 Server 对
+它无法观察或控制的行为拥有权限。
 
-## Open Questions And Evidence Needed
+## 开放问题与所需证据
 
-1. Is one linked Issue per local Session the right first constraint, or do real
-   workflows need a Session to contribute to several Issues?
-2. Should starting work offer to assign the Issue to the current user, require
-   it already be assigned, or permit unassigned collaborative work?
-3. Does Phase 1 need a durable outbox, or is explicit retry sufficient for the
-   first early adopters?
-4. What stable repository or workspace identity can safely remember local path
-   mappings across Issues and devices?
-5. Should a local result create a specialized execution-summary record, a
-   normal user comment with relations, or wait for Durable Agent Sessions?
-   [Issue agent access](../../design/issue-agent-access.md) §11 asks the same
-   question from the tool side: an Artifact a runless Session publishes has no
-   task run to hang on, and the Issue's outputs aggregation reads runs.
-6. Which Portal view distinguishes “worked locally” from “ran in a Worker”
-   without presenting unverifiable client claims as audit evidence? The comment
-   thread already does, through the `local_agent` author kind; the Results
-   panel and the run list do not.
-7. When may a deployment refuse direct models for Space-linked work, and what
-   device-management or signed-policy mechanism makes that enforceable?
-8. Do spaces actually decompose and delegate work from the local context, or is
-   receive-and-return the dominant workflow?
+1. 每个本地 Session 关联一个 Issue，是否是正确的第一约束，还是实际的工作流
+   需要一个 Session 能为多个 Issue 做出贡献？
+2. 开始工作时，应当提议把该 Issue 分配给当前用户、要求它已经被分配，还是
+   允许未分配的协作式工作？
+3. 阶段一是否需要一个持久化的发件箱，还是对最早的采用者而言显式重试就已经
+   足够？
+4. 什么样的稳定仓库或工作区身份，才能在跨 Issue 与跨设备时安全地记住本地
+   路径映射？
+5. 一个本地结果应当创建一条专门的执行摘要记录、一条带关联的普通用户评论，
+   还是应当等待持久化 Agent Session？
+   [Issue Agent 访问](../design/Issue Agent访问.md) §11 从工具侧提出了同样的
+   问题：一个由无运行记录的 Session 发布的 Artifact 没有任何任务运行可以
+   挂靠，而 Issue 的产出聚合读取的是运行记录。
+6. 哪一种 Portal 视图，能够在不把无法验证的客户端声明当作审计证据呈现的
+   前提下，区分"在本地处理"与"在一个 Worker 中运行"？评论线索已经通过
+   `local_agent` 这一作者类型做到了这一点；结果面板与运行列表则还没有。
+7. 一个部署在什么情况下可以拒绝为 Space 关联工作使用直连模型，又需要什么样
+   的设备管理或签名策略机制才能使之可强制执行？
+8. space 是否真的会从本地上下文拆解并委派工作，还是接收与回传才是主导的
+   工作流？
 
-Evidence should come from a small number of real local-to-Space workflows:
-software change, data analysis, incident investigation, and document work. The
-decision should measure manual copying removed, result traceability, conflict
-frequency, and whether users still need the full Portal during execution.
+证据应当来自少量真实的本地到 Space 工作流：软件变更、数据分析、事件调查与
+文档工作。这一决策应当衡量减少了多少人工复制工作、结果的可追溯性、冲突
+发生的频率，以及用户在执行期间是否仍然需要完整的 Portal。
 
-## Likely Destination If Accepted
+## 若被采纳后的可能归宿
 
-If the direction is accepted:
+如果这一方向被采纳：
 
-1. update [surface positioning](../../design/surface-positioning.md) so contextual
-   Issue work is a committed CLI/Desktop bridge, not only an optional inbox;
-2. put the prioritized delivery phase in [ROADMAP.md](../ROADMAP.md);
-3. align with the durable Agent sessions decision on identity and relations;
-4. create focused Issues for the authenticated Issue client, local link,
-   Desktop and CLI surfaces, result relations, and policy work;
-5. update user documentation only when a slice ships; and
-6. delete this proposal after its durable rationale has moved to the accepted
-   design records.
+1. 更新[界面定位](../design/界面定位.md)，使情境化的 Issue 工作成为一项
+   确定的 CLI/Desktop 桥接能力，而不仅仅是一个可选的收件箱；
+2. 把已排定优先级的交付阶段放入 [ROADMAP.md](../ROADMAP.md)；
+3. 在身份与关联关系上，与持久化 Agent Session 的决策保持一致；
+4. 为经过身份验证的 Issue 客户端、本地关联、Desktop 与 CLI 界面、结果关联
+   以及策略工作创建聚焦的 Issue；
+5. 只在某个切片交付时才更新用户文档；以及
+6. 在其持久性理由已经迁移到被采纳的设计记录之后，删除本提案。

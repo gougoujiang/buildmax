@@ -1,6 +1,6 @@
 # Worker API 网络边界
 
-> **翻译说明：** 本文是[英文原文](../../design/worker-api-network-boundary.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `6e7f89ff374829667c62bf857d56aa583cad78a2ac844049bafa6e3ce06fca09`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../design/worker-api-network-boundary.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
 
 > **受众：** 贡献者和运维人员 · **状态：** 已交付
@@ -283,7 +283,7 @@ worker:
   client_key_file: ""
 ```
 
-字段名称将在同一变更中同步到 `internal/config/server_config.go`、`config-examples/server.example.yaml` 和[配置参考](../../reference/configuration.md)。不增加环境变量替代品：listener 和信任配置属于结构化部署策略，而不是启动密钥。
+字段名称将在同一变更中同步到 `internal/config/server_config.go`、`config-examples/server.example.yaml` 和[配置参考](../reference/configuration.md)。不增加环境变量替代品：listener 和信任配置属于结构化部署策略，而不是启动密钥。
 
 验证规则：
 
@@ -424,11 +424,11 @@ worker:
 
 设计船只：
 
-- 文件中，有两项文件： [配置参考](../../reference/configuration.md)
+- 文件中，有两项文件： [配置参考](../reference/configuration.md)
 听器和TLS字段；
 - 果的原因是， [产业部署](../../../deployment/production/README.md)
 证书，服务和政策合同；
-- 克斯德相关标识符记录了这两个 [服务器架构](../../contribute/architecture/server.md)
+- 克斯德相关标识符记录了这两个 [服务器架构](../contribute/architecture/server.md)
 和关闭命令；
 - 描述网络可访问性的[运行代币:Worker](Worker运行令牌.md)停止
 象象征范围是整个边界；

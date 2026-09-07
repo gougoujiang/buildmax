@@ -1,243 +1,178 @@
 # 工具
 
-> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/tools.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `a4df671b1df0fa3e31cdfae3838b8ad9d083711dada896d4dff6709db5c751aa`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
-> **简体中文：** [阅读中文镜像](tools.md)
-> **Audience:** contributors · **Status:** current
+> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/tools.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
+> **受众：** 贡献者 · **状态：** 当前有效
 >
-> User-facing tool guide: [manual/tools.md](../../../../manual/tools.md)
+> 面向用户的工具指南：[manual/tools.md](../../../../manual/tools.md)
 
-## Purpose
+## 用途
 
-The `internal/tool` package provides the runtime tools the agent can invoke.
-Each tool implements the `internal/core/llm.Tool` interface and is registered
-through `internal/agentapp`. Tools are designed for LLM consumption — their
-results are sent back to the model as tool-role messages.
+`internal/tool` 包提供了 Agent 可以调用的运行时工具。每个工具都实现 `internal/core/llm.Tool` 接口，并通过 `internal/agentapp` 注册。工具是为 LLM 消费而设计的——它们的结果会以 tool 角色消息的形式发回给模型。
 
-## Key Types and Interfaces
+## 关键类型与接口
 
-| Name | Kind | Role |
+| 名称 | 种类 | 作用 |
 |------|------|------|
-| **llm.Tool** | interface | Contract: `Name()`, `Description()`, `Parameters()`, `Execute(ctx, args)` |
-| **llm.AccessDeclarer** | interface | Optional: `Access(args) Access` — does this call change anything |
-| **llm.ArgChecker** | interface | Optional: `CheckArgs(args) ToolAction` — argument-level risk |
-| **llm.PolicyProvider** | interface | Optional: `DefaultAction() ToolAction` — override the derived default |
-| **llm.GrantScoper** | interface | Optional: `GrantScope(args) string` — narrow what one session grant covers |
-| **ReadFile** | struct | Reads files under a root directory |
-| **WriteFile** | struct | Creates/overwrites files under a root directory |
-| **EditFile** | struct | Performs exact string replacements in files |
-| **WebFetch** | struct | Fetches URLs, converts HTML to markdown |
-| **Bash** | struct | Runs shell commands in the workspace |
-| **Glob** | struct | Lists files matching glob patterns |
-| **Grep** | struct | Searches file contents by regex |
-| **TodoWrite** | struct | Records the session task list |
-| **NoteWrite** | struct | Records durable session notes |
-| **MemoryRead** | struct | Opens the bodies behind project-memory index lines |
-| **MemoryWrite** | struct | Creates, replaces, or deletes one project memory |
-| **SkillTool** | struct | Loads a discovered skill's instructions (`Skill`) |
-| **TaskTool** | struct | Runs a subagent of a named type (`Task`) |
-| **UploadArtifact** | struct | Publishes a finished workspace file as an immutable artifact |
-| **Worktree** | struct | Manages the primary run's Git worktrees and current root |
-| **GetIssue** | struct | Reads the Issue attached to an Issue-scoped run |
-| **ReportToIssue** | struct | Posts a bounded progress report to that Issue |
-| **JobList**, **JobOutput**, **JobStop** | structs | Inspect and stop local background jobs |
-| **Monitor** | struct | Starts a watched command as a local background job |
-| MCP gateway | structs | `LoadMcpTools` and `CallMcpTool` |
+| **llm.Tool** | 接口 | 契约：`Name()`、`Description()`、`Parameters()`、`Execute(ctx, args)` |
+| **llm.AccessDeclarer** | 接口 | 可选：`Access(args) Access`——这次调用是否改变了什么 |
+| **llm.ArgChecker** | 接口 | 可选：`CheckArgs(args) ToolAction`——参数级风险 |
+| **llm.PolicyProvider** | 接口 | 可选：`DefaultAction() ToolAction`——覆盖推导出的默认值 |
+| **llm.GrantScoper** | 接口 | 可选：`GrantScope(args) string`——缩小一次 Session 授权所覆盖的范围 |
+| **ReadFile** | 结构体 | 读取某个根目录下的文件 |
+| **WriteFile** | 结构体 | 在某个根目录下创建/覆盖文件 |
+| **EditFile** | 结构体 | 在文件中执行精确的字符串替换 |
+| **WebFetch** | 结构体 | 抓取 URL，将 HTML 转换为 markdown |
+| **Bash** | 结构体 | 在工作区中运行 shell 命令 |
+| **Glob** | 结构体 | 列出匹配 glob 模式的文件 |
+| **Grep** | 结构体 | 按正则表达式搜索文件内容 |
+| **TodoWrite** | 结构体 | 记录 Session 的任务列表 |
+| **NoteWrite** | 结构体 | 记录持久化的 Session 笔记 |
+| **MemoryRead** | 结构体 | 打开 project memory 索引行背后的正文 |
+| **MemoryWrite** | 结构体 | 创建、替换或删除一条 project memory |
+| **SkillTool** | 结构体 | 加载一个被发现的 Skill 的说明（`Skill`） |
+| **TaskTool** | 结构体 | 运行指定类型的子代理（`Task`） |
+| **UploadArtifact** | 结构体 | 把一个已完成的工作区文件发布为不可变的 Artifact |
+| **Worktree** | 结构体 | 管理主运行的 Git worktree 及当前根目录 |
+| **GetIssue** | 结构体 | 读取绑定到某个 Issue 范围运行上的 Issue |
+| **ReportToIssue** | 结构体 | 向该 Issue 发布一份有限制的进度报告 |
+| **JobList**、**JobOutput**、**JobStop** | 结构体 | 查看并停止本地后台任务 |
+| **Monitor** | 结构体 | 把一条被监视的命令作为本地后台任务启动 |
+| MCP 网关 | 结构体 | `LoadMcpTools` 与 `CallMcpTool` |
 
-## Tool Inventory
+## 工具清单
 
-### ReadFile (`Read`)
+### ReadFile（`Read`）
 
-- **Parameters**: `path` (required), `offset` (optional, 1-based line), `limit` (optional, default 1000)
-- **Behavior**: Reads file content with line numbers (`LINE|CONTENT` format). Supports offset/limit for large files. Path must be under the configured root.
-- **Error handling**: Returns clear errors for path-outside-root, file-not-found, etc.
+- **参数**：`path`（必需）、`offset`（可选，从 1 开始计数的行号）、`limit`（可选，默认 1000）
+- **行为**：以带行号的格式（`LINE|CONTENT`）读取文件内容。支持通过 offset/limit 处理大文件。路径必须位于配置的根目录之下。
+- **错误处理**：针对路径超出根目录、文件不存在等情况，返回清晰的错误信息。
 
-### WriteFile (`Write`)
+### WriteFile（`Write`）
 
-- **Parameters**: `path` (required), `content` (required)
-- **Behavior**: Creates or overwrites a file. Creates parent directories as needed. Path must be under root.
+- **参数**：`path`（必需）、`content`（必需）
+- **行为**：创建或覆盖一个文件，按需创建父目录。路径必须位于根目录之下。
 
-### EditFile (`Edit`)
+### EditFile（`Edit`）
 
-- **Parameters**: `path` (required), `old_string` (required), `new_string` (required), `replace_all` (optional bool)
-- **Behavior**: Performs exact string replacement in a file. By default replaces the first unique match; `replace_all` replaces all occurrences. Fails if `old_string` is not found or is ambiguous (multiple matches without `replace_all`).
+- **参数**：`path`（必需）、`old_string`（必需）、`new_string`（必需）、`replace_all`（可选，布尔值）
+- **行为**：在文件中执行精确的字符串替换。默认只替换唯一的第一处匹配；`replace_all` 会替换所有出现的位置。如果找不到 `old_string`，或它存在歧义（在未指定 `replace_all` 的情况下有多处匹配），则调用失败。
 
-### WebFetch (`WebFetch`)
+### WebFetch（`WebFetch`）
 
-- **Parameters**: `url` (required)
-- **Behavior**: Fetches a URL, converts HTML to markdown. Caches results (default 15 min TTL). Optionally uses LLM to process/summarize content.
+- **参数**：`url`（必需）
+- **行为**：抓取一个 URL，把 HTML 转换为 markdown。会缓存结果（默认 TTL 为 15 分钟）。可以选择使用 LLM 对内容进行处理/总结。
 
-### Bash (`Bash`)
+### Bash（`Bash`）
 
-- **Parameters**: `command` (required), `timeout` (optional, default 120s, max 600s)
-- **Behavior**: Runs a shell command in the workspace root. Returns combined stdout+stderr. Output truncated at 30k characters.
+- **参数**：`command`（必需）、`timeout`（可选，默认 120 秒，最长 600 秒）
+- **行为**：在工作区根目录中运行一条 shell 命令。返回合并后的 stdout+stderr。输出在 3 万字符处截断。
 
-### Glob (`Glob`)
+### Glob（`Glob`）
 
-- **Parameters**: `pattern` (required)
-- **Behavior**: Lists files matching a glob pattern under the root. Returns paths sorted by modification time (newest first). Patterns not starting with `**/` are auto-prefixed for recursive search.
+- **参数**：`pattern`（必需）
+- **行为**：列出根目录下匹配某个 glob 模式的文件。返回的路径按修改时间排序（最新的在前）。不以 `**/` 开头的模式会被自动加上前缀，以支持递归搜索。
 
-### Grep (`Grep`)
+### Grep（`Grep`）
 
-- **Parameters**: `pattern` (required), plus optional `path`, `glob`, `type`, `output_mode`, `-A`, `-B`, `-C`, `-i`, `multiline`, `head_limit`, `offset`
-- **Behavior**: Searches file contents by regex pattern. Supports output modes: `content` (matching lines with context), `files_with_matches` (file paths only), `count` (match counts). Supports glob/type filters, context lines, case-insensitive, and multiline mode.
+- **参数**：`pattern`（必需），另有可选的 `path`、`glob`、`type`、`output_mode`、`-A`、`-B`、`-C`、`-i`、`multiline`、`head_limit`、`offset`
+- **行为**：按正则表达式模式搜索文件内容。支持的输出模式有：`content`（匹配的行及上下文）、`files_with_matches`（仅文件路径）、`count`（匹配计数）。支持 glob/type 过滤、上下文行数、大小写不敏感，以及多行模式。
 
-### TodoWrite (`TodoWrite`)
+### TodoWrite（`TodoWrite`）
 
-- **Parameters**: `todos` (required array of {id, content, status})
-- **Behavior**: Replaces the session task list. Statuses: pending, in_progress, completed; at most one entry is in_progress.
+- **参数**：`todos`（必需，元素为 {id, content, status} 的数组）
+- **行为**：替换 Session 的任务列表。状态包括：pending、in_progress、completed；至多有一条处于 in_progress。
 
-### NoteWrite (`NoteWrite`)
+### NoteWrite（`NoteWrite`）
 
-- **Parameters**: `notes` (required array of strings)
-- **Behavior**: Replaces the session's durable notes. At most 15 entries of 200 characters; an over-limit call fails with a message naming the limit.
+- **参数**：`notes`（必需，字符串数组）
+- **行为**：替换该 Session 的持久笔记。最多 15 条、每条 200 字符；超出限制的调用会失败，并在消息中指明具体限制。
 
-### MemoryRead (`MemoryRead`)
+### MemoryRead（`MemoryRead`）
 
-- **Parameters**: `names` (required array of slugs)
-- **Behavior**: Returns those memory bodies. Names that do not exist are reported in the result rather than failing the call. The runtime records the digest of every body it returns, which is what lets a later replacement be refused.
+- **参数**：`names`（必需，slug 数组）
+- **行为**：返回这些 memory 的正文。不存在的名称会在结果中报告出来，而不会让整次调用失败。运行时会记录它所返回的每一份正文的摘要指纹，这正是让后续替换操作得以被拒绝的依据。
 
-### MemoryWrite (`MemoryWrite`)
+### MemoryWrite（`MemoryWrite`）
 
-- **Parameters**: `name` (required), `content` (required, may be empty), `description`, `type`
-- **Behavior**: Creates or replaces exactly one memory, at most 20 per project with a 100-character description and a 2,000-character body. Empty `content` deletes it. Creating a name that does not exist is always accepted; replacing one requires that this run read it — an unread replacement and a stale one are refused with different messages, because one needs a read and the other a merge. No version token appears in the schema: the comparison stays inside the runtime.
-- **Registration**: both are registered only on a local primary run whose session belongs to a project and whose user did not pass `--no-project-memory`. They are appended after the agent types are built, so no subagent definition can name them, and a delegate carries no index either. See [design/local-project-memory.md](../../../design/local-project-memory.md) §9.
+- **参数**：`name`（必需）、`content`（必需，可以为空）、`description`、`type`
+- **行为**：恰好创建或替换一条 memory，每个 project 最多 20 条，description 至多 100 字符，正文至多 2,000 字符。`content` 为空则删除该条目。创建一个尚不存在的名称总会被接受；替换一条已有的，则要求本次运行读取过它——未经读取的替换和已经过期的替换，会被拒绝，且提示消息不同，因为前者需要一次读取，后者需要一次合并。schema 中不出现任何版本标记：比对完全留在运行时内部完成。
+- **注册条件**：这两个工具只在满足以下条件的本地主运行上注册——其 Session 属于某个 project，且用户没有传入 `--no-project-memory`。它们是在各个 Agent 类型构建完成*之后*才追加进去的，因此任何子代理定义都无法指名它们，被委派方也不会携带这份索引。参见 [design/local-project-memory.md](../../design/本地项目记忆.md) §9。
 
-### Surface-scoped tools
+### 按 surface 注册的工具
 
-These tools are registered only when the current surface provides the service
-they need. A missing tool means that capability is unavailable in that run; it
-is not a permission denial.
+这些工具只有在当前 surface 提供了它们所需要的服务时，才会被注册。缺失某个工具，意味着该能力在这次运行中不可用，而不是一次权限拒绝。
 
-| Tool | Registered when | Parameters | Behavior |
+| 工具 | 何时注册 | 参数 | 行为 |
 |---|---|---|---|
-| `UploadArtifact` | The surface has an artifact publisher | `path` (required); `title`, `purpose`, `share` (optional) | Publishes one finished, readable regular file inside the workspace as an immutable artifact. |
-| `Worktree` | CLI or TUI primary run; never a subagent | `action` (required); `name`, `path`, `discard_changes` as required by the action | Creates, enters, leaves, lists, or removes Git worktrees and moves the session root with them. |
-| `GetIssue` | The primary run is scoped to one Issue and has an Issue client | None | Returns the attached Issue snapshot and discussion. It cannot select a different Issue. |
-| `ReportToIssue` | The primary run is scoped to one Issue and has an Issue client | `summary` (required); `artifact_ids` (optional) | Posts a bounded progress report to the attached Issue. A run may post at most three reports. |
-| `JobList` | Local background jobs are enabled (TUI or Desktop) | None | Lists jobs started by the runtime. |
-| `JobOutput` | Local background jobs are enabled (TUI or Desktop) | `job_id` (required); `stream`, `cursor` (optional) | Reads a bounded, incremental slice of a job's standard output or error stream. |
-| `JobStop` | Local background jobs are enabled (TUI or Desktop) | `job_id` (required) | Stops one background job started by the runtime. |
-| `Monitor` | Local background jobs are enabled (TUI or Desktop); never a subagent | `command` (required); `description`, `timeout`, `persistent`, `react` (optional) | Runs a watched command under the Bash risk and sandbox rules. Its output and lifecycle are handled by the job tools. |
+| `UploadArtifact` | 该 surface 拥有一个 Artifact 发布器 | `path`（必需）；`title`、`purpose`、`share`（可选） | 把工作区内一个已完成、可读的普通文件，发布为一个不可变的 Artifact。 |
+| `Worktree` | CLI 或 TUI 的主运行；子代理永不注册 | `action`（必需）；`name`、`path`、`discard_changes` 视具体 action 而定 | 创建、进入、离开、列出或移除 Git worktree，并让 Session 根目录随之移动。 |
+| `GetIssue` | 主运行绑定到某一个 Issue，且拥有一个 Issue 客户端 | 无 | 返回所绑定 Issue 的快照与讨论内容。它无法选择另一个 Issue。 |
+| `ReportToIssue` | 主运行绑定到某一个 Issue，且拥有一个 Issue 客户端 | `summary`（必需）；`artifact_ids`（可选） | 向所绑定的 Issue 发布一份有限制的进度报告。一次运行至多发布三份报告。 |
+| `JobList` | 已启用本地后台任务（TUI 或 Desktop） | 无 | 列出由运行时启动的各项任务。 |
+| `JobOutput` | 已启用本地后台任务（TUI 或 Desktop） | `job_id`（必需）；`stream`、`cursor`（可选） | 读取某个任务标准输出或标准错误流中的一段有限、增量的内容。 |
+| `JobStop` | 已启用本地后台任务（TUI 或 Desktop） | `job_id`（必需） | 停止一个由运行时启动的后台任务。 |
+| `Monitor` | 已启用本地后台任务（TUI 或 Desktop）；子代理永不注册 | `command`（必需）；`description`、`timeout`、`persistent`、`react`（可选） | 在 Bash 的风险与沙箱规则下运行一条被监视的命令。它的输出与生命周期由上述任务相关的工具处理。 |
 
-Portal background runs may add a Space instruction layer before the selected
-Agent's additional system prompt. Both are stable for that run; the additional
-prompt's `## Invariants` section is restated in the same block these tools render
-into. See [design/context-durability.md](../../../design/context-durability.md).
+Portal 的后台运行，可能会在所选 Agent 的附加系统提示词之前，再加入一层 Space 指令。这两者在该次运行中都是稳定的；附加提示词的 `## Invariants` 小节，会在这些工具所渲染进的同一个区块中被重述一遍。参见 [design/context-durability.md](../../design/上下文持久性.md)。
 
-Both write durable session state rather than returning a formatted string and
-nothing else. The state lives on `session.Session`, is reached through the
-context (`agent.CtxWithNoteStore`) because the tool registry is cached per model
-and shared across sessions, and is re-rendered after the message list on every
-call by `agent.RenderSessionState`. It is therefore never trimmed and never
-accumulates in the history. A subagent run is pointed at its own session, so it
-cannot overwrite the state of the run that delegated to it. See
-[design/context-durability.md](../../../design/context-durability.md).
+这两者（TodoWrite 与 NoteWrite）写入的是持久化的 Session 状态，而不只是返回一个格式化字符串就完事。这份状态保存在 `session.Session` 上，通过 context（`agent.CtxWithNoteStore`）来访问——因为工具注册表是按模型缓存、并跨 Session 共享的——并且每次调用后都会由 `agent.RenderSessionState` 重新渲染在消息列表之后。因此它从不会被裁剪，也从不会在历史记录中累积。一次子代理运行指向的是它自己的 Session，因此它不可能覆盖委派给它的那次运行的状态。参见 [design/context-durability.md](../../design/上下文持久性.md)。
 
-The memory tools follow the same context-carried pattern
-(`agent.CtxWithMemoryStore`) over a different lifetime: the memories belong to
-the project, not the session, and `agent.RenderMemoryIndex` places the index
-*before* the session-state block, so what the current task decided stays closest
-to generation. Only the index is resident; bodies arrive as ordinary tool
-results. A subagent inherits neither — its context has the store removed by
-`agent.CtxWithoutMemoryStore`.
+memory 相关的工具遵循同样的“由 context 携带”模式（`agent.CtxWithMemoryStore`），但生命周期不同：这些 memory 属于 project，而不属于 Session，`agent.RenderMemoryIndex` 会把索引放在 Session 状态区块*之前*，这样当前 Task 所做的决定就始终离生成端最近。只有索引常驻，正文则以普通工具结果的形式到达。子代理两者都不继承——它的 context 会被 `agent.CtxWithoutMemoryStore` 移除这个 store。
 
-LLM-facing names are the camelCase constants in `names.go`; the inventory above
-accounts for every one. `LoadMcpTools` and `CallMcpTool` are declared separately
-in `mcp_gateway.go`. These constants are the source of truth because hook
-matchers and subagent `tools:` fields match against their exact strings.
+面向 LLM 的名称，是 `names.go` 中的一组驼峰式（camelCase）常量；上面的清单涵盖了其中的每一个。`LoadMcpTools` 和 `CallMcpTool` 则单独声明在 `mcp_gateway.go` 中。这些常量是唯一的事实来源，因为 hook 的匹配规则和子代理的 `tools:` 字段，都会按照它们的精确字符串进行匹配。
 
-## What A Tool Declares About Itself
+## 一个工具如何声明自身
 
-Beyond `llm.Tool`, four optional interfaces feed the permission layer. Full
-layering: [design/tool-permissions.md](../../../design/tool-permissions.md).
+除 `llm.Tool` 之外，还有四个可选接口会影响权限层。完整的分层说明见：[design/tool-permissions.md](../../design/工具权限.md)。
 
-**`Access(args)` is the one every tool should implement.** It answers whether
-the call changes anything the user owns. The zero value is `AccessWrite`, so
-omitting it is safe but uninformative — the tool will prompt on interactive
-surfaces for no stated reason.
+**`Access(args)` 是每个工具都应该实现的那一个。** 它回答的是这次调用是否改变了用户拥有的任何东西。它的零值是 `AccessWrite`，因此不实现它是安全的，但信息量为零——这个工具会在交互式 surface 上弹出提示，却说不出任何理由。
 
-Two things it does *not* mean:
+它*不*代表以下两件事：
 
-- **It is not a concurrency claim.** `AccessReadOnly` says the call changes
-  nothing; it does not promise `Execute` is safe on several goroutines.
-  `CallMcpTool` reports read-only on a third party's word, which this runtime
-  cannot underwrite, which is why it declares `AccessWrite` at the tool level and
-  makes its per-call decision in `CheckArgs` instead.
-- **It is not the permission answer.** Permission is *derived* from it, and the
-  derivation is deliberately not the tool's to make. A tool that could name its
-  own action would eventually name `allow`.
+- **它不是一种并发保证。** `AccessReadOnly` 表示这次调用不改变任何东西，但并不承诺 `Execute` 可以安全地在多个 goroutine 上并发调用。`CallMcpTool` 是根据第三方自己的说法来报告只读的，而这一点本运行时是无法背书的，这正是它在工具层面声明 `AccessWrite`、转而在 `CheckArgs` 中逐次调用做判断的原因。
+- **它不是权限的最终答案。** 权限是从它*推导*出来的，而这一步推导刻意不交给工具自己来做。一个能够自己指定动作的工具，最终总会把自己指定为 `allow`。
 
-**`CheckArgs` is for risk, not category.** `ReadFile` and `WriteFile` return
-identical results from it — `Ask` for a sensitive path, `Allow` otherwise —
-because the axis is how dangerous *this* call is, not what kind of act it is.
-Note that `Allow` here means *abstain*: resolution continues to later layers.
+**`CheckArgs` 针对的是风险，而不是类别。** `ReadFile` 和 `WriteFile` 从它那里返回相同的结果——敏感路径为 `Ask`，否则为 `Allow`——因为这里衡量的维度，是*这次*调用有多危险，而不是它属于哪一类行为。注意这里的 `Allow` 意味着*弃权*：解析会继续交给后面的层级。
 
-**`DefaultAction` overrides the derivation, and needs a reason.** Three tools
-implement it, all writes that must not prompt:
+**`DefaultAction` 会覆盖推导结果，因此需要一个理由。** 有三个工具实现了它，全都是不能弹出提示的写操作：
 
-| Tool | Why |
+| 工具 | 原因 |
 |---|---|
-| `TodoWrite`, `NoteWrite` | write the agent's own scratch state, not the user's files |
-| `Bash` | has a sharper judgement of its own in `CheckArgs`; the category default would prompt for every `ls` |
+| `TodoWrite`、`NoteWrite` | 写的是 Agent 自己的草稿状态，而不是用户的文件 |
+| `Bash` | 在 `CheckArgs` 中自有一套更精细的判断；类别层面的默认值会导致连一次 `ls` 都会弹出提示 |
 
-**`GrantScope` is for tools that dispatch.** Without it, one session grant for
-`CallMcpTool` would cover every tool on every configured server.
+**`GrantScope` 是给那些做分发的工具用的。** 没有它，一次针对 `CallMcpTool` 的 Session 授权，就会覆盖每个已配置 server 上的每一个工具。
 
-### Concurrency
+### 并发
 
-The scheduler runs adjacent `AccessReadOnly` calls from one model message at the
-same time, so declaring read-only carries a second obligation the type system
-cannot check: **`Execute` must be safe to call from several goroutines at
-once.** Read-only in the effect sense does not imply it. `WebFetch` is the case
-to keep in mind — it changes nothing a user owns, and is only schedulable
-because the response cache it writes is guarded by `cacheMu`. Remove that mutex
-and it stays read-only and stops being safe to run in a batch.
+调度器会把同一条模型消息中相邻的 `AccessReadOnly` 调用同时运行，因此声明只读还附带着第二项义务，而这项义务是类型系统无法检查的：**`Execute` 必须可以安全地被多个 goroutine 同时调用。** 效果意义上的只读并不蕴含这一点。值得记住的一个例子是 `WebFetch`——它不改变用户拥有的任何东西，之所以可以被调度并发执行，仅仅是因为它写入的响应缓存受 `cacheMu` 保护。去掉这把互斥锁，它依然是只读的，却不再能安全地批量运行。
 
-What that means in practice: no unsynchronised package-level or struct-level
-mutable state, and no assumption that a sibling is not touching the same file.
-`./make test race` is the check; write the test that would catch it.
+这在实践中意味着：不能有未经同步的包级或结构体级可变状态，也不能假设同组的其他调用不会碰到同一个文件。检查手段是 `./make test race`；请写出能够捕获这类问题的测试。
 
-If a tool is read-only but genuinely cannot run concurrently, declare
-`AccessWrite` and say why in the comment. `TodoWrite` and `NoteWrite` do exactly
-that — they write only the agent's own scratch state, which is why they declare
-`DefaultAction() = Allow` for permission, but that state has no lock, so the
-write classification is what keeps them out of a batch.
+如果一个工具本质上是只读的，但确实无法并发运行，就声明 `AccessWrite`，并在注释中说明原因。`TodoWrite` 和 `NoteWrite` 正是这么做的——它们只写 Agent 自己的草稿状态，这也是它们在权限上声明 `DefaultAction() = Allow` 的原因，但那份状态没有加锁，因此正是这个写操作分类，把它们排除在批量执行之外。
 
-`Access` takes the call's arguments, so a tool that does different things for
-different arguments answers per call. `Task` is the one that does: it returns
-`AccessReadOnly` when the requested `subagent_type` resolves to a tool set
-whose every member is read-only, which is true of the built-in `explore` and
-of any user-defined agent restricted to reading tools. A type that can reach
-one writing tool, an unknown type, and `run_in_background` are all writes.
-A sub-agent's nested loop also inherits the parent's `max_parallel_tools`, so
-a read-only agent overlaps its own reads as well as its siblings'.
+`Access` 接收的是这次调用的参数，因此一个针对不同参数做不同事情的工具，会逐次调用来作答。`Task` 就是这样的工具：当请求的 `subagent_type` 解析出的工具集合中每一个都是只读时，它就返回 `AccessReadOnly`——内置的 `explore`，以及任何被限制为只能读取的用户自定义 Agent，都是这种情况。能够触达任意一个写工具的类型、未知类型，以及 `run_in_background`，全都是写操作。子代理的嵌套循环同样继承父级的 `max_parallel_tools`，因此一个只读 Agent 既会与自己的同组读操作重叠执行，也会与其兄弟调用重叠执行。
 
-### Adding a tool
+### 新增一个工具
 
-Declare `Access`, and read the concurrency obligation above before choosing
-`AccessReadOnly`. Add `CheckArgs` if some arguments are riskier than others.
-Reach for `DefaultAction` only when the tool genuinely knows better than the
-category, and say why in the comment. Then add a row to the table in
-[design/tool-permissions.md](../../../design/tool-permissions.md) section 6 —
-`internal/tool/permission_test.go` is table-driven against it and will fail
-until you do.
+声明 `Access`，并在选择 `AccessReadOnly` 之前，先阅读上面提到的并发义务。如果某些参数比其他参数更危险，就加上 `CheckArgs`。只有当这个工具确实比类别默认值更了解情况时，才使用 `DefaultAction`，并在注释中说明原因。然后在 [design/tool-permissions.md](../../design/工具权限.md) 第 6 节的表格中加上一行——`internal/tool/permission_test.go` 是基于这张表做表驱动测试的，在你添加之前会一直失败。
 
-## How It Works
+## 工作方式
 
-1. `internal/agentapp` resolves the workspace root and builds the base tool registry.
-2. Base tools include file operations, bash, glob/grep, web fetch, todo, skill, and optional MCP gateway tools.
-3. `internal/core/agent.RunLoop` receives a `llm.ToolRegistry`.
-4. During the loop, when the LLM returns tool calls, the agent looks up each tool by name, parses JSON arguments, and calls `Execute()`.
-5. Results (or errors) are appended to the active history as tool-role messages.
+1. `internal/agentapp` 解析工作区根目录，并构建基础工具注册表。
+2. 基础工具包括文件操作、bash、glob/grep、web fetch、todo、skill，以及可选的 MCP 网关工具。
+3. `internal/core/agent.RunLoop` 接收一个 `llm.ToolRegistry`。
+4. 在循环过程中，当 LLM 返回工具调用时，Agent 会按名称查找每个工具、解析 JSON 参数，并调用 `Execute()`。
+5. 结果（或错误）会以 tool 角色消息的形式追加到当前的历史记录中。
 
-## Dependencies
+## 依赖
 
-- **Uses**: `internal/core/llm` (tool contracts), `internal/infra/llm` (for WebFetch's LLM caller), `internal/infra/mcp` (for MCP gateway)
-- **Used by**: `internal/agentapp` (builds registries), `internal/core/agent` (executes tool calls)
+- **使用**：`internal/core/llm`（工具契约）、`internal/infra/llm`（供 WebFetch 的 LLM 调用使用）、`internal/infra/mcp`（供 MCP 网关使用）
+- **使用方**：`internal/agentapp`（构建注册表）、`internal/core/agent`（执行工具调用）
 
-## Notes
+## 说明
 
-- All tools enforce path security — file operations must be under the configured root directory.
-- Tool output is designed for LLM consumption: meaningful messages on both success and failure.
-- Error messages are prefixed with `error:` by the agent when sent to the LLM.
-- See also: [Agent Loop](agent-loop.md), [CLI](cli.md), [manual/tool-permissions.md](../../../../manual/tool-permissions.md).
+- 所有工具都强制执行路径安全——文件操作必须位于配置的根目录之下。
+- 工具输出是为 LLM 消费而设计的：无论成功还是失败，都要给出有意义的消息。
+- 错误消息在发送给 LLM 时，会被 Agent 加上 `error:` 前缀。
+- 另见：[Agent 循环](agent-loop.md)、[CLI](cli.md)、[manual/tool-permissions.md](../../../../manual/tool-permissions.md)。

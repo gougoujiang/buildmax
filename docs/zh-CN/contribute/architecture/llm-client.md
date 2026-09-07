@@ -1,43 +1,28 @@
 # LLM 客户端
 
-> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/llm-client.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `a4b26b7e3794afde32f10ff93c4100e3c14dfb37ccc1a042f4d64d1befdd8f61`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
-> **简体中文：** [阅读中文镜像](llm-client.md)
-> **Audience:** contributors · **Status:** current
+> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/llm-client.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
+> **受众：** 贡献者 · **状态：** 当前有效
 
-## Purpose
+## 用途
 
-`internal/infra/llm` implements the `llm.LLMClient` contract over the four LLM
-wire protocols BuildMax speaks. It translates between BuildMax types and each
-protocol's wire format, and owns everything that makes a real network call
-survivable: timeouts, retries, error classification, and usage capture.
+`internal/infra/llm` 基于 BuildMax 所使用的四种 LLM 线协议，实现了 `llm.LLMClient` 契约。它在 BuildMax 类型与各协议的线格式之间做转换，并拥有让一次真实网络调用得以存活下来的一切：超时、重试、错误分类和用量采集。
 
-The **contract** lives in `internal/core/llm`; this package is one
-implementation of it. The agent loop only ever sees the interface.
+**契约**位于 `internal/core/llm`；本包只是它的一种实现。Agent 循环看到的始终只是这个接口。
 
-| `Config.Provider` | Protocol | Adapter |
+| `Config.Provider` | 协议 | 适配器 |
 |---|---|---|
-| `openai_compatible` (default) | OpenAI Chat Completions | `openai_chat.go` |
+| `openai_compatible`（默认） | OpenAI Chat Completions | `openai_chat.go` |
 | `openai` | OpenAI Responses | `openai_responses.go` |
 | `anthropic` | Anthropic Messages | `anthropic.go` |
-| `ollama` | Ollama `/api/chat` (local) | `ollama.go`, `ollama_inventory.go` |
+| `ollama` | Ollama `/api/chat`（本地） | `ollama.go`、`ollama_inventory.go` |
 
-Those four values are `llm.Provider*` in `internal/core/llm`, along with
-`Providers`, `KnownProvider`, and `ProviderNeedsCredential`. One protocol name
-is read from `settings.yaml`, stored in the model catalog, and recorded in the
-call ledger, so it has one definition rather than one per surface.
-`config.KnownLLMProvider` adds only the configuration boundary's own reading,
-that an unset value means the default.
+这四个取值就是 `internal/core/llm` 中的 `llm.Provider*`，此外还有 `Providers`、`KnownProvider` 和 `ProviderNeedsCredential`。协议名只从 `settings.yaml` 中读取一次，存入模型目录，并记录进调用账本，因此它只有一处定义，而不是每个界面各定义一份。`config.KnownLLMProvider` 只额外承担配置边界自身的解读：未设置的值意味着使用默认值。
 
-`client.go` is the only entry point: it selects an adapter and owns the parts a
-caller depends on — the per-call timeout, the retry loop, and error
-classification — so four protocols cannot drift apart on them. An adapter
-performs one attempt and nothing else.
+`client.go` 是唯一的入口点：它选择一个适配器，并拥有调用方所依赖的各个部分——单次调用超时、重试循环和错误分类——从而不让四种协议在这些方面各行其是。一个适配器只负责执行一次尝试，仅此而已。
 
-Rationale and the phases beyond this one:
-[design/llm-provider-adapters.md](../../../design/llm-provider-adapters.md) and
-[design/local-ollama-provider.md](../../../design/local-ollama-provider.md).
+设计理由以及本阶段之后的规划：[design/llm-provider-adapters.md](../../design/LLM提供商适配器.md) 与 [design/local-ollama-provider.md](../../design/本地Ollama提供商.md)。
 
-## The Contract It Implements
+## 它实现的契约
 
 ```go
 // internal/core/llm
@@ -61,38 +46,23 @@ type Completion struct {
 }
 ```
 
-`Message`, `ToolDef`, `ToolCall`, `Usage`, `Completion`, and `ProviderState` are
-all defined in `internal/core/llm` — not in this package, and not in the
-`internal/core/*` domain packages, which hold domain entities and repository
-contracts instead.
+`Message`、`ToolDef`、`ToolCall`、`Usage`、`Completion` 和 `ProviderState` 全部定义在 `internal/core/llm` 中——既不在本包，也不在 `internal/core/*` 的各个领域包中，那些包持有的是领域实体和仓储契约。
 
-`Completion` is a struct rather than a longer return list because every
-capability the contract has gained wanted another slot, and a fifth positional
-value is where that stops being readable. `Completion.AssistantMessage()` is the
-history entry a turn becomes, so the agent loop appends it verbatim and no layer
-in between has to know reasoning state exists.
+`Completion` 是一个结构体，而不是一份更长的返回值列表，因为这份契约每获得一项新能力，就想要多占一个位置，而到了第五个位置参数时，可读性就已经维持不下去了。`Completion.AssistantMessage()` 就是一个回合最终变成的历史记录条目，因此 Agent 循环会原样追加它，中间的任何一层都不需要知道推理状态的存在。
 
-`Request` is a struct for the mirror-image reason on the way in. It exists to
-carry `CallProfile`: what the call is *for*, which the request itself cannot
-show. A title generation and the first turn of a long tool-calling run send the
-same shape of messages, and prompt caching charges them differently — a cache
-write costs more than ordinary input and only repays itself if a later call
-reads it. The profile is the caller's answer to "will anything read this again".
+`Request` 之所以也是一个结构体，是入口方向上对称的原因。它的存在是为了携带 `CallProfile`：这次调用*是为了什么*，这一点请求本身无法体现。一次标题生成，和一次长时间工具调用运行的第一回合，发送的消息形状是一样的，但提示缓存对它们的计费方式不同——一次缓存写入比普通输入更贵，只有当后续调用真的读取它时才能回本。profile 就是调用方对“之后还会不会有人读到这份前缀”这个问题给出的答案。
 
-| Profile | Set by |
+| Profile | 设置方 |
 |---|---|
-| `agent_turn` | `core/agent.RunLoop` — the prefix goes out again next iteration |
+| `agent_turn` | `core/agent.RunLoop`——该前缀会在下一次迭代中再次发出 |
 | `title` | `agentapp.SessionManager.GenerateTitle` |
-| `compaction` | `agentapp.LLMCompactor` and the note checkpointer |
-| `evaluation` | a harness calling *about* a run rather than *as* one |
-| `probe` | a single question with no reuse: `WebFetch`, a hook's model call |
+| `compaction` | `agentapp.LLMCompactor` 与笔记检查点器 |
+| `evaluation` | 某个测试框架针对一次运行发起的“关于”调用，而不是“作为”该运行本身的调用 |
+| `probe` | 不会被复用的单次提问：`WebFetch`、hook 的模型调用 |
 
-It is a typed field rather than a `context.Context` value because a charged
-provider behavior has to be visible to the callers and tests that reason about
-it. `CallProfile.Valid()` refuses an unknown value rather than defaulting: the
-default it would fall to is the one that spends money.
+它是一个有类型的字段，而不是 `context.Context` 中的一个值，因为这项会产生计费影响的行为，必须对需要据此推理的调用方和测试可见。`CallProfile.Valid()` 会拒绝未知取值，而不是回退到某个默认值：它本会回退到的那个默认值，恰恰是要花钱的那一个。
 
-## Construction
+## 构造
 
 ```go
 client, err := llm.NewClient(llm.Config{
@@ -107,273 +77,129 @@ client, err := llm.NewClient(llm.Config{
 })
 ```
 
-`Config` is this package's own struct, populated from a `models:` entry in
-`settings.yaml`, the `conversation.model` block in `server.yaml`, or a catalog
-target resolved by `internal/service/llmgateway`. When `ContextWindow` is zero,
-`lookupContextWindow` falls back to a built-in table of known model sizes — that
-table is keyed by OpenRouter-style identifiers, so a native model id normally
-needs `context_window` set explicitly. The Ollama provider is the exception: it
-asks the daemon instead, because a local daemon can answer for the model it
-actually holds.
+`Config` 是本包自己的结构体，其内容来自 `settings.yaml` 中的一条 `models:` 条目、`server.yaml` 中的 `conversation.model` 块，或是由 `internal/service/llmgateway` 解析出的目录条目（catalog target）。当 `ContextWindow` 为零时，`lookupContextWindow` 会回退到一张内置的已知模型尺寸表——这张表以 OpenRouter 风格的标识符为键，因此原生模型 ID 通常需要显式设置 `context_window`。Ollama 这个提供方是例外：它会转而去问守护进程，因为本地守护进程能就它实际持有的模型给出答案。
 
-An unknown provider is an error rather than a fallback: a model that cannot be
-reached the way it was configured fails at selection instead of sending its
-prompt somewhere the operator did not name.
+未知的提供方会报错，而不是被兜底处理：一个无法按其配置方式访问的模型，会在选择阶段就失败，而不是把它的提示词发到运维人员从未指定的地方。
 
-Every provider request identifies BuildMax as `buildmax/<version> (<surface>)`
-in its `User-Agent`. The surface is runtime-owned rather than user-configurable:
-CLI, Desktop, the managed server, and workers send their respective origin. A
-managed gateway preserves the original CLI, Desktop, or worker surface and adds
-`; gateway`, so its upstream request reads, for example,
-`buildmax/0.1.0 (cli; gateway)`.
+每一次对提供方的请求，都会在其 `User-Agent` 中把 BuildMax 标识为 `buildmax/<version> (<surface>)`。这个 surface 由运行时自身决定，而非用户可配置：CLI、Desktop、托管 Server 和各个 worker 会分别发送各自的来源标识。托管网关会保留原始的 CLI、Desktop 或 worker surface，并追加 `; gateway`，因此它发往上游的请求读起来会是，例如，`buildmax/0.1.0 (cli; gateway)`。
 
-## Normalizing History
+## 归一化历史记录
 
-Canonical history is one permissive shape: a system message, user and assistant
-turns, and one `role: "tool"` message per result. Each adapter turns that into a
-valid request for its protocol, and the Anthropic adapter carries most of the
-work — it lifts system messages into the top-level parameter, merges each run of
-tool results into one user message, drops a tool call whose result was trimmed
-away and a result whose call was, skips empty text, and supplies the required
-`max_tokens`.
+规范历史记录只有一种宽松的形状：一条 system 消息、若干 user 与 assistant 回合，以及每个结果各一条 `role: "tool"` 消息。每个适配器都会把它转换成自己协议下的有效请求，其中 Anthropic 适配器承担了大部分工作——它把 system 消息提升到顶层参数中，把连续出现的一串工具结果合并成一条 user 消息，丢弃结果已被裁剪掉的工具调用、以及调用已被裁剪掉的结果，跳过空文本，并补上协议要求的 `max_tokens`。
 
-Those repairs live in the adapter deliberately. Making `core/llm`, `TrimHistory`,
-or compaction enforce the strictest protocol's rules would charge the other two
-for constraints they do not have.
+这些修补有意留在适配器这一层。如果让 `core/llm`、`TrimHistory` 或压缩逻辑去强制执行最严格那个协议的规则，就等于让另外两个协议为它们本不具备的约束买单。
 
-The Responses adapter runs **stateless**: it sends the whole input every call and
-sets `store: false`. BuildMax owns history, trimming, compaction, and session
-persistence, so server-side conversation state would compete with all four.
+Responses 适配器以**无状态**方式运行：每次调用都发送完整输入，并设置 `store: false`。历史记录、裁剪、压缩和 Session 持久化都由 BuildMax 自己拥有，服务端保存的 Conversation 状态会与这四者相互竞争。
 
-The Ollama adapter carries the other repair. Its protocol has no tool-call
-identifiers: a result is answered by tool name, so the adapter resolves each
-`ToolCallID` against the calls of the assistant message before it and drops a
-result whose call is gone. Identifiers on the way back are minted by position in
-the conversation — `call_<n>` continuing past whatever the request already
-contained — so a session it writes stays unambiguous for a protocol that does
-pair by identifier.
+Ollama 适配器承担另一项修补。它的协议没有工具调用标识符：一个结果是按工具名称来作答的，因此适配器会把每个 `ToolCallID` 与它前面那条助手消息中的调用做匹配，并丢弃调用已经不存在的结果。返回方向的标识符则按其在对话中的位置铸造——`call_<n>` 会接着请求中已有的编号继续往后编——因此，对于确实按标识符配对的协议而言，它写下的 Session 依然是无歧义的。
 
-## The Local Context Window
+## 本地上下文窗口
 
-The Ollama protocol is the one that silently truncates rather than refusing an
-over-long prompt, so its adapter sends `num_ctx` on **every** call, and it is
-the same number `ContextWindow()` reports. An entry that sets `context_window`
-decides it; one that does not gets the daemon's answer for that model, capped at
-`config.DefaultContextWindow`, because a model's full trained length can exceed
-what the machine can allocate. A failed probe falls back to the default and logs
-— what it must never do is leave the field out.
+Ollama 协议在提示词过长时会默默截断，而不是拒绝，因此它的适配器会在**每一次**调用中都发送 `num_ctx`，并且这个数字与 `ContextWindow()` 所报告的完全一致。设置了 `context_window` 的条目由该值决定；未设置的条目则采用守护进程针对该模型给出的答案，并以 `config.DefaultContextWindow` 为上限——因为一个模型训练时的完整长度，可能超出这台机器所能分配的内存。探测失败时会回退到默认值并记录日志——它唯独不能做的，是把这个字段整个漏掉。
 
-`ollama_inventory.go` also serves diagnostics rather than runs: `OllamaInventory`
-lists what is pulled and `OllamaShow` reports one model's window and
-capabilities, which is what `buildmax doctor` and `buildmax models --local` read.
+`ollama_inventory.go` 服务的是诊断，而非运行本身：`OllamaInventory` 列出已拉取的内容，`OllamaShow` 报告某个模型的窗口大小与能力，这正是 `buildmax doctor` 和 `buildmax models --local` 所读取的内容。
 
-## Reasoning State
+## 推理状态
 
-`Config.Reasoning` is an effort level — `off`, `low`, `medium`, `high` — and any
-level but off also replays the reasoning on later turns. Anthropic gets adaptive
-extended thinking at that effort with `display: omitted`; Responses gets the
-effort plus `include: ["reasoning.encrypted_content"]`, which is the only way to
-replay reasoning when nothing is stored server-side. Chat Completions has no such
-state and ignores the setting. An unrecognized level fails `NewClient` rather
-than reaching a provider.
+`Config.Reasoning` 是一个强度级别——`off`、`low`、`medium`、`high`——除 off 外的任何级别，都会在之后的回合中回放这次推理。Anthropic 会在对应强度下获得自适应的扩展思考（extended thinking），并带上 `display: omitted`；Responses 则获得该强度加上 `include: ["reasoning.encrypted_content"]`，这是在服务端不保存任何状态的情况下，回放推理的唯一方式。Chat Completions 没有这种状态，会忽略该设置。无法识别的级别会让 `NewClient` 直接失败，而不会发送到提供方。
 
-What comes back is recorded on the assistant message as `ProviderState`, an
-opaque payload tagged with the protocol that produced it. Three properties
-follow, and each is load-bearing:
+返回的内容会作为 `ProviderState` 记录在助手消息上，这是一段不透明的负载，并标记着产生它的协议。由此得到三条性质，每一条都是承重的：
 
-- **It is never read outside its adapter.** A signature covers the content, so
-  rewriting it is worse than dropping it.
-- **It never becomes content.** Thinking is not an answer; putting it in the
-  transcript would make it indistinguishable from a conclusion.
-- **A foreign tag is discarded, not sent.** That is what lets a session stay
-  portable across providers while carrying state that is not: continuing under a
-  different protocol loses reasoning continuity and nothing else.
+- **它绝不会在自己的适配器之外被读取。** 有一个签名覆盖着这段内容，因此篡改它比直接丢弃它更糟。
+- **它绝不会变成 content。** 思考不是答案；把它放进对话记录会让它和结论变得无法区分。
+- **带有陌生标记的负载会被丢弃，而不是被发送。** 正是这一点让一个 Session 能够在提供方之间保持可移植，同时又能携带那些原本并不可移植的状态：换到另一种协议下继续运行，只会丢失推理的连续性，仅此而已。
 
-State that cannot be encoded is dropped rather than half-written, and a stored
-payload that no longer parses replays as no state at all. In both cases the turn
-proceeds without continuity, which is exactly what a protocol without reasoning
-does anyway.
+无法编码的状态会被整个丢弃，而不是写一半；已保存但如今无法解析的负载，会被当作完全没有状态来回放。这两种情况下，该回合都会在没有连续性的状态下继续，而这恰恰就是一个不支持推理的协议本来就会有的行为。
 
-## Prompt Caching
+## 提示缓存
 
-`Config.CacheControl` is the target's policy — `auto` (the default), `off`, or
-`force`, plus a retention — and `Request.Profile` is what the individual call is
-for. `resolveCacheDecision` combines them with the protocol's capability, and
-only the result reaches a request.
+`Config.CacheControl` 是目标的策略——`auto`（默认）、`off` 或 `force`，外加一个保留期限——而 `Request.Profile` 则是单次调用的用途。`resolveCacheDecision` 把这两者与协议自身的能力结合起来，只有最终结果才会进入请求。
 
-The profile is the half configuration cannot supply. Under `auto`, only an
-`agent_turn` asks for caching: its prefix goes out again on the next iteration,
-which is the case a cache write is priced for. A title, a compaction summary, or
-a probe is asked once and never asked again with the same prefix, so a write
-bought for one is a straight loss. A profile this build does not recognise is
-treated as unknown reuse, which does not justify a write; a caller that means to
-pay for one says `force`.
+profile 补上的是配置无法提供的那一半。在 `auto` 下，只有 `agent_turn` 才会请求缓存：它的前缀会在下一次迭代中再次发出，这正是缓存写入的计费所针对的场景。而标题生成、压缩摘要或一次探测，都是问一次就不会再用同一前缀问第二次，因此为它们买一次写入纯属亏本。这个构建版本无法识别的 profile，会被当作复用情况未知处理，不足以支撑一次写入；真的想为此付费的调用方，需要显式指定 `force`。
 
-Capability belongs to a target, and a direct entry has only its provider to go
-on:
+能力属于目标，而一个直连条目所能依据的只有它自己的提供方：
 
-| Provider | Request controls | Reported as | Retention |
+| 提供方 | 请求端控制项 | 报告为 | 保留期限 |
 |---|---|---|---|
-| `anthropic` | Breakpoints — nothing is cached unless the request says where | `supported` | `5m`, `1h` |
-| `openai` | A scoped `prompt_cache_key`; Responses caches on its own either way | `supported` | `24h` |
-| `openai_compatible` | None — speaking the protocol is not a promise to implement its cache fields | `unsupported` | — |
-| `ollama` | None — a local runtime reuses its own cache | `unsupported` | — |
+| `anthropic` | 断点——除非请求指明位置，否则不会缓存任何内容 | `supported` | `5m`、`1h` |
+| `openai` | 一个限定范围的 `prompt_cache_key`；Responses 无论如何都会自行缓存 | `supported` | `24h` |
+| `openai_compatible` | 无——说这门协议，不等于承诺实现它的缓存字段 | `unsupported` | — |
+| `ollama` | 无——本地运行时会复用自己的缓存 | `unsupported` | — |
 
-Retention vocabulary is per protocol. `5m` and `1h` mean something to Anthropic
-and nothing to the Responses API, and `24h` the other way round, so each refuses
-the other's rather than passing it through to be ignored.
+保留期限的用词是按协议各自定义的。`5m` 和 `1h` 对 Anthropic 有意义，对 Responses API 则毫无意义；`24h` 则反过来。因此双方都会拒绝对方的取值，而不是把它原样传过去、任其被忽略。
 
-`force` on a target with no request controls is refused at construction: serving
-it as no caching at all would answer a question nobody asked. `auto` is accepted
-everywhere, because most targets are like this and erroring would make the
-default mode unusable. A retention the protocol does not document is refused for
-the same reason — better a named failure than a field silently served at some
-other length.
+在没有请求端控制项的目标上使用 `force`，会在构造阶段就被拒绝：把它当成完全不缓存来处理，等于回答了一个没人问过的问题。`auto` 在任何地方都会被接受，因为大多数目标都是这种情况，报错会让默认模式变得无法使用。协议未文档化的保留期限，出于同样的理由被拒绝——与其让某个字段被悄悄换成别的期限提供服务，不如给出一个明确命名的失败。
 
-### The OpenAI cache key
+### OpenAI 缓存键
 
-The Responses API caches whether or not it is asked to, so the key BuildMax
-sends does not turn caching on — it decides which prefixes are looked up
-together. That makes it a correctness concern rather than a security one, and
-the failure mode is a bucket shared by prompts that never match, which is a
-bucket that never hits.
+Responses API 无论是否被要求，都会进行缓存，因此 BuildMax 发送的这个键并不会“打开”缓存——它决定的是哪些前缀会被放在一起查找。这就使它成为一个正确性问题，而非安全问题；出错时的表现是，一堆彼此永不匹配的提示词共用了同一个桶，也就是一个永远不会命中的桶。
 
-`deriveCacheKey` hashes exactly the things that all have to match for a hit to
-be possible: the credential, the model, the caller's scope, and fingerprints of
-the system prompt and the tool definitions in the order they are sent. Fields
-are length-delimited so two different splits of the same bytes cannot collide,
-and the whole thing carries a version prefix so a build that changes the
-derivation cannot share a bucket with one that has not.
+`deriveCacheKey` 只对那些必须全部匹配、命中才有可能发生的要素做哈希：凭证、模型、调用方的作用域，以及系统提示词和工具定义（按发送顺序）的指纹。各字段都以长度分隔，因此同一段字节的两种不同切法不会发生冲突；整体还带有一个版本前缀，因此改变了推导方式的构建版本，不会与未改变的版本共用同一个桶。
 
-Nothing goes in that would leak or fragment for no reason. The credential is
-hashed rather than carried; raw prompts, messages, workspace paths, and
-usernames stay out entirely. The result is derived per request and never
-persisted, logged, or returned — it appears in one outbound field and nowhere
-else.
+不会放入任何可能无端泄露或造成碎片化的内容。凭证是被哈希过的，而不是原样携带；原始提示词、消息、工作区路径和用户名则完全不会出现。这个结果按请求逐次推导，从不持久化、记录日志或返回给任何人——它只出现在一个出站字段里，别无他处。
 
-`Request.CacheScope` is the caller's bucket discriminator. It is empty for a
-direct call, where the credential is already the user's own account. For a
-managed call the gateway sets it from the authenticated space, because spaces
-granted the same approved model share one credential and would otherwise share
-one bucket. It is never accepted from a client: a caller that could name its own
-scope could aim at another space's.
+`Request.CacheScope` 是调用方的桶判别符。对于直连调用，它是空的，因为此时凭证本身就已经是用户自己的账号。对于托管调用，网关会根据经过身份验证的 Space 来设置它，因为被授予同一个已批准模型的多个 Space，会共用一份凭证，否则就会共用同一个桶。它绝不会从客户端接受：一个能够自行指定作用域的调用方，就有可能把矛头指向另一个 Space 的桶。
 
-### Anthropic breakpoint placement
+### Anthropic 断点放置
 
-On Anthropic the resulting request carries two breakpoints: a static one on the
-system prompt, which covers the tools and instructions that are identical on
-every call in a run, and the top-level rolling one, so the next turn reads the
-whole prefix rather than only the part before the conversation. The second does
-not replace the first — automatic lookback only finds a prefix that was
-previously written near the rolling endpoint. With no system prompt the static
-breakpoint moves to the last tool definition, because otherwise the only
-cacheable boundary left lands after a user message that changes every turn.
+在 Anthropic 上，最终请求会携带两个断点：一个是系统提示词上的静态断点，覆盖一次运行中每次调用都相同的工具和指令；另一个是顶层的滚动断点，使下一回合读取的是完整前缀，而不仅仅是对话开始之前的那部分。后者并不会取代前者——自动向前查找只能找到此前写在滚动端点附近的前缀。如果没有系统提示词，静态断点会移到最后一个工具定义上，否则唯一可缓存的边界就会落在每回合都会变化的用户消息之后。
 
-Cached counts are reported by all three and land on `core/llm.Usage` as
-`CacheReadTokens` and `CacheWriteTokens`. They are a **breakdown of
-`PromptTokens`, not an addition to it**. Anthropic reports cached input apart
-from `input_tokens`, so its adapter adds it back before reporting a prompt total;
-the OpenAI protocols already include it. Getting that wrong in either direction
-misreports what a run cost.
+三种协议都会报告缓存计数，最终落在 `core/llm.Usage` 的 `CacheReadTokens` 和 `CacheWriteTokens` 上。它们是对 **`PromptTokens` 的拆分，而不是在其之外的额外累加**。Anthropic 把缓存输入单独于 `input_tokens` 之外报告，因此它的适配器会在报告 prompt 总数前把它加回去；OpenAI 系协议则已经把它计算在内。这两个方向上任何一个搞错，都会误报一次运行实际花费的成本。
 
-From there the counts follow the same path as the prompt and completion totals:
-`agent.RunStats` accumulates them across a run, `agent.Event` carries the running
-figures on `llm_start`/`llm_end`, the JSONL trace records them on `llm_end` and
-`run_end`, the session file keeps the per-session totals, and `agentapp.RunResult`
-and `RunUsage` hand them to the CLI, Desktop, and any other surface. A managed
-call carries the same counts over `llmwire.Usage` and onto the `llm_call` ledger
-row, which the space run-ledger route and Portal's run-spend view read back.
+此后，这些计数就沿着与 prompt、completion 总数相同的路径流转：`agent.RunStats` 在一次运行中累加它们，`agent.Event` 在 `llm_start`/`llm_end` 上携带实时数字，JSONL 轨迹在 `llm_end` 和 `run_end` 上记录它们，Session 文件保存按 Session 汇总的总数，`agentapp.RunResult` 和 `RunUsage` 再把它们交给 CLI、Desktop 及其他任何界面。一次托管调用会把同样的计数经由 `llmwire.Usage` 携带到 `llm_call` 账本行上，供 Space 的运行账本路由和 Portal 的运行花费视图读回。
 
-Zero is not a miss. A provider that reports no cache counts is indistinguishable
-from one that missed, so surfaces show the breakdown only where a provider
-actually sent one rather than printing a `0 / 0` nobody measured.
+零并不等于未命中。一个不报告缓存计数的提供方，和一个确实未命中的提供方是无法区分的，因此各界面只在提供方确实发来过拆分数据时才展示它，而不会打印一个谁都没有测量过的 `0 / 0`。
 
-## Image Input
+## 图像输入
 
-`Config.Vision` says the model accepts images. It exists because a model without
-image support rejects a request carrying one rather than ignoring it, and the
-producer — an MCP server returning a screenshot — cannot know which model it is
-talking to.
+`Config.Vision` 表示该模型接受图像。它之所以存在，是因为一个不支持图像的模型，在收到携带图像的请求时会直接拒绝，而不是忽略它；而图像的产生方——比如返回一张截图的 MCP server——并不知道自己正在和哪个模型对话。
 
-A message carries images in `Parts`, with `Content` holding the text that
-describes them. When `Vision` is false, an adapter sends the text alone, which is
-still a complete tool result. When it is true, placement follows the protocol:
+一条消息把图像放在 `Parts` 里，`Content` 则保存描述这些图像的文字。当 `Vision` 为 false 时，适配器只发送文字，这依然是一个完整的工具结果。当它为 true 时，图像的放置位置由协议决定：
 
-| Protocol | Where a tool's image goes |
+| 协议 | 工具图像放在哪里 |
 |---|---|
-| Anthropic | Inside the `tool_result` block, where the protocol accepts it |
-| Chat Completions, Responses, Ollama | A short user turn immediately after the tool result, because none accepts image content on a tool message |
+| Anthropic | 放在 `tool_result` 块内部，该协议在这里接受图像 |
+| Chat Completions、Responses、Ollama | 紧跟在工具结果之后的一个简短 user 回合，因为它们都不接受在 tool 消息上携带图像内容 |
 
-The follow-up turn carries a one-line preamble. Without it the images arrive as a
-user turn with no explanation, which reads as though the user sent them.
+这个后续回合会带上一行说明性前言。如果没有它，这些图像就会以一个没有任何说明的 user 回合出现，读起来就像是用户自己发来的一样。
 
-## Retries
+## 重试
 
-Both call methods retry up to `maxRetryAttempts` (3) with a backoff of 1s, 2s,
-4s:
+两种调用方法都会重试至多 `maxRetryAttempts`（3）次，退避时间为 1 秒、2 秒、4 秒：
 
-| Retried | Never retried |
+| 会重试 | 从不重试 |
 |---|---|
-| Rate limit (429) | Context cancellation or deadline — the caller gave up |
-| Server errors (500, 502, 503, 504) | Auth errors (401, 403) — needs user action |
-| Network-level errors (connection refused, DNS) | Bad request (400) — retrying cannot help |
-| | A failure an adapter marked permanent: a local daemon that is not running, a model that is not pulled |
+| 速率限制（429） | Context 取消或截止时间到达——调用方已经放弃 |
+| 服务端错误（500、502、503、504） | 鉴权错误（401、403）——需要用户处理 |
+| 网络层错误（连接被拒、DNS） | 请求错误（400）——重试无济于事 |
+| | 适配器标记为永久性的失败：本地守护进程未运行、模型尚未拉取 |
 
-**Streaming stops retrying once a delta has been emitted.** Retrying after the
-user has already seen partial output would duplicate it, so a mid-stream failure
-surfaces as an error rather than a second attempt.
+**流式调用一旦发出过增量内容，就不再重试。** 在用户已经看到部分输出之后再重试，会造成内容重复，因此流式过程中途的失败会以错误的形式呈现出来，而不是发起第二次尝试。
 
-Errors are wrapped by `wrapLLMError` with a human-readable classification, which
-is why a bad key produces a comprehensible message instead of a raw HTTP error.
+错误会由 `wrapLLMError` 包装上一个人类可读的分类，这也是为什么一个错误的密钥会产生一条能看懂的消息，而不是一个原始的 HTTP 错误。
 
-Both the retry decision and the classification read `apiError`, a neutral shape
-each adapter converts its own library's failure into. The original error is kept
-and unwrapped, so a caller that does know a specific library's error type can
-still reach it.
+重试判断和分类都读取自 `apiError`——一种中性的形状，每个适配器都会把自己所用库的失败转换成这种形状。原始错误会被保留并可以被解包，因此确实了解某个具体库的错误类型的调用方，依然能够拿到它。
 
-## Usage Capture
+## 用量采集
 
-The Chat Completions library does not surface token usage from stream chunks, so
-`usageCaptureTransport` inspects the response body as it streams past and parses
-the usage block when one appears. This is why streamed runs still report token
-counts.
+Chat Completions 所用的库不会从流式分片中暴露 token 用量，因此 `usageCaptureTransport` 会在响应体流式经过时对其进行检查，并在出现用量块时将其解析出来。这就是为什么流式运行依然能够报告 token 计数。
 
-The workaround is confined to that one adapter. The Responses and Anthropic
-adapters read usage from their own event streams and need nothing like it.
+这个变通方案只局限于这一个适配器。Responses 和 Anthropic 适配器都从各自的事件流中读取用量，不需要类似的处理。
 
-Usage is normalized to `core/llm.Usage` by each adapter. The Anthropic protocol
-reports no total, so its adapter computes one — metering reads `TotalTokens`,
-and leaving it zero would report a call that cost nothing. `CacheReadTokens` and
-`CacheWriteTokens` are part of that canonical shape and travel with every result,
-blocking and streamed alike.
+用量由每个适配器归一化为 `core/llm.Usage`。Anthropic 协议不报告总数，因此它的适配器会自行计算——计量读取的是 `TotalTokens`，把它留成零，就等于报告了一次不花钱的调用。`CacheReadTokens` 和 `CacheWriteTokens` 是这份规范形状的一部分，无论阻塞式还是流式，每一个结果都会携带它们。
 
-## Per-Call Timeout
+## 单次调用超时
 
-`CallTimeout` wraps each individual attempt in `context.WithTimeout` — it bounds
-one call, not the whole run. A run with many tool-calling iterations is bounded
-by `MaxIter` in the agent loop, not here.
+`CallTimeout` 用 `context.WithTimeout` 包裹每一次单独的尝试——它限定的是一次调用，而不是整次运行。一次包含多轮工具调用迭代的运行，由 Agent 循环中的 `MaxIter` 来限定，而不是在这里。
 
-## Dependencies
+## 依赖
 
-- **Uses**: `internal/core/llm` (contract and message types),
-  `github.com/sashabaranov/go-openai` (both OpenAI protocols),
-  `github.com/anthropics/anthropic-sdk-go`. The Ollama adapter needs no client
-  library: three endpoints and one newline-delimited stream are not worth a
-  module dependency.
-- **Used by**: `internal/agentapp` (client cache), `internal/bootstrap`
-  (Tier 1 conversation client)
+- **使用**：`internal/core/llm`（契约与消息类型）、`github.com/sashabaranov/go-openai`（两种 OpenAI 协议均使用）、`github.com/anthropics/anthropic-sdk-go`。Ollama 适配器不需要任何客户端库：三个接口和一路以换行分隔的流，不值得为此引入一个模块依赖。
+- **使用方**：`internal/agentapp`（客户端缓存）、`internal/bootstrap`（Tier 1 Conversation 客户端）
 
-## Notes
+## 说明
 
-- Any OpenAI-compatible endpoint works by changing `BaseURL` alone — OpenRouter,
-  Azure, a local vLLM or LM Studio. `Provider` is only needed when the endpoint
-  speaks a different protocol. A local Ollama daemon serves one of those too,
-  but `ollama` is the right value for it: the compatible endpoint cannot set the
-  context window.
-- The load-bearing test is the cross-adapter conformance suite in
-  `conformance_test.go`: one logical reply is encoded by each protocol's fixture
-  and read back through each adapter, and the canonical content, tool calls, and
-  usage must come out identical.
-- Because the agent depends on the interface rather than this struct, tests
-  substitute a fake client without touching the network.
-- See also: [Agent Loop](agent-loop.md), [Configuration](config.md).
+- 任何兼容 OpenAI 的端点，只需更改 `BaseURL` 即可工作——OpenRouter、Azure、本地的 vLLM 或 LM Studio 皆是如此。只有当端点使用不同的协议时，才需要设置 `Provider`。本地 Ollama 守护进程本身也提供这样一个兼容端点，但对它而言正确的取值是 `ollama`：兼容端点无法设置上下文窗口。
+- 承重测试是 `conformance_test.go` 中的跨适配器一致性测试套件：同一个逻辑回复会由每种协议的 fixture 编码出来，再经由每个适配器读回，最终得到的规范内容、工具调用和用量必须完全一致。
+- 由于 Agent 依赖的是接口而非这个具体结构体，测试可以替换成一个假客户端，完全不接触网络。
+- 另见：[Agent 循环](agent-loop.md)、[配置](config.md)。

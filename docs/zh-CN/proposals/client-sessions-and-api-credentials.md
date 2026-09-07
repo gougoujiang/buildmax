@@ -1,576 +1,532 @@
-# Client Sessions And Api Credentials
+# 客户端 Session 与 API 凭据
 
-> **翻译说明：** 本文是[英文原文](../../proposals/client-sessions-and-api-credentials.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `8646bebdee7cd28e123ebe7706e97f90b993c1c68287759c30cf4aa85ad6e415`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../proposals/client-sessions-and-api-credentials.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
-# Client Sessions And API Credentials
-
-> **Audience:** contributors, product reviewers, operators, and security reviewers · **Status:** proposal — under discussion
+> **受众：** 贡献者、产品评审人、运维人员与安全评审人 · **状态：** 提案 —— 讨论中
 >
-> **Opened:** 2026-08-24
+> **提出时间：** 2026-08-24
 
-Related: [roadmap](../ROADMAP.md) P3 and P4,
-[deployment authentication](../deploy/authentication.md),
-[managed LLM gateway design](../../design/llm-gateway.md),
-[client modes design](../../design/client-modes.md),
-[worker run token design](../../design/worker-run-token.md),
-[data model](../../contribute/architecture/data-model.md), and the
-[enterprise identity and access proposal](enterprise-identity-and-access.md).
+相关文档：[路线图](../ROADMAP.md) P3 与 P4、
+[部署认证](../deploy/authentication.md)、
+[托管 LLM 网关设计](../design/LLM网关.md)、
+[客户端模式设计](../design/客户端模式.md)、
+[Worker 运行令牌设计](../design/Worker运行令牌.md)、
+[数据模型](../contribute/architecture/data-model.md)，以及
+[企业身份与访问提案](enterprise-identity-and-access.md)。
 
-## Contents
+## 目录
 
-- [Decision Question](#decision-question)
-- [Problem And Current Context](#problem-and-current-context)
-- [Current Code State](#current-code-state)
-- [Credential Responsibilities And Threat Model](#credential-responsibilities-and-threat-model)
-- [Goals](#goals)
-- [Non-Goals](#non-goals)
-- [Design Principles](#design-principles)
-- [Recommended Human Client Flows](#recommended-human-client-flows)
-- [Machine Credentials](#machine-credentials)
-- [Data Model Implications](#data-model-implications)
-- [HTTP API Implications](#http-api-implications)
-- [CLI, Desktop, And Portal UX](#cli-desktop-and-portal-ux)
-- [Options And Trade-Offs](#options-and-trade-offs)
-- [Code And Documentation Findings](#code-and-documentation-findings)
-- [Staged Direction If Accepted](#staged-direction-if-accepted)
-- [Product Decisions Needed](#product-decisions-needed)
-- [Evidence Needed For A Decision](#evidence-needed-for-a-decision)
-- [Likely Destination If Accepted](#likely-destination-if-accepted)
+- [决策问题](#决策问题)
+- [问题与当前背景](#问题与当前背景)
+- [当前代码状态](#当前代码状态)
+- [凭据职责与威胁模型](#凭据职责与威胁模型)
+- [目标](#目标)
+- [非目标](#非目标)
+- [设计原则](#设计原则)
+- [推荐的人类客户端流程](#推荐的人类客户端流程)
+- [机器凭据](#机器凭据)
+- [数据模型影响](#数据模型影响)
+- [HTTP API 影响](#http-api-影响)
+- [CLI、Desktop 与 Portal 的用户体验](#cli-desktop-与-portal-的用户体验)
+- [方案与权衡](#方案与权衡)
+- [代码与文档发现](#代码与文档发现)
+- [若被采纳后的分阶段方向](#若被采纳后的分阶段方向)
+- [需要产品决策的事项](#需要产品决策的事项)
+- [做出决策所需的证据](#做出决策所需的证据)
+- [若被采纳后的可能归宿](#若被采纳后的可能归宿)
 
-## Decision Question
+## 决策问题
 
-After an interactive login, should BuildMax return a third long-lived token in
-addition to the access token and refresh token so that CLI/TUI and Desktop can
-keep calling the managed LLM gateway?
+在一次交互式登录之后,BuildMax 是否应该在 access token 与 refresh token 之外,
+再返回第三个长期有效的 token,以便 CLI/TUI 和 Desktop 能够持续调用托管的 LLM
+网关?
 
-The likely direction is:
+可能的方向是:
 
-> No. A human login should create one revocable client session. Short-lived
-> access tokens authorize API calls, and a rotating refresh token keeps that
-> session usable. Long-lived machine credentials are created explicitly as
-> personal access tokens or service-account credentials, never as a side effect
-> of signing in. If the managed gateway needs a narrower credential, the client
-> obtains a short-lived, audience-restricted token on demand rather than a
-> long-lived gateway token at login.
+> 不应该。一次人类登录应当只创建一个可撤销的客户端 session。短期有效的
+> access token 用于授权 API 调用,而一个可轮换的 refresh token 让该 session
+> 保持可用。长期有效的机器凭据应当作为个人访问令牌(personal access token)
+> 或服务账号(service-account)凭据被显式创建,而绝不应作为登录的副作用产生。
+> 如果托管网关需要一个范围更窄的凭据,客户端应当按需获取一个短期有效、
+> 限定受众(audience-restricted)的 token,而不是在登录时获得一个长期有效的
+> 网关 token。
 
-This is not an accepted roadmap commitment. It makes the credential boundary
-concrete enough to accept, change, or reject before the current Alpha login
-shape hardens into an API other clients depend on.
+这并非一项已被采纳的路线图承诺。它的作用是在当前 Alpha 阶段的登录形态固化为
+其他客户端所依赖的 API 之前,把这个凭据边界问题讲清楚,以便被接受、修改或
+拒绝。
 
-## Problem And Current Context
+## 问题与当前背景
 
-BuildMax has two different needs that look similar only because both require a
-Bearer header:
+BuildMax 有两种不同的需求,它们看起来相似,仅仅是因为二者都需要一个 Bearer
+请求头:
 
-1. A person signs in on Portal, CLI/TUI, or Desktop and expects the session to
-   survive access-token expiry without repeatedly asking an operator for a
-   login code.
-2. A script, integration, CI job, or shared service may need to call an API
-   while no person is present.
+1. 一个人在 Portal、CLI/TUI 或 Desktop 上登录,并期望该 session 在
+   access token 过期后依然可用,而不必反复向运维人员索要登录码。
+2. 一个脚本、集成、CI 任务或共享服务可能需要在无人在场的情况下调用 API。
 
-The first is a human session. The second is machine authority. Returning a
-static long-lived token from every successful login would merge them: ordinary
-sign-in would silently create an automation credential, logout would have no
-obvious meaning for it, and the audit trail could not tell an interactive
-client from an unattended caller.
+前者是人类 session,后者是机器权限(machine authority)。如果每次成功登录都
+返回一个静态的长期 token,就会把这两者混为一谈:普通的登录会悄悄创建出一个
+自动化凭据,登出对该凭据没有明确的含义,而审计轨迹也无法区分交互式客户端与
+无人值守的调用方。
 
-The managed LLM gateway does not create a third need. A local CLI/TUI or Desktop
-Agent may run for longer than one access token, but it can renew the session
-before each request. A streaming completion is authorized when the request is
-accepted; it does not need an access token whose lifetime exceeds every
-possible model call. A reconnect can obtain a fresh access token first.
+托管 LLM 网关并不构成第三种需求。本地 CLI/TUI 或 Desktop 上的 Agent 运行时长
+可能超过一个 access token 的生命周期,但它可以在每次请求前续期该 session。
+一次流式补全(streaming completion)在请求被接受时即已获得授权;它不需要一个
+生命周期长于所有可能的模型调用的 access token。重新连接时可以先获取一个新的
+access token。
 
-This distinction matters more in BuildMax than in a conventional API client.
-The local Agent can execute model-selected commands, and Bash sandboxing is off
-by default. A credential stored as a file readable by the same OS user is
-protected from another user account, but not necessarily from code executing
-inside the Agent's own trust domain. Adding another long-lived bearer secret
-would increase that exposure without improving session continuity.
+这个区分在 BuildMax 中比在常规 API 客户端中更为重要。本地 Agent 可以执行
+模型选择的命令,而 Bash 沙箱默认是关闭的。一个以文件形式存储、仅同一操作系统
+用户可读的凭据,能够防止被另一个操作系统账户读取,但未必能防止在 Agent 自身
+信任域内执行的代码读取。再添加一个长期有效的 bearer 密钥,只会增加这种暴露面,
+而不会改善 session 的连续性。
 
-## Current Code State
+## 当前代码状态
 
-### Interactive Login
+### 交互式登录
 
-`POST /api/login` accepts a password or an operator-issued, single-use login
-code. Either proof creates a new session ID and returns:
+`POST /api/login` 接受密码或运维人员签发的一次性登录码。任一凭证都会创建一个
+新的 session ID,并返回:
 
-- `access_token`, plus the legacy duplicate field `token`;
-- `refresh_token` when a refresh-token store is configured;
-- `expires_in`; and
-- the user's public identity fields.
+- `access_token`,以及为兼容而保留的旧字段 `token`;
+- 当配置了 refresh-token 存储时返回 `refresh_token`;
+- `expires_in`;以及
+- 用户的公开身份字段。
 
-Each login creates its own session. The refresh token is an opaque random
-secret stored only as a SHA-256 hash in `user_refresh_token`. Rotation spends
-the presented row and creates a replacement in the same `session_id` chain.
-Reuse outside `refresh_rotation_grace` revokes the whole chain and records an
-`auth.refresh_reuse` audit event.
+每次登录都会创建自己的 session。refresh token 是一个不透明的随机密钥,
+仅以 SHA-256 哈希的形式存储在 `user_refresh_token` 中。轮换(rotation)会
+消耗当前呈现的行并在同一 `session_id` 链中创建替代行。在 `refresh_rotation_grace`
+之外重用旧 token 会撤销整条链,并记录一条 `auth.refresh_reuse` 审计事件。
 
-The defaults are:
+默认值如下:
 
-| Setting | Current default | Current meaning |
+| 设置项 | 当前默认值 | 当前含义 |
 |---|---:|---|
-| `access_token_ttl` | 7 days | How long an unstored access JWT remains usable |
-| `refresh_token_ttl` | 30 days | How long the current refresh-token row may be exchanged |
-| `refresh_rotation_grace` | 30 seconds | How long a spent token may be exchanged again by a racing client process |
+| `access_token_ttl` | 7 天 | 一个未被存储的 access JWT 保持可用的时长 |
+| `refresh_token_ttl` | 30 天 | 当前 refresh-token 行可被兑换的时长 |
+| `refresh_rotation_grace` | 30 秒 | 一个已被消耗的 token 允许被并发的客户端进程再次兑换的时长 |
 
-Rotation assigns each replacement `now + refresh_token_ttl`. The 30-day value
-is therefore an inactivity window, not an absolute session lifetime. A client
-that refreshes regularly can keep the session alive indefinitely.
+轮换会为每个替代 token 赋予 `now + refresh_token_ttl`。因此 30 天这个值是一个
+不活跃窗口(inactivity window),而不是 session 的绝对生命周期。一个持续定期
+刷新的客户端可以让 session 无限期保持存活。
 
-Logout revokes the refresh-token chain. It does not invalidate an access token
-already issued from that chain. Disabling the account is immediate because
-every authenticated route resolves the user row and refuses a non-null
-`disabled_at`.
+登出会撤销 refresh-token 链,但不会使该链已经签发出去的 access token 失效。
+禁用账户会立即生效,因为每个已认证路由都会解析用户行,并拒绝
+`disabled_at` 非空的用户。
 
-### Access Token Shape
+### Access Token 的形态
 
-The user JWT currently contains:
+用户 JWT 目前包含:
 
-| Claim | Meaning |
+| Claim | 含义 |
 |---|---|
-| `sub` | User public ID |
+| `sub` | 用户的公开 ID |
 | `typ` | `access` |
-| `sid` | Refresh-token session chain |
-| `jti`, `iat`, `exp` | Registered token identity and lifetime claims |
+| `sid` | Refresh-token session 链 |
+| `jti`、`iat`、`exp` | 注册的 token 身份与生命周期 claim |
 
-It has no enforced issuer, audience, client identity, or scopes. `typ` prevents
-a run token from substituting for a user access token, but a valid user access
-token is otherwise general-purpose across the user API.
+它没有强制校验的 issuer、audience、客户端身份或 scope。`typ` 能够防止 run token
+冒充用户 access token,但一个合法的用户 access token 在其他方面对整个用户 API
+都是通用的。
 
-### Managed Clients
+### 托管客户端
 
-The existence of `<BUILDMAX_HOME>/auth.json` selects managed mode. CLI/TUI and
-Desktop fetch the deployment's model list, build one remote LLM client, and
-request a credential before each managed request. `TokenForServer`:
+`<BUILDMAX_HOME>/auth.json` 的存在与否决定了是否进入托管模式(managed mode)。
+CLI/TUI 与 Desktop 会获取部署的模型列表、构建一个远程 LLM 客户端,并在每次
+托管请求之前申请凭据。`TokenForServer`:
 
-- refuses to send the credential to a Server URL other than the one stored by
-  login;
-- returns the current access token when it is still usable;
-- refreshes it shortly before expiry; and
-- ends the local login when the server rejects the refresh token.
+- 拒绝把凭据发送到登录时存储的 Server URL 之外的其他地址;
+- 当当前 access token 仍然可用时直接返回它;
+- 在快要过期之前刷新它;以及
+- 当服务器拒绝 refresh token 时结束本地登录状态。
 
-The remote client therefore already survives access-token expiry. No fixed
-token is baked into a long-lived TUI or Desktop process.
+因此,远程客户端已经能够顺利度过 access token 过期。不会有任何固定的 token
+被硬编码进一个长期运行的 TUI 或 Desktop 进程中。
 
-The current gateway routes are:
+当前的网关路由为:
 
 ```text
 GET  /api/llm/models
 POST /api/llm/completions
 ```
 
-Both call `ActiveUser`. Being signed in is their whole authorization: every
-enabled catalog model is deployment-global, and foreground calls are
-attributed to the person rather than to a Space.
+两者都调用 `ActiveUser`。已登录就是它们全部的授权条件:每个已启用的目录中的
+模型都是部署全局的,前台调用被归属到具体的人,而不是某个 Space。
 
-### Client Storage
+### 客户端存储
 
-CLI/TUI and Desktop share `auth.json`, which holds the Server URL, access token,
-refresh token, and user metadata. Writes are atomic and the file mode is `0600`.
-The shared file is also why the server has a rotation grace window: two
-processes may read and exchange the same refresh token concurrently.
+CLI/TUI 与 Desktop 共享 `auth.json`,其中保存了 Server URL、access token、
+refresh token 以及用户元数据。写入是原子的,文件权限为 `0600`。这个共享文件
+也是服务器需要一个轮换宽限窗口(rotation grace window)的原因:两个进程可能
+并发地读取并兑换同一个 refresh token。
 
-Portal stores both credentials in `localStorage` and coordinates refreshes
-inside one browser tab. That is a different threat model from a native client
-and should not force the native storage design.
+Portal 把两种凭据都存储在 `localStorage` 中,并在一个浏览器标签页内协调刷新。
+这与原生客户端是不同的威胁模型,不应因此强行套用原生存储的设计。
 
-### Worker Authentication
+### Worker 认证
 
-Task-run workers already use the credential shape this proposal wants to
-preserve for machine execution: the scheduler mints a short-lived run token
-whose claims name one user, Space, task, and TaskRun. Every worker route checks
-that the path names the run in the credential, and managed inference additionally
-requires the run to be executing.
+Task-run worker 已经在使用本提案希望为机器执行保留的凭据形态:调度器会签发
+一个短期有效的 run token,其 claim 指定唯一的用户、Space、task 与 TaskRun。
+每个 worker 路由都会检查路径中所指定的 run 是否与凭据中的一致,而托管推理还
+会额外要求该 run 处于执行中状态。
 
-The run-token design explicitly rejects reusing a person's access token. A
-worker executes model-selected commands, while a user token opens every Space
-and resource that person may reach. Attribution does not require
-impersonation. The same least-privilege principle applies when designing PATs
-and service accounts.
+run token 的设计明确拒绝复用某个人的 access token。一个 worker 执行的是模型
+选择的命令,而一个用户 token 会打开该用户可及的每一个 Space 与资源。归属
+(attribution)并不需要冒充(impersonation)。同样的最小权限原则也应当适用于
+个人访问令牌(PAT)与服务账号的设计。
 
-## Credential Responsibilities And Threat Model
+## 凭据职责与威胁模型
 
-The credential classes should remain distinct:
+各类凭据应当保持彼此独立:
 
-| Credential or proof | Responsibility | Expected lifetime | Primary threat |
+| 凭据或证明 | 职责 | 预期生命周期 | 主要威胁 |
 |---|---|---:|---|
-| Password, login code, OIDC authorization, or device authorization | Prove a person may start a session | One authentication transaction | Phishing, brute force, account linking, or code interception |
-| Access token | Authorize a bounded set of API calls | Minutes, not days | Direct replay until expiry; current session revocation does not stop it |
-| Refresh token | Continue one client session and mint new access tokens | Days of inactivity, with an absolute cap | Theft creates renewable authority; rotation detects only eventual reuse |
-| Personal access token | Let one person's unattended client perform explicitly selected actions | Explicit, expiring grant | Static replay, forgotten credentials, excessive scopes, person leaving |
-| Service-account credential | Authenticate a non-human principal owned by a Space or deployment | Policy-controlled or workload-bound | Orphaned ownership, broad shared secrets, weak attribution |
-| Run token | Let one dispatched TaskRun use only its worker routes | One run | Leakage from process or Job state before run end or token expiry |
+| 密码、登录码、OIDC 授权或设备授权 | 证明某人可以开始一个 session | 一次认证事务 | 钓鱼、暴力破解、账户关联或验证码截获 |
+| Access token | 授权一组有限的 API 调用 | 数分钟,而非数天 | 在过期前被直接重放;当前的 session 撤销并不能阻止这一点 |
+| Refresh token | 延续一个客户端 session 并铸造新的 access token | 数天不活跃期,并有一个绝对上限 | 被窃取会创造出可续期的权限;轮换只能事后检测到重用 |
+| 个人访问令牌(PAT) | 让某个人无人值守的客户端执行明确选定的操作 | 显式的、有过期时间的授予 | 静态重放、被遗忘的凭据、过度的 scope、人员离职 |
+| 服务账号凭据 | 认证一个由 Space 或部署拥有的非人类主体 | 由策略控制或与工作负载绑定 | 归属关系失效(orphaned ownership)、宽泛的共享密钥、归属追溯薄弱 |
+| Run token | 让一次已分派的 TaskRun 只能使用它自己的 worker 路由 | 一次 run | 在 run 结束或 token 过期前从进程或 Job 状态中泄漏 |
 
-A refresh token is already the long-lived half of a human session. It is safer
-than a general long-lived API token for that job because it is accepted only at
-the token endpoint, stored as a hash, individually revocable, rotated on use,
-and linked to a session family. It is still a high-value secret and must not be
-treated as harmless merely because it cannot call the gateway directly.
+Refresh token 本身已经是人类 session 的长期有效部分。相比一个通用的长期
+API token,它更安全,因为它只在 token 端点被接受、以哈希形式存储、可单独
+撤销、使用后即轮换,并且与一个 session 族绑定。但它仍然是一个高价值密钥,
+不能仅因为它不能直接调用网关就被视为无害。
 
-The OAuth 2.0 Security Best Current Practice requires a public client's refresh
-tokens to be sender-constrained or rotated, and recommends restricting access
-tokens to the minimum necessary audience and privileges. BuildMax implements
-rotation today but not audience or scope restriction. See
-[RFC 9700](https://www.rfc-editor.org/info/rfc9700/) and
-[RFC 8707](https://www.rfc-editor.org/info/rfc8707/).
+OAuth 2.0 安全最佳当前实践(Security Best Current Practice)要求公开客户端
+的 refresh token 必须绑定发送方(sender-constrained)或加以轮换,并建议将
+access token 限定为最小必要的受众与权限范围。BuildMax 目前实现了轮换,但
+没有实现受众或 scope 限制。参见
+[RFC 9700](https://www.rfc-editor.org/info/rfc9700/) 与
+[RFC 8707](https://www.rfc-editor.org/info/rfc8707/)。
 
-## Goals
+## 目标
 
-- Keep a human login usable across short access-token lifetimes without adding
-  a third long-lived login credential.
-- Limit the effect of an access token leaking from a managed LLM request,
-  client process, log, or local runtime.
-- Make logout, session expiry, credential rotation, and account disablement
-  have explicit and testable meanings.
-- Keep refresh tokens out of Agent-visible configuration, prompts, tools,
-  hooks, MCP, subagents, logs, and traces.
-- Give scripts and services an explicit machine-credential path with scopes,
-  expiry, ownership, and individual revocation.
-- Preserve the run-scoped worker credential and direct local mode.
-- Leave room for the OIDC direction being evaluated by the enterprise identity
-  proposal without making OIDC a prerequisite for current private deployments.
-- Keep Space membership and System Administrator grants as server-derived
-  authorization, not claims a client may invent.
+- 让人类登录在短期 access token 生命周期下依然可用,而不必新增第三个长期
+  有效的登录凭据。
+- 限制某个 access token 从托管 LLM 请求、客户端进程、日志或本地运行时泄漏后
+  造成的影响。
+- 让登出、session 过期、凭据轮换与账户禁用都具有明确且可测试的含义。
+- 让 refresh token 不出现在 Agent 可见的配置、prompt、工具、hook、MCP、
+  子 Agent(subagent)以及日志和 trace 中。
+- 为脚本与服务提供一条显式的机器凭据路径,具备 scope、过期时间、归属关系与
+  单独可撤销性。
+- 保留 run 范围限定的 worker 凭据,以及直连本地模式。
+- 为企业身份提案正在评估的 OIDC 方向留出空间,而不把 OIDC 变成当前私有部署
+  的前提条件。
+- 让 Space 成员身份与系统管理员授权保持为由服务器推导的授权结果,而不是
+  客户端可以任意声明的内容。
 
-## Non-Goals
+## 非目标
 
-- Implementing OAuth, OIDC, device authorization, PATs, or service accounts in
-  this proposal.
-- Making public internet exposure supported before login throttling, SSO or a
-  second factor, and the other limits in the support matrix are resolved.
-- Turning the managed gateway into a public OpenAI-compatible API.
-- Adding per-Space model policy or Space attribution to foreground managed calls;
-  the client-modes design explicitly withdrew both.
-- Making access tokens carry complete Space membership or system-role state.
-  Those authorities can change and remain server-derived.
-- Treating secure local storage as protection from a fully compromised client
-  process. A process that can use a secret may be able to abuse its broker; the
-  goal is to prevent casual file disclosure and reduce replay outside that
-  process.
-- Replacing run tokens with PATs or service-account credentials.
+- 在本提案中实现 OAuth、OIDC、设备授权、PAT 或服务账号。
+- 在登录限流、SSO 或第二因素以及支持矩阵中的其他限制得到解决之前,支持面向
+  公共互联网暴露。
+- 把托管网关变成一个公开的 OpenAI 兼容 API。
+- 为前台托管调用增加按 Space 划分的模型策略或 Space 归属;客户端模式设计已
+  明确撤回了这两者。
+- 让 access token 携带完整的 Space 成员身份或系统角色状态。这些权限是可变的,
+  应当继续由服务器推导。
+- 把安全的本地存储当作对一个完全被攻陷的客户端进程的防护。一个能够使用某个
+  密钥的进程,也可能能够滥用其代理(broker);目标是防止随意的文件泄露,并
+  减少该进程之外的重放,而非防御进程本身被攻陷。
+- 用 PAT 或服务账号凭据取代 run token。
 
-## Design Principles
+## 设计原则
 
-### One Human Login, One Session
+### 一次人类登录,一个 Session
 
-Every interactive login creates exactly one independently visible and
-revocable client session. CLI, Desktop, and Portal should not silently share a
-refresh-token family merely because they run on the same machine. The session
-records which client and device created it; `platform` stops being only an
-operator-facing label.
+每一次交互式登录都恰好创建一个可独立查看、可独立撤销的客户端 session。CLI、
+Desktop 与 Portal 不应仅仅因为运行在同一台机器上,就悄悄共享同一个
+refresh-token 族。该 session 会记录是哪个客户端与设备创建了它;`platform`
+不再只是一个面向运维人员的标签。
 
-### No Machine Credential As A Login Side Effect
+### 机器凭据不作为登录的副作用产生
 
-A successful login response returns a session credential pair only. Creating a
-PAT or service-account credential requires a separate, explicit operation that
-names the credential, chooses or accepts its scopes, and chooses an expiry.
+一次成功的登录响应只返回一对 session 凭据。创建 PAT 或服务账号凭据需要一次
+单独的、显式的操作,该操作要指定凭据名称、选择或接受其 scope,并选择一个
+过期时间。
 
-This gives logout an unambiguous meaning: it ends the selected human session.
-It neither leaves behind a hidden token created at login nor unexpectedly
-deletes an automation credential the user created for a different purpose.
+这让登出拥有一个明确的含义:它结束的是被选定的那个人类 session。它既不会
+留下一个在登录时隐藏创建出来的 token,也不会意外删除用户为其他目的创建的
+自动化凭据。
 
-### Short-Lived Access, Renewable Session
+### 短期有效的 Access,可续期的 Session
 
-Long-running clients do not need long-running access tokens. They need a safe
-way to obtain another short-lived token. The client refreshes before starting a
-request whose expected duration approaches expiry. Once the server has accepted
-an SSE completion, expiry alone does not terminate the in-flight call; a new or
-reconnected request must authenticate again.
+长期运行的客户端不需要长期有效的 access token。它们需要的是一种安全地获取
+另一个短期 token 的方式。客户端会在一次预计耗时较长、可能接近过期的请求开始
+之前先行刷新。一旦服务器已经接受了一次 SSE 补全,过期本身并不会终止这次
+正在进行中的调用;但一次新的或重新连接的请求必须重新完成认证。
 
-Proposed policy defaults for discussion are:
+供讨论的策略默认值建议如下:
 
-| Lifetime | Proposed default | Reasoning |
+| 生命周期 | 建议默认值 | 理由 |
 |---|---:|---|
-| User access token | 15-30 minutes | Bounds an unstored bearer token while keeping refresh traffic modest |
-| Gateway-only access token, if introduced | 5-15 minutes | It is requested immediately before model traffic and needs only two scopes |
-| Refresh inactivity | 30 days | Keeps the current usability expectation |
-| Human session absolute lifetime | 90 days | Prevents activity from renewing one grant forever |
-| PAT | 30 days, with an operator-defined maximum | Makes unattended authority explicit and forces a rotation policy |
+| 用户 access token | 15-30 分钟 | 限制一个未被安全存储的 bearer token,同时把刷新流量控制在适度水平 |
+| 若引入仅用于网关的 access token | 5-15 分钟 | 它是在模型流量发生前即时申请的,只需要两个 scope |
+| Refresh 不活跃期 | 30 天 | 保持当前的可用性预期 |
+| 人类 session 的绝对生命周期 | 90 天 | 防止活跃状态让一次授权被无限续期 |
+| PAT | 30 天,并由运维人员设定上限 | 让无人值守的权限变得显式,并迫使形成轮换策略 |
 
-These values are product and operator-policy decisions, not commitments. A
-trusted private deployment may choose a longer access-token lifetime during a
-transition, but the current seven-day default should not be the production
-target while a session logout cannot invalidate it.
+这些数值是产品与运维策略层面的决策,而非承诺。一个受信任的私有部署可能会
+在过渡期内选择更长的 access-token 生命周期,但当前 7 天的默认值不应成为
+生产环境的目标值,只要一次 session 登出还无法使其失效。
 
-### Audience And Scope Are Enforced At The Route
+### Audience 与 Scope 在路由层被强制执行
 
-At minimum, a user access token should carry and the server should verify:
+至少,一个用户 access token 应当携带、且服务器应当校验以下内容:
 
-| Claim | Proposed meaning |
+| Claim | 建议含义 |
 |---|---|
-| `iss` | Canonical identity of the issuing BuildMax deployment |
-| `aud` | Intended resource, initially `buildmax-api` or a canonical API URI |
-| `scope` | Operations granted to this client token |
-| `client_id` | `buildmax-cli`, `buildmax-desktop`, `buildmax-portal`, or another registered client |
-| `sub` | User or service-account public ID |
-| `sid` | Human session, omitted for machine credentials |
-| `typ` | Credential class, preserving substitution checks |
-| `jti`, `iat`, `nbf`, `exp` | Token identity and lifetime |
+| `iss` | 签发该 token 的 BuildMax 部署的规范身份标识 |
+| `aud` | 预期的资源,初始为 `buildmax-api` 或一个规范的 API URI |
+| `scope` | 授予该客户端 token 的操作范围 |
+| `client_id` | `buildmax-cli`、`buildmax-desktop`、`buildmax-portal` 或其他已注册的客户端 |
+| `sub` | 用户或服务账号的公开 ID |
+| `sid` | 人类 session,机器凭据中省略 |
+| `typ` | 凭据类别,保留替代性检查 |
+| `jti`、`iat`、`nbf`、`exp` | Token 身份与生命周期 |
 
-The minimum managed-gateway scopes are:
+托管网关所需的最小 scope 为:
 
 ```text
 llm.models.read
 llm.completions.create
 ```
 
-Space membership, Space role, current account state, model enabled state, quota,
-and System Administrator grants remain server reads. A token scope says what
-kind of action this client grant may attempt; it does not assert that the
-subject owns a resource.
+Space 成员身份、Space 角色、当前账户状态、模型启用状态、配额以及系统管理员
+授权仍然是服务器端读取的结果。一个 token scope 表明这个客户端授权可以尝试
+执行哪一类操作;它并不断言该主体拥有某个资源。
 
-Two audience shapes remain viable:
+有两种受众(audience)划分方式仍然可行:
 
-1. **One BuildMax API audience.** `aud=buildmax-api`, with route-level scopes.
-   This is the smallest change while Portal, local clients, and the gateway are
-   one resource server.
-2. **A separate managed-inference audience.** A credential broker uses the
-   human session to request a short-lived `aud=buildmax-llm` token. Gateway
-   routes reject the general API token and every other route rejects the LLM
-   token. This reduces cross-route replay but adds a token-exchange contract.
+1. **单一的 BuildMax API audience。** `aud=buildmax-api`,配合路由级别的 scope。
+   在 Portal、本地客户端与网关仍是同一个资源服务器的前提下,这是改动最小的
+   方案。
+2. **一个独立的托管推理 audience。** 一个凭据代理(credential broker)使用
+   人类 session 去申请一个短期有效的 `aud=buildmax-llm` token。网关路由拒绝
+   通用 API token,而其他每个路由都拒绝这个 LLM token。这能减少跨路由重放,
+   但会引入一个 token 交换协议。
 
-The second is defense in depth, not a reason to issue a long-lived gateway
-token. The first is a reasonable initial slice if scopes, short lifetimes, and
-secure refresh-token storage land with it.
+第二种方案是纵深防御(defense in depth),而不是签发一个长期有效网关 token
+的理由。如果 scope、短生命周期与安全的 refresh-token 存储能够一并落地,第一
+种方案是一个合理的初始切片(slice)。
 
-### Revocation Has Two Layers
+### 撤销拥有两层机制
 
-Short access-token expiry remains the outer bound if the session store is
-unavailable. When it is available, an explicit session row lets the normal
-authenticated-request check refuse an access token whose `sid` has been
-revoked. BuildMax already reads the user row on every authenticated request to
-make account disablement immediate, so adding session state does not introduce
-the first database dependency in that path.
+在 session 存储不可用时,较短的 access-token 过期时间仍然是外层边界。当
+session 存储可用时,一条显式的 session 行可以让常规的已认证请求检查拒绝一个
+`sid` 已被撤销的 access token。BuildMax 目前已经在每次已认证请求中读取用户行,
+以使账户禁用立即生效,因此增加 session 状态并不会在该路径上引入第一个数据库
+依赖。
 
-The server should distinguish:
+服务器应当区分:
 
-- revoke one session;
-- revoke all of one user's sessions;
-- disable the account, which refuses sessions and machine credentials;
-- revoke one PAT or service-account credential; and
-- rotate a deployment signing key, which is an operational event rather than a
-  substitute for session revocation.
+- 撤销一个 session;
+- 撤销某个用户的所有 session;
+- 禁用账户,这将拒绝 session 与机器凭据;
+- 撤销一个 PAT 或服务账号凭据;以及
+- 轮换部署的签名密钥,这是一个运维事件,而不是 session 撤销的替代品。
 
-Password change and identity-provider deprovisioning need an explicit policy:
-revoke all sessions, revoke only password-authenticated sessions, or leave
-sessions intact. The current password change leaves sessions alive.
+密码修改与身份提供方(identity-provider)的取消供应(deprovisioning)需要一个
+明确的策略:撤销所有 session、只撤销以密码认证的 session,还是保留 session
+不变。当前密码修改后 session 仍然保持存活。
 
-### Credential Storage Is Outside Agent Authority
+### 凭据存储在 Agent 权限之外
 
-The preferred native-client arrangement is:
+首选的原生客户端安排是:
 
 ```text
-Agent runtime ── asks for an access token ──> credential broker
+Agent 运行时 ── 请求 access token ──> 凭据代理(credential broker)
                                                   │
-                                                  ├─ access token in memory
-                                                  └─ refresh token in OS secret store
+                                                  ├─ access token 保存在内存中
+                                                  └─ refresh token 保存在操作系统密钥存储中
 ```
 
-Desktop should use the native OS credential store: Keychain on macOS,
-Credential Manager on Windows, and Secret Service on supported Linux desktops.
-CLI/TUI should use the same class of store or a small credential-helper
-interface. `auth.json` may retain non-secret metadata such as Server URL,
-subject, session ID, and selected storage backend.
+Desktop 应当使用操作系统原生的凭据存储:macOS 上的 Keychain、Windows 上的
+Credential Manager,以及受支持的 Linux 桌面环境上的 Secret Service。CLI/TUI
+应当使用同一类存储,或一个轻量的凭据帮助程序(credential-helper)接口。
+`auth.json` 可以保留非密钥类的元数据,例如 Server URL、subject、session ID
+以及所选的存储后端。
 
-If a platform has no usable secret store, a `0600` file may remain an explicit
-fallback for Alpha, but the surface must report that weaker storage mode. There
-is no useful encryption-at-rest fallback whose decryption key sits beside the
-ciphertext.
+如果某个平台没有可用的密钥存储,在 Alpha 阶段可以保留一个 `0600` 文件作为
+显式的回退方案,但界面必须报告这种较弱的存储模式。不存在任何有用的
+静态加密回退方案,因为解密密钥就存放在密文旁边。
 
-Access and refresh tokens must never be copied into:
+Access token 与 refresh token 绝不能被复制进:
 
-- `settings.yaml` or workspace configuration;
-- process arguments or shell history;
-- Agent environment variables;
-- prompts, tool arguments, hook input, MCP input, or subagent context;
-- normal logs, errors, traces, or analytics; or
-- session transcripts.
+- `settings.yaml` 或工作区配置;
+- 进程参数或 shell 历史;
+- Agent 环境变量;
+- prompt、工具参数、hook 输入、MCP 输入或子 Agent(subagent)上下文;
+- 常规日志、错误信息、trace 或分析数据;或
+- session 记录(transcript)。
 
-The credential broker also coordinates refresh. Separate CLI and Desktop
-sessions remove cross-application races. Multiple CLI processes can use an OS
-lock, a credential-helper transaction, or a local broker so the server no
-longer needs a broad grace window solely because every process reads one file.
+凭据代理还负责协调刷新。分开的 CLI 与 Desktop session 消除了跨应用的竞态。
+多个 CLI 进程可以使用操作系统级锁、凭据帮助程序事务,或一个本地代理,这样
+服务器就不再需要仅仅因为每个进程都读取同一个文件而设置一个宽泛的宽限窗口。
 
-## Recommended Human Client Flows
+## 推荐的人类客户端流程
 
-### Current Password And Login-Code Flow
+### 当前的密码与登录码流程
 
-Until enterprise identity is accepted and implemented:
+在企业身份方案被采纳并实现之前:
 
-1. CLI or Desktop sends the password or operator-issued login code to
-   `POST /api/login` over TLS.
-2. The server creates an explicit client session and returns an access token
-   plus rotating refresh token.
-3. The client moves the refresh token into its secret store and keeps the
-   access token in memory where practical.
-4. Managed model discovery requests an access token with
-   `llm.models.read`.
-5. Each completion requests an access token with
-   `llm.completions.create`; refresh happens first when needed.
-6. Logout revokes the session and clears local secret and metadata state even
-   if the server cannot be reached. The UI reports when server-side revocation
-   could not be confirmed.
+1. CLI 或 Desktop 通过 TLS 把密码或运维人员签发的登录码发送到
+   `POST /api/login`。
+2. 服务器创建一个显式的客户端 session,并返回一个 access token 与一个可
+   轮换的 refresh token。
+3. 客户端把 refresh token 移入其密钥存储,并尽可能把 access token 保留在
+   内存中。
+4. 托管模型发现请求使用带有 `llm.models.read` 的 access token。
+5. 每次补全请求使用带有 `llm.completions.create` 的 access token;如有需要,
+   会先进行刷新。
+6. 登出会撤销该 session,并清除本地的密钥与元数据状态,即便服务器无法访问也
+   是如此。界面会报告服务器端撤销是否未能得到确认。
 
-A deployment that cannot store refresh sessions may retain an access-only login
-for development compatibility, but a managed client should report that the
-login cannot renew. A deployment presenting managed inference as an operator
-service should require the session store rather than turn a seven-day access
-token into its availability mechanism.
+一个无法存储 refresh session 的部署可以为了开发兼容性而保留一种仅有
+access token 的登录方式,但一个托管客户端应当报告该登录无法续期。一个把
+托管推理作为运维服务提供的部署应当要求配置 session 存储,而不是把一个 7 天
+有效期的 access token 当作其可用性机制。
 
-### Future Native OIDC Flow
+### 未来的原生 OIDC 流程
 
-The enterprise identity proposal's likely direction is native OIDC. If
-accepted:
+企业身份提案的可能方向是原生 OIDC。若被采纳:
 
-- Desktop and a terminal with a usable browser open the system browser and use
-  Authorization Code with PKCE and an exact registered redirect;
-- the native app never embeds an identity-provider login form or handles the
-  user's IdP password;
-- a remote or browserless terminal may use Device Authorization, displaying a
-  short-lived user code and verification URI; and
-- either grant ends by creating the same BuildMax client session and token
-  lifecycle described above.
+- Desktop 与拥有可用浏览器的终端会打开系统浏览器,使用带 PKCE 的
+  Authorization Code 流程与一个精确注册的重定向地址;
+- 原生应用绝不嵌入身份提供方的登录表单,也不处理用户的 IdP 密码;
+- 一个远程或无浏览器的终端可以使用设备授权(Device Authorization),显示一个
+  短期有效的用户码与验证 URI;以及
+- 无论哪种授权方式,最终都会创建上文所述的同一个 BuildMax 客户端 session 与
+  token 生命周期。
 
-Device Authorization is a login bootstrap, not a PAT and not a long-lived
-credential. It needs short code lifetimes, polling bounds, and rate limiting.
-Native browser and device guidance is standardized in
-[RFC 8252](https://www.rfc-editor.org/info/rfc8252/) and
-[RFC 8628](https://www.rfc-editor.org/info/rfc8628/).
+设备授权是一种登录引导方式(login bootstrap),不是 PAT,也不是长期有效的
+凭据。它需要短期的验证码有效期、轮询上限与限流。原生浏览器与设备指引已由
+[RFC 8252](https://www.rfc-editor.org/info/rfc8252/) 与
+[RFC 8628](https://www.rfc-editor.org/info/rfc8628/) 标准化。
 
 ### Portal Session
 
-Portal should share the server-side session model but not blindly share the
-native storage mechanism. Its current `localStorage` refresh token is available
-to JavaScript in the origin. When deployment topology permits, the safer target
-is a same-origin Backend-for-Frontend or server session using a `Secure`,
-`HttpOnly`, and appropriate `SameSite` cookie, with CSRF protection. A browser
-client that continues to hold tokens directly still needs short scopes and
-lifetimes plus refresh rotation. See
-[RFC 10017](https://www.rfc-editor.org/info/rfc10017/).
+Portal 应当共享服务器端的 session 模型,但不应盲目地共享原生存储机制。
+它当前存放在 `localStorage` 中的 refresh token 对该 origin 内的 JavaScript
+是可见的。在部署拓扑允许的情况下,更安全的目标是采用同源的
+Backend-for-Frontend 或服务器端 session,使用带有 `Secure`、`HttpOnly` 与
+合适 `SameSite` 属性的 cookie,并配合 CSRF 防护。一个继续直接持有 token 的
+浏览器客户端仍然需要短 scope、短生命周期,以及 refresh 轮换。参见
+[RFC 10017](https://www.rfc-editor.org/info/rfc10017/)。
 
-Whether Portal moves to a cookie/BFF model is a separate implementation and
-deployment decision; it should not block removing refresh secrets from native
-client files.
+Portal 是否迁移到 cookie/BFF 模型是一个独立的实现与部署决策;它不应阻碍从
+原生客户端文件中移除 refresh 密钥的工作。
 
-## Machine Credentials
+## 机器凭据
 
-### Personal Access Tokens
+### 个人访问令牌
 
-A PAT is appropriate when a person wants a script or external integration to
-act under their identity and accepts that the grant ends when their account is
-disabled. It is not the recommended credential for an interactive TUI or
-Desktop login.
+当一个人希望某个脚本或外部集成以其身份行事,并接受该授权会随其账户被禁用而
+结束时,PAT 是合适的选择。它不是交互式 TUI 或 Desktop 登录所推荐使用的凭据。
 
-A PAT should be:
+一个 PAT 应当:
 
-- explicitly created and named;
-- returned in plaintext once and stored only as a hash;
-- limited to enumerated scopes and one audience;
-- given an expiry, subject to an operator-configured maximum;
-- individually listed and revoked;
-- stamped with creation, last-used, expiry, and revocation metadata;
-- recognizable by a distinct secret prefix for logs and secret scanners; and
-- refused by password, session-management, credential-administration, and
-  System Administration routes unless a separately reviewed scope permits it.
+- 被显式创建并命名;
+- 只以明文形式返回一次,此后仅以哈希形式存储;
+- 被限定为若干枚举的 scope 与一个 audience;
+- 具有一个过期时间,受运维人员配置的最大值约束;
+- 可被单独列出并撤销;
+- 带有创建、最后使用、过期与撤销的元数据戳记;
+- 拥有一个独特的密钥前缀,便于日志与密钥扫描工具识别;以及
+- 除非有单独评审过的 scope 允许,否则会被密码、session 管理、凭据管理与
+  系统管理相关的路由拒绝。
 
-Creating, revoking, and changing the policy of a PAT belongs in the governance
-audit trail. High-volume API calls belong in operational records, not one audit
-event per request.
+创建、撤销 PAT 以及修改其策略,都应当属于治理审计轨迹的一部分。大量的 API
+调用应当记录在运营记录中,而不是每次请求都产生一条审计事件。
 
-The existing webhook key is not a PAT implementation to widen. It has a name,
-owner, hash, and creation time, but no scopes, audience, expiry, last-used time,
-revoked state, or general route-authentication contract. It should remain an
-inbound-webhook credential until a deliberate consolidation design proves that
-one table can preserve both products' semantics.
+现有的 webhook 密钥并不是一个可以被直接扩展的 PAT 实现。它有名称、所有者、
+哈希与创建时间,但没有 scope、audience、过期时间、最后使用时间、撤销状态,
+也没有通用的路由认证契约。在一个经过深思熟虑的整合设计证明单一张表能够
+同时保留两种产品的语义之前,它应当继续作为一种入站 webhook 凭据存在。
 
-### Service Accounts
+### 服务账号
 
-A service account is appropriate when authority belongs to a Space or deployment
-rather than to the employment and session lifecycle of one person. It should be
-a distinct principal with:
+当权限归属于一个 Space 或部署,而不是归属于某个人的雇佣与 session 生命周期
+时,服务账号是合适的选择。它应当是一个独立的主体,具备:
 
-- an opaque public ID and display name;
-- a Space or deployment owner;
-- explicit role and scopes;
-- enabled/disabled state;
-- created-by and governance audit records; and
-- one or more independently rotatable credentials.
+- 一个不透明的公开 ID 与显示名称;
+- 一个 Space 或部署所有者;
+- 显式的角色与 scope;
+- 启用/禁用状态;
+- 创建者与治理审计记录;以及
+- 一个或多个可独立轮换的凭据。
 
-Where the execution environment can present workload identity, OIDC federation
-or another asymmetric proof is preferable to a static shared secret. A static
-credential is a fallback, shown once, hashed at rest, expiring, and individually
-revocable.
+在执行环境能够提供工作负载身份(workload identity)的情况下,OIDC 联邦或
+其他非对称证明方式优于静态共享密钥。静态凭据是一种回退方案,应当只展示一次、
+以哈希形式静态存储、具有过期时间,并可单独撤销。
 
-A service account must not log in with a password, receive a human refresh
-session, own a personal Space implicitly, or inherit every Space membership of
-the person who created it. Calls and audit events identify the service account
-as the actor and preserve `created_by` separately.
+服务账号不得以密码登录,不得获得人类的 refresh session,不得隐式拥有一个
+个人 Space,也不得继承创建它的那个人所拥有的每一个 Space 成员身份。调用与
+审计事件应当将该服务账号本身标识为行为主体,并单独保留 `created_by` 字段。
 
-### Task-Run Workers
+### Task-Run Worker
 
-Workers continue using run tokens. A service-account or PAT design does not
-broaden `/api/worker/*`, because those routes already have a better revocation
-and scope boundary: one TaskRun plus its server state.
+Worker 将继续使用 run token。服务账号或 PAT 设计不会扩展
+`/api/worker/*` 的范围,因为这些路由已经拥有一个更好的撤销与 scope 边界:
+一个 TaskRun 及其在服务器上的状态。
 
-## Data Model Implications
+## 数据模型影响
 
-The Alpha policy permits fixing stored shapes everywhere at once rather than
-preserving an incorrect contract. If this direction is accepted, the likely
-relational model is:
+Alpha 阶段的策略允许一次性修正所有存储形态,而不是保留一个错误的契约。如果
+这个方向被采纳,可能的关系模型如下:
 
 ### `auth_session`
 
-One row per human login:
+每次人类登录对应一行:
 
-| Field | Purpose |
+| 字段 | 用途 |
 |---|---|
-| Public ID | Stable `sid` and API handle |
-| User ID | Session owner |
-| Client ID and platform | Enforced client class rather than an informational label |
-| Device name | User-recognizable session listing |
-| Created, last-used | Lifecycle and diagnostics |
-| Idle expiry | Maximum inactivity before refresh is refused |
-| Absolute expiry | Maximum lifetime regardless of rotation |
-| Revoked time and reason | Immediate session retirement and audit context |
+| 公开 ID | 稳定的 `sid` 与 API 句柄 |
+| 用户 ID | Session 所有者 |
+| 客户端 ID 与平台 | 被强制执行的客户端类别,而不只是一个信息性标签 |
+| 设备名称 | 便于用户识别的 session 列表条目 |
+| 创建时间、最后使用时间 | 生命周期与诊断信息 |
+| 空闲过期时间 | 拒绝刷新前允许的最大不活跃时长 |
+| 绝对过期时间 | 无论如何轮换都适用的最大生命周期 |
+| 撤销时间与原因 | 立即退休该 session,并提供审计上下文 |
 
-`user_refresh_token` rows reference this session and keep token hash,
-rotation/replacement, expiry, use, and revocation evidence. The session row
-answers listing and revocation without reconstructing a family from every
-rotation row.
+`user_refresh_token` 行会引用该 session,并保留 token 哈希、轮换/替换关系、
+过期时间、使用记录与撤销证据。该 session 行使得列出与撤销操作无需从每一次
+轮换记录中重新构建出整条家族链。
 
 ### `personal_access_token`
 
-One row per user-created machine credential:
+每个用户创建的机器凭据对应一行:
 
-| Field | Purpose |
+| 字段 | 用途 |
 |---|---|
-| Public ID, secret prefix, secret hash | Management handle and one-way credential lookup |
-| User ID, name | Owner and recognizable purpose |
-| Audience, scopes | Enforced least privilege |
-| Created by, created at | Provenance |
-| Expires, last used | Rotation and incident response |
-| Revoked time and reason | Retained lifecycle evidence rather than hard deletion |
+| 公开 ID、密钥前缀、密钥哈希 | 管理句柄与单向凭据查找 |
+| 用户 ID、名称 | 所有者与可识别的用途说明 |
+| Audience、scope | 强制执行的最小权限 |
+| 创建者、创建时间 | 溯源信息 |
+| 过期时间、最后使用时间 | 轮换与事件响应 |
+| 撤销时间与原因 | 保留生命周期证据,而不是硬删除 |
 
-### `service_account` And Credential Rows
+### `service_account` 及凭据相关行
 
-These should be added only if Space- or deployment-owned automation is an
-accepted product need. Principal metadata and credentials should be separate so
-one service account can rotate credentials without changing identity or audit
-history.
+只有当 Space 或部署所拥有的自动化被确认为一项被接受的产品需求时,才应添加
+这些内容。主体元数据与凭据应当分开存储,这样一个服务账号就可以在不改变身份
+或审计历史的前提下轮换凭据。
 
-### Signing-Key State
+### 签名密钥状态
 
-The current single `jwt_secret` signs user access tokens and run tokens. A
-production rotation design needs a current signing key, verification keys kept
-for already-issued tokens, a key ID in new tokens, and an operational procedure
-that does not use key rotation as session revocation. Separating user and run
-signing keys would further contain a key-specific failure, but adds operator
-configuration and must be evaluated with the deployment model.
+当前单一的 `jwt_secret` 既用于签署用户 access token,也用于签署 run token。
+一个可用于生产环境的轮换设计需要:一个当前签名密钥、为已签发 token 保留的
+验证密钥、新 token 中携带的密钥 ID,以及一套不把密钥轮换当作 session 撤销
+手段的运维流程。把用户签名密钥与 run 签名密钥分开,能够进一步限制某个密钥
+特定故障的影响范围,但会增加运维配置负担,必须结合部署模型加以评估。
 
-## HTTP API Implications
+## HTTP API 影响
 
-Exact routes become authoritative only in
-`internal/server/handlers/routes.go`. A likely API shape is:
+准确的路由只以 `internal/server/handlers/routes.go` 为权威来源。一种可能的
+API 形态是:
 
 ```text
 POST   /api/login
@@ -586,191 +542,173 @@ GET    /api/personal-access-tokens
 DELETE /api/personal-access-tokens/{token_id}
 ```
 
-OIDC, Device Authorization, service-account administration, or token exchange
-routes should be added only with their respective accepted design. They are not
-implied by the route sketch above.
+OIDC、设备授权、服务账号管理或 token 交换相关的路由,只应随各自被接受的设计
+一并添加。上面这份路由草图并不隐含它们已经存在。
 
-The login and refresh DTOs should expose the token type and server-calculated
-expiry. Refresh must preserve or narrow the original session's audiences and
-scopes; a client cannot request an upgrade. If Alpha clients are cut over
-together, the legacy duplicate `token` response field can be removed instead of
-being preserved indefinitely.
+登录与刷新的 DTO 应当暴露 token 类型与由服务器计算得出的过期时间。刷新操作
+必须保留或收窄原 session 的 audience 与 scope;客户端不能请求升级权限。如果
+Alpha 阶段的客户端能够统一切换,那么可以直接移除遗留的重复字段 `token`,
+而不必无限期地保留它。
 
-Every authenticated route declares its allowed credential types, audience, and
-required scopes. A PAT presented to `/api/token/refresh`, a gateway-only token
-presented to an Issue route, a user access token presented to a worker route, or
-a run token presented to a user route all fail before resource authorization.
+每个已认证的路由都应声明其允许的凭据类型、audience 与所需的 scope。把一个
+PAT 呈递给 `/api/token/refresh`、把一个仅用于网关的 token 呈递给某个 Issue
+路由、把一个用户 access token 呈递给某个 worker 路由,或把一个 run token
+呈递给某个用户路由,都应当在资源授权检查之前就失败。
 
-## CLI, Desktop, And Portal UX
+## CLI、Desktop 与 Portal 的用户体验
 
 ### CLI/TUI
 
-The minimum user-visible set is:
+面向用户的最小命令集为:
 
-- `buildmax login` identifies the Server, authentication method, and credential
-  storage backend;
-- `buildmax whoami` reports account, Server, session expiry, client session,
-  and whether secure or file fallback storage is in use;
-- `buildmax logout` revokes and removes one session, retaining the current
-  behavior that local state is cleared when the Server is unreachable;
-- session list and revoke commands let a person retire another device without
-  asking a System Administrator; and
-- PAT creation is a separate command that requires a name, expiry, and explicit
-  scopes and prints the secret exactly once.
+- `buildmax login` 会标识 Server、认证方式与凭据存储后端;
+- `buildmax whoami` 会报告账户、Server、session 过期时间、客户端 session,
+  以及当前使用的是安全存储还是文件回退存储;
+- `buildmax logout` 会撤销并移除一个 session,并保留当前的行为:当 Server
+  不可达时清除本地状态;
+- session 列表与撤销命令让一个人无需求助系统管理员即可注销另一台设备;以及
+- 创建 PAT 是一条独立的命令,需要提供名称、过期时间与显式的 scope,并只会
+  打印一次密钥明文。
 
-`buildmax login` remains the switch to managed mode, and logout remains the
-explicit switch back to local models. Credential expiry never causes implicit
-fallback.
+`buildmax login` 仍然是切换到托管模式的开关,而登出仍然是切回本地模型的
+显式开关。凭据过期绝不会导致隐式回退。
 
 ### Desktop
 
-Desktop uses the same backend session and credential broker, exposes the
-current device and other sessions in account settings, and labels an expired or
-revoked login without silently entering local mode. Future OIDC opens the
-system browser rather than embedding the identity-provider page.
+Desktop 使用相同的后端 session 与凭据代理,在账户设置中展示当前设备与其他
+session,并对过期或已撤销的登录状态进行标注,而不是悄悄进入本地模式。未来的
+OIDC 将打开系统浏览器,而不是嵌入身份提供方页面。
 
 ### Portal
 
-Account settings list sessions and PAT metadata, but never plaintext secrets
-after creation. System Administration retains revoke-all and account-disable
-recovery paths. Service-account administration belongs with its Space or system
-owner, not in personal session settings.
+账户设置会列出 session 与 PAT 元数据,但在创建之后绝不会显示明文密钥。系统
+管理界面保留全部撤销与账户禁用相关的恢复路径。服务账号管理应当归属于其
+所在的 Space 或系统所有者,而不是放在个人 session 设置中。
 
-## Options And Trade-Offs
+## 方案与权衡
 
-| Option | Strength | Cost or failure | Direction |
+| 方案 | 优势 | 代价或失败风险 | 方向 |
 |---|---|---|---|
-| Add a third long-lived token to every login | Superficially simple for clients | Duplicates refresh responsibility, creates hidden machine authority, ambiguous logout and audit, large leak window | Reject |
-| Use a static PAT for TUI/Desktop | No refresh implementation needed | Interactive clients hold a directly usable long-lived secret; weak reuse detection and session UX | Reject |
-| Keep access + rotating refresh, one API audience | Smallest change; current clients already refresh | A leaked access token can cross API areas allowed by its scopes; secure storage and session state still needed | Viable first slice |
-| Add on-demand gateway token exchange | Strong audience separation and short LLM credential | More protocol, caching, failure, and discovery behavior | Preferred hardening after the base session model |
-| Make every access token stateful | Immediate revocation | Database/cache check on every request and availability coupling | Partly favored: check explicit session state where a session store exists |
-| Sender-constrain native tokens with DPoP | Stolen token alone is less useful | Key lifecycle and cross-platform implementation complexity; same-process compromise can use the key | Later hardening if deployment evidence justifies it |
-| Add PATs only | Solves personal scripting with a small principal model | Encourages human-owned automation; does not solve Space-owned services | Useful when a real scripting use case exists |
-| Add service accounts first | Correct owner for shared automation | Larger authorization, provisioning, and UI surface | Wait for a Space-owned automation requirement |
-| Browser PKCE for every native client | Standard SSO-capable flow | Awkward on remote/headless terminals | Use where a browser is available |
-| Device Authorization for every TUI | Works remotely | Polling, phishing/code UX, and more endpoints when a browser would be simpler | Fallback for browserless terminals |
+| 为每次登录增加第三个长期有效的 token | 对客户端而言表面上更简单 | 使刷新职责重复,制造隐藏的机器权限,登出与审计含义模糊,泄漏窗口很大 | 拒绝 |
+| 为 TUI/Desktop 使用一个静态 PAT | 无需实现刷新机制 | 交互式客户端持有一个可直接使用的长期有效密钥;重用检测能力弱,session 体验差 | 拒绝 |
+| 保留 access + 轮换的 refresh,单一 API audience | 改动最小;现有客户端已在做刷新 | 一个泄漏的 access token 可能跨越其 scope 所允许的多个 API 区域;仍需安全存储与 session 状态 | 可行的第一步切片 |
+| 增加按需的网关 token 交换 | audience 分离效果强,LLM 凭据生命周期短 | 增加更多协议、缓存、失败与发现相关的行为 | 在基础 session 模型之上优先加固的方向 |
+| 让每个 access token 都具备状态(stateful) | 可立即撤销 | 每次请求都需要数据库/缓存检查,并带来可用性耦合 | 部分被采纳:在存在 session 存储的地方检查显式的 session 状态 |
+| 用 DPoP 为原生 token 绑定发送方 | 单独被窃取的 token 用处更小 | 密钥生命周期与跨平台实现复杂度高;同进程内被攻陷时仍可使用该密钥 | 若有部署证据支持,可作为后续加固手段 |
+| 仅新增 PAT | 用一个较小的主体模型解决个人脚本化需求 | 会鼓励以个人身份拥有自动化;无法解决 Space 拥有的服务问题 | 当存在真实的脚本化用例时有用 |
+| 优先新增服务账号 | 为共享自动化提供正确的所有者 | 更大的授权、供应与界面改动面 | 等待出现 Space 拥有的自动化需求时再做 |
+| 为每个原生客户端使用浏览器 PKCE | 标准的、支持 SSO 的流程 | 在远程/无头终端上使用不便 | 在有浏览器可用时使用 |
+| 为每个 TUI 使用设备授权 | 可远程使用 | 需要轮询、验证码钓鱼相关的用户体验设计,以及在浏览器本可更简单时引入更多端点 | 无浏览器终端的回退方案 |
 
-## Code And Documentation Findings
+## 代码与文档发现
 
-The proposal relies on current code where older documents disagreed. None of
-these corrections waited on the product decision, so all of them have been
-made:
+本提案依赖当前代码,而在部分旧文档与之不一致的地方进行了修正。这些修正
+没有等待产品决策落地,而是已经全部完成:
 
-- `docs/contribute/architecture/desktop.md` described the removed Desktop
-  mode-state mechanism and the deleted `UseLocalMode` and `ConnectToServer`
-  bindings. Corrected: `auth.json` presence is the mode.
-- `docs/contribute/architecture/tui.md` said the CLI has no app-level mode and
-  that transport belongs to each model entry, and printed a `direct` footer tag
-  the TUI does not render. Corrected: the tag is `local` or the deployment host,
-  and it is a property of the app.
-- `internal/server/static/openapi.json` documented `/api/spaces/{space_id}/llm/*`
-  and a bare `/api/conversations`, none of which are registered. Corrected to
-  the deployment-global `/api/llm/*` and the space-scoped conversation route;
-  every documented path now matches `routes.go`.
-- `docs/contribute/architecture/server.md` said the old shared worker token
-  remained as an upgrade fallback. Corrected: it has been removed, and the run
-  token is the only credential a worker route accepts.
-- `docs/contribute/architecture/data-model.md` said no server path writes the
-  user's last-login metadata. Corrected: the login handler calls
-  `UpdateLoginMeta`.
-- `docs/design/llm-gateway.md` listed refresh versus a scoped client token as an
-  open question, and called the access token a 24-hour JWT. Corrected: refresh
-  is implemented and the default is seven days; the unresolved parts are secure
-  storage, absolute lifetime, audience/scope, and machine identity.
-- The P3 roadmap sentence could be read as saying CLI, TUI, Desktop, and task
-  runs all use a per-run credential. Corrected: only task runs use run tokens,
-  and interactive clients use the human session.
+- `docs/contribute/architecture/desktop.md` 描述了已被移除的 Desktop
+  模式状态机制,以及已删除的 `UseLocalMode` 与 `ConnectToServer` 绑定。
+  已修正为:`auth.json` 的存在与否即为模式本身。
+- `docs/contribute/architecture/tui.md` 曾说 CLI 没有应用级别的模式,传输方式
+  属于每个模型条目,并打印了一个 TUI 实际并不渲染的 `direct` 页脚标签。
+  已修正为:该标签是 `local` 或部署主机名,并且它是应用本身的一个属性。
+- `internal/server/static/openapi.json` 记录了 `/api/spaces/{space_id}/llm/*`
+  以及一个裸的 `/api/conversations`,二者均未被注册。已修正为部署全局的
+  `/api/llm/*` 与 Space 范围限定的 conversation 路由;所有已记录的路径现在
+  都与 `routes.go` 一致。
+- `docs/contribute/architecture/server.md` 曾说旧的共享 worker token 作为
+  升级回退方案仍然保留。已修正为:它已被移除,run token 是 worker 路由
+  唯一接受的凭据。
+- `docs/contribute/architecture/data-model.md` 曾说没有任何服务器路径写入
+  用户的最后登录元数据。已修正为:登录处理程序会调用 `UpdateLoginMeta`。
+- `docs/design/llm-gateway.md` 曾把"刷新 versus 一个受限的客户端 token"列为
+  一个未决问题,并把 access token 称为一个 24 小时的 JWT。已修正为:刷新
+  机制已经实现,默认值为 7 天;尚未解决的部分是安全存储、绝对生命周期、
+  audience/scope 以及机器身份。
+- P3 路线图中的一句话可能被误读为 CLI、TUI、Desktop 与 task run 都使用一种
+  按 run 划分的凭据。已修正为:只有 task run 使用 run token,交互式客户端
+  使用的是人类 session。
 
-## Staged Direction If Accepted
+## 若被采纳后的分阶段方向
 
-### Stage 1: Harden The Existing Two-Token Session
+### 第一阶段:加固现有的双 token session
 
-- Add explicit session state and absolute expiry.
-- Shorten the access-token default.
-- Add and enforce issuer, audience, client, and scope claims.
-- Separate CLI and Desktop sessions.
-- Move native refresh secrets behind a credential-store interface.
-- Add self-service session listing and revocation.
-- Define signing-key rotation.
-- Correct current documentation and OpenAPI drift.
+- 增加显式的 session 状态与绝对过期时间。
+- 缩短 access-token 的默认生命周期。
+- 增加并强制执行 issuer、audience、client 与 scope claim。
+- 将 CLI 与 Desktop 的 session 分开。
+- 把原生的 refresh 密钥移到一个凭据存储接口之后。
+- 增加自助式的 session 列表与撤销功能。
+- 明确签名密钥的轮换方式。
+- 修正当前的文档与 OpenAPI 漂移问题。
 
-This stage changes no managed-mode product semantics: login still selects the
-deployment's models, gateway calls remain user-attributed, and direct mode still
-requires no Server.
+这一阶段不会改变任何托管模式的产品语义:登录仍然选择部署的模型,网关调用
+仍然按用户归属,直连模式仍然不需要 Server。
 
-### Stage 2: Enterprise Interactive Login
+### 第二阶段:企业级交互式登录
 
-If the enterprise identity proposal is accepted, add external-browser OIDC with
-PKCE and Device Authorization for browserless terminals. Both create the same
-BuildMax session from Stage 1.
+如果企业身份提案被采纳,则为拥有浏览器的场景增加带 PKCE 的外部浏览器 OIDC,
+并为无浏览器终端增加设备授权。两者最终都会创建第一阶段所述的同一个
+BuildMax session。
 
-### Stage 3: Explicit Machine Identity
+### 第三阶段:显式的机器身份
 
-Add PATs when a supported personal scripting/API use case is named. Add service
-accounts only when Space- or deployment-owned unattended work has a concrete
-owner and authorization requirement. Do not widen worker authentication.
+当一个受支持的个人脚本化/API 使用场景被明确指出时,增加 PAT。只有当
+Space 或部署拥有的无人值守工作有一个具体的所有者与授权需求时,才增加服务
+账号。不扩大 worker 认证的范围。
 
-### Stage 4: Audience-Specific Or Sender-Constrained Tokens
+### 第四阶段:面向特定 Audience 或绑定发送方的 Token
 
-Add gateway token exchange or sender-constrained tokens if incident evidence,
-deployment topology, or an external API product justifies their complexity.
+如果事件证据、部署拓扑或某个外部 API 产品能够证明其复杂度是合理的,则增加
+网关 token 交换或绑定发送方的 token。
 
-## Product Decisions Needed
+## 需要产品决策的事项
 
-1. Is the managed LLM gateway permanently a first-party BuildMax-client API, or
-   will third-party applications become a supported product surface?
-2. Should every signed-in account continue to receive managed inference, or is
-   a deployment entitlement needed even while model selection stays global?
-3. What access, refresh-idle, session-absolute, and PAT lifetimes are the
-   supported defaults and operator-configurable limits?
-4. Must logout invalidate the current access token immediately through a
-   session-state check, or is a short expiry sufficient for some deployments?
-5. Is an OS secret store a requirement for supported managed mode, or is a
-   visible `0600` file fallback supported on headless systems?
-6. Should Portal move to a cookie/BFF session, or remain a token-holding browser
-   client?
-7. Which first PAT scopes correspond to an actual supported automation use
-   case? Is managed inference one of them?
-8. Is unattended authority owned by a person, a Space, or the deployment, and
-   therefore is a PAT sufficient or is a service account required?
-9. Should signing keys be separated by user and run token type, and where does
-   a private deployment keep the verification key ring during rotation?
-10. Does OIDC/device authorization move ahead of its current post-Beta roadmap
-    position because native managed clients need enterprise login, or remain a
-    later identity milestone?
+1. 托管 LLM 网关是否会永久作为一个仅供 BuildMax 自身客户端使用的 API,还是
+   第三方应用会成为一个受支持的产品界面?
+2. 是否每个已登录的账户都应继续获得托管推理能力,还是即便模型选择保持全局
+   统一,也需要一个部署层面的授权(entitlement)?
+3. Access、refresh 不活跃期、session 绝对期限与 PAT 的生命周期,分别应支持
+   哪些默认值,以及运维人员可配置的限制范围是什么?
+4. 登出是否必须通过一次 session 状态检查立即使当前 access token 失效,还是
+   对某些部署而言一个较短的过期时间就足够了?
+5. 操作系统密钥存储是否是受支持托管模式的一项硬性要求,还是在无头系统上
+   支持一种可见的 `0600` 文件回退方案?
+6. Portal 是否应当迁移到 cookie/BFF session,还是继续作为一个持有 token 的
+   浏览器客户端?
+7. 哪些是第一批对应实际受支持自动化用例的 PAT scope?托管推理是否属于其中
+   之一?
+8. 无人值守的权限应当归属于个人、Space 还是部署,因此是 PAT 已经足够,还是
+   需要服务账号?
+9. 签名密钥是否应当按用户 token 与 run token 类型分开,私有部署在轮换期间
+   应当把验证密钥环(verification key ring)保存在哪里?
+10. OIDC/设备授权是否应当因为原生托管客户端需要企业级登录而提前于其当前
+    "后 Beta"的路线图位置,还是仍然作为一个更靠后的身份里程碑?
 
-## Evidence Needed For A Decision
+## 做出决策所需的证据
 
-- A threat-model walkthrough for token theft from `auth.json`, local
-  model-selected commands, hooks, MCP servers, browser JavaScript, logs, and
-  worker environments.
-- A cross-platform spike proving a single-binary CLI can use Keychain,
-  Credential Manager, and a practical Linux/headless fallback without adding a
-  Node requirement.
-- Concurrency tests for multiple CLI processes refreshing one session, including
-  a lost refresh response and replay outside the grace window.
-- Route-matrix tests covering credential type, audience, scope, account disable,
-  session revoke, Space authorization, and System Administrator separation.
-- A deployment exercise that rotates signing keys without interrupting refresh
-  sessions or in-flight runs.
-- Product evidence for the first non-interactive caller before choosing PAT,
-  service account, or both.
-- An end-to-end native OIDC and device-flow trial if the enterprise identity
-  proposal is accepted.
+- 针对 `auth.json`、本地模型选择的命令、hook、MCP 服务器、浏览器 JavaScript、
+  日志与 worker 环境中的 token 窃取场景,进行一次威胁模型走查。
+- 一次跨平台的验证性实现(spike),证明一个单一二进制的 CLI 能够使用
+  Keychain、Credential Manager,以及一种实用的 Linux/无头系统回退方案,而
+  不引入 Node 依赖。
+- 针对多个 CLI 进程刷新同一个 session 的并发测试,包括丢失的刷新响应,以及
+  宽限窗口之外的重放。
+- 覆盖凭据类型、audience、scope、账户禁用、session 撤销、Space 授权与系统
+  管理员权限分离的路由矩阵测试。
+- 一次在不中断刷新 session 或正在运行的 run 的情况下轮换签名密钥的部署演练。
+- 在选择 PAT、服务账号或二者兼有之前,针对第一个非交互式调用方给出产品层面
+  的证据。
+- 如果企业身份提案被采纳,进行一次端到端的原生 OIDC 与设备流程试验。
 
-## Likely Destination If Accepted
+## 若被采纳后的可能归宿
 
-An accepted decision would:
+一项被采纳的决策将会:
 
-- add a durable client-session and credential specification under
-  `docs/design/`;
-- update the P3/P4 roadmap with the selected stages and evidence gates;
-- update deployment authentication, configuration, support, CLI, Desktop,
-  Portal, data-model, and OpenAPI documentation alongside implementation;
-- create focused implementation Issues for session state, native secret
-  storage, access-token claims and route scopes, session UX, and signing-key
-  rotation; and
-- leave PATs, service accounts, gateway token exchange, and OIDC/device
-  authorization as separate implementation Issues only when their corresponding
-  product decisions are accepted.
+- 在 `docs/design/` 下新增一份持久化的客户端 session 与凭据规范文档;
+- 用被选定的各阶段与证据关口更新 P3/P4 路线图;
+- 同步更新部署认证、配置、支持、CLI、Desktop、Portal、数据模型与 OpenAPI
+  相关文档,并与实现同步进行;
+- 为 session 状态、原生密钥存储、access-token claim 与路由 scope、session
+  用户体验以及签名密钥轮换创建聚焦的实现 Issue;以及
+- 只有当 PAT、服务账号、网关 token 交换与 OIDC/设备授权各自对应的产品决策
+  被采纳后,才将它们作为独立的实现 Issue 留待处理。

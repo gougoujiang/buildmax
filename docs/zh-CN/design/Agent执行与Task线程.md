@@ -1,6 +1,6 @@
 # Agent 执行和 Task 线程
 
-> **翻译说明：** 本文是[英文原文](../../design/agent-execution-and-task-threads.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `ac4bd753eca932452286c03980ce636247b3a3eb7049b0a78a02bfb0ea3094ba`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../design/agent-execution-and-task-threads.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
 
 > **受众：** 贡献者、产品设计者和操作员 · **状态：** 正在进行 — 所有权切换 (§13.1)，直接Agent 准入（第 13.2 节）、Task 线程后端和 Portal Task 页面（第 13.3 节）以及合成 Conversation 删除（第 13.4 节）已已交付，每个都带有 MySQL 争用或浏览器证据。 §14 逐项准确跟踪已验证的内容和未完成的内容；不要在此处重复该列表。
@@ -9,12 +9,12 @@
 [界面定位](界面定位.md),
 [Portal执行型号](Portal执行模型.md),
 [本地会话存储](本地会话存储.md)，以及
-[服务器架构](../../contribute/architecture/server.md)。
+[服务器架构](../contribute/architecture/server.md)。
 
 创建时间：2026-09-02
 
 该记录是已退役的两层 Agent 架构的综合
-圆桌会议（参见[提案索引](../../proposals/README.md)；git 历史记录成立
+圆桌会议（参见[提案索引](../proposals/README.md)；git 历史记录成立
 它的四份立场文件，随着这一记录而退休）。 §1 的决定——直接
 当用户或产品已经选择该功能时执行，承认
 通过不可变的 Task/TaskRun 授权边界 - 是

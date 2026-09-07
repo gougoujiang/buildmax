@@ -1,105 +1,71 @@
-# System Administration Operations
+# 系统管理运维
 
-> **翻译说明：** 本文是[英文原文](../../proposals/system-administration-operations.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `4fce28b28da61192103e2188c39a98ff0302700cc3e37ad2296814f9ee059246`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../proposals/system-administration-operations.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
-# System Administration Operations
-
-> **Audience:** contributors, operators, and security reviewers · **Status:** proposal — under discussion
+> **受众：** 贡献者、运维人员与安全审查者 · **状态：** 提案 — 讨论中
 >
-> **Opened:** 2026-09-05
+> **讨论开始：** 2026-09-05
 
-Related: [system administration design](../../design/system-administration.md),
-[space governance](../../design/space-governance.md),
-[space membership lifecycle](../../design/space-membership-lifecycle.md),
-[enterprise identity and access](enterprise-identity-and-access.md), and the
-[roadmap](../ROADMAP.md).
+相关文档：[系统管理设计文档](../design/系统管理.md)、[Space 治理](../design/Space治理.md)、[Space 成员生命周期](../design/Space成员生命周期.md)、[企业身份与访问](enterprise-identity-and-access.md)，以及[路线图](../ROADMAP.md)。
 
-## Contents
+## 目录
 
-- [1. Problem](#1-problem)
-- [2. Current Evidence](#2-current-evidence)
-- [3. Decision Boundary](#3-decision-boundary)
-- [4. Goals](#4-goals)
-- [5. Non-Goals](#5-non-goals)
-- [6. Correctness Prerequisites](#6-correctness-prerequisites)
-- [7. Options](#7-options)
-- [8. Recommended Product Shape](#8-recommended-product-shape)
-- [9. Delivery Plan](#9-delivery-plan)
-- [10. API And Domain Changes](#10-api-and-domain-changes)
-- [11. Authorization, Privacy, And Audit](#11-authorization-privacy-and-audit)
-- [12. Validation](#12-validation)
-- [13. Rollout And Documentation](#13-rollout-and-documentation)
-- [14. Open Questions](#14-open-questions)
-- [15. Evidence Needed For A Decision](#15-evidence-needed-for-a-decision)
-- [16. Likely Destination If Accepted](#16-likely-destination-if-accepted)
+- [1. 问题](#1-问题)
+- [2. 现有证据](#2-现有证据)
+- [3. 决策边界](#3-决策边界)
+- [4. 目标](#4-目标)
+- [5. 非目标](#5-非目标)
+- [6. 正确性前提条件](#6-正确性前提条件)
+- [7. 方案](#7-方案)
+- [8. 推荐的产品形态](#8-推荐的产品形态)
+- [9. 交付计划](#9-交付计划)
+- [10. API 与领域变更](#10-api-与领域变更)
+- [11. 授权、隐私与审计](#11-授权隐私与审计)
+- [12. 验证](#12-验证)
+- [13. 上线与文档](#13-上线与文档)
+- [14. 开放问题](#14-开放问题)
+- [15. 做出决策所需的证据](#15-做出决策所需的证据)
+- [16. 若被采纳后的可能归宿](#16-若被采纳后的可能归宿)
 
-## 1. Problem
+## 1. 问题
 
-BuildMax already has deployment-scoped system administration. The accepted
-[system administration design](../../design/system-administration.md) is marked
-implemented, `internal/server/handlers/admin` registers the administration API,
-and Portal has an Administration area. The missing product is therefore not a
-new superuser or a second authorization system.
+BuildMax 已经具备部署范围的系统管理能力。已被采纳的[系统管理设计文档](../design/系统管理.md)被标记为已实现，`internal/server/handlers/admin` 注册了管理 API，Portal 也已经有一个 Administration 区域。因此，缺失的产品并不是一个新的超级用户或第二套授权体系。
 
-The problem is that the existing capability does not yet form a complete,
-discoverable operator journey:
+问题在于，现有能力尚未形成一条完整、可被发现的运维人员操作路径：
 
-- Administration appears only in the signed-in user's menu and only after
-  `GET /api/admin/me` confirms a grant. An operator who has not bootstrapped a
-  grant sees no hint that the area exists.
-- The Server can list, grant, and revoke `system_admin`, but Portal has no
-  interface for those routes.
-- Account and Space lists fetch one fixed page of 50 records and expose no way
-  to continue.
-- The Server returns a redacted effective configuration, but Portal displays
-  only its warnings.
-- Account sessions can be counted and revoked only as a whole. An operator
-  cannot identify or revoke one device.
-- Space quota and usage are visible, but quota tiers cannot be assigned after
-  creation.
-- The deployment overview reports coarse status, not enough runtime metadata
-  to distinguish an idle deployment from a blocked queue or a lost worker.
-- Audit search supports time bounds in the API, while Portal exposes raw Space,
-  actor, and action identifiers only.
-- Operator documentation still says the Portal administration area is being
-  built, although it exists.
+- Administration 只出现在已登录用户的菜单中，且只有在 `GET /api/admin/me` 确认存在授权之后才会出现。一个尚未引导出授权的运维人员看不到任何提示，不知道这个区域的存在。
+- Server 可以列出、授予和撤销 `system_admin`，但 Portal 没有对应这些路由的界面。
+- 账户和 Space 列表只获取固定的一页 50 条记录，没有继续翻页的方式。
+- Server 返回一份脱敏后的生效配置，但 Portal 只展示其中的警告信息。
+- 账户 Session 只能整体统计和撤销。运维人员无法识别或撤销单个设备。
+- Space 的配额和用量是可见的，但配额等级在创建之后无法再被分配。
+- 部署概览报告的是粗粒度的状态，没有足够的运行时元数据来区分“空闲部署”“队列阻塞”和“Worker 丢失”这几种情况。
+- 审计搜索在 API 中支持时间范围，但 Portal 只暴露原始的 Space、操作者和 action 标识符。
+- 运维人员文档仍然说 Portal 的管理区域“正在建设中”，尽管它已经存在。
 
-The command line is a strength, not legacy surface to remove. It is suitable
-for automation, repeatable deployment, initial bootstrap, and recovery when the
-web application is unavailable. Portal serves a different caller: a human
-operator handling routine work interactively. Today those two callers receive
-different sets of outcomes even when the underlying service and API already
-exist. That difference is the central gap this proposal closes.
+命令行是一项优势，而不是需要移除的遗留界面。它适合自动化、可重复的部署、初始引导，以及在 Web 应用不可用时的故障恢复。Portal 服务于另一类调用者：以交互方式处理日常工作的人类运维人员。今天，即便底层服务和 API 已经存在，这两类调用者得到的结果集合却并不相同。这一差异正是本提案要弥合的核心缺口。
 
-These gaps make an implemented subsystem look absent and still send operators
-back to the command line or database for ordinary work. Expanding the surface
-also raises the value of the grant path, so correctness issues in that path
-must be fixed before the UI makes it easier to use.
+这些缺口使得一个已经实现的子系统看起来像不存在一样，并且仍然把运维人员逼回命令行或数据库去完成日常工作。扩大这个界面的覆盖面，也会提高授权路径本身的价值，因此在 UI 让它更易被使用之前，必须先修复该路径中的正确性问题。
 
-## 2. Current Evidence
+## 2. 现有证据
 
-### 2.1 Backend
+### 2.1 后端
 
-`internal/server/handlers/admin/handler.go` registers the live source of truth
-under `/api/admin/*`. The current routes cover:
+`internal/server/handlers/admin/handler.go` 在 `/api/admin/*` 下注册了权威的事实来源。当前的路由覆盖：
 
-| Area | Existing behavior |
+| 领域 | 现有行为 |
 |---|---|
-| Authority | Read the caller's grant; list, grant, and revoke system roles |
-| Accounts | Search, inspect, create, issue a login code, disable, enable, and revoke all sessions |
-| Deployment | Read health, build/version facts, schema migrations, redacted configuration, and TaskRun counts |
-| Spaces | Search Space metadata; inspect members, roles, quota tier, and aggregate usage |
-| Models | List catalog entries and enable or disable one |
-| Plugins | List and publish catalog entries, list and publish releases, archive, restore, and yank |
-| Audit | Search the deployment-wide trail and export CSV or JSONL |
+| 权限 | 读取调用者自身的授权；列出、授予和撤销系统角色 |
+| 账户 | 搜索、查看、创建、签发登录码、禁用、启用，以及撤销全部 Session |
+| 部署 | 读取健康状态、构建/版本信息、数据库 schema 迁移、脱敏后的配置，以及 TaskRun 计数 |
+| Space | 搜索 Space 元数据；查看成员、角色、配额等级和聚合用量 |
+| 模型 | 列出目录条目，启用或禁用某一条目 |
+| Plugin | 列出并发布目录条目，列出并发布 release，归档、恢复和撤回 |
+| 审计 | 搜索部署范围内的轨迹，导出 CSV 或 JSONL |
 
-The system grant is checked by `access.Guard.SystemAdmin` on every request.
-Revocation therefore takes effect on the next request rather than at token
-expiry. The separate space authorization path does not consult a system grant,
-and the authorization matrix proves that an administrator without Space
-membership cannot read Space content.
+系统授权在每一次请求时都由 `access.Guard.SystemAdmin` 检查。因此撤销会在下一次请求时生效，而不是等到 token 过期。独立的 Space 授权路径不会去查询系统授权，授权矩阵也证明了：一个没有 Space 成员身份的管理员无法读取该 Space 的内容。
 
-The first grant and lockout recovery are intentionally command-line operations:
+首次授权和锁定恢复被有意设计为命令行操作：
 
 ```text
 buildmax-server user create <email>
@@ -107,539 +73,391 @@ buildmax-server admin grant <email>
 buildmax-server user login-code <email>
 ```
 
-There is no `system_admins` configuration setting. The database grant is the
-only authority source, and the command that creates the first grant can recover
-a deployment with none.
+不存在 `system_admins` 这样的配置项。数据库中的授权记录是唯一的权限来源，能够创建首个授权的命令也正是用来在一个没有任何管理员的部署中完成恢复的命令。
 
 ### 2.2 Portal
 
-`portal/src/pages/admin/AdminSettings.tsx` exposes six sections:
+`portal/src/pages/admin/AdminSettings.tsx` 暴露了六个区块：
 
-1. Overview
-2. Accounts
-3. Spaces
-4. Models
-5. Plugins
-6. Audit
+1. 概览（Overview）
+2. 账户（Accounts）
+3. Space
+4. 模型（Models）
+5. Plugin
+6. 审计（Audit）
 
-The pages perform real reads and some mutations. Account creation, login-code
-issuance, disablement, session revocation, model state changes, and plugin
-catalog changes are already usable. `portal/e2e/admin.spec.ts` proves route
-wiring, reload behavior, and deployment-only audit search, but it does not
-exercise the destructive operator journeys.
+这些页面执行真实的读取，也执行一部分写入。创建账户、签发登录码、禁用、撤销 Session、修改模型状态，以及 Plugin 目录变更，都已经可以使用。`portal/e2e/admin.spec.ts` 证明了路由接线、重新加载行为，以及仅限部署范围的审计搜索，但没有覆盖具有破坏性的运维人员操作路径。
 
-### 2.3 Known Documentation Drift
+### 2.3 已知的文档偏差
 
-`docs/deploy/authentication.md` still says the Portal area is being built and
-later says session revocation requires direct database access. The code is the
-fact: the Portal area and the administrator's revoke-all route exist. The
-operator documentation is stale and should be corrected with the first
-accepted implementation slice.
+`docs/deploy/authentication.md` 仍然说 Portal 区域“正在建设中”，后面又说 Session 撤销需要直接访问数据库。而代码才是事实：Portal 区域和管理员的“撤销全部”路由都已经存在。运维人员文档已经过时，应当随着第一个被接受的实现切片一并被更正。
 
-## 3. Decision Boundary
+## 3. 决策边界
 
-This proposal preserves the central decision in the existing design:
+本提案保留现有设计中的核心决策：
 
-> A System Administrator operates the deployment. A Space membership authorizes
-> access to the Space's contents.
+> System Administrator 负责运营这个部署。Space 成员身份则授权访问该 Space 的内容。
 
-A system grant may authorize account lifecycle, deployment health, capacity,
-catalog state, and metadata-only operational actions. It must not authorize
-reading prompts, conversation messages, Issue text, generated output, files,
-artifacts, or run traces belonging to a Space whose member list does not contain
-the administrator.
+系统授权可以授权账户生命周期管理、部署健康状态、容量、目录状态，以及仅限元数据的运营类操作。它不得授权读取某个 Space 的 prompt、对话消息、Issue 文本、生成的输出、文件、Artifact，或运行 trace ——除非管理员本身就是该 Space 的成员。
 
-The System Administrator is not the top of a role hierarchy. It is a separate
-axis from Space `owner`, `admin`, and `member`. A person who holds both receives
-the union of two independently checked authorities; the system grant must never
-be passed into `SpaceAction` or used as a fallback when Space authorization fails.
+System Administrator 并不是角色层级的顶端。它是一条独立于 Space 的 `owner`、`admin`、`member` 的坐标轴。同时持有两者的人，获得的是两套被分别检查的权限的并集；系统授权绝不能被传入 `SpaceAction`，也不能在 Space 授权失败时被用作兜底。
 
-## 4. Goals
+## 4. 目标
 
-- Make the existing administration capability visible and understandable to
-  the people who hold it.
-- Establish outcome parity between the operator command line and Portal for
-  routine administration: if an authenticated administrator can safely perform
-  an operation, Portal should expose it.
-- Preserve command-line operations as a stable automation surface rather than
-  replacing them with browser-only workflows.
-- Let the first administrator manage later administrators without returning to
-  the machine that holds database credentials.
-- Complete joiner, access-recovery, session, leaver, and quota-assignment
-  journeys in Portal.
-- Preserve an audited, recoverable bootstrap path that does not depend on the
-  running Server or an external identity provider.
-- Provide enough metadata to answer whether BuildMax itself is healthy and
-  whether work is progressing, without turning Portal into a cluster console.
-- Make every new authority edge safe under concurrent requests and prove that
-  safety against MySQL.
-- Keep secrets and Space-authored or Agent-produced content out of every admin
-  response.
-- Keep the API useful independently of Portal and keep handlers as adapters over
-  authoritative services.
+- 让现有的管理能力对持有它的人来说变得可见、可理解。
+- 在运维人员命令行与 Portal 之间，为日常管理工作建立结果对等：如果一个已认证的管理员可以安全地执行某个操作，Portal 就应当暴露它。
+- 把命令行操作保留为一个稳定的自动化界面，而不是用只能在浏览器中完成的工作流取代它。
+- 让第一个管理员能够管理后续的管理员，而不需要回到持有数据库凭据的那台机器上。
+- 在 Portal 中补全新成员加入、访问权恢复、Session、离场，以及配额分配等操作路径。
+- 保留一条经过审计、可恢复的引导路径，它不依赖正在运行的 Server，也不依赖外部身份提供方。
+- 提供足够的元数据，回答“BuildMax 本身是否健康”“工作是否在推进”这两个问题，但不把 Portal 变成一个集群控制台。
+- 让每一条新增的权限边界在并发请求下都是安全的，并针对 MySQL 证明这种安全性。
+- 让密钥以及 Space 创作或 Agent 生成的内容，绝不出现在任何一个管理类响应中。
+- 让这套 API 独立于 Portal 也具有可用性，并让处理器（handler）始终只是权威服务之上的适配层。
 
-## 5. Non-Goals
+## 5. 非目标
 
-- A universal superuser that bypasses Space membership.
-- Custom roles, arbitrary permissions, or per-resource ACLs in this slice.
-- OIDC, SAML, SCIM, MFA, and service accounts. The
-  [enterprise identity proposal](enterprise-identity-and-access.md) owns those.
-- Account hard deletion or Space deletion. Both require data-ownership,
-  retention, and audit decisions first.
-- Editing `server.yaml` from Portal. It is process-start configuration and has
-  no shared multi-replica write target.
-- A raw log viewer. Logs can contain endpoints, prompts, and credentials and
-  remain the deployment observability system's responsibility.
-- Kubernetes node, Pod, or infrastructure lifecycle management.
-- Cross-Space support access. If needed, it requires a separate design for Space
-  consent, expiry, revocation, redaction, and audit.
-- Bulk destructive account or authority actions in the first delivery.
-- Pixel-for-pixel or flag-for-field duplication between CLI and Portal. The
-  required parity is the safe operator outcome, not identical interaction.
+- 一个绕过 Space 成员身份的通用超级用户。
+- 本次切片中不引入自定义角色、任意权限或按资源的 ACL。
+- OIDC、SAML、SCIM、MFA 和服务账户。这些由[企业身份提案](enterprise-identity-and-access.md)负责。
+- 账户的硬删除或 Space 删除。两者都需要先做出数据归属、保留期限和审计方面的决策。
+- 从 Portal 编辑 `server.yaml`。它是进程启动时的配置，没有可供多副本共享的写入目标。
+- 一个原始日志查看器。日志可能包含端点、prompt 和凭据，这仍然是部署可观测性系统的职责。
+- Kubernetes 节点、Pod 或基础设施生命周期管理。
+- 跨 Space 的支持访问（cross-Space support access）。如果确有需要，它需要一个独立的设计，来处理 Space 的同意、有效期、撤销、脱敏和审计。
+- 首次交付中不包含批量的、具有破坏性的账户或权限操作。
+- CLI 与 Portal 之间逐像素或逐字段的复刻。所要求的对等是安全的运维结果，而不是完全相同的交互方式。
 
-## 6. Correctness Prerequisites
+## 6. 正确性前提条件
 
-The following are implementation defects or incomplete invariants, not product
-options. They should be fixed before adding a Portal grant-management surface.
+以下是实现缺陷或不完整的不变量，而不是产品层面的可选项。它们应当在给 Portal 增加授权管理界面之前先被修复。
 
-### 6.1 Enforce One Live Grant In The Database
+### 6.1 在数据库中强制保证唯一的存活授权
 
-`systemGrantRow` currently declares a unique index over
-`(user_id, role, revoked_at)`, while `revoked_at` is `NULL` for a live grant.
-MySQL treats values containing `NULL` as distinct for unique-index purposes.
-The index therefore permits more than one row with the same user, role, and
-`NULL` revocation time, contrary to the code comment.
+`systemGrantRow` 目前在 `(user_id, role, revoked_at)` 上声明了一个唯一索引，而对于存活的授权，`revoked_at` 为 `NULL`。MySQL 在唯一索引的语义上，把包含 `NULL` 的值视为彼此不同。因此该索引实际上允许同一个用户、同一个角色、且 `revoked_at` 均为 `NULL` 的多行同时存在，这与代码中的注释相悖。
 
-`GrantSystemRole` first checks for an existing live row and then inserts outside
-a transaction. Two concurrent grants can both pass the check, and the current
-index does not guarantee that one loses.
+`GrantSystemRole` 先检查是否已存在一条存活的行，然后在事务之外插入。两次并发的授权都可能通过这一检查，而当前的索引并不能保证其中一次一定失败。
 
-Recommended correction:
+建议的修正方式：
 
-- add a nullable live marker whose fixed non-`NULL` value denotes an active
-  grant and whose `NULL` value denotes a historical grant;
-- place the unique index on `(user_id, role, live_marker)`;
-- clear the marker in the same update that sets `revoked_at`;
-- keep every historical row;
-- translate the duplicate-key result to `ErrSystemGrantExists`;
-- prove concurrent grants against MySQL, not only a mock store.
+- 增加一个可为空的“存活标记”字段，其固定的非 `NULL` 值表示一条有效授权，其 `NULL` 值表示一条历史授权；
+- 把唯一索引建在 `(user_id, role, live_marker)` 上；
+- 在设置 `revoked_at` 的同一次更新中清空该标记；
+- 保留每一条历史行；
+- 把违反唯一键的结果翻译为 `ErrSystemGrantExists`；
+- 针对 MySQL 而不仅仅是 mock store 来证明并发授权的正确性。
 
-An equivalent generated column is acceptable if it is expressed by the row
-schema, works with the supported MySQL version, and is covered by migration and
-schema tests.
+如果一个等价的生成列（generated column）由行 schema 表达、兼容所支持的 MySQL 版本，并且有迁移和 schema 测试覆盖，那么这种方式也是可以接受的。
 
-### 6.2 Make Last-Holder Protection Atomic
+### 6.2 使“最后持有者”保护具备原子性
 
-`systemadmin.Service.Revoke` currently counts active grants and revokes in two
-separate store calls. Two administrators can concurrently see two holders and
-both revoke, leaving the deployment with none.
+`systemadmin.Service.Revoke` 目前在两次独立的 store 调用中分别统计有效授权数量和执行撤销。两名管理员可能并发地都看到还有两名持有者，于是都执行撤销，最终使该部署没有任何管理员。
 
-The store must expose one atomic operation that means:
+store 必须暴露一个原子操作，其语义是：
 
-> Revoke this role if doing so leaves at least one effective holder; otherwise
-> return the last-holder refusal.
+> 如果撤销此角色之后仍然至少剩下一名有效持有者，则撤销；否则返回“最后持有者”拒绝。
 
-The implementation should serialize mutations for one system role inside a
-database transaction. The operator command keeps a distinct force-capable path
-because it is the recovery mechanism and already possesses database authority.
+实现应当把针对同一个系统角色的变更序列化在一个数据库事务内。运维人员命令保留一条独立的、具备强制能力的路径，因为它是恢复机制，并且本身已经拥有数据库权限。
 
-### 6.3 Count Effective Administrators
+### 6.3 统计有效管理员
 
-An unrevoked grant on a disabled account cannot authorize a request because
-`Guard.ActiveUser` refuses the account first. Last-holder protection must
-therefore count effective holders, defined as:
+一条未被撤销、但挂在已禁用账户上的授权，无法用于认证请求，因为 `Guard.ActiveUser` 会先拒绝这个账户。因此“最后持有者”保护必须统计的是有效持有者，其定义为：
 
 ```text
 unrevoked system_admin grant AND user.disabled_at IS NULL
 ```
 
-The same invariant applies when disabling an account that holds
-`system_admin`. Disabling may proceed only when another effective holder will
-remain. The existing refusal to disable oneself remains useful but is not a
-substitute for this invariant.
+同样的不变量也适用于禁用一个持有 `system_admin` 的账户：只有在还会剩下另一名有效持有者的情况下，禁用才可以继续进行。现有的“不能禁用自己”的拒绝逻辑仍然有用，但不能替代这一不变量。
 
-Granting a role to a disabled account should be refused with an actionable
-conflict response. The operator can enable the account first.
+给一个已被禁用的账户授予角色，应当被拒绝，并返回一个可操作的冲突响应。运维人员可以先启用该账户。
 
-### 6.4 Decide Transactional Audit For Authority Changes
+### 6.4 决定权限变更的事务性审计
 
-Grant and revoke audit writes are currently best-effort and happen after the
-authority mutation. The existing design identifies this as its weakest point:
-the one event an investigation most needs may be the one that was dropped.
+授予和撤销操作的审计写入目前是尽力而为（best-effort），并且发生在权限变更之后。现有设计已经把这一点标记为其最薄弱之处：调查最需要的那一条事件，恰恰可能就是被丢失的那一条。
 
-The recommended decision for this narrow class is to commit the grant mutation
-and its audit event in one database transaction. This does not change the
-general fail-open audit policy for ordinary product actions. It creates an
-explicit stronger contract for changes to deployment authority.
+针对这一狭窄的类别，建议的决定是：把授权变更本身与其审计事件提交在同一个数据库事务中。这不会改变面向普通产品操作的整体“审计失败即放行”（fail-open）策略，而是为部署权限的变更建立一份明确的、更强的契约。
 
-The domain-facing mutation input should carry the actor and desired transition,
-while GORM and transaction details remain in `internal/infra/db`.
+面向领域层的变更输入应当携带操作者和期望的状态迁移，而 GORM 和事务细节应当保留在 `internal/infra/db` 中。
 
-## 7. Options
+## 7. 方案
 
-### Option A: Leave Administration As It Is
+### 方案 A：维持现状
 
-Keep Portal as a thin view and require CLI or database access for the remaining
-operations.
+让 Portal 保持一个薄的只读视图，其余操作仍然需要 CLI 或数据库访问。
 
-Advantages:
+优点：
 
-- no new security-sensitive surface;
-- no additional operational state;
-- lowest implementation cost.
+- 不引入新的安全敏感界面；
+- 不增加额外的运营状态；
+- 实现成本最低。
 
-Costs:
+代价：
 
-- existing Server capabilities remain undiscoverable and partly unreachable
-  from Portal;
-- ordinary administration continues to require infrastructure access;
-- account, session, quota, and runtime journeys remain incomplete;
-- the product continues to appear to lack system administration.
+- 现有的 Server 能力持续无法被发现，也部分无法从 Portal 触达；
+- 日常管理仍然需要基础设施访问权限；
+- 账户、Session、配额和运行时相关的操作路径仍然不完整；
+- 产品在外界看来仍然像是缺少系统管理能力。
 
-### Option B: Complete The Existing Boundary Incrementally
+### 方案 B：在现有边界内增量完善
 
-Keep one `system_admin` role, close correctness gaps, expose existing routes,
-then add narrowly scoped session, catalog, quota, and runtime metadata
-operations. Every routine operator outcome receives both an automation-friendly
-CLI/API path and an interactive Portal path unless an explicit security or
-availability reason prevents it.
+保留一个 `system_admin` 角色，先修复正确性方面的缺口，暴露已有的路由，然后再增加范围狭窄的 Session、目录、配额和运行时元数据相关操作。除非有明确的安全或可用性原因阻止，否则每一个日常运维结果都应同时拥有一条对自动化友好的 CLI/API 路径和一条交互式的 Portal 路径。
 
-Advantages:
+优点：
 
-- reuses the grant, audit, API package, and Portal area already shipped;
-- preserves the Space content boundary;
-- breaks into reviewable changes with independent acceptance criteria;
-- aligns with roadmap R3 account and Space operations and the wider operational
-  trust milestone.
+- 复用已经交付的授权机制、审计、API 包和 Portal 区域；
+- 保留 Space 内容的边界；
+- 可以拆分成一系列可独立评审、各自具备验收标准的变更；
+- 与路线图 R3 的账户和 Space 运营，以及更广泛的运营信任里程碑保持一致。
 
-Costs:
+代价：
 
-- requires MySQL concurrency work before the most visible UI work;
-- some runtime operations depend on the R1 single- versus multi-instance
-  decision;
-- one broad role remains powerful over account lifecycle.
+- 在最显眼的 UI 工作之前，需要先完成 MySQL 并发方面的工作；
+- 一部分运行时操作依赖于 R1 关于单实例还是多实例的决定；
+- 仍然存在一个在账户生命周期上权力很大的角色。
 
-### Option C: Introduce A Full Administrative RBAC Platform Now
+### 方案 C：现在就引入一个完整的管理型 RBAC 平台
 
-Add observer, support, identity, catalog, quota, and runtime roles with granular
-permissions before expanding the surface.
+在扩大界面覆盖面之前，先增加 observer、support、identity、catalog、quota 和 runtime 等具有精细权限的角色。
 
-Advantages:
+优点：
 
-- can model larger enterprise operations and separation of duties;
-- reduces the authority held by any one account when configured carefully.
+- 能够对更大规模的企业运营和职责分离进行建模；
+- 如果配置得当，可以降低任何单一账户所持有的权限。
 
-Costs:
+代价：
 
-- invents roles without known callers;
-- multiplies authorization and test-matrix states before the core operator
-  journeys work;
-- risks becoming a generic policy platform ahead of current roadmap priorities;
-- creates migration and UX complexity with little deployment evidence.
+- 在还没有已知调用者的情况下就发明了这些角色；
+- 在核心运维路径能够正常工作之前，就成倍增加了授权和测试矩阵的状态数；
+- 有可能在当前路线图的优先级之前，演变成一个通用的策略平台；
+- 在几乎没有部署证据支撑的情况下，带来迁移和 UX 复杂度。
 
-### Recommendation
+### 建议
 
-Choose Option B. Treat an observer role, support access, and administrative
-separation of duties as later evidence-driven decisions. The `role` column
-already leaves room for another role without forcing one into this slice.
+选择方案 B。把 observer 角色、support 访问，以及管理层面的职责分离，作为之后由证据驱动的决策再考虑。`role` 这一列已经为未来增加另一个角色留出了空间，不需要在这一次切片中强行塞入。
 
-## 8. Recommended Product Shape
+## 8. 推荐的产品形态
 
-Portal should present one deployment administration area, separate from Space
-settings, with the following information architecture:
+Portal 应当呈现一个独立于 Space 设置的、单一的部署管理区域，其信息架构如下：
 
-| Section | Operator question | Scope |
+| 区块 | 运维人员的问题 | 范围 |
 |---|---|---|
-| Overview | Is BuildMax healthy and is work moving? | Deployment status and operational metadata |
-| Administrators | Who can operate this deployment? | Active and historical system grants |
-| Accounts | Who can sign in and where are they signed in? | Account lifecycle and session metadata |
-| Spaces | Which Spaces exist and what capacity do they have? | Membership, quota tier, and aggregate usage only |
-| Models | Which model upstreams may callers use? | Redacted catalog state and safe operational checks |
-| Plugins | What may this deployment publish and install? | Catalog and release metadata |
-| Audit | Who changed what and when? | Structured metadata events and exports |
+| 概览 | BuildMax 是否健康，工作是否在推进？ | 部署状态与运营元数据 |
+| 管理员 | 谁可以运营这个部署？ | 当前有效及历史上的系统授权 |
+| 账户 | 谁可以登录，他们在哪里登录？ | 账户生命周期与 Session 元数据 |
+| Space | 存在哪些 Space，它们各自有多少容量？ | 仅限成员关系、配额等级和聚合用量 |
+| 模型 | 调用者可以使用哪些模型上游？ | 脱敏后的目录状态与安全的运营检查 |
+| Plugin | 这个部署可以发布和安装什么？ | 目录与 release 元数据 |
+| 审计 | 谁在什么时候做了什么改动？ | 结构化的元数据事件与导出 |
 
-For a confirmed administrator, Administration should be a first-level sidebar
-destination rather than an item hidden inside the user menu. The server remains
-the authority: hiding or showing navigation is presentation only.
+对于一个已确认的管理员来说，Administration 应当是侧边栏中的一级入口，而不是隐藏在用户菜单里的一项。Server 仍然是权限的最终来源：导航的显示或隐藏只是表现层的事情。
 
-The overview should show the caller's grant source and time so the user can
-distinguish Space ownership from deployment authority. Every Space-oriented page
-must continue to state that it shows metadata, not contents.
+概览页应当展示调用者自身授权的来源和时间，让用户能够区分“Space 所有权”与“部署权限”。每一个以 Space 为对象的页面都必须持续声明它展示的是元数据，而不是内容本身。
 
-### 8.1 Operator Surface Contract
+### 8.1 运维界面约定
 
-Operator surfaces are split by the authority a caller can present, not by
-feature. Two are direct-authority break-glass; two are authenticated peers over
-one Admin API:
+运维界面按调用者能够出示的权限来划分，而不是按功能划分。其中两个是直接权限的“应急直通”界面；另外两个是同一个 Admin API 之上的、经过认证的对等客户端：
 
-| Surface | Primary use | Authentication | Availability |
+| 界面 | 主要用途 | 认证方式 | 可用性 |
 |---|---|---|---|
-| `buildmax-server` | Break-glass: bootstrap the first account and grant, recover a locked-out or zero-administrator deployment, mint a run token, and run the Server | Direct access to Server configuration, the database, and the deployment signing key | Works without Portal and without a healthy public Server |
-| Admin API (`/api/admin/*`) | Stable programmatic contract for routine administration | User session plus a live system grant | Requires the Server |
-| `buildmax admin` | Scriptable, automation-friendly routine administration | The same Admin API, reusing the `buildmax` client login and Server-address configuration | Requires the Server |
-| Portal | Discoverable, guided routine administration | The same Admin API | Requires the Server and Portal |
+| `buildmax-server` | 应急直通：引导第一个账户和授权，恢复一个被锁定或零管理员的部署，签发运行令牌，并运行 Server | 直接访问 Server 配置、数据库和部署签名密钥 | 不依赖 Portal，也不依赖一个健康的公开 Server 即可工作 |
+| Admin API（`/api/admin/*`） | 面向日常管理的稳定编程接口 | 用户 Session 加上一条有效的系统授权 | 需要 Server |
+| `buildmax admin` | 面向可脚本化、自动化友好的日常管理 | 同一个 Admin API，复用 `buildmax` 客户端的登录方式和 Server 地址配置 | 需要 Server |
+| Portal | 可被发现的、有引导的日常管理 | 同一个 Admin API | 需要 Server 和 Portal |
 
-`buildmax admin` and Portal are peer clients of one Admin API; neither reaches
-the database. `buildmax-server` is not a routine administration surface: it
-keeps only the operations that must sit next to the database or the signing
-key — creating the first authority, recovering when no administrator can log in,
-and minting a run token — plus running the Server itself. Every other operator
-outcome moves onto the authenticated Admin API and is reached identically from a
-script (`buildmax admin`) or a browser (Portal).
+`buildmax admin` 和 Portal 是同一个 Admin API 的对等客户端；两者都不会触达数据库。`buildmax-server` 不是一个日常管理界面：它只保留那些必须紧挨着数据库或签名密钥的操作——创建第一份权限、在没有任何管理员能够登录时进行恢复、签发运行令牌——以及运行 Server 本身。其余的每一个运维结果都迁移到经过认证的 Admin API 上，并且无论从脚本（`buildmax admin`）还是从浏览器（Portal）触达，结果都完全一致。
 
-One domain service owns each mutation. The `buildmax admin` client and the HTTP
-handlers are both thin adapters that reach that service through the Admin API,
-while `buildmax-server` reaches the same services directly as a system actor.
-Validation, state transitions, invariants, and audit vocabulary are shared
-across all three.
+每一个变更都由一个领域服务负责。`buildmax admin` 客户端和 HTTP 处理器都只是薄的适配层，通过 Admin API 去触达那个服务，而 `buildmax-server` 则作为一个系统级操作者直接触达同样的服务。校验、状态迁移、不变量和审计词汇在这三者之间是共享的。
 
-The parity requirement is explicit:
+对等性要求是明确的：
 
-| Operator outcome | CLI today | Portal today | Proposed Portal outcome |
+| 运维结果 | 今天的 CLI | 今天的 Portal | 拟议的 Portal 结果 |
 |---|---|---|---|
-| Create an account | `buildmax-server user create` | Available | Keep and improve the guided flow |
-| Let a user claim or recover an account | `buildmax-server user login-code` | Available | Keep, with one-time display and delivery guidance |
-| Set another person's password | `buildmax-server user set-password` | Not available | Do not copy; issuing a login code lets the person choose their own password and is the safer equivalent |
-| List administrators | `buildmax-server admin list` | Not available | Add active and historical grant views |
-| Grant an administrator | `buildmax-server admin grant` | Not available | Add account selection, confirmation, and immediate audit feedback |
-| Revoke an administrator | `buildmax-server admin revoke` | Not available | Add ordinary revoke; keep final-holder force recovery CLI-only |
-| List models | `buildmax-server model list` | Available | Keep the richer catalog view |
-| Enable or disable a model | `buildmax-server model enable/disable` | Available | Keep |
-| Add a model | `buildmax-server model add` | Not available | Add a write-only credential form after credential storage and transport are hardened |
-| Create a plugin catalog entry | Admin API | Not available | Add the existing API operation to Portal |
-| Publish a plugin release | `buildmax plugin publish` and Admin API | Not available | Upload a prepared archive through the existing streaming API |
-| Mint a diagnostic run token | `buildmax-server run-token` | Not available | Keep CLI-only; exposing a bearer credential is not a routine management outcome |
-| Change process-start configuration | Edit `server.yaml` and restart | Read-only warnings | Keep read-only until a shared dynamic configuration store exists |
+| 创建一个账户 | `buildmax-server user create` | 已支持 | 保留并改进这个有引导的流程 |
+| 让用户认领或恢复一个账户 | `buildmax-server user login-code` | 已支持 | 保留，加上一次性展示和投递方式说明 |
+| 设置他人的密码 | `buildmax-server user set-password` | 不支持 | 不复刻；签发登录码可以让本人自行选择密码，是更安全的等价方式 |
+| 列出管理员 | `buildmax-server admin list` | 不支持 | 增加当前有效和历史授权视图 |
+| 授予一个管理员权限 | `buildmax-server admin grant` | 不支持 | 增加账户选择、确认，以及即时的审计反馈 |
+| 撤销一个管理员权限 | `buildmax-server admin revoke` | 不支持 | 增加普通撤销；把最后一名持有者的强制恢复保留在 CLI |
+| 列出模型 | `buildmax-server model list` | 已支持 | 保留更丰富的目录视图 |
+| 启用或禁用一个模型 | `buildmax-server model enable/disable` | 已支持 | 保留 |
+| 增加一个模型 | `buildmax-server model add` | 不支持 | 在凭据存储和传输被加固之后，增加一个只写的凭据表单 |
+| 创建一个 Plugin 目录条目 | Admin API | 不支持 | 在 Portal 中增加已有的 API 操作 |
+| 发布一个 Plugin release | `buildmax plugin publish` 和 Admin API | 不支持 | 通过已有的流式 API 上传一个准备好的归档文件 |
+| 签发一个诊断用运行令牌 | `buildmax-server run-token` | 不支持 | 保留为仅限 CLI；暴露一个 bearer 凭据不是一个日常管理结果 |
+| 修改进程启动配置 | 编辑 `server.yaml` 并重启 | 只读警告 | 在存在共享的动态配置存储之前，保持只读 |
 
-The table records today's surfaces and the proposed Portal outcome. Under the
-split above, every non-exception row is also delivered on `buildmax admin`, so
-each routine outcome reaches three-way parity: Admin API, `buildmax admin`, and
-Portal. The exception rows below are exactly the outcomes that stay on
-`buildmax-server` because they precede or bypass the authority the Admin API
-requires.
+上表记录了今天的各个界面以及拟议的 Portal 结果。在上面这种划分下，除了例外的几行之外，每一行也都会在 `buildmax admin` 上交付，因此每一个日常结果都能达到三方对等：Admin API、`buildmax admin` 和 Portal。下面列出的例外行，正是那些先于或绕过 Admin API 所要求的权限、因此仍然留在 `buildmax-server` 上的结果。
 
-Exceptions must be narrow and explained at the point where an authenticated
-surface would otherwise offer an action:
+例外必须是狭窄的，并且要在一个经过认证的界面本来可以提供该操作的位置给出解释：
 
-- the first grant and recovery from zero administrators cannot depend on an
-  already authenticated administrator;
-- final-holder force revocation is deliberately a database-authorized operator
-  action;
-- a diagnostic run token is a credential for direct worker-route diagnosis,
-  not a normal Portal workflow;
-- process-start configuration cannot truthfully be edited through one Server
-  replica.
+- 首次授权以及从零管理员状态恢复，不可能依赖一个已经通过认证的管理员；
+- 最后一名持有者的强制撤销，是被有意设计为一个需要数据库权限的运维人员操作；
+- 诊断用运行令牌是用于直接诊断 Worker 路由的凭据，不是一个正常的 Portal 工作流；
+- 进程启动配置无法在只有一个 Server 副本的情况下被如实编辑。
 
-Model creation is no longer excluded merely because it carries a credential.
-Portal can accept write-only secrets safely only after the model credential is
-encrypted at rest, request bodies are excluded from application and proxy logs,
-TLS is required at the deployment boundary, errors never echo the value, the
-response omits it, and the browser clears it immediately after submission. If
-those conditions are not met, `model add` remains visibly marked as unavailable
-rather than silently delegated to a command snippet.
+模型创建不再仅仅因为它携带凭据就被排除在外。只有在模型凭据实现静态加密、请求体被排除在应用日志和代理日志之外、部署边界要求 TLS、错误信息绝不回显该值、响应中不包含它、并且浏览器在提交后立即清除它的情况下，Portal 才能安全地接受这类只写密钥。如果这些条件没有被满足，`model add` 应当继续被明确标记为不可用，而不是被悄悄地委托给一段命令片段。
 
-## 9. Delivery Plan
+## 9. 交付计划
 
-The `buildmax admin` client is not a separate phase. Each phase that adds an
-Admin API capability adds its `buildmax admin` subcommand in the same slice, so
-the automation surface never lags Portal. One discrete restructuring, sized with
-Phase 1, trims `buildmax-server` to its break-glass set — first grant, recovery
-login-code, final-holder force revoke, run-token, and running the Server — and
-moves every routine `user`, `model`, and `admin` operation onto the authenticated
-Admin API reached by `buildmax admin`. Because the repository is Alpha, this
-replaces the old command placement rather than aliasing it.
+`buildmax admin` 客户端不是一个单独的阶段。每一个新增 Admin API 能力的阶段，都会在同一个切片中增加对应的 `buildmax admin` 子命令，这样自动化界面就不会落后于 Portal。有一次单独的、与阶段 0 一同排定规模的重构，把 `buildmax-server` 精简到它的应急直通集合——首次授权、恢复用登录码、最后一名持有者的强制撤销、运行令牌，以及运行 Server 本身——并把所有日常的 `user`、`model` 和 `admin` 操作迁移到由 `buildmax admin` 触达的、经过认证的 Admin API 上。由于这个仓库处于 Alpha 阶段，这是替换旧的命令位置，而不是为它增加一个别名。
 
-### Phase 0: Grant Integrity And Recovery
+现状：`buildmax admin` 已经获得了 `user` 和 `model` 两组子命令，精简工作也移除了 `buildmax-server user set-password`（由登录码取代）和 `buildmax-server admin list`（改用 `buildmax admin list` 或 Portal 查看）。除纯粹的应急直通集合外，`buildmax-server` 上还保留了两个账户相关的原语，原因只有一个：它们要在一个部署能够对客户端做身份验证之前，从数据库一侧为其播种。`user create` 用于引导出第一个账户；而在实现本项工作的过程中决定，`model add`（连同 `list`、`enable`、`disable`）也按同样的方式保留：这是在没有正在运行、可供登录的 server 时，为一个全新部署填充模型目录的方式，本地 `kind` 工具链就依赖于此。模型管理已不再是纯命令行专属——`buildmax admin` 和 Portal 上都有了——所以这里保留的是一个引导原语，而不是一个日常界面。
 
-Scope:
+### 阶段 0：授权完整性与恢复
 
-- correct the live-grant uniqueness constraint;
-- make grant, revoke, and last-effective-holder enforcement atomic;
-- protect account disablement with the same invariant;
-- make authority audit transactional;
-- add MySQL concurrency and recovery tests;
-- retain and exercise the force-capable operator command.
+范围：
 
-Acceptance:
+- 修正“存活授权”的唯一性约束；
+- 让授予、撤销和“最后一名有效持有者”检查具备原子性；
+- 用同样的不变量保护账户禁用操作；
+- 让权限相关的审计具备事务性；
+- 增加 MySQL 并发和恢复测试；
+- 保留并演练具备强制能力的运维人员命令。
 
-- 20 concurrent grants create exactly one live row;
-- two concurrent administrators cannot both revoke the last two effective
-  grants through the API;
-- a disabled grantee does not satisfy the last-holder invariant;
-- disabling or revoking cannot leave zero effective administrators through the
-  API;
-- the CLI can still deliberately revoke the final grant and grant it again;
-- every committed grant transition has its matching audit event.
+验收标准：
 
-### Phase 1: Administrators And Discoverability
+- 20 次并发授权只创建出恰好一条存活的行；
+- 两名管理员无法通过 API 并发地都撤销最后两条有效授权；
+- 一个被禁用账户上的授权不满足“最后持有者”不变量；
+- 无论是禁用还是撤销，都不能通过 API 使有效管理员数量降为零；
+- CLI 仍然可以有意地撤销最后一条授权，并再次授予它；
+- 每一次已提交的授权状态迁移都有与之匹配的审计事件。
 
-Scope:
+### 阶段 1：管理员与可发现性
 
-- add an Administrators Portal section;
-- expose existing grant list, create, and revoke routes through the Portal API
-  client;
-- list active grants by default and allow viewing revoked history;
-- select an existing enabled account by email rather than requiring a user ID;
-- show grant actor, time, state, and target account;
-- add role actions to account detail;
-- move Administration to first-level navigation for confirmed holders;
-- show the caller's own grant on Overview;
-- render the redacted effective configuration in a collapsible read-only view;
-- correct stale operator documentation.
+范围：
 
-Acceptance:
+- 增加一个 Administrators Portal 区块；
+- 通过 Portal 的 API 客户端，暴露已有的授权列表、创建和撤销路由；
+- 默认列出当前有效的授权，并允许查看已撤销的历史记录；
+- 通过邮箱选择一个已存在且已启用的账户，而不是要求提供用户 ID；
+- 展示授权的操作者、时间、状态和目标账户；
+- 在账户详情中增加角色相关的操作；
+- 把 Administration 提升为已确认持有者的一级导航；
+- 在概览页展示调用者自己的授权情况；
+- 在一个可折叠的只读视图中渲染脱敏后的生效配置；
+- 修正过时的运维人员文档。
 
-- after the CLI creates the first administrator, all later administrator
-  lifecycle actions can be completed through Portal;
-- Portal explains and displays the last-holder refusal;
-- a revoked administrator loses the area on their next request;
-- a non-administrator sees no navigation and receives 403 from every admin
-  route;
-- no rendered or serialized response contains credential material.
+验收标准：
 
-### Phase 2: Account And Session Operations
+- 在 CLI 创建出第一个管理员之后，后续所有的管理员生命周期操作都可以通过 Portal 完成；
+- Portal 能够解释并展示“最后持有者”拒绝的情形；
+- 一个被撤销权限的管理员，会在其下一次请求时失去这个区块；
+- 一个非管理员看不到任何相关导航，并且在每一个管理类路由上都收到 403；
+- 任何渲染出的或被序列化的响应中都不包含凭据材料。
 
-Scope:
+### 阶段 2：账户与 Session 操作
 
-- replace the fixed account page with cursor or explicit offset pagination;
-- filter by enabled state, system role, password state, last-login range, and
-  platform;
-- make account detail a stable address that survives reload;
-- retain separate create-account and issue-login-code calls and audit events,
-  but present them as a guided joiner flow;
-- list live sessions with session ID, platform, creation time, last rotation,
-  expiry, and revocation state;
-- revoke one session or all sessions;
-- present a leaver flow that explains disablement, session revocation, webhook
-  refusal, and the effect on queued work;
-- rate-limit login and sensitive administration mutations.
+范围：
 
-Acceptance:
+- 用游标分页或显式的偏移量分页替换固定的账户页面；
+- 按启用状态、系统角色、密码状态、最近登录时间范围和平台进行过滤；
+- 让账户详情成为一个在刷新页面后仍然稳定的地址；
+- 保留分别独立的“创建账户”和“签发登录码”调用及审计事件，但把它们呈现为一个有引导的“新成员加入”流程；
+- 列出当前存活的 Session，包含 Session ID、平台、创建时间、最近一次轮换时间、过期时间和撤销状态；
+- 撤销单个 Session 或全部 Session；
+- 呈现一个“离场”流程，解释禁用、Session 撤销、webhook 拒绝，以及对排队中工作的影响；
+- 对登录和敏感的管理类变更进行限流。
 
-- every account remains reachable when more than 50 exist;
-- an operator can identify and revoke one device without disturbing another;
-- a newly created account cannot sign in until a separate credential action;
-- a disabled account is refused through password, login code, refresh token,
-  existing access token checks, and webhook keys;
-- login and administrative abuse limits are deterministic and tested.
+验收标准：
 
-Hard deletion remains outside this phase.
+- 当账户数超过 50 个时，每一个账户仍然可以被找到；
+- 运维人员可以识别并撤销单个设备，而不影响其他设备；
+- 一个新创建的账户在完成一个独立的凭据操作之前无法登录；
+- 一个被禁用的账户在密码、登录码、刷新令牌、已有的访问令牌检查以及 webhook 密钥这几方面都会被拒绝；
+- 登录和管理相关的滥用限流是确定性的，并有测试覆盖。
 
-### Phase 3: Catalog Management Parity
+硬删除仍然在本阶段的范围之外。
 
-Scope:
+### 阶段 3：目录管理对等性
 
-- encrypt managed-model provider credentials at rest using the deployment's
-  existing key-encryption boundary before accepting them from Portal;
-- add `POST /api/admin/llm/models` over the existing `llmcatalog.Service`;
-- add a model-creation form covering the fields supported by
-  `buildmax-server model add`;
-- treat `api_key` as write-only: password-style input, no response field, no
-  persisted browser state, no audit detail, and no error echo;
-- verify that HTTP middleware, documented reverse-proxy configuration, traces,
-  and error reporting do not record request bodies;
-- expose the existing plugin-entry creation API in Portal;
-- expose the existing streaming plugin-release publication API through an
-  archive file upload with progress and size-limit feedback;
-- retain the CLI path for directory packaging, scripting, and bulk publication;
-- show a clear Portal explanation for the remaining CLI-only recovery and
-  process-configuration operations.
+现状：模型这一条线已经交付——供应商凭据在部署的密钥加密边界之下实现了静态加密，`POST /api/admin/llm/models` 通过 Admin API 接受一个带有只写凭据的模型，Portal 也已经有一个模型创建表单。Plugin 这一条线（下面的 Plugin 条目和 release 发布相关条目）已被决定推迟：Plugin 目录管理目前仍然留在命令行上，因此这些条目尚未被构建。
 
-Acceptance:
+范围：
 
-- an administrator can add the same valid model through CLI or Portal and the
-  resulting catalog row has the same non-secret semantics;
-- provider credentials are encrypted at rest and never returned by a read;
-- a known test credential appears in no response, log, trace, audit event,
-  rendered DOM after completion, or browser storage;
-- an administrator can create a plugin entry and upload a prepared release
-  archive through Portal;
-- the release is inspected, digested, stored, and audited by the same service
-  used by the command-line publisher;
-- CLI automation continues to work unchanged.
+- 在从 Portal 接受受管模型的供应商凭据之前，使用部署已有的密钥加密边界对其进行静态加密；
+- 在已有的 `llmcatalog.Service` 之上增加 `POST /api/admin/llm/models`；
+- 增加一个模型创建表单，覆盖 `buildmax-server model add` 所支持的字段；
+- 把 `api_key` 当作只写字段处理：密码式输入框、响应中没有对应字段、不在浏览器中留存状态、不出现在审计详情中、错误信息中也不回显；
+- 验证 HTTP 中间件、文档化的反向代理配置、trace 和错误上报都不会记录请求体；
+- 在 Portal 中暴露已有的 Plugin 条目创建 API；
+- 通过归档文件上传，暴露已有的流式 Plugin release 发布 API，并提供进度和大小限制方面的反馈；
+- 保留 CLI 路径，用于目录打包、脚本化和批量发布；
+- 对于剩余的仅限 CLI 的恢复和进程配置类操作，在 Portal 中给出清晰的说明。
 
-Portal does not need to pack an arbitrary local directory. The browser accepts
-a prepared archive, while the CLI remains the natural surface for turning a
-working directory into that archive and publishing it in one command.
+验收标准：
 
-### Phase 4: Space Capacity And Quota Assignment
+- 管理员通过 CLI 或 Portal 增加同一个有效的模型，得到的目录行在非密钥语义上是相同的；
+- 供应商凭据实现静态加密，并且不会在任何一次读取中被返回；
+- 一个已知的测试凭据不会出现在任何响应、日志、trace、审计事件、完成后渲染出的 DOM，或浏览器存储中；
+- 管理员可以通过 Portal 创建一个 Plugin 条目，并上传一个准备好的 release 归档文件；
+- 该 release 被检查、计算摘要、存储和审计，使用的是与命令行发布者相同的服务；
+- CLI 自动化流程保持不变，可以继续工作。
 
-Scope:
+Portal 不需要打包任意的本地目录。浏览器接受一个已经准备好的归档文件，而把工作目录打包成这样一个归档文件、并在一条命令中发布它，则仍然是 CLI 的自然界面。
 
-- list quota tiers through the administration API;
-- assign an existing tier to a Space;
-- paginate and filter Spaces by personal/shared kind, owner, tier, and quota
-  pressure;
-- show runs, tokens, and storage against their respective limits;
-- record `space.quota_tier_changed` with actor, Space, old tier, and new tier;
-- remove the duplicate user-level quota tier if it has no remaining caller,
-  leaving the Space as the authoritative enforcement boundary.
+### 阶段 4：Space 容量与配额分配
 
-Acceptance:
+范围：
 
-- every Space remains reachable when more than 50 exist;
-- an unknown tier is refused;
-- the next quota check observes the newly assigned tier;
-- concurrent assignments have a deterministic final value and complete audit
-  history;
-- the response contains no Space-authored or Agent-produced field.
+- 通过管理 API 列出配额等级；
+- 给一个已有的 Space 分配一个已存在的等级；
+- 按个人/共享类型、所有者、等级和配额压力对 Space 进行分页和过滤；
+- 展示运行数、token 数和存储用量相对于各自限额的情况；
+- 记录 `space.quota_tier_changed`，包含操作者、Space、旧等级和新等级；
+- 如果用户级配额等级已经没有任何调用者，就移除这一重复概念，让 Space 成为唯一权威的强制边界。
 
-Portal should assign existing tiers in this phase. Creating and editing tier
-definitions is deferred until there is evidence that source-controlled or
-seeded tiers are insufficient.
+验收标准：
 
-### Phase 5: Runtime Operations
+- 当 Space 数超过 50 个时，每一个 Space 仍然可以被找到；
+- 一个未知的等级会被拒绝；
+- 下一次配额检查能够观察到新分配的等级；
+- 并发分配得到一个确定性的最终值，并具备完整的审计历史；
+- 响应中不包含任何 Space 创作或 Agent 生成的字段。
 
-This phase begins only after roadmap R1 decides whether the supported Server
-topology is one replica or introduces shared coordination. A global-looking
-dashboard assembled from one process's memory would be actively misleading.
+在本阶段中，Portal 应当只负责分配已有的等级。创建和编辑等级定义则被推迟，直到有证据表明源代码管理的或预置的等级已经不够用。
 
-Scope:
+### 阶段 5：运行时操作
 
-- report process start time, build identity, and current Server time;
-- report TaskRuns by status and age, including oldest pending age;
-- report counts of cancellation requests, stale-run candidates, and recent
-  terminal outcomes;
-- report worker heartbeat freshness and execution modes using persisted run
-  metadata rather than an invented persistent worker entity;
-- report database, object storage, and model-gateway health through bounded,
-  redacted probes;
-- report the number of Spaces near or above each quota dimension;
-- group failures by a safe error class, never by raw error text.
+只有在路线图 R1 就“所支持的 Server 拓扑是单副本，还是引入共享协调机制”做出决定之后，本阶段才会开始。一个由单个进程内存拼凑出的、看起来像全局视图的仪表盘，实际上是具有误导性的。
 
-Acceptance:
+范围：
 
-- the dashboard distinguishes no work, queued work, active work, and work that
-  appears stuck;
-- all reported values have deployment-wide semantics under the supported
-  topology;
-- one failed dependency does not make the entire status response unavailable;
-- no prompt, trace, tool output, artifact metadata supplied by a member, raw
-  error, DSN, endpoint credential, or provider key is returned.
+- 报告进程启动时间、构建标识和当前 Server 时间；
+- 按状态和存在时长报告 TaskRun，包括最老的待处理项的存在时长；
+- 报告取消请求数、疑似滞留运行的候选数，以及最近的终态结果计数；
+- 使用已持久化的运行元数据（而不是发明一个持久化的 Worker 实体）来报告 Worker 心跳的新鲜度和执行模式；
+- 通过有边界的、脱敏后的探测，报告数据库、对象存储和模型网关的健康状态；
+- 报告在每个配额维度上接近或超过限额的 Space 数量；
+- 按一个安全的错误分类对失败进行分组，绝不按原始错误文本分组。
 
-Global dispatch pause, force-cancel, or cross-Space retry are not implicit parts
-of this phase. Each changes user work and requires an explicit authority and
-multi-instance consistency decision.
+验收标准：
 
-### Phase 6: Enterprise Identity Follow-On
+- 仪表盘能够区分“没有工作”“工作排队中”“工作进行中”和“工作看起来卡住了”这几种情况；
+- 在所支持的拓扑下，所有报告的数值都具有部署范围的语义；
+- 一个依赖出现故障，不会导致整个状态响应不可用；
+- 不返回任何 prompt、trace、工具输出、成员提供的 Artifact 元数据、原始错误、DSN、端点凭据或供应商密钥。
 
-After the enterprise identity proposal is accepted, administration may gain:
+全局的暂停下发、强制取消或跨 Space 重试，并不是本阶段隐含包含的内容。每一项都会改变用户的工作，都需要一个明确的权限决定和多实例一致性方面的决定。
 
-- OIDC connection state and callback diagnostics;
-- SCIM provisioning and deprovisioning status;
-- identity-link inspection without exposing provider tokens;
-- administrator MFA or step-up authentication for destructive actions;
-- a real `system_observer` role if an operations-only caller is identified;
-- service-account lifecycle if unattended callers need a supported credential.
+### 阶段 6：企业身份后续工作
 
-The operator command remains available across identity-provider outages and
-must be included in every lockout exercise.
+在企业身份提案被接受之后，管理功能可能会新增：
 
-## 10. API And Domain Changes
+- OIDC 连接状态和回调诊断；
+- SCIM 的开通和撤销状态；
+- 身份关联信息的查看，而不暴露供应商 token；
+- 针对破坏性操作的管理员 MFA 或二次强化认证；
+- 如果确实识别出一个仅需只读运营权限的调用者，则引入一个真正的 `system_observer` 角色；
+- 如果存在需要受支持凭据的无人值守调用者，则引入服务账户的生命周期管理。
 
-### 10.1 Reused APIs
+运维人员命令在身份提供方发生中断期间仍然保持可用，并且必须被包含在每一次“锁定”演练中。
 
-Phase 1 should use the existing authority routes rather than introduce aliases:
+## 10. API 与领域变更
+
+### 10.1 复用的 API
+
+阶段 1 应当使用已有的权限相关路由，而不是新增别名：
 
 ```text
 GET    /api/admin/me
@@ -648,13 +466,11 @@ POST   /api/admin/grants
 DELETE /api/admin/grants/{user_id}
 ```
 
-The existing account, system, configuration, Space, model, plugin, and audit
-routes remain the base of their corresponding pages.
+已有的账户、系统、配置、Space、模型、Plugin 和审计相关路由，仍然是对应页面的基础。
 
-### 10.2 Proposed Account Queries And Session APIs
+### 10.2 拟议的账户查询与 Session API
 
-The exact query representation is an implementation detail, but the public
-capability should cover:
+具体的查询表示方式属于实现细节，但对外暴露的能力应当覆盖：
 
 ```text
 GET    /api/admin/users?status=&system_role=&has_password=&platform=&cursor=
@@ -663,220 +479,167 @@ DELETE /api/admin/users/{user_id}/sessions/{session_id}
 DELETE /api/admin/users/{user_id}/sessions
 ```
 
-The session response must never contain a refresh-token hash or plaintext. Its
-purpose is to identify a login chain by safe metadata. `RefreshTokenStore`
-needs a list method returning a domain session projection; GORM rows remain
-inside `internal/infra/db`.
+Session 响应绝不能包含刷新令牌的哈希或明文。它的目的是通过安全的元数据来识别一条登录链。`RefreshTokenStore` 需要一个返回领域层 Session 投影的列表方法；GORM 的行结构仍然留在 `internal/infra/db` 内部。
 
-### 10.3 Proposed Quota APIs
+### 10.3 拟议的配额 API
 
 ```text
 GET /api/admin/quota-tiers
 PUT /api/admin/spaces/{space_id}/quota-tier
 ```
 
-`internal/core/quota.TierStore` currently reads one tier only. It needs a list
-operation.
-The Space store needs a quota-tier assignment operation, while validation and
-audit ownership belong in `internal/service/quota`. The handler should not
-coordinate raw stores directly.
+`internal/core/quota.TierStore` 目前只能读取单个等级，需要增加一个列表操作。
+Space store 需要一个配额等级分配操作，而校验和审计归属则应当放在 `internal/service/quota` 中。处理器不应当直接协调这些原始的 store。
 
-### 10.4 Proposed Catalog APIs
+### 10.4 拟议的目录 API
 
-Model creation should use the same input validation and creation service as the
-command line:
+模型创建应当使用和命令行相同的输入校验与创建服务：
 
 ```text
 POST /api/admin/llm/models
 ```
 
-The request may contain a provider credential; the response must not. The model
-store must replace the current plaintext credential column with an encrypted
-representation before this route is enabled. Only the managed gateway's
-credential reader may decrypt it.
+请求体中可以包含供应商凭据；响应中则不可以。在启用这条路由之前，模型 store 必须把当前明文的凭据列替换为一种加密表示形式。只有受管网关的凭据读取器才可以解密它。
 
-Plugin entry creation and release publication already have server routes:
+Plugin 条目创建和 release 发布已经有对应的 Server 路由：
 
 ```text
 POST /api/admin/plugins
 POST /api/admin/plugins/{plugin_name}/releases
 ```
 
-Portal should call those routes rather than add browser-specific aliases. The
-release body remains a streaming archive. Provenance supplied by a browser
-upload must identify itself as such rather than claiming Git metadata the
-browser did not verify.
+Portal 应当调用这些已有路由，而不是新增浏览器专用的别名。release 的请求体仍然是一个流式归档文件。由浏览器上传所提供的来源信息，必须表明自己就是浏览器上传，而不能冒充浏览器并未验证过的 Git 元数据。
 
-### 10.5 Proposed Runtime Read Model
+### 10.5 拟议的运行时读取模型
 
-Runtime status should be assembled from narrow readers owned by the domains
-that already own the facts:
+运行时状态应当由已经拥有相应事实的领域各自提供的窄读取器来组装：
 
-- `internal/core/task` for persisted TaskRun status and age aggregates;
-- readiness probes supplied by bootstrap;
-- `internal/core/quota` for aggregate capacity pressure;
-- configuration for immutable deployment facts and its redacted projection.
+- `internal/core/task` 用于已持久化的 TaskRun 状态和时长聚合；
+- 由 bootstrap 提供的就绪探针；
+- `internal/core/quota` 用于聚合容量压力；
+- 配置模块用于不可变的部署事实及其脱敏投影。
 
-Do not create a generic `AdminStore` exposing the complete database. The admin
-handler package's narrow configuration is part of the privacy boundary.
+不要创建一个暴露整个数据库的通用 `AdminStore`。admin handler 包所拥有的这份狭窄的配置，正是隐私边界的一部分。
 
-### 10.6 Service Ownership
+### 10.6 服务归属
 
-Transport handlers should authenticate, parse, call one authoritative service,
-and serialize a dedicated response type.
+传输层的处理器应当负责认证、解析请求、调用唯一权威的服务，并序列化一个专用的响应类型。
 
-- `internal/service/systemadmin` owns grant lifecycle and last-holder rules.
-- `internal/service/identity` owns account and session lifecycle.
-- `internal/service/quota` owns tier validation, assignment, and usage rules.
-- `internal/service/llmcatalog` owns model catalog mutations.
-- `internal/service/plugin` owns plugin catalog mutations.
+- `internal/service/systemadmin` 负责授权的生命周期和“最后持有者”规则。
+- `internal/service/identity` 负责账户和 Session 的生命周期。
+- `internal/service/quota` 负责等级校验、分配和用量规则。
+- `internal/service/llmcatalog` 负责模型目录的变更。
+- `internal/service/plugin` 负责 Plugin 目录的变更。
 
-Operator commands and HTTP handlers should delegate to the same service for the
-same state transition. Their authority differs — database-holding system actor
-versus signed-in administrator — but their business procedure must not drift.
-Today this delegation is uneven: `admin grant`/`revoke` and `model add` already
-call their owning service, while the `user` lifecycle commands and `model
-list`/`enable`/`disable` still reach `internal/core` primitives or the store
-directly and record audit inline. Converging every operator command onto its
-owning service is part of this proposal's work, not a precondition it assumes.
+运维人员命令和 HTTP 处理器，对于同一个状态迁移，应当委托给同一个服务。它们的权限不同——一个是持有数据库的系统级操作者，另一个是已登录的管理员——但它们的业务流程不能出现分歧。今天这种委托并不均匀：`admin grant`/`revoke` 和 `model add` 已经调用了各自所属的服务，而 `user` 生命周期相关命令和 `model list`/`enable`/`disable` 仍然直接触达 `internal/core` 的原语或 store，并就地记录审计。让每一个运维人员命令都收敛到它所属的服务上，是本提案工作的一部分，而不是本提案预先假设已经完成的前提条件。
 
-The two CLIs reach these services differently on purpose. `buildmax-server`
-does not call the public HTTP API: bootstrap and recovery must still work when
-that API is unavailable, so it invokes the shared service methods directly as a
-system actor. `buildmax admin` is the opposite — a pure Admin API client that
-authenticates as the signed-in administrator and carries no database or
-service-layer access of its own, exactly like Portal. Behavioral parity across
-all three comes from the single owning service, not from either CLI duplicating
-its rules.
+这两个 CLI 有意采用不同的方式触达这些服务。`buildmax-server` 不调用公开的 HTTP API：引导和恢复必须在该 API 不可用时仍然能够工作，因此它作为一个系统级操作者，直接调用共享的服务方法。`buildmax admin` 则正相反——它是一个纯粹的 Admin API 客户端，以已登录管理员的身份进行认证，自身不持有任何数据库或服务层的访问权限，这与 Portal 完全一样。三者之间的行为对等，来自这个单一的、所属的服务，而不是来自任何一个 CLI 各自复刻一套规则。
 
-## 11. Authorization, Privacy, And Audit
+## 11. 授权、隐私与审计
 
-### 11.1 Route Authorization
+### 11.1 路由授权
 
-Every route registered by the admin package must appear in the system
-authorization matrix. For each route, tests drive:
+admin 包注册的每一个路由，都必须出现在系统授权矩阵中。针对每一个路由，测试要覆盖：
 
-1. an effective System Administrator;
-2. a Space owner without a system grant;
-3. an ordinary user;
-4. a user whose grant was revoked;
-5. a user whose account was disabled;
-6. an anonymous caller;
-7. a grant-store failure.
+1. 一个有效的 System Administrator；
+2. 一个没有系统授权的 Space owner；
+3. 一个普通用户；
+4. 一个授权已被撤销的用户；
+5. 一个账户已被禁用的用户；
+6. 一个匿名调用者；
+7. 一次授权 store 的故障。
 
-Expected behavior remains 401 for no valid identity, 403 for a valid but
-unauthorized identity, and denial on store failure.
+预期行为保持不变：没有有效身份时返回 401，身份有效但未获授权时返回 403，store 故障时一律拒绝。
 
-### 11.2 Response Boundary
+### 11.2 响应边界
 
-Dedicated response structs remain mandatory. Admin routes must not serialize a
-database row or a general internal model merely because it is convenient.
+专用的响应结构体仍然是强制要求。管理类路由不得仅仅因为方便，就直接序列化一个数据库行或一个通用的内部模型。
 
-Automated assertions should reject fields or values associated with:
+自动化断言应当拒绝以下相关的字段或取值：
 
-- passwords and password hashes;
-- login and refresh tokens;
-- API keys and secret values;
-- raw configuration credentials;
-- prompts, messages, instructions, and generated output;
-- artifact storage keys or file contents;
-- run trace content and raw error messages.
+- 密码及密码哈希；
+- 登录令牌和刷新令牌；
+- API key 和其他密钥值；
+- 原始的配置类凭据；
+- prompt、消息、指令和生成的输出；
+- Artifact 的存储 key 或文件内容；
+- 运行 trace 内容和原始错误信息。
 
-Write-only model credentials need value-based leak tests across the complete
-request path. Merely checking response field names is insufficient: a decoder,
-validator, logger, or error wrapper can leak the submitted value without naming
-the field `api_key`.
+只写的模型凭据需要覆盖完整请求路径的、基于取值的泄露测试。仅仅检查响应中的字段名是不够的：一个解码器、校验器、日志记录器或错误包装器，都有可能在字段名不叫 `api_key` 的情况下泄露提交的值。
 
-Space names, account emails, membership roles, quotas, aggregate usage, run
-statuses, timestamps, and opaque public identifiers remain acceptable
-administrative metadata.
+Space 名称、账户邮箱、成员角色、配额、聚合用量、运行状态、时间戳，以及不透明的公开标识符，仍然是可以接受的管理类元数据。
 
-### 11.3 Audit Vocabulary
+### 11.3 审计词汇
 
-Existing permanent action strings remain unchanged. Proposed additions are
-introduced only with their callers:
+已有的永久性 action 字符串保持不变。新增的 action 只会随着其调用者一起被引入：
 
-| Action | Target | Detail |
+| Action | 目标对象 | 详情 |
 |---|---|---|
-| `auth.session_revoked` | one session | platform or empty; never a token |
-| `space.quota_tier_changed` | Space | old and new tier names in a bounded structured form |
+| `auth.session_revoked` | 单个 Session | 平台信息，或为空；绝不包含 token |
+| `space.quota_tier_changed` | Space | 有边界的结构化形式的新旧等级名称 |
 
-The existing `user.sessions_revoked` continues to mean revoke-all. Runtime
-reads do not need one event per dashboard request. Bulk audit exports remain
-audited because they extract the evidence trail itself.
+已有的 `user.sessions_revoked` 继续表示“撤销全部”。运行时读取不需要为每一次仪表盘请求都产生一条事件。批量的审计导出仍然会被审计，因为它导出的正是证据轨迹本身。
 
-If dispatch pause or force-cancel is accepted later, each needs a distinct
-action and must name whether its scope was deployment, Space, or run.
+如果之后接受了暂停下发或强制取消，两者都需要各自独立的 action，并且必须表明其范围是部署级、Space 级还是运行级。
 
-### 11.4 Sensitive Action Presentation
+### 11.4 敏感操作的呈现
 
-Portal must state the result before asking for confirmation:
+Portal 必须在请求确认之前，先说明操作的结果：
 
-- revoking a role removes administration but leaves login sessions intact;
-- disabling an account refuses every account credential and revokes stored
-  sessions, but deletes no data;
-- a login code is displayed once and cannot be recovered;
-- revoking a session does not invalidate an already issued access token unless
-  the account is disabled;
-- changing a quota affects later admission and does not terminate work already
-  running.
+- 撤销一个角色会移除管理权限，但保留登录 Session；
+- 禁用一个账户会拒绝该账户的每一种凭据，并撤销已存储的 Session，但不删除任何数据；
+- 一个登录码只会显示一次，之后无法再找回；
+- 撤销一个 Session 不会使已经签发的访问令牌失效，除非该账户已被禁用；
+- 修改配额只影响之后的准入判断，不会终止已经在运行的工作。
 
-## 12. Validation
+## 12. 验证
 
-### 12.1 Unit And Handler Tests
+### 12.1 单元测试与处理器测试
 
-- service table tests for every successful and refused transition;
-- handler tests for parsing, status codes, pagination, and response shapes;
-- authorization-matrix coverage for every registered route;
-- secret and Space-content response assertions;
-- pure Portal tests for filtering, status labels, quota pressure, and audit
-  descriptions.
+- 针对每一次成功和被拒绝的状态迁移的服务表驱动测试；
+- 针对解析、状态码、分页和响应形状的处理器测试；
+- 针对每一个已注册路由的授权矩阵覆盖；
+- 针对密钥和 Space 内容的响应断言；
+- 针对过滤、状态标签、配额压力和审计描述的纯 Portal 测试。
 
-### 12.2 MySQL Tests
+### 12.2 MySQL 测试
 
-The following require `./make test mysql`; mocks cannot prove them:
+以下内容需要 `./make test mysql`；mock 无法证明它们：
 
-- concurrent grant uniqueness;
-- concurrent last-holder revocation;
-- disablement racing with revoke or grant;
-- authority mutation and audit atomicity;
-- quota assignment persistence and concurrent updates;
-- session listing and single-session revocation queries.
+- 并发授权的唯一性；
+- 并发的“最后持有者”撤销；
+- 禁用操作与撤销或授权之间的竞态；
+- 权限变更与审计的原子性；
+- 配额分配的持久化和并发更新；
+- Session 列表查询和单个 Session 的撤销查询。
 
-### 12.3 Portal End-To-End Tests
+### 12.3 Portal 端到端测试
 
-Browser coverage should prove complete journeys rather than page existence:
+浏览器覆盖应当证明完整的操作路径，而不仅仅是页面的存在：
 
-1. the granted account sees first-level Administration navigation;
-2. an ungranted account does not and is redirected from `#/admin`;
-3. an administrator grants and revokes a second administrator;
-4. Portal reports the last-effective-holder refusal;
-5. an operator creates an account and issues a one-time login code;
-6. an operator disables and re-enables the account;
-7. one session is revoked while a second remains;
-8. account and Space pagination works past 50 records;
-9. a quota-tier change appears in usage and audit;
-10. audit time filters and export use the visible filter state.
-11. a model is added through Portal without its credential appearing after
-    submission;
-12. a plugin catalog entry and prepared release archive are published through
-    Portal.
+1. 已获授权的账户能够看到一级的 Administration 导航；
+2. 未获授权的账户看不到该导航，并且会从 `#/admin` 被重定向；
+3. 一个管理员授予并撤销另一个管理员的权限；
+4. Portal 报告“最后一名有效持有者”拒绝的情形；
+5. 一个运维人员创建一个账户，并签发一个一次性登录码；
+6. 一个运维人员禁用并重新启用该账户；
+7. 撤销一个 Session，而另一个 Session 保持不变；
+8. 账户和 Space 的分页在超过 50 条记录之后仍然可用；
+9. 一次配额等级变更出现在用量和审计中；
+10. 审计的时间过滤和导出使用当前可见的过滤状态；
+11. 通过 Portal 增加一个模型，其凭据在提交之后不会出现；
+12. 通过 Portal 发布一个 Plugin 目录条目和一个准备好的 release 归档文件。
 
-### 12.4 Boundary And Deployment Tests
+### 12.4 边界与部署测试
 
-- A System Administrator without Space membership receives the same refusal as
-  any other non-member on every Space-content route.
-- A metadata-only runtime page works for local-process and Kubernetes Job
-  worker modes.
-- Multi-instance runtime claims are tested only after the supported topology is
-  decided and assembled.
-- Bootstrap, revoke-last with the CLI, and re-grant recovery are exercised
-  without direct SQL.
+- 一个没有 Space 成员身份的 System Administrator，在每一条 Space 内容路由上收到的拒绝，与其他任何非成员相同。
+- 一个仅限元数据的运行时页面，在本地进程和 Kubernetes Job 两种 Worker 模式下都能工作。
+- 多实例相关的运行时声明，只有在所支持的拓扑被决定并组装完成之后才会被测试。
+- 引导、用 CLI 撤销最后一条授权，以及重新授权的恢复流程，都在不直接使用 SQL 的情况下被演练。
 
-### 12.5 Handoff Checks
+### 12.5 交接检查
 
-Run the narrow scope while iterating and the relevant repository checks before
-handoff:
+在迭代过程中运行窄范围的检查，并在交接前运行相关的仓库检查：
 
 ```bash
 ./make test ./internal/server/handlers/admin ./internal/service/systemadmin ./internal/service/identity ./internal/service/quota
@@ -886,104 +649,66 @@ handoff:
 git diff --check
 ```
 
-Portal-, worker-, or deployment-shaped runtime changes also need the
-proportionate Compose or kind evidence described in
-`docs/contribute/testing.md`.
+涉及 Portal、Worker 或部署相关的运行时变更，还需要按 `docs/contribute/testing.md` 中所描述的比例，提供相应的 Compose 或 kind 证据。
 
-## 13. Rollout And Documentation
+## 13. 上线与文档
 
-The repository is Alpha and has no compatibility obligation for an incorrect
-stored shape. The grant schema correction should therefore replace the wrong
-constraint everywhere rather than layer a compatibility workaround over it.
+这个仓库处于 Alpha 阶段，对于一个错误的存储结构没有兼容性义务。因此，授权 schema 的修正应当在所有地方彻底替换掉错误的约束，而不是在其上再叠加一层兼容性变通方案。
 
-Suggested implementation order:
+建议的实现顺序：
 
-1. grant schema and concurrency correctness;
-2. Administrators Portal page and discoverability, the `buildmax admin` client,
-   and the `buildmax-server` break-glass trim;
-3. account pagination and session lifecycle;
-4. model and plugin catalog parity, after credential hardening;
-5. Space quota assignment;
-6. runtime operations after the topology decision;
-7. enterprise identity as a separate accepted plan.
+1. 授权 schema 与并发正确性；
+2. Administrators Portal 页面与可发现性、`buildmax admin` 客户端，以及 `buildmax-server` 的应急直通精简；
+3. 账户分页与 Session 生命周期；
+4. 在凭据加固之后，实现模型和 Plugin 目录的对等性；
+5. Space 配额分配；
+6. 在拓扑决策之后实现运行时操作；
+7. 企业身份，作为一份独立的、被接受的计划。
 
-Each routine capability from step 3 onward ships its Admin API route, its
-`buildmax admin` subcommand, and its Portal surface together.
+从第 3 步开始的每一项日常能力，都会把它的 Admin API 路由、`buildmax admin` 子命令和 Portal 界面一起交付。
 
-Each user-visible slice needs one changelog entry. Update:
+每一个面向用户可见的切片都需要一条 changelog 记录。需要更新：
 
-- `docs/design/system-administration.md` with accepted durable decisions and
-  shipped status;
-- `docs/deploy/authentication.md` with current bootstrap, Portal, session, and
-  recovery behavior;
-- `docs/contribute/architecture/portal.md` for the resulting Portal surface;
-- `docs/contribute/architecture/data-model.md` for grant, session, or quota
-  schema changes;
-- `internal/server/static/openapi.json` for the exact live route surface;
-- `docs/ROADMAP.md` only after the work is accepted and prioritized.
+- `docs/design/system-administration.md`，记录已被接受的持久决策和交付状态；
+- `docs/deploy/authentication.md`，记录当前的引导、Portal、Session 和恢复行为；
+- `docs/contribute/architecture/portal.md`，记录由此产生的 Portal 界面；
+- `docs/contribute/architecture/data-model.md`，记录授权、Session 或配额相关的 schema 变更；
+- `internal/server/static/openapi.json`，记录准确的、当前生效的路由界面；
+- `docs/ROADMAP.md`，仅在该工作被接受并排定优先级之后。
 
-Do not retain this proposal after the direction is accepted or rejected. Move
-durable rationale into the existing design record and let git history preserve
-the discussion.
+在方向被接受或被拒绝之后，不要保留这份提案。把可持久保留的原理迁移到已有的设计记录中，并让 git 历史保留这场讨论过程。
 
-## 14. Open Questions
+## 14. 开放问题
 
-1. Should a grant to a disabled account be refused, as recommended, or stored
-   as dormant authority that becomes effective on enablement? Dormant authority
-   is harder for an operator to see and reason about.
-2. Should grant and revoke be the first actions whose audit writes are
-   transactional, or should BuildMax keep one best-effort policy even for
-   authority changes?
-3. Should account and Space lists retain offset paging for consistency with the
-   existing API or move to cursor paging before deployments become large?
-4. Which session metadata is sufficiently useful without becoming a device
-   fingerprinting surface? Platform and timestamps exist; IP address and user
-   agent do not.
-5. Should the existing deployment key-encryption key encrypt managed-model
-   credentials directly, or should the model catalog reference a new
-   deployment-scoped secret resource?
-6. Are quota-tier definitions deployment configuration or mutable Server data?
-   This proposal recommends assigning existing tiers first and deferring tier
-   editing.
-7. What runtime aggregates are actionable to an operator without revealing
-   Space content?
-8. Does any known operator need read-only deployment status strongly enough to
-   justify `system_observer`, or should one role remain until a caller exists?
-9. Should a System Administrator be allowed to stop a clearly runaway run
-   without Space membership? If yes, what metadata may they inspect first, how
-   is the Space informed, and how does it interact with worker confirmation?
-10. Which destructive actions require recent re-authentication or MFA after the
-    enterprise identity direction is chosen?
+1. 应当像建议的那样拒绝给一个已禁用账户授权，还是应当把它存储为一种“休眠”权限，在账户被启用后才生效？“休眠”权限更难让运维人员看清并推理。
+2. 授予和撤销，是否应当成为第一批审计写入具备事务性的操作？还是即便对于权限变更，BuildMax 也应当继续保持单一的尽力而为策略？
+3. 账户和 Space 列表，应当为了与现有 API 保持一致而继续使用偏移量分页，还是应当在部署规模变大之前就转向游标分页？
+4. 哪些 Session 元数据在足够有用的同时，又不至于变成一种设备指纹识别手段？平台和时间戳已经存在；IP 地址和 user agent 则不存在。
+5. 应当由已有的部署密钥加密 key 直接加密受管模型的凭据，还是模型目录应当引用一个新的、部署范围的密钥资源？
+6. 配额等级的定义，究竟是部署配置，还是可变的 Server 数据？本提案建议先支持分配已有的等级，把等级编辑推迟。
+7. 在不暴露 Space 内容的前提下，哪些运行时聚合数据对运维人员来说是可以据此采取行动的？
+8. 是否有已知的运维人员足够强烈地需要一个只读的部署状态，从而值得引入 `system_observer`？还是应当在出现真正的调用者之前，都只保留一个角色？
+9. 是否应当允许 System Administrator 在没有 Space 成员身份的情况下停止一个明显失控的运行？如果可以，他们首先可以查看哪些元数据，如何通知该 Space，以及这与 Worker 确认机制之间如何交互？
+10. 在企业身份的方向被选定之后，哪些破坏性操作需要最近一次的重新认证或 MFA？
 
-## 15. Evidence Needed For A Decision
+## 15. 做出决策所需的证据
 
-- Operator interviews or deployment reports showing which current CLI or
-  database operations interrupt ordinary administration.
-- A reproduced MySQL concurrency test for duplicate live grants and
-  last-holder revocation.
-- A browser walkthrough with more than 50 accounts and Spaces.
-- A joiner, forgotten-password, leaver, and second-administrator exercise by an
-  operator who did not implement the feature.
-- A completed CLI/API/Portal outcome matrix showing that every routine operator
-  action is present on both automation and human surfaces or has one documented
-  exception.
-- A model-creation leak test covering response bodies, logs, traces, audit
-  events, DOM state, and browser storage.
-- A runtime incident or drill demonstrating which metadata would have shortened
-  diagnosis without requiring raw logs or Space content.
-- A threat review of session metadata, transactional authority audit, and any
-  proposed operational mutation.
-- A topology decision from roadmap R1 before accepting deployment-wide runtime
-  semantics.
+- 运维人员访谈或部署报告，展示当前哪些 CLI 或数据库操作打断了日常管理工作。
+- 一次针对重复的存活授权和“最后持有者”撤销问题、可复现的 MySQL 并发测试。
+- 一次在超过 50 个账户和 Space 的情况下的浏览器走查。
+- 由一个未参与实现该功能的运维人员完成的“新成员加入”“忘记密码”“离场”和“第二个管理员”演练。
+- 一份完整的 CLI/API/Portal 结果矩阵，证明每一个日常运维操作在自动化界面和人类界面上都同时存在，或者都有一条被记录在案的例外。
+- 一次模型创建的泄露测试，覆盖响应体、日志、trace、审计事件、DOM 状态和浏览器存储。
+- 一次运行时事故或演练，展示哪些元数据本可以在不需要原始日志或 Space 内容的情况下缩短诊断时间。
+- 一次针对 Session 元数据、事务性权限审计，以及任何拟议中的运营类变更的威胁评审。
+- 在接受部署范围的运行时语义之前，先由路线图 R1 做出拓扑决定。
 
-## 16. Likely Destination If Accepted
+## 16. 若被采纳后的可能归宿
 
-Acceptance should not create a parallel System Administration design. Instead:
+被采纳之后不应当创建一份并行的系统管理设计文档。而是应当：
 
-- add grant correctness and the chosen operator-surface decisions to
-  `docs/design/system-administration.md`;
-- place the agreed sequencing in `docs/ROADMAP.md`, with the early phases
-  naturally supporting R3 account and Space operations;
-- create focused implementation Issues or pull requests for each phase;
-- keep enterprise identity decisions in their own proposal and later design;
-- delete this proposal once its durable decisions have moved.
+- 把授权正确性和已选定的运维界面决策，加入 `docs/design/system-administration.md`；
+- 把商定的实现顺序放入 `docs/ROADMAP.md`，其中较早的阶段自然会支持 R3 的账户和 Space 运营工作；
+- 为每一个阶段创建聚焦的实现 Issue 或 Pull Request；
+- 让企业身份相关的决策保留在它自己的提案和之后的设计文档中；
+- 一旦其中可持久保留的决策已经迁移完毕，就删除这份提案。

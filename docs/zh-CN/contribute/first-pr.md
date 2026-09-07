@@ -1,6 +1,6 @@
 # 你的第一个拉取请求
 
-> **翻译说明：** 本文是[英文原文](../../contribute/first-pr.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `8fbc1794e42a2596c27093acc0dac28d61bde735ee395553eb9bc0b8447f6d7d`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../contribute/first-pr.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 > **读者：** 新贡献者 · **状态：** 当前有效
 
 从克隆仓库到创建拉取请求的最短完整路径。需要 Go 和 git，**不需要模型 API 密钥**。首次构建会下载约 700 MB 的 Go 依赖；此后，本页每个命令都能在一分钟内完成，包括完整测试套件和拉取请求前的检查。
@@ -50,7 +50,7 @@ Windows 上使用 `make.bat build cli`。`./make` 并非 GNU make，而是 `tool
 
 开始更大的工作前，请阅读 [manual/support.md](../../../manual/support.md)。其中说明项目目前支持哪些界面和部署路径，以及 alpha 阶段明确不支持哪些内容，避免工作超出维护者能够接受的范围。
 
-代码位置见 [repo-layout.md](repo-layout.md)。子系统工作原理见[架构](architecture/README.md)。
+代码位置见 [repo-layout.md](repo-layout.md)。子系统工作原理见 [architecture/](architecture/README.md)。
 
 ## 4. 实施变更
 
@@ -77,7 +77,7 @@ git push -u origin short-topic-name
 
 `./make check ci` 包括必需的拉取请求套件，以及按路径划分的发布和 Windows 检查：上述 Go 检查、两个前端测试套件、文档检查和全仓库扫描。它需要固定版本的 Node；没有 Node 时，运行 `./make check go`，其余交给 CI。
 
-提交标题是一行祈使句。不要加入工具 trailer，也不要添加“Generated with …”页脚。如果用户或运维人员能感知变更，请在 [`docs/changelog/`](../../changelog/README.md) 下新增 changelog 文件。
+提交标题是一行祈使句。不要加入工具 trailer，也不要添加“Generated with …”页脚。如果用户或运维人员能感知变更，请在 [`docs/changelog/`](../changelog/README.md) 下新增 changelog 文件。
 
 向 `main` 创建拉取请求并填写模板：问题、方案、验证方法以及尚缺内容。小而可验证胜过庞大而面面俱到；维护者一次能读完的拉取请求会更快获得评审。
 

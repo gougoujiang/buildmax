@@ -1,6 +1,6 @@
 # Portal 执行模型：Tier 1、Tier 2 与结果交付
 
-> **翻译说明：** 本文是[英文原文](../../design/portal-execution-model.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `73d920c18c5df7f4cf67bf7bfe70e6ef796091c5f1fb222c05bb7ea486a8015a`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../design/portal-execution-model.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
 
 ## 内容
@@ -24,7 +24,7 @@
   取代，当前执行模式以那篇记录为准；本文仍保留 Tier 1/Tier 2 边界的推理。
 - follows: [产品愿景](./产品愿景.md)、[界面定位](./界面定位.md)
   和[Agent 执行与 Task 线程](./Agent执行与Task线程.md)
-- roadmap: [路线图](../../ROADMAP.md)
+- roadmap: [路线图](../ROADMAP.md)
 - created_at: `2026-08-23`
 
 本文于 2026-08-22 作为提案提出并被接受，之后被本记录取代。结果投影的决定
@@ -32,8 +32,8 @@
 前台起点；Space 直接拥有 Task 和 TaskRun，Agent 可以在没有 Conversation 的
 情况下执行。
 
-当前方案见[数据模型](../../contribute/architecture/data-model.md)，请求路径见
-[Server 架构](../../contribute/architecture/server.md)；本文保留相关推理。
+当前方案见[数据模型](../contribute/architecture/data-model.md)，请求路径见
+[Server 架构](../contribute/architecture/server.md)；本文保留相关推理。
 
 ## 1. 决策
 

@@ -1,6 +1,6 @@
 # BuildMax 文档
 
-> **翻译说明：** 本文是[英文原文](../README.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `1ee0f3a15f1b5a9659830dc630ccad9e02e33bf3b9e045ab1c5eaa3c58f11972`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../README.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
 按你想完成的任务组织。
 
@@ -20,20 +20,20 @@
 
 | | |
 |---|---|
-| [deploy/compose.md](../deploy/compose.md) | 约五分钟内在单机上完成 Space 部署 |
-| [deploy/overview.md](../deploy/overview.md) | 拓扑、要求、配置与容器 |
-| [deploy/authentication.md](../deploy/authentication.md) | **对外开放 Server 前必读**：账户、登录码及尚未具备的能力 |
-| [deploy/local-kind.md](../deploy/local-kind.md) | 一条命令创建本地集群并执行 Kubernetes Job 冒烟验证 |
-| [deploy/digitalocean.md](../deploy/digitalocean.md) | 用于 Beta 资格验证的临时外部 DOKS 和 MySQL 环境 |
-| [deploy/beta-readiness.md](../deploy/beta-readiness.md) | 对固定版本的私有部署候选版本进行资格验证并记录证据 |
+| [deploy/compose.md](deploy/compose.md) | 约五分钟内在单机上完成 Space 部署 |
+| [deploy/overview.md](deploy/overview.md) | 拓扑、要求、配置与容器 |
+| [deploy/authentication.md](deploy/authentication.md) | **对外开放 Server 前必读**：账户、登录码及尚未具备的能力 |
+| [deploy/local-kind.md](deploy/local-kind.md) | 一条命令创建本地集群并执行 Kubernetes Job 冒烟验证 |
+| [deploy/digitalocean.md](deploy/digitalocean.md) | 用于 Beta 资格验证的临时外部 DOKS 和 MySQL 环境 |
+| [deploy/beta-readiness.md](deploy/beta-readiness.md) | 对固定版本的私有部署候选版本进行资格验证并记录证据 |
 
 ## 查阅参考资料
 
 | | |
 |---|---|
-| [reference/configuration.md](../reference/configuration.md) | 所有配置文件字段和环境变量 |
+| [reference/configuration.md](reference/configuration.md) | 所有配置文件字段和环境变量 |
 | [CLI 参考](../../manual/cli.md) | 命令、标志与斜杠命令（位于用户手册） |
-| [reference/webhook.md](../reference/webhook.md) | 从外部系统触发运行 |
+| [reference/webhook.md](reference/webhook.md) | 从外部系统触发运行 |
 
 HTTP API 提供自描述文档：`GET /openapi.json`，可在 `/swagger/` 浏览。
 
@@ -42,17 +42,17 @@ HTTP API 提供自描述文档：`GET /openapi.json`，可在 `/swagger/` 浏览
 | | |
 |---|---|
 | [../CONTRIBUTING.md](../../CONTRIBUTING.md) | 前置要求、构建、测试、代码边界与拉取请求 |
-| [contribute/areas.md](../contribute/areas.md) | 选择贡献方向，寻找适合自身经验的工作 |
-| [contribute/first-pr.md](../contribute/first-pr.md) | 从克隆到提交拉取请求的完整流程，无需 API 密钥 |
-| [contribute/conventions.md](../contribute/conventions.md) | 命名、ID、工具输出、提交信息与变更日志条目 |
-| [contribute/repo-layout.md](../contribute/repo-layout.md) | 仓库目录结构与依赖方向 |
-| [contribute/testing.md](../contribute/testing.md) | 各类变更应运行的测试套件、所需条件，以及 CI 的运行时机 |
+| [contribute/areas.md](contribute/areas.md) | 选择贡献方向，寻找适合自身经验的工作 |
+| [contribute/first-pr.md](contribute/first-pr.md) | 从克隆到提交拉取请求的完整流程，无需 API 密钥 |
+| [contribute/conventions.md](contribute/conventions.md) | 命名、ID、工具输出、提交信息与变更日志条目 |
+| [contribute/repo-layout.md](contribute/repo-layout.md) | 仓库目录结构与依赖方向 |
+| [contribute/testing.md](contribute/testing.md) | 各类变更应运行的测试套件、所需条件，以及 CI 的运行时机 |
 | [evaluation/README.md](../../evaluation/README.md) | 如何评估一个构建：本地套件、外部基准及结果包内容 |
-| [changelog/README.md](../changelog/README.md) | 如何添加变更日志条目，以及发布时如何汇总条目 |
-| [contribute/architecture/](../contribute/architecture/README.md) | 各子系统当前的工作方式 |
-| [contribute/documentation.md](../contribute/documentation.md) | 文档规范 |
-| [contribute/dependency-licenses.md](../contribute/dependency-licenses.md) | 许可证审计及重新执行方式 |
-| [contribute/releasing.md](../contribute/releasing.md) | 版本管理、发布、验证与发布恢复 |
+| [changelog/README.md](changelog/README.md) | 如何添加变更日志条目，以及发布时如何汇总条目 |
+| [contribute/architecture/](contribute/architecture/README.md) | 各子系统当前的工作方式 |
+| [contribute/documentation.md](contribute/documentation.md) | 文档规范 |
+| [contribute/dependency-licenses.md](contribute/dependency-licenses.md) | 许可证审计及重新执行方式 |
+| [contribute/releasing.md](contribute/releasing.md) | 版本管理、发布、验证与发布恢复 |
 
 ## 理解设计理由
 
@@ -77,4 +77,4 @@ HTTP API 提供自描述文档：`GET /openapi.json`，可在 `/swagger/` 浏览
 > **Audience:** operators · **Status:** current
 ```
 
-不设归档目录：退役文档直接删除，由 git 历史保存。文档撰写和退役规则见 [contribute/documentation.md](../contribute/documentation.md)。
+不设归档目录：退役文档直接删除，由 git 历史保存。文档撰写和退役规则见 [contribute/documentation.md](contribute/documentation.md)。

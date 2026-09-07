@@ -1,22 +1,20 @@
-# Agent Native Collaboration Substrate
-
-> **翻译说明：** 本文是[英文原文](../../proposals/agent-native-collaboration-substrate.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `e769dd66ec2747a7329da44aeddbfdbb6a490357c448e7e635facacf03e48b00`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
-
 # Agent 原生协作底座备忘录
 
-> **Audience:** 产品设计者、维护者与早期采用者 · **Status:** proposal — under discussion
+> **翻译说明：** 本文是[英文原文](../../proposals/agent-native-collaboration-substrate.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 >
-> Opened: 2026-09-06
+> **受众：** 产品设计者、维护者与早期采用者 · **状态：** 提案 — 讨论中
+>
+> 讨论开始：2026-09-06
 
-相关文档：[产品愿景](../../design/product-vision.md)、
+相关文档：[产品愿景](../design/产品愿景.md)、
 [当前状态](../current-state.md)、[路线图](../ROADMAP.md)、
-[统一 Artifact](../../design/unified-artifacts.md)、
-[本地 Project Memory](../../design/local-project-memory.md)、
-[Agent 执行与 Task thread](../../design/agent-execution-and-task-threads.md)、
-[Agent 编排与 Task workspace 连续性决策](../../design/orchestration-and-continuity-decisions.md)、
-[Workspace root 与 worktree](../../design/workspace-root-and-worktrees.md)。
+[统一 Artifact](../design/统一工件.md)、
+[本地 Project Memory](../design/本地项目记忆.md)、
+[Agent 执行与 Task thread](../design/Agent执行与Task线程.md)、
+[Agent 编排与 Task workspace 连续性决策](../design/编排与连续性决策.md)、
+[Workspace root 与 worktree](../design/工作区根与工作树.md)。
 
-## Contents
+## 目录
 
 - [1. 备忘录结论](#1-备忘录结论)
 - [2. 用户结果、现有证据与约束](#2-用户结果现有证据与约束)

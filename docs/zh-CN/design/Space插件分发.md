@@ -1,6 +1,6 @@
 # Space 与 Worker 的插件分发
 
-> **翻译说明：** 本文是[英文原文](../../design/plugin-space-distribution.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `dffa5f110ef44550fdee89d0a95d73e9108e0a414676e17be87d35dde9a44956`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../design/plugin-space-distribution.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
 
 > **读者：** 贡献者和运营人员 · **状态：** 部分实施——D1 已端到端运行，
@@ -46,7 +46,7 @@
 - relates_to: [Space 治理](./Space治理.md)、
   [信任验证框架](./信任保障.md)、[Worker 运行令牌](./Worker运行令牌.md)和
   [沙箱边界](./沙箱边界.md)
-- roadmap: [路线图](../../ROADMAP.md)
+- roadmap: [路线图](../ROADMAP.md)
 - created_at： `2026-08-22`
 
 ## 1. 决策

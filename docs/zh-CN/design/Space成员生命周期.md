@@ -1,6 +1,6 @@
 # Space 成员生命周期
 
-> **翻译说明：** 本文是[英文原文](../../design/space-membership-lifecycle.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `99f8541b1df2fa8ff350cc48d02c43afa1144e271e12c775e13342772a19c337`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../design/space-membership-lifecycle.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
 
 ## 目录
@@ -30,7 +30,7 @@
   页面（Space → Members：邀请、待处理列表、角色选择器、转让确认和登录代码；
   Account → Invitations：列表和接受）。§12 的四个未决问题均已确定。
 - 后续依据：[space-governance.md](./Space治理.md)、[system-administration.md](./系统管理.md)
-- 路线图：[ROADMAP.md](../../ROADMAP.md)
+- 路线图：[ROADMAP.md](../ROADMAP.md)
 - created_at： `2026-08-30`
 
 ## 1. 决策

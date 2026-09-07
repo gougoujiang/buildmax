@@ -1,6 +1,6 @@
 # 文档约定
 
-> **翻译说明：** 本文是[英文原文](../../../docs/contribute/documentation.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `2ee6f72ede55e9daa17d94237d2a2b4924abdd2aea0db75c1f906bb329a2dda3`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../contribute/documentation.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 > **读者：** 贡献者 · **状态：** 当前有效
 
 ## 按读者组织，而非按产物组织
@@ -61,14 +61,14 @@
 
 - `docs/design/` 下每个 Markdown 文件，包括索引和未来子目录，都在 `docs/zh-CN/design/` 相同相对路径下有且仅有一个对应文件；
 - 每篇英文设计记录在标题后立即链接中文对应页面；
-- 每篇中文记录回链到英文源文件，并携带所翻译英文文件精确内容的 SHA-256 摘要；
-- 中文通知明确说明译文为派生内容、标明同步状态，并声明两者不一致时以英文为准。
+- 每篇中文记录回链到英文源文件；
+- 中文通知明确说明译文为派生内容，并声明两者不一致时以英文为准。
 
-摘要是同步证据，不是新的产品状态来源。常规文档检查从 `docs/design/` 重新计算摘要，拒绝缺失、孤立或过期镜像。未经审阅对应译文，不得更新摘要；不得仅编辑中文记录来解决分歧。先修正英文源文件，再在同一变更中同步译文。
+保持镜像最新是评审责任，而不是一道自动化门禁。不得仅编辑中文记录来解决分歧。先修正英文源文件，再在同一变更中同步译文。
 
 完整翻译正文、标题、表格、链接文本和目录。保留代码、命令、标识符、路径、URL、schema 和配置键、路由模式，以及通过大小写标识产品概念的 BuildMax 领域名称。尤其保留 `Agent`、`Task`、`TaskRun`、`Space`、`Issue`、`Workflow`、`Run`、`CLI`、`TUI`、`Portal`、`Desktop`、`Project` 和 `Artifact` 的英文形式。中文正文可以围绕这些名称解释概念，但不得用新领域术语替换它们。中文设计记录之间的链接留在中文镜像内；指向镜像树之外文档的链接继续指向权威英文页面。
 
-英文设计变更的作者负责同步中文对应文件。评审者按决策风险检查语义忠实度；自动检查验证覆盖率和新鲜度，不验证翻译质量。其他文档保持英文，除非其目录在本节获得明确的镜像政策。
+英文设计变更的作者负责同步中文对应文件。评审者按决策风险检查覆盖率与语义忠实度。其他文档保持英文，除非其目录在本节获得明确的镜像政策。
 
 ## 退役文档
 
@@ -117,10 +117,10 @@ git show <commit>^:docs/path/to/file.md
 | 事实 | 所在位置 | 其他位置 |
 |---|---|---|
 | 仓库目录树 | [repo-layout.md](repo-layout.md) | 链接 |
-| 环境变量 | `internal/config/env_spec.go` → [reference/configuration.md](../../reference/configuration.md) | 链接 |
-| 配置文件字段 | `config-examples/*.example.yaml` → [reference/configuration.md](../../reference/configuration.md) | 链接 |
+| 环境变量 | `internal/config/env_spec.go` → [reference/configuration.md](../reference/configuration.md) | 链接 |
+| 配置文件字段 | `config-examples/*.example.yaml` → [reference/configuration.md](../reference/configuration.md) | 链接 |
 | HTTP 路由 | 各 handler 子包的 `Register` 方法 → `/openapi.json` | 链接 |
-| 路线图优先级 | [ROADMAP.md](../../ROADMAP.md) | 链接 |
+| 路线图优先级 | [ROADMAP.md](../ROADMAP.md) | 链接 |
 
 ## 自动强制检查的内容
 
@@ -130,7 +130,7 @@ git show <commit>^:docs/path/to/file.md
 |---|---|
 | `TestDocsLinksResolve` | 相对 Markdown 链接指向不存在的文件 |
 | `TestDesignTranslationsMirrorEnglish` | 中文设计镜像缺失、孤立、链接不正确，或落后于英文源文档 |
-| `TestEnvVarsDocumented` | `config.EnvVars()` 新增的变量未出现在 [reference/configuration.md](../../reference/configuration.md) |
+| `TestEnvVarsDocumented` | `config.EnvVars()` 新增的变量未出现在 [reference/configuration.md](../reference/configuration.md) |
 | `TestToolNamesDocumented` | 工具名称常量未出现在 [manual/tools.md](../../../manual/tools.md) |
 | `TestArchitectureToolInventoryCoversEveryToolNameConstant` | `internal/tool/names.go` 声明的工具未出现在贡献者[工具清单](architecture/tools.md) |
 | `TestAgentsMDPathsExist` / `TestAgentsMDRoutesExist` | [AGENTS.md](../../../AGENTS.md) 引用了不存在的路径或路由 |
@@ -150,7 +150,7 @@ git show <commit>^:docs/path/to/file.md
 |---|---|
 | 包边界或运行时契约 | 同一拉取请求中更新 [architecture/](architecture/README.md) 对应文档 |
 | 用户可见行为或配置 | `manual/` 手册、`reference/` 和 `config-examples/` |
-| 方向 | 在 [../design/](../../design/README.md) 添加或更新语义化记录 |
+| 方向 | 在 [../design/](../design/设计文档索引.md) 添加或更新语义化记录 |
 | 包移动 | 仅更新 [repo-layout.md](repo-layout.md) |
 
 ## 风格

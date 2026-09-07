@@ -1,6 +1,6 @@
 # Agent 范围沙箱策略
 
-> **翻译说明：** 本文是[英文原文](../../design/agent-sandbox-policy.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `750934a5818064f90673744e1f063decb80d841161f79092b858e589019a43b2`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../design/agent-sandbox-policy.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
 
 ## 目录
@@ -22,7 +22,7 @@
 ## 状态
 
 - roadmap_priority：`P0.5` 后续 - 关闭网络/文件系统粒度
-  间隙的一半[`current-state.md`](../../current-state.md)调用P0(“工人
+  间隙的一半[`current-state.md`](../current-state.md)调用P0(“工人
   默认情况下不包含执行”）并回答粒度行
   [trust-harness.md](./信任保障.md) §3.9
 - 状态：`backend and Portal implemented` - 该文档重新打开并
@@ -35,7 +35,7 @@
   （`space.DefaultSandboxNetworkTier`/`DefaultSandboxFilesystemTier`，
   `PUT /api/spaces/{space_id}/sandbox-defaults`) 未声明的代理继承
   在跌至最严格的基线之前——结束
-  [current-state.md](../../current-state.md) 的工作表面选择 P0
+  [current-state.md](../current-state.md) 的工作表面选择 P0
   代理人不声明任何内容，与代理人是否曾经声明过无关
   层。无条件选择它会破坏裸 Linux 上的所有工作任务
   主机或本机 Windows（`fail_if_unavailable: true`，无后端
@@ -58,12 +58,12 @@
   [trust-harness.md](./信任保障.md) §3.2，§3.9，
   [plugin-space-distribution.md](./Space插件分发.md)（最接近的
   每个代理能力声明的先例）
-- 路线图：[../ROADMAP.md](../../ROADMAP.md)
+- 路线图：[../ROADMAP.md](../ROADMAP.md)
 -created_at：`2026-08-30`
 
 ## 1. 问题
 
-[`current-state.md`](../../current-state.md) P0 状态工作任务运行时
+[`current-state.md`](../current-state.md) P0 状态工作任务运行时
 从不选择 `SandboxSurfaceWorker`：`agentapp/taskrun/runtime.go` 构建其
 `AppConfig` 带有空 `SandboxSurface`，其中 `agentapp/app_builder.go`
 解析为宽松的 CLI 基线。直接修复——选择
@@ -89,7 +89,7 @@ trust-harness.md §3.9 考虑了“一个部署范围的配置文件
 本文档回答的问题是：“每个空间的边界是真正的要求吗？
 ...直到出现一个全部署范围的立场。”
 
-第 1 节给出了可用性成本的证据：部署级默认拒绝配置文件很容易构建，却会让运行变得昂贵，因为每个想让 Worker 继续完成既有工作的运维人员都必须手写 `policy.yaml` 条目，逐一允许注册表或开放网络。这个成本落在了 [current-state.md](../../current-state.md) P1 所描述的账户/Space 用户身上；BuildMax 不应把它强加给部署运维人员，因为 Space 所有者才是 Agent 的定义者。
+第 1 节给出了可用性成本的证据：部署级默认拒绝配置文件很容易构建，却会让运行变得昂贵，因为每个想让 Worker 继续完成既有工作的运维人员都必须手写 `policy.yaml` 条目，逐一允许注册表或开放网络。这个成本落在了 [current-state.md](../current-state.md) P1 所描述的账户/Space 用户身上；BuildMax 不应把它强加给部署运维人员，因为 Space 所有者才是 Agent 的定义者。
 
 该文档提出了比“分层每空间配置文件”更窄的重新开放
 一般情况：
@@ -239,7 +239,7 @@ h.recordSandboxProfile(r, run, resolved.Config)
 `recordAgentRevision`，并包含在`workerclient.GetTaskRunResponse`中
 在`Plugins`旁边。工人(`internal/agentapp/taskrun/runtime.go`)套
 `AppConfig.SandboxSurface` 以及该响应中解析的配置
-将其留空 - 关闭 [current-state.md](../../current-state.md) 的 P0 和
+将其留空 - 关闭 [current-state.md](../current-state.md) 的 P0 和
 本文档的新层只需一次更改，而不是两次：没有中间
 状态表面已连接但每个代理层未连接，因为
 在此记录存在之前，工人从未申请过 `SandboxConfig`。
@@ -371,7 +371,7 @@ policy.yaml 自己的 `allowed_domains` 已经列出，”没有任何改变
   (`internal/core/agentdef/agentdef.go`)，遵循 `Plugins` 模式：
   每个版本都有版本控制，在写入时根据已知的层枚举进行验证。
 - `agent_revision` 行及其在 `internal/infra/db` 中的迁移，每
-  [data-model.md](../../contribute/architecture/data-model.md) 的规则
+  [data-model.md](../contribute/architecture/data-model.md) 的规则
   模式改变。
 
 ### M3。 Space 默认层 — 在
@@ -398,7 +398,7 @@ policy.yaml 自己的 `allowed_domains` 已经列出，”没有任何改变
 - `workerclient.GetTaskRunResponse` 携带已解析的配置文件。
 - `internal/agentapp/taskrun/runtime.go` 设置 `AppConfig.SandboxSurface` 和
   应用已解析的配置而不是将 `SandboxSurface` 留空 -
-  这也是 [current-state.md](../../current-state.md) 的 P0 关闭的地方。
+  这也是 [current-state.md](../current-state.md) 的 P0 关闭的地方。
 
 ## 10.前端计划
 
@@ -451,7 +451,7 @@ policy.yaml 自己的 `allowed_domains` 已经列出，”没有任何改变
    枚举的写时验证。
 2. M4的要求时间分辨率和固定、接线
    `taskrun/runtime.go` 中的 `AppConfig.SandboxSurface` — 仅此一个关闭
-   [current-state.md](../../current-state.md) 声明代理的 P0
+   [current-state.md](../current-state.md) 声明代理的 P0
    在任何 UI 存在之前什么都没有。
 3. Portal 的两层选择器和任务运行详细信息表面。
 4. M3 的空间默认等级，一旦第一个特工拥有等级即可跟进

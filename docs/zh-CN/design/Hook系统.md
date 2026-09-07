@@ -1,6 +1,6 @@
 # Hook 系统
 
-> **翻译说明：** 本文是[英文原文](../../design/hook-system.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `0ce5836b6a2ffa1704242bad99293e5259970bd90661e660ec6f341e0bd804d0`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../design/hook-system.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
 
 ## 目录
@@ -25,7 +25,7 @@
 - roadmap_priority:`P0.5`
 - 状态：`implemented`——16 个事件和四种传输方式均已交付；可选的检查器和 frontmatter 集成仍待后续实现
 - 后续依据：[trust-harness.md](./信任保障.md)
-- 路线图：[ROADMAP.md](../../ROADMAP.md)
+- 路线图：[ROADMAP.md](../ROADMAP.md)
 - created_at:`2026-05-23`
 
 ## 1. 目的

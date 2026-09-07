@@ -1,1467 +1,1035 @@
-# Durable Agent Sessions
+# 持久化 Agent Session
 
-> **翻译说明：** 本文是[英文原文](../../proposals/durable-agent-sessions.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `d128169e55eb90e42c6d88dcd1b17696f4b460aa71ccb3bd8fee10902bc54154`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../proposals/durable-agent-sessions.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
-# Durable Agent Sessions
-
-> **Audience:** contributors, operators, security reviewers, and early adopters · **Status:** proposal — under discussion
+> **受众：** 贡献者、运营人员、安全评审人员与早期采用者 · **状态：** 提案——讨论中
 >
-> **Opened:** 2026-08-22
+> **提出时间：** 2026-08-22
 
-Related: [roadmap](../ROADMAP.md) P0.5, P3, P4, and Desktop polish;
-[surface positioning](../../design/surface-positioning.md),
-[session architecture](../../contribute/architecture/session.md),
-[sessions and traces guide](../../../manual/sessions-and-traces.md),
-[durable run trace](../../design/durable-run-trace.md),
-[context durability](../../design/context-durability.md),
-[space governance](../../design/space-governance.md), and
-[data model](../../contribute/architecture/data-model.md).
+相关文档：[路线图](../ROADMAP.md) P0.5、P3、P4 以及 Desktop 打磨相关部分；
+[界面定位](../design/界面定位.md)、
+[session 架构](../contribute/architecture/session.md)、
+[Session 与 Trace 指南](../../../manual/sessions-and-traces.md)、
+[持久化运行轨迹](../design/持久化运行轨迹.md)、
+[上下文持久性](../design/上下文持久性.md)、
+[Space 治理](../design/Space治理.md)，以及
+[数据模型](../contribute/architecture/data-model.md)。
 
-## Contents
+## 目录
 
-- [1. Decision Question](#1-decision-question)
-- [2. Problem And Current Context](#2-problem-and-current-context)
-- [3. Product Value Hypotheses](#3-product-value-hypotheses)
-- [4. Goals](#4-goals)
-- [5. Non-Goals](#5-non-goals)
-- [6. Terms And Mental Model](#6-terms-and-mental-model)
-- [7. Options](#7-options)
-- [8. Candidate Product Decisions](#8-candidate-product-decisions)
-- [9. Candidate Resource Model](#9-candidate-resource-model)
-- [10. Storage And Projection](#10-storage-and-projection)
-- [11. Synchronization Protocol](#11-synchronization-protocol)
-- [12. Workspace Identity And Cross-Device Continuation](#12-workspace-identity-and-cross-device-continuation)
-- [13. Server Viewer And Stable Links](#13-server-viewer-and-stable-links)
-- [14. Authorization And Governance](#14-authorization-and-governance)
-- [15. Privacy, Security, And Integrity](#15-privacy-security-and-integrity)
-- [16. Deployment Policy](#16-deployment-policy)
-- [17. Failure Semantics](#17-failure-semantics)
-- [18. Migration And Compatibility](#18-migration-and-compatibility)
-- [19. Surface Behavior](#19-surface-behavior)
-- [20. Architecture Placement](#20-architecture-placement)
-- [21. Phased Path](#21-phased-path)
-- [22. Prototype Acceptance Criteria](#22-prototype-acceptance-criteria)
-- [23. Evidence Needed Before Acceptance](#23-evidence-needed-before-acceptance)
-- [24. Open Questions](#24-open-questions)
-- [25. Likely Destination If Accepted](#25-likely-destination-if-accepted)
-- [26. Candidate Conclusion](#26-candidate-conclusion)
+- [1. 决策问题](#1-决策问题)
+- [2. 问题与当前背景](#2-问题与当前背景)
+- [3. 产品价值假设](#3-产品价值假设)
+- [4. 目标](#4-目标)
+- [5. 非目标](#5-非目标)
+- [6. 术语与心智模型](#6-术语与心智模型)
+- [7. 备选方案](#7-备选方案)
+- [8. 候选产品决策](#8-候选产品决策)
+- [9. 候选资源模型](#9-候选资源模型)
+- [10. 存储与投影](#10-存储与投影)
+- [11. 同步协议](#11-同步协议)
+- [12. 工作区身份与跨设备续接](#12-工作区身份与跨设备续接)
+- [13. Server 查看器与稳定链接](#13-server-查看器与稳定链接)
+- [14. 授权与治理](#14-授权与治理)
+- [15. 隐私、安全与完整性](#15-隐私安全与完整性)
+- [16. 部署策略](#16-部署策略)
+- [17. 失败语义](#17-失败语义)
+- [18. 迁移与兼容性](#18-迁移与兼容性)
+- [19. 界面行为](#19-界面行为)
+- [20. 架构归属](#20-架构归属)
+- [21. 分阶段路径](#21-分阶段路径)
+- [22. 原型验收标准](#22-原型验收标准)
+- [23. 采纳前所需证据](#23-采纳前所需证据)
+- [24. 未决问题](#24-未决问题)
+- [25. 若被采纳后的可能归宿](#25-若被采纳后的可能归宿)
+- [26. 候选结论](#26-候选结论)
 
-## 1. Decision Question
+## 1. 决策问题
 
-Should BuildMax make an authenticated local Agent session a first-class,
-revisioned Server resource so that a private deployment can preserve it, render
-it at a stable authorized URL, relate a frozen point in it to a pull request or
-other work object, and let another device continue from it?
+BuildMax 是否应该把已认证的本地 Agent Session 变成一等的、带修订版本的 Server 资源，使私有部署能够保存它、在稳定的授权 URL 上渲染它、把其中的某个冻结节点关联到 pull request 或其他工作对象，并让另一台设备从中续接？
 
-The likely answer is yes, but not by treating a session file as an ordinary
-cloud-synchronized document and not by merging it with a Portal Conversation.
-The candidate direction is:
+可能的答案是肯定的，但不是把 session 文件当作普通的云同步文档来处理，也不是把它与 Portal Conversation 合并。候选方向是：
 
-- local execution and local persistence remain authoritative while a turn is
-  running;
-- a connected client uploads immutable checkpoints after stable turn
-  boundaries;
-- the Server owns remote metadata, authorization, retention, relations, and a
-  durable copy of each accepted checkpoint;
-- a URL embedded in another system identifies a specific immutable revision;
-- another device may view or fork any compatible checkpoint, while exact
-  continuation requires workspace checks and single-writer coordination;
-- a client-reported transcript is useful provenance, but is not represented as
-  tamper-proof audit evidence; and
-- deployments choose whether synchronization is disabled, optional, or
-  required for their managed local mode. Direct local-only use still exists.
+- 本地执行与本地持久化在轮次运行期间仍是权威的；
+- 已连接的客户端在稳定的轮次边界之后上传不可变的检查点；
+- Server 拥有远程元数据、授权、保留、关联关系，以及每个被接受检查点的持久化副本；
+- 嵌入到其他系统中的 URL 标识一个具体的不可变修订版本；
+- 另一台设备可以查看或 Fork 任何兼容的检查点，而精确续接则需要工作区检查和单一写者协调；
+- 客户端上报的文字记录是有用的溯源信息，但不会被表述为防篡改的审计证据；并且
+- 各部署可以为其托管的本地模式选择同步是禁用、可选还是强制。纯本地直连使用方式依然存在。
 
-This proposal asks for evidence and decisions before that direction becomes a
-roadmap commitment. It does not document a shipped Server session service.
+本提案要求在该方向成为路线图承诺之前先给出证据并做出决策。它并不描述一个已经上线的 Server Session 服务。
 
-## 2. Problem And Current Context
+## 2. 问题与当前背景
 
-BuildMax deliberately has one Agent runtime and distinct product surfaces:
-CLI/TUI and Desktop execute against a local workspace, Portal organizes space
-work, and Workers execute durable background TaskRuns. That split remains the
-right product boundary, but session durability stops at the machine boundary
-for local execution.
+BuildMax 有意只维护一个 Agent 运行时，同时拥有各自独立的产品界面：CLI/TUI 与 Desktop 针对本地工作区执行，Portal 组织 space 工作，Worker 执行持久化的后台 TaskRun。这种划分仍然是正确的产品边界，但对本地执行而言，session 的持久性止步于机器边界。
 
-### 2.1 What exists locally
+### 2.1 本地已有什么
 
-`internal/core/session.Session` is a resumable Agent state, not just a chat
-view. It contains:
+`internal/core/session.Session` 是可恢复的 Agent 状态，而不仅仅是一个聊天视图。它包含：
 
-- user, assistant, and tool messages;
-- tool calls and tool results;
-- provider-owned reasoning state required by some protocols;
-- text and image parts;
-- token totals;
-- compaction boundary and accumulated summary;
-- durable notes and todos; and
-- the additional system prompt the session ran under.
+- 用户、assistant 与工具消息；
+- 工具调用与工具结果；
+- 部分协议要求保留的、由提供商所有的推理状态；
+- 文本与图像片段；
+- token 总量；
+- 压缩边界与累积摘要；
+- 持久化的笔记与待办事项；以及
+- session 运行时所使用的附加系统提示词。
 
-`internal/agentapp.SessionManager` persists that state under
-`<BUILDMAX_HOME>/sessions/`, with a separate local index used by CLI/TUI and
-Desktop. It saves after a completed turn. The same run also writes a bounded,
-redacted trace under `<BUILDMAX_HOME>/sessions/<session_id>/traces/`.
+`internal/agentapp.SessionManager` 将该状态持久化在 `<BUILDMAX_HOME>/sessions/` 下，并配有 CLI/TUI 与 Desktop 共用的独立本地索引。它在一轮对话完成后保存。同一次运行还会在 `<BUILDMAX_HOME>/sessions/<session_id>/traces/` 下写入有边界、经过脱敏的 trace。
 
-Those two records answer different questions:
+这两类记录回答的是不同的问题：
 
-| Record | Primary question | Resume input? |
+| 记录 | 核心问题 | 可作为恢复输入？ |
 |---|---|---|
-| Session | What conversation state should the Agent continue with? | Yes |
-| Trace | What did one run actually call, execute, spend, and observe? | No |
+| Session | Agent 应该在什么会话状态基础上继续？ | 是 |
+| Trace | 一次运行实际调用、执行、花费并观察到了什么？ | 否 |
 
-A useful remote session page eventually needs both, but synchronizing one does
-not silently synchronize the other.
+一个有用的远程 session 页面最终需要两者兼备，但同步其中一个并不会悄悄地同步另一个。
 
-### 2.2 What exists on the Server
+### 2.2 Server 上已有什么
 
-Portal Conversations are durable Space resources with normalized message rows.
-They are Tier 1 orchestration objects and the single user-facing voice for
-Portal turns. They can start and receive reports from durable Tasks and
-TaskRuns. Their ownership, concurrency, and lifecycle are not the same as a
-local Agent session.
+Portal Conversation 是持久化的 Space 资源，以规范化的消息行存储。它们是 Tier 1 编排对象，也是 Portal 轮次中面向用户的唯一发声通道。它们可以发起持久化的 Task 与 TaskRun 并接收其报告。它们的归属、并发与生命周期都与本地 Agent session 不同。
 
-Worker execution already proves a narrower version of the required storage
-path. A Task owns a UUID session ID. Each run uploads its session file into the
-run-scoped object namespace; a later run restores that file before continuing.
-The Server can project the latest stored task session as a task conversation.
-That implementation is scoped to one Task's run history. It is not a general
-session registry: it cannot list a person's local sessions, assign visibility,
-pin a checkpoint, relate it to a commit, or let another device claim it.
+Worker 执行已经验证了所需存储路径的一个更窄版本。一个 Task 拥有一个 UUID session ID。每次运行都会把自己的 session 文件上传到该次运行专属的对象命名空间；之后的运行会先恢复该文件再继续。Server 可以把最新存储的 task session 投影为一个 task conversation。但这种实现只局限于单个 Task 的运行历史。它不是一个通用的 session 注册表：它无法列出某个人的本地 session、无法分配可见性、无法置顶某个检查点、无法把它关联到某次提交，也无法让另一台设备认领它。
 
-The database explicitly treats session IDs as an exception: Task and TaskRun
-rows point at UUID-named files rather than a session table. CLI and Desktop do
-not use the Server database for session persistence at all.
+数据库明确把 session ID 当作一种例外处理：Task 与 TaskRun 行指向以 UUID 命名的文件，而不是某张 session 表。CLI 与 Desktop 根本不使用 Server 数据库来持久化 session。
 
-### 2.3 What authenticated local mode provides
+### 2.3 已认证本地模式提供什么
 
-CLI and Desktop can sign in to a BuildMax deployment. A connected local Agent
-still runs locally; sign-in supplies identity, managed models, and narrow
-bridges to space work. This is a useful foundation for session synchronization:
-the client has an authenticated user, a deployment URL, and a reason to send
-prompts through that deployment.
+CLI 与 Desktop 可以登录某个 BuildMax 部署。已连接的本地 Agent 仍然在本地运行；登录提供的是身份、托管模型，以及通往 space 工作的窄桥梁。这是 session 同步的一个有用基础：客户端拥有已认证的用户、一个部署 URL，以及把提示词发往该部署的理由。
 
-Sign-in is currently a connector, not a universal gate. That is an intentional
-product decision: BuildMax must remain useful as one local binary with direct
-models and no Server. An enterprise-managed installation may choose a stricter
-policy, but the product as a whole should not make local-only execution an
-accidental unsupported mode.
+登录目前是一个连接器，而不是一道普适的门禁。这是一个刻意的产品决策：BuildMax 必须仍然可以作为一个使用直连模型、没有 Server 的单一本地二进制文件而发挥作用。企业托管的安装可以选择更严格的策略，但产品整体不应该把纯本地执行变成一种意外的、不受支持的模式。
 
-### 2.4 The missing product loop
+### 2.4 缺失的产品闭环
 
-Today a local session can produce an important result such as a commit, pull
-request, incident diagnosis, migration plan, or release decision, but the
-organization has no durable Server object that connects the result to the work
-that produced it.
+如今，一个本地 session 可以产出重要的结果，比如一次提交、一个 pull request、一次事故诊断、一份迁移计划或一项发布决策，但组织内并没有一个持久化的 Server 对象把这个结果与产生它的工作关联起来。
 
-The consequences are practical:
+这带来了一些实际后果：
 
-- a reviewer sees the diff but not the request, corrections, tools, or
-  validation that led to it;
-- a user changing devices must copy files and identify the session manually;
-- a lost machine loses local Agent history even when the model calls went
-  through the company's Server;
-- a spacemate cannot receive a view-only handoff without copying transcript
-  text into another system;
-- support and security investigations cannot begin from one stable session
-  URL; and
-- other systems cannot hold a durable reference to local Agent work.
+- 评审者只能看到 diff，却看不到促成它的请求、修正、工具使用或验证过程；
+- 用户更换设备时必须手动复制文件并辨认出对应的 session；
+- 即使模型调用是通过公司 Server 进行的，机器丢失也会导致本地 Agent 历史丢失；
+- space 伙伴若不把文字记录复制到另一个系统中，就无法收到只读的交接；
+- 支持与安全调查无法从一个稳定的 session URL 开始；以及
+- 其他系统无法持有对本地 Agent 工作的持久化引用。
 
-Central storage alone does not close every gap. The Server must also define
-identity, revisioning, authorization, conflict behavior, content policy,
-retention, and what it means to resume against a different workspace.
+仅靠集中存储并不能弥合所有差距。Server 还必须定义身份、修订版本管理、授权、冲突行为、内容策略、保留策略，以及针对不同工作区进行恢复意味着什么。
 
-## 3. Product Value Hypotheses
+## 3. 产品价值假设
 
-The feature has several possible values. They should not be assumed to have
-equal demand or equal implementation cost.
+该特性可能带来多种价值，不应假定它们的需求程度或实现成本相同。
 
-| Use case | Expected value | Main dependency |
+| 使用场景 | 预期价值 | 主要依赖 |
 |---|---:|---|
-| Recover a session after device loss or replacement | High | Reliable checkpoint upload and download |
-| Open an authenticated record from a pull request or Issue | High | Stable immutable URL and relation model |
-| Explain what changed and what was validated during review | High | Session, trace, change, and result projection |
-| Hand unfinished work to another person | High | Explicit sharing and workspace compatibility |
-| Continue one's own work on another device | Medium to high | Workspace identity, single writer, and conflict UX |
-| Search one's prior work | Medium to high | Safe indexing and user-scoped retrieval |
-| Generate standups, cost summaries, or recurring-work insights | Medium | Search/index quality and privacy controls |
-| Let administrators inventory Agent use | High for some operators | Metadata visibility without default content access |
-| Treat local activity as compliance-grade evidence | Potentially high | Stronger capture and integrity than file upload provides |
+| 在设备丢失或更换后恢复 session | 高 | 可靠的检查点上传与下载 |
+| 从 pull request 或 Issue 打开已认证的记录 | 高 | 稳定的不可变 URL 与关联关系模型 |
+| 解释评审期间发生了什么变更、验证了什么 | 高 | Session、trace、变更与结果投影 |
+| 把未完成的工作交接给另一个人 | 高 | 显式共享与工作区兼容性 |
+| 在另一台设备上继续自己的工作 | 中到高 | 工作区身份、单一写者与冲突 UX |
+| 检索自己此前的工作 | 中到高 | 安全的索引与用户范围内的检索 |
+| 生成站会、成本汇总或重复性工作的洞察 | 中 | 搜索/索引质量与隐私控制 |
+| 让管理员盘点 Agent 使用情况 | 对部分运营方而言高 | 无需默认内容访问权限的元数据可见性 |
+| 把本地活动当作合规级证据 | 可能高 | 比文件上传更强的采集与完整性保障 |
 
-The strongest first hypothesis is not seamless multi-device execution. It is
-that a private space gets a stable, reviewable provenance record for important
-local Agent work. Cross-device continuation is a valuable follow-on whose
-success depends on workspace state that the session does not currently own.
+最强的首要假设并不是无缝的多设备执行，而是让一个私有 space 为重要的本地 Agent 工作获得一份稳定、可评审的溯源记录。跨设备续接是一个有价值的后续能力，但它的成功依赖于 session 目前并不掌握的工作区状态。
 
-There is external evidence that this category is real. GitHub Copilot now
-documents [synchronized local session data](https://docs.github.com/en/copilot/concepts/agents/copilot-cli/chronicle)
-and [session management](https://docs.github.com/en/copilot/how-tos/copilot-on-github/use-copilot-agents/manage-and-track-agents)
-covering view-only sharing, logs reachable from Agent-produced changes,
-cross-surface history queries, and continuation. That validates demand for the
-category, not the exact BuildMax design. BuildMax's distinct opportunity is to
-provide the same continuity inside a privately deployed system while retaining
-direct local execution.
+外部证据表明这一类需求是真实存在的。GitHub Copilot 目前已经记录了[同步的本地 session 数据](https://docs.github.com/en/copilot/concepts/agents/copilot-cli/chronicle)与[session 管理](https://docs.github.com/en/copilot/how-tos/copilot-on-github/use-copilot-agents/manage-and-track-agents)，涵盖只读共享、可从 Agent 产生的变更追溯到的日志、跨界面的历史查询，以及续接能力。这验证了这一品类的需求，但并不等同于 BuildMax 的具体设计。BuildMax 独特的机会在于：在保留直连本地执行能力的同时，在一个私有部署的系统内部提供同样的连续性。
 
-## 4. Goals
+## 4. 目标
 
-- Preserve completed local Agent turns in a private deployment without making
-  the Server the execution host.
-- Give every synchronized session a stable identity and every accepted state a
-  monotonically ordered immutable revision.
-- Render an authorized, useful Server-side session page that combines the
-  conversation with linked execution evidence without exposing resume-only
-  opaque state.
-- Let a pull request, Issue, Task, artifact, commit, incident, or external
-  system refer to the exact session checkpoint relevant to it.
-- Make backup, download, and same-user cross-device continuation reliable.
-- Define explicit fork behavior instead of corrupting or automatically merging
-  divergent histories.
-- Keep Space as the Server ownership and authorization boundary.
-- Give deployments clear synchronization, visibility, retention, deletion,
-  and content-inspection policies.
-- Distinguish client-reported history from Server-observed or Worker-produced
-  execution evidence.
-- Reuse the shared Agent session format and runtime rather than introducing a
-  second resume representation in CLI or Desktop.
+- 在私有部署中保存已完成的本地 Agent 轮次，而不让 Server 成为执行宿主。
+- 为每个已同步的 session 赋予稳定的身份，为每个被接受的状态赋予单调递增的不可变修订版本。
+- 渲染一个经过授权、真正有用的 Server 端 session 页面，把对话与关联的执行证据结合起来展示，同时不暴露仅用于恢复的不透明状态。
+- 让 pull request、Issue、Task、artifact、提交、事故或外部系统能够引用与之相关的确切 session 检查点。
+- 让备份、下载以及同一用户的跨设备续接变得可靠。
+- 定义明确的 Fork 行为，而不是让分歧的历史被破坏或被自动合并。
+- 让 Space 继续作为 Server 上的所有权与授权边界。
+- 为各部署提供明确的同步、可见性、保留、删除与内容检查策略。
+- 区分客户端上报的历史与 Server 观测到的或 Worker 产生的执行证据。
+- 复用共享的 Agent session 格式与运行时，而不是在 CLI 或 Desktop 中引入第二套恢复表示。
 
-## 5. Non-Goals
+## 5. 非目标
 
-- Requiring a Server, a login, or remote persistence for direct local-only use.
-- Moving CLI/Desktop Agent execution to the Server.
-- Replacing Portal Conversation, Issue, Task, TaskRun, Workflow, or Artifact.
-- Making Desktop a Portal administration client.
-- Synchronizing the local source tree, uncommitted changes, credentials,
-  settings, installed plugins, or MCP processes as an implicit side effect of
-  session synchronization.
-- Guaranteeing bit-for-bit execution reproducibility on another device.
-- Concurrent multi-writer editing of one session history.
-- Automatically merging divergent Agent conversations.
-- A general Session Tree, arbitrary parent/child messaging, Agent mailbox,
-  fan-out/fan-in, or automatic join protocol.
-- Public anonymous session links in the first release.
-- Exposing provider-owned reasoning payloads or claiming to display private
-  chain-of-thought.
-- Treating an uploaded local file as a tamper-proof audit log.
-- Natural-language organization-wide search in the first storage slice.
-- Automatically adding attribution or session links to commits and pull
-  request descriptions. The repository currently rejects that convention;
-  changing it would be a separate explicit product and contribution decision.
+- 要求纯本地直连使用必须依赖 Server、登录或远程持久化。
+- 把 CLI/Desktop 的 Agent 执行迁移到 Server 上。
+- 取代 Portal Conversation、Issue、Task、TaskRun、Workflow 或 Artifact。
+- 让 Desktop 变成一个 Portal 管理客户端。
+- 把本地源码树、未提交的变更、凭据、设置、已安装的 Plugin 或 MCP 进程作为 session 同步的隐性副作用一并同步。
+- 保证在另一台设备上逐字节可复现的执行结果。
+- 对同一份 session 历史进行并发多写者编辑。
+- 自动合并分歧的 Agent 对话。
+- 一个通用的 Session Tree、任意的父子消息传递、Agent 邮箱、扇出/扇入，或自动加入协议。
+- 在首个版本中提供公开的匿名 session 链接。
+- 暴露提供商所有的推理负载，或声称展示私有的思维链。
+- 把上传的本地文件当作防篡改的审计日志。
+- 在首个存储切片中提供面向全组织的自然语言搜索。
+- 自动向提交与 pull request 描述中添加署名或 session 链接。当前仓库拒绝这种约定；要改变它，需要另外一个明确的产品与贡献决策。
 
-## 6. Terms And Mental Model
+## 6. 术语与心智模型
 
-### 6.1 Local Session
+### 6.1 本地 Session
 
-The existing resumable `session.Session` held by AgentApp and persisted under
-`BUILDMAX_HOME`. It is the active runtime history while CLI or Desktop executes
-locally.
+AgentApp 持有的、可恢复的现有 `session.Session`，持久化在 `BUILDMAX_HOME` 下。它是 CLI 或 Desktop 在本地执行期间的活跃运行时历史。
 
-### 6.2 Durable Agent Session
+### 6.2 持久化 Agent Session
 
-The Server resource that owns remote identity, Space scope, access policy,
-metadata, revisions, lifecycle, and relations for a synchronized Agent
-session. The product may call it a “Session”; code and schema should use an
-unambiguous name such as `agent_session` so it is not confused with an
-authentication session.
+这是拥有远程身份、Space 范围、访问策略、元数据、修订版本、生命周期与关联关系的 Server 资源，对应一个已同步的 Agent session。产品层面可以称之为“Session”；代码与 schema 应使用像 `agent_session` 这样无歧义的名称，以免与身份认证 session 混淆。
 
-A Durable Agent Session is not itself a running process. It may be active,
-idle, or archived while no Agent is executing.
+持久化 Agent Session 本身并不是一个正在运行的进程。即使没有 Agent 在执行，它也可以处于活跃、空闲或已归档状态。
 
-### 6.3 Revision And Checkpoint
+### 6.3 修订版本与检查点
 
-A revision is one immutable Server-accepted state of a session. A checkpoint
-is the resumable payload and display projection attached to that revision.
-Revision numbers are monotonic within one session and begin at one; they do
-not imply global ordering.
+修订版本是 session 的一个不可变的、被 Server 接受的状态。检查点则是附着在该修订版本上的可恢复负载与展示投影。修订版本号在同一个 session 内单调递增，从 1 开始；它们并不暗示全局顺序。
 
-A stable external reference always names both a session and a revision. A
-session-level URL may redirect to latest for ordinary browsing, but it is not
-the provenance URL attached to another work object.
+一个稳定的外部引用总是同时指明 session 与修订版本。session 级别的 URL 在普通浏览时可以重定向到最新版本，但它不是附加在其他工作对象上的溯源 URL。
 
-### 6.4 Run And Trace
+### 6.4 Run 与 Trace
 
-A run is one Agent loop execution within a session, normally initiated by one
-user turn. A trace is the bounded, redacted record of that run. Several runs
-may advance one session; one session revision may acknowledge the state after
-one or more recovered run fragments, but the normal case is one completed run
-followed by one revision.
+一次 run 是 session 内的一次 Agent 循环执行，通常由一个用户轮次触发。trace 是该次 run 的有边界、经过脱敏的记录。一个 session 可以由多次 run 推进；一个 session 修订版本可以确认一个或多个已恢复的 run 片段之后的状态，但常规情况是一次已完成的 run 对应一个修订版本。
 
-### 6.5 Relation
+### 6.5 关联关系
 
-A typed association between a frozen session revision and another durable
-object, for example an Issue, Task, TaskRun, Artifact, repository, commit, pull
-request, deployment, or external incident. A relation is not embedded free
-text and does not make the target an authorization credential.
+关联关系是一个冻结的 session 修订版本与另一个持久化对象之间的类型化关联，例如 Issue、Task、TaskRun、Artifact、代码仓库、提交、pull request、部署或外部事故。关联关系不是内嵌的自由文本，也不会使目标对象成为一种授权凭据。
 
-### 6.6 Replica And Device
+### 6.6 副本与设备
 
-A replica is one local copy of a session. A device identity is diagnostic and
-coordination metadata, not an authority by itself. Authentication determines
-who may act; a registered client instance helps explain where a revision came
-from and whether another replica is active.
+副本是 session 的一份本地拷贝。设备身份是用于诊断与协调的元数据，本身并不构成一种权限。身份认证决定谁可以行动；一个已注册的客户端实例有助于解释某个修订版本的来源，以及是否还有另一个副本处于活跃状态。
 
-### 6.7 Continue, Resume, And Fork
+### 6.7 Continue、恢复与 Fork
 
-This proposal uses three distinct operations:
+本提案使用三种不同的操作：
 
-| Operation | Meaning |
+| 操作 | 含义 |
 |---|---|
-| Continue locally | Add a turn to the local replica already open on this device |
-| Exact resume | Download a checkpoint and continue the same logical session after compatibility and writer checks |
-| Fork | Create a new session whose initial context comes from a named checkpoint |
+| 本地 Continue | 向本设备上已打开的本地副本追加一轮 |
+| 精确恢复 | 下载一个检查点，在通过兼容性与写者检查后继续同一个逻辑 session |
+| Fork | 创建一个新 session，其初始上下文来自某个指定的检查点 |
 
-Fork is always safe from a history-integrity perspective. Exact resume is more
-convenient but requires stronger preconditions.
+从历史完整性的角度看，Fork 总是安全的。精确恢复更方便，但需要更强的前提条件。
 
-## 7. Options
+## 7. 备选方案
 
-### 7.1 Option A: Keep local sessions local
+### 7.1 方案 A：让本地 Session 保持本地
 
-Continue the current split. Worker sessions remain recoverable within one Task;
-Portal Conversations remain the only centrally visible foreground history.
+延续目前的划分。Worker session 在单个 Task 内仍然可恢复；Portal Conversation 仍然是唯一集中可见的前台历史。
 
-| Strength | Concern |
+| 优点 | 顾虑 |
 |---|---|
-| No new data collection, authorization, storage, or conflict semantics | Leaves local execution outside the enterprise continuity and provenance loop |
+| 不引入新的数据采集、授权、存储或冲突语义 | 让本地执行游离于企业连续性与溯源闭环之外 |
 
-This is defensible if early adopters mostly use local sessions for disposable
-work and attach only final artifacts to Portal. It should be validated rather
-than assumed.
+如果早期采用者大多把本地 session 用于一次性工作、只把最终产物挂到 Portal 上，那么这种做法是站得住脚的。但这一点应当被验证，而不是被想当然地假定。
 
-### 7.2 Option B: Opaque remote backup
+### 7.2 方案 B：不透明的远程备份
 
-Upload the current session JSON to object storage and let the same user
-download it. Do not create a rich Server entity or viewer.
+把当前的 session JSON 上传到对象存储，并让同一个用户可以下载它。不创建丰富的 Server 实体或查看器。
 
-| Strength | Concern |
+| 优点 | 顾虑 |
 |---|---|
-| Smallest recovery feature and closest to the existing Worker path | Cannot support stable relations, Space sharing, search, lifecycle policy, or useful review |
+| 恢复特性的实现最小，也最接近现有的 Worker 路径 | 无法支持稳定的关联关系、Space 共享、搜索、生命周期策略或有用的评审 |
 
-This may be a good implementation stepping stone. It is too narrow as the
-long-term product model because every later feature would have to reconstruct
-metadata and authorization around anonymous blobs.
+这可能是一块不错的实现垫脚石。但作为长期产品模型它过于狭窄，因为之后的每一个特性都不得不围绕匿名的二进制大对象重新构建元数据与授权。
 
-### 7.3 Option C: Revisioned Server resource with local execution
+### 7.3 方案 C：本地执行 + 带修订版本的 Server 资源
 
-Create a Durable Agent Session with relational metadata and immutable
-checkpoint blobs. Local AgentApp remains the active writer, and clients sync
-at stable boundaries.
+创建一个持久化 Agent Session，拥有关系型元数据与不可变的检查点二进制大对象。本地 AgentApp 仍然是活跃的写者，客户端在稳定的边界处进行同步。
 
-| Strength | Concern |
+| 优点 | 顾虑 |
 |---|---|
-| Supports recovery, URLs, relations, sharing, governance, and later indexing while preserving local-first execution | Requires a new resource model, sync protocol, content policy, and conflict UX |
+| 在保留本地优先执行的同时，支持恢复、URL、关联关系、共享、治理以及后续的索引 | 需要新的资源模型、同步协议、内容策略与冲突 UX |
 
-This is the likely direction.
+这是可能的方向。
 
-### 7.4 Option D: Reuse Portal Conversation
+### 7.4 方案 D：复用 Portal Conversation
 
-Import each local session as a Portal Conversation and write its messages into
-`conversation_message`.
+把每一个本地 session 都导入为一个 Portal Conversation，并把它的消息写入 `conversation_message`。
 
-| Strength | Concern |
+| 优点 | 顾虑 |
 |---|---|
-| Reuses listing, message persistence, Space authorization, and some UI | Conflates Tier 1 orchestration with local runtime state; has no revisioned resume payload; creates ambiguous writers and lifecycle |
+| 复用列表、消息持久化、Space 授权以及部分 UI | 把 Tier 1 编排与本地运行时状态混为一谈；没有带修订版本的恢复负载；会造成写者与生命周期的歧义 |
 
-The message shapes are similar because both feed the same Agent core. That is
-not enough to make their product semantics identical. Portal Conversations
-accept live Space turns, serialize them through a Server queue, and speak to the
-user. A local session may exist privately, run offline, carry resume-only
-state, and later publish a frozen checkpoint. Reusing one table would hide
-rather than remove these differences.
+消息的形态之所以相似，是因为二者都输入给同一个 Agent 核心。但这不足以让它们的产品语义变得等同。Portal Conversation 接受实时的 Space 轮次，通过 Server 队列对其进行序列化，并直接与用户对话。而本地 session 可以私密存在、离线运行、携带仅用于恢复的状态，并在之后发布一个冻结的检查点。复用同一张表只会掩盖这些差异，而不是消除它们。
 
-### 7.5 Option E: Server-canonical live event stream
+### 7.5 方案 E：以 Server 为权威的实时事件流
 
-Send every message and tool event to the Server as it occurs and make the
-Server event log the source of truth. Local files become a cache.
+在每条消息与每个工具事件发生时就实时发送给 Server，并让 Server 的事件日志成为唯一真实来源。本地文件则退化为缓存。
 
-| Strength | Concern |
+| 优点 | 顾虑 |
 |---|---|
-| Best central durability and strongest foundation for live monitoring | Makes network availability part of local correctness, greatly expands ingestion volume, and still does not synchronize workspace state |
+| 中心化持久性最好，也是实时监控的最强基础 | 使网络可用性成为本地正确性的一部分，大幅扩大摄取量，而且仍然无法同步工作区状态 |
 
-This could be an enterprise capture mode later. It is too large for the first
-slice and weakens the direct local product unless it is explicitly limited to
-a deployment policy.
+这将来可以成为一种企业采集模式。但对首个切片而言规模过大，而且除非明确将其限定为一种部署策略，否则会削弱直连本地产品的定位。
 
-## 8. Candidate Product Decisions
+## 8. 候选产品决策
 
-The rest of this proposal develops Option C and makes its unsettled choices
-visible.
+本提案余下的部分将围绕方案 C 展开，并把其中尚未敲定的选择呈现出来。
 
-### 8.1 Local execution remains local
+### 8.1 本地执行仍保持在本地
 
-Sync must attach at AgentApp's session lifecycle seam. CLI and Desktop should
-not each implement their own remote session format or call a separate Agent
-runtime. The local session remains usable when synchronization is disabled and,
-subject to deployment policy, when the Server is temporarily unavailable.
+同步必须挂接在 AgentApp 的 session 生命周期接缝处。CLI 与 Desktop 不应该各自实现自己的远程 session 格式，也不应该调用另一个独立的 Agent 运行时。在同步被禁用时，以及在符合部署策略的前提下、Server 暂时不可用时，本地 session 仍然可用。
 
-### 8.2 Space remains the remote ownership boundary
+### 8.2 Space 仍是远程所有权边界
 
-Every Durable Agent Session belongs to exactly one Space. A session created
-without an explicit shared Space belongs to the user's personal Space. It also
-records an owner user. Visibility controls who in that Space can read content:
+每一个持久化 Agent Session 都恰好属于一个 Space。没有显式指定共享 Space 而创建的 session，属于该用户的个人 Space。它同时会记录一个所有者用户。可见性控制该 Space 内谁可以读取内容：
 
-| Visibility | Candidate readers |
+| 可见性 | 候选可读者 |
 |---|---|
-| `private` | Owner; narrowly authorized break-glass paths if a deployment enables them |
-| `space` | Current Space members |
+| `private` | 所有者；若部署启用，则包括经过窄授权的紧急访问（break-glass）路径 |
+| `space` | 当前 Space 成员 |
 
-The first release should not support a single mutable session spanning several
-Spaces. Publishing work to another Space either creates a frozen shared copy or
-requires an explicit ownership transfer whose history is audited. The simpler
-first choice is a shared copy.
+首个版本不应支持一个可变的 session 横跨多个 Space。把工作发布到另一个 Space，要么创建一份冻结的共享副本，要么需要一次显式的所有权转移并留有可审计的历史记录。更简单的首选做法是创建共享副本。
 
-This distinction matters because “the administrator can inventory sessions”
-does not automatically mean “the administrator can read every prompt and tool
-result.” Metadata access, content access, retention authority, and break-glass
-access are separate capabilities.
+这一区分很重要，因为“管理员可以盘点 session”并不自动意味着“管理员可以读取每一条提示词与每一个工具结果”。元数据访问、内容访问、保留权限与紧急访问是彼此独立的能力。
 
-### 8.3 Preserve the offline-created UUID
+### 8.3 保留离线创建的 UUID
 
-Local sessions already use UUIDs, and offline clients need to allocate identity
-without asking a Server. The likely compatibility choice is to preserve that
-UUID as the durable session's external identity. The database may have an
-internal primary key according to the eventual entity-identity decision, but
-the sync protocol should not force existing local sessions to be renamed.
+本地 session 已经在使用 UUID，离线客户端需要能够在不询问 Server 的情况下分配身份。可能的兼容性选择是保留该 UUID 作为持久化 session 的外部身份。根据最终的实体身份决策，数据库内部可能会有自己的主键，但同步协议不应强制要求现有的本地 session 被重新命名。
 
-An alternative is a Server wrapper ID plus a local UUID. That adds a permanent
-mapping and makes an offline-created link unusable until registration. It is
-not justified unless the open entity-identity proposal adopts a universal
-format that must also include Agent sessions.
+另一种做法是使用 Server 端的外层 ID 再加上本地 UUID。这会增加一层永久映射，并使离线创建的链接在完成注册之前都无法使用。除非那份尚未定论的实体身份提案采用了一种必须涵盖 Agent session 在内的通用格式，否则这种做法没有充分理由。
 
-### 8.4 Revisions are immutable
+### 8.4 修订版本不可变
 
-The Server never overwrites revision content. Metadata such as title, pin,
-visibility, and archive state changes through separate commands. A new Agent
-turn creates a new revision whose `base_revision` must match the Server's
-current revision.
+Server 永远不会覆写修订版本的内容。诸如标题、置顶、可见性与归档状态之类的元数据通过单独的命令来变更。一次新的 Agent 轮次会创建一个新的修订版本，其 `base_revision` 必须与 Server 当前的修订版本一致。
 
-Immutability supplies:
+不可变性带来了：
 
-- stable external references;
-- understandable conflicts;
-- retention and legal-hold semantics;
-- content digest verification;
-- the ability to explain what a pull request linked at creation time; and
-- a clean path from client-reported history to stronger append-time evidence.
+- 稳定的外部引用；
+- 可理解的冲突；
+- 保留与法律保全（legal hold）语义；
+- 内容摘要校验；
+- 能够解释一个 pull request 在创建时所链接的内容；以及
+- 一条从客户端上报历史通往更强的“追加时证据”的清晰路径。
 
-It does not by itself prove the contents were true when work occurred.
+它本身并不能证明工作发生时内容是真实的。
 
-### 8.5 Completed turns are the first synchronization boundary
+### 8.5 已完成的轮次是首个同步边界
 
-The first version uploads after AgentApp finalizes a turn locally. It does not
-stream token deltas or every tool event. A completed assistant response is the
-existing stable save point and gives the user a coherent checkpoint.
+首个版本在 AgentApp 于本地完成一轮之后再上传。它不会流式传输 token 增量或每一个工具事件。一个已完成的 assistant 响应是现有的稳定保存点，能为用户提供一个连贯的检查点。
 
-A later client may also upload:
+之后的客户端还可以上传：
 
-- a `running` marker for presence;
-- periodic crash-recovery snapshots;
-- trace chunks; or
-- a terminal failed/canceled checkpoint.
+- 一个用于表示在线状态的 `running` 标记；
+- 周期性的、用于崩溃恢复的快照；
+- trace 分块；或者
+- 一个终态的失败/取消检查点。
 
-Those are follow-ons. They must not make partial, internally inconsistent
-message sequences resumable as though they were complete turns.
+这些都是后续能力。它们绝不能让局部的、内部不一致的消息序列被当作完整轮次一样可恢复。
 
-### 8.6 Single writer; fork on divergence
+### 8.6 单一写者；分歧时 Fork
 
-One logical session has one accepted head. A client upload names its
-`base_revision`:
+一个逻辑 session 只有一个被接受的头部。客户端上传时会声明它的 `base_revision`：
 
-- if it equals the current head, the Server may accept the next revision;
-- if the same idempotency key or content digest was already accepted, the
-  Server returns the existing acknowledgement;
-- if the head advanced, the Server returns a conflict and never overwrites it;
-- the client may discard its local divergent turn, export it, or create a fork
-  from the common revision; and
-- the Server never auto-merges histories.
+- 如果它等于当前头部，Server 可以接受下一个修订版本；
+- 如果相同的幂等键或内容摘要已经被接受过，Server 会返回已有的确认信息；
+- 如果头部已经前进，Server 会返回冲突，并且永远不会覆写它；
+- 客户端可以放弃自己本地分歧的那一轮、把它导出，或者从共同的修订版本处创建一个 Fork；以及
+- Server 永远不会自动合并历史。
 
-A short writer lease can improve UX once exact cross-device resume exists, but
-revision preconditions remain the correctness mechanism. A lease can expire;
-an immutable accepted revision cannot.
+一旦具备了精确的跨设备恢复能力，一个短期的写者租约可以改善用户体验，但修订版本的前置条件仍然是正确性机制。租约可以过期；而一个已被接受的不可变修订版本不能。
 
-### 8.7 Frozen relations, not mutable “latest” links
+### 8.7 冻结的关联关系，而非可变的“最新”链接
 
-A relation to a pull request or other work object names a session revision.
-The session overview may show later continuation, but the target's provenance
-link remains frozen. This avoids rewriting historical meaning when the user
-continues the session for unrelated follow-up work.
+指向 pull request 或其他工作对象的关联关系会指明一个具体的 session 修订版本。session 概览页面可以展示之后的续接情况，但目标对象上的溯源链接保持冻结。这样可以避免当用户为了无关的后续工作而继续这个 session 时，改写了历史含义。
 
-### 8.8 Server policy, permissions, and credentials are re-resolved
+### 8.8 Server 策略、权限与凭据会被重新解析
 
-Downloading a session does not restore credentials, process environment,
-approval grants, or authoritative policy. Exact resume reconstructs
-conversation state, then resolves the current device's effective settings,
-Server policy, Space membership, model access, hooks, sandbox, tools, plugins,
-and credentials.
+下载一个 session 并不会恢复凭据、进程环境、批准授权或权威策略。精确恢复会先重建对话状态，然后解析当前设备的有效设置、Server 策略、Space 成员资格、模型访问权限、hook、沙箱、工具、Plugin 与凭据。
 
-The checkpoint records what the prior run used for explanation. It does not
-grant the next run the same authority. In particular, an `allow session`
-approval belongs to one in-memory local session execution and must not become
-a portable remote capability.
+检查点记录的是此前那次运行所使用的内容，用于解释说明。它并不会把同样的权限授予下一次运行。尤其是，`allow session` 这类批准属于某一次内存中的本地 session 执行，绝不能变成一种可移植的远程能力。
 
-## 9. Candidate Resource Model
+## 9. 候选资源模型
 
-This is a logical model, not a committed database schema. The data-model source
-of truth remains the eventual row structs after implementation.
+这是一个逻辑模型，而不是已经确定的数据库 schema。数据模型的权威来源仍然是实现完成后最终的行结构体（row struct）。
 
 ### 9.1 `agent_session`
 
-| Field | Purpose |
+| 字段 | 用途 |
 |---|---|
-| `session_id` | Existing offline-created UUID, unique |
-| `space_id` | Required ownership and authorization boundary |
-| `owner_user_id` | User who owns the private session and normal write authority |
-| `title` | User-visible mutable metadata |
-| `visibility` | `private` or `space` in the first slice |
-| `source_surface` | Initial source such as CLI, TUI, Desktop, Worker, or import |
-| `current_revision` | Monotonic accepted head |
-| `created_at`, `updated_at` | Lifecycle and ordering |
-| `archived_at`, `archived_by` | Reversible removal from active lists |
-| `deleted_at`, `deleted_by` | Tombstone preventing stale replicas from silently recreating it |
-| `retention_class` | Optional operator-selected policy reference, not arbitrary client text |
+| `session_id` | 已有的、离线创建的 UUID，唯一 |
+| `space_id` | 必需的所有权与授权边界 |
+| `owner_user_id` | 拥有该私有 session 及其常规写权限的用户 |
+| `title` | 用户可见的可变元数据 |
+| `visibility` | 首个切片中为 `private` 或 `space` |
+| `source_surface` | 初始来源，例如 CLI、TUI、Desktop、Worker 或导入 |
+| `current_revision` | 单调递增的已接受头部 |
+| `created_at`、`updated_at` | 生命周期与排序 |
+| `archived_at`、`archived_by` | 可逆的“从活跃列表中移除” |
+| `deleted_at`、`deleted_by` | 墓碑标记，防止过期副本悄悄地重新创建它 |
+| `retention_class` | 可选的、由运营方选定的策略引用，而非客户端随意填写的文本 |
 
-Session execution state such as “currently running” should not be a permanent
-enumeration on this row until there is a durable supervisor. Presence and
-leases expire; archive and deletion are durable lifecycle state.
+诸如“当前正在运行”这样的 session 执行状态，在出现持久化的监督机制之前，不应该成为这张行记录上的一个永久枚举值。在线状态与租约会过期；而归档与删除才是持久化的生命周期状态。
 
 ### 9.2 `agent_session_revision`
 
-| Field | Purpose |
+| 字段 | 用途 |
 |---|---|
-| `session_id`, `revision` | Immutable composite identity |
-| `base_revision` | Optimistic concurrency precondition and lineage within one session |
-| `snapshot_key` | Server-owned object-storage key |
-| `snapshot_digest` | Digest of exact stored bytes |
-| `snapshot_size` | Admission, diagnostics, and quota |
-| `schema_version` | Decoder compatibility independent of product version |
-| `message_count` | Bounded listing/debug metadata |
-| `created_by`, `device_id`, `created_at` | Attribution and origin |
-| `source_trust` | Candidate class such as `client_reported`, `server_observed`, or `worker_produced` |
-| `workspace_descriptor_key` | Optional structured resume/provenance metadata |
-| `display_projection_key` | Optional safe rendering projection |
-| `resumable` | Whether a supported client can decode the raw checkpoint |
+| `session_id`、`revision` | 不可变的复合身份 |
+| `base_revision` | 乐观并发控制的前置条件，以及同一 session 内的血缘关系 |
+| `snapshot_key` | Server 所拥有的对象存储 key |
+| `snapshot_digest` | 实际存储字节的摘要 |
+| `snapshot_size` | 用于准入、诊断与配额 |
+| `schema_version` | 独立于产品版本的解码器兼容性标记 |
+| `message_count` | 有边界的列表展示/调试元数据 |
+| `created_by`、`device_id`、`created_at` | 归属与来源 |
+| `source_trust` | 候选类别，例如 `client_reported`、`server_observed` 或 `worker_produced` |
+| `workspace_descriptor_key` | 可选的结构化恢复/溯源元数据 |
+| `display_projection_key` | 可选的安全渲染投影 |
+| `resumable` | 受支持的客户端是否能够解码原始检查点 |
 
-The Server computes size and digest from received bytes. It does not trust
-client-supplied values. A revision admission transaction must not publish a
-database head until the object is durably stored, and an uploaded unreferenced
-object must be collectible if the transaction fails.
+Server 会根据收到的字节自行计算大小与摘要，而不信任客户端提供的数值。修订版本的准入事务必须等到对象被持久化存储之后，才能发布数据库层面的头部；如果事务失败，已上传但未被引用的对象必须是可回收的。
 
 ### 9.3 `agent_session_run`
 
-One session may contain many local runs and may later connect to a TaskRun.
-The candidate association records:
+一个 session 可以包含许多次本地 run，之后也可能与某个 TaskRun 建立联系。候选的关联记录包括：
 
-| Field | Purpose |
+| 字段 | 用途 |
 |---|---|
-| `session_id`, `revision` | Checkpoint reached by the run |
-| `run_id` | Agent runtime trace ID |
-| `task_run_id` | Optional durable Worker TaskRun |
-| `trace_key` | Optional synchronized trace object |
-| `surface`, `model_ref` | Explanation metadata, not a credential |
-| `started_at`, `ended_at`, `outcome` | Timeline projection |
-| `prompt_tokens`, `completion_tokens` | User and operator accounting projection |
+| `session_id`、`revision` | 该次 run 所抵达的检查点 |
+| `run_id` | Agent 运行时的 trace ID |
+| `task_run_id` | 可选的持久化 Worker TaskRun |
+| `trace_key` | 可选的已同步 trace 对象 |
+| `surface`、`model_ref` | 说明性元数据，而非凭据 |
+| `started_at`、`ended_at`、`outcome` | 时间线投影 |
+| `prompt_tokens`、`completion_tokens` | 面向用户与运营方的计费/用量投影 |
 
-Local direct-model usage cannot be treated as Server-metered billing evidence.
-Managed calls already recorded by the gateway remain the authoritative ledger
-for what the deployment served.
+本地直连模型的用量不能被当作 Server 计量计费的证据。已经由网关记录的托管调用，才是该部署所服务内容的权威账本。
 
 ### 9.4 `agent_session_relation`
 
-| Field | Purpose |
+| 字段 | 用途 |
 |---|---|
-| `session_id`, `revision` | Frozen provenance source |
-| `relation_type` | Closed set such as Issue, Task, TaskRun, Artifact, repository, commit, pull request, or external URL |
-| `target_id` | BuildMax public ID when the target is a BuildMax entity |
-| `provider`, `repository_ref`, `external_ref` | Structured external identity where applicable |
-| `url` | Display/navigation value, validated by relation type |
-| `created_by`, `created_at` | Attribution |
+| `session_id`、`revision` | 冻结的溯源来源 |
+| `relation_type` | 封闭集合，例如 Issue、Task、TaskRun、Artifact、代码仓库、提交、pull request 或外部 URL |
+| `target_id` | 当目标为 BuildMax 实体时使用的 BuildMax 公共 ID |
+| `provider`、`repository_ref`、`external_ref` | 适用情况下的结构化外部身份 |
+| `url` | 展示/导航用的值，按关联关系类型进行校验 |
+| `created_by`、`created_at` | 归属信息 |
 
-A polymorphic relation trades database-enforced strictness for extensibility.
-The service must validate Space ownership for BuildMax targets and repository
-scope for provider targets. An alternative is one typed join per internal
-entity plus a separate external-link table. The first implementation should
-choose based on the queries Portal actually needs, not on a desire for a
-universal graph.
+多态的关联关系用数据库层面的严格性换取了可扩展性。服务必须为 BuildMax 目标校验 Space 归属，为提供商目标校验代码仓库范围。另一种做法是为每一种内部实体各自建一张类型化的关联表，再加一张单独的外部链接表。首个实现应该根据 Portal 实际需要的查询来选择，而不是出于构建一个通用图谱的愿望。
 
-### 9.5 Replica cursor and writer lease
+### 9.5 副本游标与写者租约
 
-Replica acknowledgement and writer presence do not need to live on the session
-row. Candidate short-lived records are:
+副本确认与写者在线状态不需要存放在 session 行记录上。候选的短生命周期记录包括：
 
-- last revision downloaded and uploaded by a device;
-- last-seen time and client version;
-- optional writer lease token, owner, expiry, and base revision; and
-- pending deletion acknowledgement.
+- 某设备最近下载与上传的修订版本；
+- 最近可见时间与客户端版本；
+- 可选的写者租约令牌、持有者、过期时间与基准修订版本；以及
+- 待处理的删除确认。
 
-These records are operational. Retention may be short, and their absence must
-not make the immutable revision history invalid.
+这些记录属于运维性质。它们的保留期可以很短，它们的缺失也绝不能使不可变的修订版本历史失效。
 
-## 10. Storage And Projection
+## 10. 存储与投影
 
-### 10.1 Hybrid persistence
+### 10.1 混合持久化
 
-Use the relational database for metadata, authorization, lifecycle, and
-relations. Use object storage for raw resumable checkpoints, traces, and large
-display payloads.
+使用关系型数据库来存储元数据、授权、生命周期与关联关系。使用对象存储来存放原始的可恢复检查点、trace 以及较大的展示负载。
 
-Do not place the entire current session JSON in one mutable text column. The
-format contains provider-owned raw JSON and base64 image data, evolves with the
-shared LLM contract, and can be large. Conversely, do not make object keys the
-only registry: list, authorize, retain, relate, and tombstone are relational
-operations.
+不要把整份当前的 session JSON 塞进一个可变的文本列中。该格式包含提供商所有的原始 JSON 与 base64 图像数据，会随着共享的 LLM 契约演进，而且体积可能很大。反过来，也不要把对象 key 当作唯一的登记方式：列表、授权、保留、关联与墓碑标记都是关系型操作。
 
-### 10.2 Raw checkpoint versus display projection
+### 10.2 原始检查点与展示投影
 
-The raw checkpoint is for a trusted BuildMax client to resume. The Portal page
-should use a projection that deliberately includes or excludes each field:
+原始检查点是给受信任的 BuildMax 客户端用来恢复的。Portal 页面应该使用一个投影，对每个字段都刻意地做出“包含”或“排除”的选择：
 
-| Content | Raw checkpoint | Default viewer |
+| 内容 | 原始检查点 | 默认查看器 |
 |---|---:|---:|
-| User and assistant text | Yes | Yes, subject to access policy |
-| Tool name and status | Yes | Yes |
-| Tool arguments and output | Yes | Summarized or access-gated |
-| Notes and todos | Yes | Optional section |
-| Compaction summary | Yes | Explanation metadata, not duplicated as a turn |
-| Image bytes | Yes initially | Served as authorized attachments, not inline JSON |
-| Provider-owned state | Yes when required to resume | Never displayed or indexed |
-| Additional system prompt | Yes today | Restricted explanation view |
-| Credentials and approval grants | Never | Never |
+| 用户与 assistant 文本 | 是 | 是，取决于访问策略 |
+| 工具名称与状态 | 是 | 是 |
+| 工具参数与输出 | 是 | 摘要展示或按权限限制 |
+| 笔记与待办事项 | 是 | 可选展示区块 |
+| 压缩摘要 | 是 | 作为说明性元数据，不重复展示为一轮对话 |
+| 图像字节 | 初期为是 | 以经过授权的附件形式提供，而非内嵌在 JSON 中 |
+| 提供商所有的状态 | 恢复所需时为是 | 从不展示或索引 |
+| 附加系统提示词 | 目前为是 | 受限的说明性视图 |
+| 凭据与批准授权 | 从不 | 从不 |
 
-The first implementation can generate the projection at upload time and store
-it beside the raw blob. If it is regenerated later, the projection version and
-source digest must be recorded so a viewer never implies it is the exact raw
-record.
+首个实现可以在上传时生成投影，并将其与原始二进制对象一并存储。如果之后重新生成投影，必须记录投影版本与源摘要，以确保查看器不会暗示它就是精确的原始记录。
 
-### 10.3 Attachments and size
+### 10.3 附件与大小
 
-The current message format can carry base64 images. Repeated immutable session
-snapshots would duplicate every prior image and message prefix. A simple first
-slice may accept that cost under strict per-session and per-revision limits,
-but the durable format should eventually externalize binary parts into
-content-addressed authorized objects.
+当前的消息格式可以携带 base64 图像。反复出现的不可变 session 快照会把之前的每一张图像与每一段消息前缀都重复一遍。一个简单的首个切片可以在严格的“每 session”与“每修订版本”限额下接受这一成本，但持久化格式最终应该把二进制部分外置为按内容寻址的、经过授权的对象。
 
-Storage admission needs explicit limits for:
+存储准入需要针对以下方面设置明确的限额：
 
-- compressed and uncompressed revision bytes;
-- number and size of message parts;
-- trace bytes and record count;
-- total retained bytes per user and Space; and
-- import batch size.
+- 压缩与未压缩状态下的修订版本字节数；
+- 消息片段的数量与大小；
+- trace 的字节数与记录条数；
+- 每个用户与每个 Space 保留的总字节数；以及
+- 导入批次的大小。
 
-The Server must verify media types and reject malformed encodings. It should
-not unpack arbitrary archives as part of session ingestion.
+Server 必须校验媒体类型，并拒绝格式错误的编码。它不应该在摄取 session 的过程中解压任意归档文件。
 
-### 10.4 Encryption and object identity
+### 10.4 加密与对象身份
 
-Checkpoints contain source and prompt data and should use the deployment's
-object-store encryption controls. Server-owned object keys must derive from
-authorized internal identity, not accept a client-provided relative path.
+检查点包含源码与提示词数据，应当使用该部署的对象存储加密控制机制。Server 所拥有的对象 key 必须源自经过授权的内部身份，而不能接受客户端提供的相对路径。
 
-Content-addressing may deduplicate identical blobs, but authorization remains
-attached to the revision record. A digest is not a credential and must not be a
-download route parameter that bypasses Space membership.
+按内容寻址可以对完全相同的二进制对象去重，但授权仍然附着在修订版本记录上。摘要不是一种凭据，绝不能成为绕过 Space 成员校验的下载路由参数。
 
-## 11. Synchronization Protocol
+## 11. 同步协议
 
-### 11.1 Registration
+### 11.1 注册
 
-On the first eligible save, the client registers the local UUID with a Space,
-owner, title, source surface, and initial checkpoint. Registration is
-idempotent for the same user, deployment, and UUID. A UUID already owned by a
-different user or Space is a conflict, not an adoption path.
+在首次符合条件的保存时，客户端会把本地 UUID 连同 Space、所有者、标题、来源界面与初始检查点一起注册。对于同一个用户、同一个部署与同一个 UUID，注册是幂等的。如果一个 UUID 已经归属于另一个用户或 Space，这是一种冲突，而不是一条可以“认领”的路径。
 
-Importing an existing local session creates revision 1 from its current state.
-The Server does not invent earlier revisions from individual messages or file
-timestamps.
+导入一个已有的本地 session 会基于其当前状态创建修订版本 1。Server 不会根据单条消息或文件时间戳去臆造更早的修订版本。
 
-### 11.2 Upload
+### 11.2 上传
 
-An upload contains at least:
+一次上传至少包含：
 
-- session ID;
-- base revision;
-- client idempotency key;
-- schema version;
-- raw checkpoint stream;
-- display projection or enough data for the Server to derive it;
-- workspace descriptor;
-- associated run metadata and optional trace; and
-- requested relations created at this checkpoint.
+- session ID；
+- 基准修订版本；
+- 客户端幂等键；
+- schema 版本；
+- 原始检查点数据流；
+- 展示投影，或足够让 Server 自行推导出投影的数据；
+- 工作区描述符；
+- 关联的 run 元数据与可选的 trace；以及
+- 在此检查点上请求创建的关联关系。
 
-The candidate acceptance sequence is:
+候选的接受流程是：
 
-1. Authenticate the user and authorize write access to the Space session.
-2. Reject tombstoned, archived-for-write, over-limit, or incompatible input.
-3. Stream into a Server-owned temporary object while measuring and hashing.
-4. Validate the checkpoint envelope and session identity.
-5. Compare `base_revision` with the current head inside a transaction.
-6. Publish the immutable object and revision metadata.
-7. Advance the session head and commit relations atomically from the API's
-   perspective.
-8. Return revision, digest, and Server time.
+1. 对用户进行身份认证，并对该 Space session 的写权限进行授权。
+2. 拒绝已被墓碑标记、已因写操作而归档、超出限额或不兼容的输入。
+3. 把数据流式写入一个 Server 所拥有的临时对象，同时进行度量与哈希计算。
+4. 校验检查点信封与 session 身份。
+5. 在一个事务内，把 `base_revision` 与当前头部进行比较。
+6. 发布不可变对象与修订版本元数据。
+7. 从 API 的视角看，原子性地推进 session 头部并提交关联关系。
+8. 返回修订版本、摘要与 Server 时间。
 
-Exact object-store/database atomicity is impossible. The service needs a named
-reconciliation rule: a database revision never points to an object that was
-not successfully finalized, and temporary or finalized-but-unreferenced
-objects are swept after a grace period.
+对象存储与数据库之间的精确原子性是不可能实现的。服务需要一条明确命名的对账规则：数据库中的修订版本永远不会指向一个未成功落定的对象，而临时对象或已落定但未被引用的对象，会在一个宽限期之后被清扫。
 
-### 11.3 Local outbox
+### 11.3 本地发件箱
 
-Optional synchronization must not slow or fail a completed local turn because
-the Server is temporarily unavailable. AgentApp should enqueue a small durable
-sync job after local save, then retry with bounded exponential backoff. UI and
-CLI status expose `synced`, `pending`, `conflict`, `rejected`, or `disabled`.
+可选同步不应该因为 Server 暂时不可用，就拖慢或让一次已完成的本地轮次失败。AgentApp 应该在本地保存之后，将一个小型的持久化同步任务入队，再以有界的指数退避方式重试。UI 与 CLI 状态会展示 `synced`、`pending`、`conflict`、`rejected` 或 `disabled`。
 
-The outbox stores references to immutable local checkpoint bytes or a copied
-upload payload. It must not point only at the live session file, because the
-file may advance before a retry and make an idempotency key refer to different
-bytes.
+发件箱存储的是指向不可变本地检查点字节的引用，或者一份复制出来的上传负载。它绝不能只指向那份活跃的 session 文件本身，因为该文件可能会在重试之前继续前进，导致同一个幂等键指向了不同的字节内容。
 
-In required mode, failure semantics are a deployment decision:
+在强制模式下，失败语义由部署自行决定：
 
-- fail before starting a new turn when no acceptable remote checkpoint exists;
-- allow a bounded offline grace period or byte count, then refuse new turns;
-  or
-- allow local work indefinitely but mark the device non-compliant.
+- 在不存在可接受的远程检查点时，阻止开启新的一轮；
+- 允许一个有界的离线宽限期或字节数配额，超出后拒绝新的一轮；或者
+- 允许本地工作无限期继续，但把该设备标记为不合规。
 
-Silently claiming required capture while indefinitely queueing unsent work is
-not acceptable. The chosen policy must be visible before a user authorizes
-local tool execution.
+一边宣称已经实现了强制采集，一边却让未发送的工作无限期排队，这是不可接受的。所选定的策略必须在用户授权本地工具执行之前就是可见的。
 
-### 11.4 Download
+### 11.4 下载
 
-A client downloads by session and revision after authorization. The response
-includes digest, schema version, workspace descriptor, source trust, and
-relations before streaming the checkpoint. The client writes to a temporary
-file, verifies the digest and embedded session ID, then atomically installs it
-under `BUILDMAX_HOME`.
+客户端在获得授权后，按 session 与修订版本进行下载。响应会在流式传输检查点之前，先给出摘要、schema 版本、工作区描述符、来源信任等级与关联关系。客户端把内容写入一个临时文件，校验摘要与内嵌的 session ID，然后原子性地将其安装到 `BUILDMAX_HOME` 下。
 
-An unsupported future schema is view-only until the client upgrades. It must
-not be partially decoded and resaved as an older format.
+一个尚不支持的未来 schema 在客户端升级之前只能是只读的。绝不能把它部分解码后又以旧格式重新保存。
 
-### 11.5 Conflict
+### 11.5 冲突
 
-A revision conflict response includes safe metadata about the current head and
-the caller's common base. It does not return another user's content. The local
-surface offers:
+一个修订版本冲突的响应会包含关于当前头部以及调用方共同基准的安全元数据。它不会返回另一个用户的内容。本地界面会提供以下选项：
 
-1. open the remote head read-only;
-2. discard the unsynced local branch;
-3. save the local branch as a new fork; or
-4. export both for manual comparison.
+1. 以只读方式打开远程头部；
+2. 放弃未同步的本地分支；
+3. 将本地分支保存为一个新的 Fork；或者
+4. 将两者都导出，供人工比对。
 
-“Force push session” should not exist in the first release. If operators ever
-need corrective replacement, it should create a new revision and a governance
-record rather than erase accepted history.
+首个版本中不应该存在“强制推送 session”这种操作。如果运营方将来确实需要纠正性替换，它应当创建一个新的修订版本以及一条治理记录，而不是抹去已被接受的历史。
 
-### 11.6 Rename, pin, archive, and delete
+### 11.6 重命名、置顶、归档与删除
 
-These are metadata commands, not new transcript revisions.
+这些是元数据命令，而不是新的文字记录修订版本。
 
-- Concurrent rename may use metadata versioning or last-writer-wins with actor
-  and time visible; it does not affect resume correctness.
-- Pin is normally user-specific presentation state and may remain local or in
-  a user-session preference table rather than on the shared resource.
-- Archive hides a session from active lists but keeps revisions and links.
-- Delete creates a remote tombstone before asynchronous content erasure. A
-  stale device receives `gone` and cannot recreate the UUID accidentally.
-- Legal hold can override physical erasure but must not pretend the user's
-  delete request was fulfilled; the UI states the retention reason.
+- 并发重命名可以使用元数据版本号，或采用“后写者获胜”并展示操作者与时间；这不会影响恢复的正确性。
+- 置顶通常是用户个人的展示状态，可以保留在本地，或存放在用户-session 偏好表中，而不必放在共享资源上。
+- 归档会把 session 从活跃列表中隐藏，但保留其修订版本与链接。
+- 删除操作会先创建一个远程墓碑标记，再异步地清除内容。过期的设备会收到 `gone`，从而不会意外地重新创建这个 UUID。
+- 法律保全（legal hold）可以覆盖物理擦除，但不能假装用户的删除请求已经被执行；UI 会说明保留的原因。
 
-Local deletion and remote deletion are separate choices. Deleting a local
-cache must not erase organizational evidence without an explicit remote
-operation, and a required-sync policy may prohibit remote deletion while
-allowing local cleanup.
+本地删除与远程删除是彼此独立的选择。删除本地缓存不应在没有显式远程操作的情况下抹去组织层面的证据；一项强制同步策略可以禁止远程删除,同时仍允许本地清理。
 
-## 12. Workspace Identity And Cross-Device Continuation
+## 12. 工作区身份与跨设备续接
 
-### 12.1 Why transcript synchronization is insufficient
+### 12.1 为何仅同步文字记录还不够
 
-An Agent session can say “edit the function we just inspected” because its
-messages refer to a workspace state. Another device may have:
+一个 Agent session 之所以能说出“编辑我们刚刚检查过的那个函数”，是因为它的消息引用了某种工作区状态。而另一台设备可能：
 
-- no checkout;
-- a checkout at a different path;
-- the same repository at a different commit;
-- different uncommitted changes;
-- different `AGENTS.md`, hooks, skills, plugins, or MCP configuration;
-- a model client that cannot consume stored provider state; or
-- different operating-system tools and permissions.
+- 没有任何检出（checkout）；
+- 在不同路径下有一份检出；
+- 同一个代码仓库但处于不同的提交；
+- 有不同的未提交变更；
+- 有不同的 `AGENTS.md`、hook、技能（skill）、Plugin 或 MCP 配置；
+- 使用的模型客户端无法消费存储下来的提供商状态；或者
+- 有不同的操作系统工具与权限。
 
-Downloading messages without surfacing those differences creates a false
-promise of continuity.
+如果下载消息时不把这些差异呈现出来，就会营造出一种虚假的连续性承诺。
 
-### 12.2 Workspace descriptor
+### 12.2 工作区描述符
 
-Each checkpoint should carry a structured descriptor whose fields are facts,
-not portable authority:
+每个检查点都应该携带一个结构化的描述符，其字段都是事实性信息，而不是可移植的权限：
 
-| Field | Purpose |
+| 字段 | 用途 |
 |---|---|
-| Workspace kind | Git checkout, plain directory, or Worker materialization |
-| Repository provider and normalized remote identity | Match the same project without relying on a local path |
-| Base and head commit | Explain code state and enable compatibility checks |
-| Branch name | Hint only; not identity |
-| Dirty state | Clean, dirty, unknown, plus digest or change reference |
-| Workspace-relative file/change summary | Review and mismatch explanation |
-| Local path | Diagnostic to the owner only; never a cross-device identity |
-| Instruction-layer digests | Detect changed AGENTS.md or workspace policy |
-| Effective model protocol | Decide whether provider state is reusable |
-| Tool/plugin/skill manifest | Explain missing capabilities without carrying credentials |
-| Platform and client version | Compatibility diagnostics |
+| 工作区类型 | Git 检出、普通目录，或 Worker 物化产物 |
+| 代码仓库提供商与归一化后的远程身份 | 在不依赖本地路径的情况下匹配同一个项目 |
+| 基准提交与头部提交 | 说明代码状态，并支持兼容性检查 |
+| 分支名称 | 仅作提示；不作为身份标识 |
+| 脏状态 | 干净、脏、未知，外加摘要或变更引用 |
+| 相对于工作区的文件/变更摘要 | 用于评审与差异说明 |
+| 本地路径 | 仅对所有者本人有诊断价值；绝不作为跨设备身份 |
+| 指令层摘要 | 检测 AGENTS.md 或工作区策略是否发生变化 |
+| 有效的模型协议 | 决定提供商状态是否可复用 |
+| 工具/Plugin/技能清单 | 在不携带凭据的前提下说明缺失的能力 |
+| 平台与客户端版本 | 兼容性诊断 |
 
-The descriptor should avoid uploading the entire settings file or environment.
-Names, versions, digests, and enabled capability identifiers are generally
-enough. Secret values are never included.
+描述符应当避免上传整份设置文件或整个环境。名称、版本、摘要与已启用能力的标识符通常就已足够。密钥类的值永远不会被包含在内。
 
-### 12.3 Resume levels
+### 12.3 恢复级别
 
-The client should make its guarantee explicit:
+客户端应该明确表达自己所能提供的保证：
 
-| Level | Requirement | Behavior |
+| 级别 | 要求 | 行为 |
 |---|---|---|
-| View | Authorized checkpoint | Render only |
-| Context fork | Decodable checkpoint | New session, current workspace and policy, visible mismatch warnings |
-| Compatible resume | Same repository and acceptable revision relationship | Continue same session after writer check |
-| Reconstructed resume | Compatible repository plus available change/workspace snapshot | Materialize state, then continue |
+| 查看 | 已授权的检查点 | 仅渲染 |
+| 上下文 Fork | 可解码的检查点 | 新建 session，使用当前工作区与策略，展示可见的不匹配警告 |
+| 兼容恢复 | 相同代码仓库，且修订版本关系可接受 | 通过写者检查后继续同一个 session |
+| 重建恢复 | 兼容的代码仓库，加上可用的变更/工作区快照 | 先物化状态，再继续 |
 
-The first cross-device release should support View and Context fork. Compatible
-resume follows once repository matching and single-writer UX are proven.
-Reconstructed resume depends on a versioned workspace capability BuildMax has
-neither built nor planned, and should not be smuggled into session
-synchronization.
+首个跨设备版本应该支持“查看”与“上下文 Fork”。一旦代码仓库匹配与单一写者 UX 得到验证，就可以推出“兼容恢复”。“重建恢复”依赖于一种带版本管理的工作区能力，而 BuildMax 既没有构建、也没有计划构建这种能力，因此不应该被夹带进 session 同步之中。
 
-### 12.4 Dirty workspaces
+### 12.4 脏工作区
 
-If device A has uncommitted changes, a session checkpoint may explain them but
-cannot recreate them unless BuildMax also stores a change bundle or workspace
-snapshot. The client must offer an honest choice:
+如果设备 A 存在未提交的变更，一个 session 检查点可以对其加以说明，但无法重新创建它们，除非 BuildMax 也存储了变更包（change bundle）或工作区快照。客户端必须提供一个诚实的选择：
 
-- continue against the current B-device workspace with a mismatch warning;
-- acquire the referenced change bundle through an authorized Artifact
-  operation;
-- clone or check out the recorded commit; or
-- stop and ask the user to prepare the workspace.
+- 在展示不匹配警告的前提下，针对 B 设备当前的工作区继续；
+- 通过一次经过授权的 Artifact 操作获取所引用的变更包；
+- 克隆或检出所记录的那个提交；或者
+- 停下来，请用户自行准备工作区。
 
-It must not silently apply a patch merely because the session references it.
-Applying workspace state is a separate mutation with its own review,
-authorization, and conflict semantics.
+不能仅仅因为 session 引用了某个补丁，就悄悄地把它应用上去。应用工作区状态是一次独立的变更操作，有其自身的评审、授权与冲突语义。
 
-### 12.5 Provider state and model changes
+### 12.5 提供商状态与模型变更
 
-Provider-owned reasoning state may only be replayed by the protocol that
-created it. A resumed session using a different model or protocol retains the
-portable text/tool history and drops incompatible opaque state according to
-the existing LLM adapter contract. The viewer never decodes that state.
+提供商所有的推理状态只能由创建它的那个协议重放。当恢复的 session 使用了不同的模型或协议时，会保留可移植的文本/工具历史，并按照现有的 LLM 适配器契约，丢弃不兼容的不透明状态。查看器永远不会解码该状态。
 
-## 13. Server Viewer And Stable Links
+## 13. Server 查看器与稳定链接
 
-### 13.1 Page composition
+### 13.1 页面构成
 
-A useful session page should not be a JSON dump. Candidate sections are:
+一个有用的 session 页面不应该只是一份 JSON 转储。候选的板块包括：
 
-- overview: title, owner, Space, time, surface, sync/trust status;
-- conversation: user and assistant text with compact tool activity;
-- activity: one card per run with model, duration, token usage, outcome, and
-  trace link;
-- changes and validation: files, commands/tests, commits, and result summaries
-  where evidence exists;
-- outputs: linked Artifacts and TaskRun results;
-- provenance: repository, base/result commits, related PR/Issue/Task;
-- environment: capability and policy fingerprints with mismatch warnings; and
-- lineage: imported-from or forked-from checkpoint, without implementing a
-  general Session Tree.
+- 概览：标题、所有者、Space、时间、来源界面、同步/信任状态；
+- 对话：用户与 assistant 的文本，配合精简展示的工具活动；
+- 活动：每次 run 一张卡片，展示模型、耗时、token 用量、结果以及 trace 链接；
+- 变更与验证：在有证据支撑的情况下展示文件、命令/测试、提交与结果摘要；
+- 产出：关联的 Artifact 与 TaskRun 结果；
+- 溯源：代码仓库、基准/结果提交、相关的 PR/Issue/Task；
+- 环境：能力与策略指纹，附带不匹配警告；以及
+- 血缘：导入自或 Fork 自哪个检查点，但不实现一个通用的 Session Tree。
 
-Raw tool output, system/additional prompt content, and full traces may require a
-stronger permission or explicit reveal action. Provider state is never shown.
+原始工具输出、系统/附加提示词内容以及完整的 trace，可能需要更高的权限或显式的“展开”操作。提供商状态永远不会被展示。
 
-### 13.2 URL semantics
+### 13.2 URL 语义
 
-Candidate browser routes are illustrative, not registered API contracts:
+候选的浏览器路由仅作示意，并非已注册的 API 契约：
 
 ```text
 /spaces/{space_id}/sessions/{session_id}
 /spaces/{space_id}/sessions/{session_id}/revisions/{revision}
 ```
 
-The first may follow current head. The second is immutable and is the only
-candidate for a provenance relation. Both require authentication and current
-Space authorization. A non-member receives the same not-found behavior used by
-other ID-addressed Space resources. No bearer access is implied by knowing the
-URL.
+第一个路由可以跟随当前头部。第二个路由是不可变的，也是唯一适合作为溯源关联目标的候选。两者都需要身份认证以及当前的 Space 授权。非成员会收到与其他按 ID 寻址的 Space 资源相同的“未找到”行为。仅仅知道这个 URL 并不意味着获得了访问权限。
 
-### 13.3 Pull request integration
+### 13.3 Pull Request 集成
 
-The minimum feature is “Copy immutable session link” plus a structured
-relation created by the user or Agent outcome flow. Provider integrations can
-later surface the link through:
+最小化的特性是“复制不可变 session 链接”，再加上由用户或 Agent 结果流程创建的一条结构化关联关系。之后的提供商集成可以通过以下方式呈现该链接：
 
-- a check-run details URL;
-- a BuildMax status or review panel;
-- a bot comment under an operator policy; or
-- a pull request field/body convention chosen by that repository.
+- check-run 详情 URL；
+- BuildMax 状态或评审面板；
+- 在运营方策略允许下的机器人评论；或者
+- 该代码仓库自行选定的 pull request 字段/正文约定。
 
-The relation records repository, pull request identity, result commit, session
-revision, and creator. A pull request link should open a review projection, not
-automatically grant the recipient access.
+该关联关系会记录代码仓库、pull request 身份、结果提交、session 修订版本与创建者。一个 pull request 链接应该打开一个评审投影，而不会自动授予接收者访问权限。
 
-BuildMax's current contribution convention excludes assistant session links
-from its own pull request descriptions and commit history. This proposal does
-not quietly reverse that decision. A product integration should prefer a
-structured provider surface such as a check details link, and any change to
-repository contribution policy requires its own explicit acceptance.
+BuildMax 当前的贡献约定不允许在自己的 pull request 描述与提交历史中出现 assistant 的 session 链接。本提案不会悄悄地推翻这一决定。产品层面的集成应当优先采用一种结构化的提供商能力，例如 check 详情链接；对代码仓库贡献策略的任何改动，都需要单独经过明确的采纳流程。
 
-### 13.4 External API
+### 13.4 外部 API
 
-If accepted, the likely API capability groups are:
+如果被采纳，可能的 API 能力分组包括：
 
-- register/list/read/archive/delete Agent sessions;
-- create and fetch immutable revisions;
-- download a resumable checkpoint;
-- fork from a revision;
-- share or change visibility;
-- create/list/delete typed relations; and
-- fetch a sanitized viewer projection and linked run evidence.
+- 注册/列出/读取/归档/删除 Agent session；
+- 创建并获取不可变的修订版本；
+- 下载一个可恢复的检查点；
+- 从某个修订版本处 Fork；
+- 共享或变更可见性；
+- 创建/列出/删除类型化的关联关系；以及
+- 获取经过脱敏处理的查看器投影以及关联的 run 证据。
 
-The live route tree remains the source of truth when implementation begins.
-This proposal intentionally does not assign final HTTP methods or copy the
-whole API surface.
+一旦开始实现，实际的路由树才是权威来源。本提案有意不去指定最终的 HTTP 方法，也不去复制完整的 API 界面。
 
-## 14. Authorization And Governance
+## 14. 授权与治理
 
-### 14.1 Candidate access matrix
+### 14.1 候选访问矩阵
 
-The exact matrix needs product validation, but its dimensions should be
-explicit:
+确切的矩阵需要经过产品验证，但其维度应当是明确的：
 
-| Action | Owner | Space member on space-visible session | Space admin/owner | System Administrator |
+| 操作 | 所有者 | 可见 session 所在 Space 的成员 | Space 管理员/所有者 | 系统管理员 |
 |---|---:|---:|---:|---:|
-| List own metadata | Yes | — | Policy-dependent inventory | Deployment metadata only by default |
-| Read private content | Yes | No | No by default | No by default |
-| Read space-visible content | Yes | Yes | Yes | No by default unless also Space member |
-| Append revision | Yes or delegated writer | No | No without explicit takeover | No |
-| Change visibility | Yes | No | Possible policy override | No |
-| Archive own session | Yes | No | Policy-dependent | No |
-| Delete content | Policy-dependent | No | Retention-policy authority | Legal-hold/retention administration only |
-| Break-glass read | — | — | Optional explicit flow | Optional explicit flow |
+| 列出自己的元数据 | 是 | — | 取决于策略的盘点权限 | 默认仅限部署级元数据 |
+| 读取私有内容 | 是 | 否 | 默认否 | 默认否 |
+| 读取 space 可见内容 | 是 | 是 | 是 | 默认否，除非同时也是 Space 成员 |
+| 追加修订版本 | 是，或受委托的写者 | 否 | 未经显式接管则否 | 否 |
+| 变更可见性 | 是 | 否 | 可能存在策略覆盖 | 否 |
+| 归档自己的 session | 是 | 否 | 取决于策略 | 否 |
+| 删除内容 | 取决于策略 | 否 | 拥有保留策略权限 | 仅限法律保全/保留管理 |
+| 紧急访问（Break-glass）读取 | — | — | 可选的显式流程 | 可选的显式流程 |
 
-BuildMax should not invent deployment-wide raw-content access merely because a
-System Administrator role exists. If a customer requires such access, it is a
-separate, audited policy with a clear UI warning and reason capture.
+BuildMax 不应该仅仅因为存在“系统管理员”这个角色，就凭空造出一种覆盖整个部署的原始内容访问权限。如果某个客户确实需要这种访问权限，那应当是一项单独的、可审计的策略，并配有清晰的 UI 警告与理由记录。
 
-### 14.2 Governance events
+### 14.2 治理事件
 
-Session execution and each uploaded revision are operational records, not
-automatically duplicate audit events. Governance candidates are actions that
-change authority or evidence lifecycle:
+session 的执行以及每一次上传的修订版本，都是运维性质的记录，不会自动重复生成审计事件。候选的治理事件是那些会改变权限或证据生命周期的操作：
 
-- synchronization policy changed;
-- session visibility changed;
-- Space ownership transferred or a revision published across Spaces;
-- break-glass content access requested and used;
-- retention class or legal hold changed;
-- remote content deleted or export performed; and
-- writer ownership forcibly taken over.
+- 同步策略发生变更；
+- session 可见性发生变更；
+- Space 所有权转移，或某个修订版本被跨 Space 发布；
+- 紧急访问的内容访问权限被申请并使用；
+- 保留类别或法律保全状态发生变更；
+- 远程内容被删除，或执行了导出；以及
+- 写者所有权被强制接管。
 
-Ordinary session creation, revision ingestion, runs, and relations remain in
-their own durable operational records unless an investigation requirement
-proves an audit duplicate adds evidence.
+常规的 session 创建、修订版本摄取、run 与关联关系仍然保留在各自的持久化运维记录中，除非有调查需求证明再生成一份重复的审计记录能够提供额外证据价值。
 
-### 14.3 Membership changes
+### 14.3 成员变动
 
-Authorization is evaluated on every Server read and download. Removing a user
-from a Space removes access to space-visible sessions immediately; a previously
-downloaded local copy cannot be remotely erased and the product must not claim
-otherwise. Required enterprise deployments may use managed-device controls
-outside BuildMax for that stronger guarantee.
+每一次 Server 读取与下载都会重新评估授权。把一个用户从 Space 中移除，会立即移除其对 space 可见 session 的访问权限；但之前已经下载到本地的副本无法被远程擦除，产品也不应该声称能够做到。需要强保证的企业部署，可以在 BuildMax 之外使用托管设备控制手段来实现这一点。
 
-If an owner leaves, the Space needs a retention and reassignment policy. The
-Server must not silently transfer private content to the owner's manager. A
-candidate policy is to retain encrypted content for the configured window,
-make it unavailable to ordinary members, and require an audited retention or
-break-glass action to reassign it.
+如果所有者离开，Space 需要一套保留与重新分配的策略。Server 不应该悄悄地把私有内容转交给该所有者的上级。一个候选策略是：在配置的时间窗口内保留加密后的内容，对普通成员不可用，并要求通过一次可审计的保留或紧急访问操作才能对其重新分配。
 
-## 15. Privacy, Security, And Integrity
+## 15. 隐私、安全与完整性
 
-### 15.1 Raw session sensitivity
+### 15.1 原始 Session 的敏感性
 
-Unlike traces, current session messages are not a redacted evidence format.
-They may contain source excerpts, command output, tool arguments, local paths,
-user-provided secrets, personal data, screenshots, or opaque provider state.
-Private deployment solves data locality, not internal least privilege.
+与 trace 不同，当前的 session 消息并不是一种经过脱敏的证据格式。它们可能包含源码片段、命令输出、工具参数、本地路径、用户提供的密钥、个人数据、截图，或不透明的提供商状态。私有部署解决的是数据的本地化问题，而不是内部的最小权限问题。
 
-Before upload, the product must tell the user and operator what is captured.
-The Server should support a bounded content inspection pipeline, but common
-secret-shape redaction cannot be presented as comprehensive DLP. Redacting the
-raw checkpoint can also make it impossible to resume faithfully, so the system
-may need separate encrypted raw content and redacted display/search
-projections.
+在上传之前，产品必须告知用户与运营方将会采集哪些内容。Server 应当支持一条有边界的内容检查流水线，但常见的“密钥形状”脱敏不能被宣传为全面的 DLP（数据防泄漏）方案。对原始检查点进行脱敏还可能使其无法被如实恢复，因此系统可能需要把加密的原始内容，与经过脱敏的展示/搜索投影分开存放。
 
-### 15.2 Trust classes
+### 15.2 信任等级
 
-At least three evidence origins differ:
+至少存在三种不同的证据来源：
 
-| Source | What the Server can claim |
+| 来源 | Server 能够宣称的内容 |
 |---|---|
-| Client-reported local checkpoint | An authenticated user uploaded these bytes at this time |
-| Server-observed managed model call | The deployment served this model call and recorded its ledger metadata |
-| Worker-produced session/trace | A Server-dispatched TaskRun uploaded these bytes under its run credential |
+| 客户端上报的本地检查点 | 某个已认证用户在此时上传了这些字节 |
+| Server 观测到的托管模型调用 | 该部署提供了这次模型调用服务，并记录了其账本元数据 |
+| Worker 产生的 session/trace | 由 Server 派发的某个 TaskRun，在其运行凭据下上传了这些字节 |
 
-None proves that arbitrary local tool activity occurred exactly as represented.
-A local session file can be edited before synchronization. If compliance-grade
-local capture becomes a requirement, a later mode may append events while the
-run occurs, bind them with a hash chain and Server receipts, and correlate
-managed calls. Even that does not attest to the whole host without a stronger
-managed-device boundary.
+以上都不能证明任意的本地工具活动完全如实发生。本地 session 文件在同步之前是可以被编辑的。如果合规级的本地采集成为一项需求，之后的某种模式可以在 run 发生的同时追加事件，用哈希链与 Server 回执把它们绑定起来，并与托管调用进行关联。即便如此，若没有更强的托管设备边界，也无法对整台主机做出证明。
 
-The viewer should expose source trust without alarming copy such as “verified”
-unless the verification claim is precisely defined.
+查看器在展示来源信任等级时，不应使用诸如“已验证”这类耸动的措辞，除非该验证声明有精确的定义。
 
-### 15.3 Share defaults
+### 15.3 默认共享行为
 
-Local sessions are private by default. A deployment may require capture, but
-capture does not imply Space-wide content sharing. Publishing a revision to a
-Space or relating it to a shared Issue/PR is an explicit action with a preview
-of what recipients can read.
+本地 session 默认是私有的。某个部署可以要求强制采集，但采集并不意味着在整个 Space 范围内共享内容。把某个修订版本发布到一个 Space，或把它关联到一个共享的 Issue/PR，都是一次显式的操作，并会预览接收者能够读到的内容。
 
-The first release should not support unauthenticated public share tokens.
-Revocable signed links still escape ordinary Space membership semantics and are
-easy to paste into external systems. Their demand should be proven separately.
+首个版本不应支持未经身份认证的公开共享令牌。即便是可撤销的签名链接，仍然会绕开普通的 Space 成员语义，而且很容易被粘贴到外部系统中。这类需求应当单独得到证实。
 
-### 15.4 Prompt injection and hostile content
+### 15.4 提示注入与恶意内容
 
-A remote session is untrusted content even when it was uploaded by a member.
-Viewing must not execute HTML, scripts, tool calls, MCP actions, or embedded
-instructions. Download-and-resume makes the content input to an Agent, so the
-client must mark its origin and reapply current tool permissions. A shared
-session cannot carry the original owner's approval decisions into the
-recipient's environment.
+即使一个远程 session 是由某个成员上传的，它仍然是不受信任的内容。查看操作绝不能执行其中的 HTML、脚本、工具调用、MCP 操作或内嵌指令。下载并恢复会让这些内容成为 Agent 的输入，因此客户端必须标记其来源，并重新应用当前的工具权限。一个被共享的 session，不能把原所有者的批准决定带入接收者的环境中。
 
-### 15.5 Export and portability
+### 15.5 导出与可移植性
 
-Users and authorized Spaces need a documented export that includes the raw
-checkpoint, a human-readable projection, metadata, digests, relations, and an
-optional trace bundle. Export is a read of sensitive content and may be audited.
-The format should be versioned and should not include credentials or remote
-object-store keys.
+用户与已获授权的 Space 需要一种有文档说明的导出方式，其中包含原始检查点、一份人类可读的投影、元数据、摘要、关联关系，以及可选的 trace 包。导出是一次对敏感内容的读取操作，可能会被审计。该格式应当带有版本号，并且不应包含凭据或远程对象存储的 key。
 
-## 16. Deployment Policy
+## 16. 部署策略
 
-A private deployment needs policy rather than one hard-coded behavior. The
-candidate modes are:
+一个私有部署需要的是策略，而不是一种写死的行为。候选的模式包括：
 
-| Mode | Local behavior |
+| 模式 | 本地行为 |
 |---|---|
-| `disabled` | No remote registration or upload; current local-only behavior |
-| `optional` | User chooses account/session defaults; failures queue visibly and do not fail local turns |
-| `required` | Authenticated managed local mode must capture checkpoints under a defined offline rule |
+| `disabled`（禁用） | 不进行远程注册或上传；保持当前的纯本地行为 |
+| `optional`（可选） | 用户自行选择账户/session 的默认设置；失败会可见地进入队列，且不会导致本地轮次失败 |
+| `required`（强制） | 已认证的托管本地模式必须按照既定的离线规则采集检查点 |
 
-This likely belongs to Server-delivered managed policy, not only the mutable
-local settings file. A user must not be able to disable an enterprise-required
-capture policy by editing YAML. Conversely, direct local mode against a
-personal provider remains outside that deployment unless an external device
-management policy prohibits it.
+这很可能属于由 Server 下发的托管策略，而不仅仅是那份可变的本地设置文件。用户不应该能够通过编辑 YAML 就关闭企业强制要求的采集策略。反过来，针对个人提供商的纯本地直连模式，仍然位于该部署的范围之外，除非有外部的设备管理策略对其加以禁止。
 
-Required mode still needs an explicit offline decision. The proposal does not
-choose among:
+强制模式仍然需要一个明确的离线决策。本提案并未在以下几种做法中做出选择：
 
-- no new Agent turn while the Server is unreachable;
-- bounded offline turns/bytes/time; or
-- run locally but mark the device and work non-compliant.
+- 在 Server 不可达时不允许开启新的 Agent 轮次；
+- 有界的离线轮次数/字节数/时长；或者
+- 在本地继续运行，但把该设备与工作标记为不合规。
 
-The evidence needed is how often real developers need disconnected execution
-and whether the deployment's governance promise is capture, prevention, or
-eventual retention.
+所需要的证据是：真实开发者究竟多频繁地需要断网执行，以及该部署所承诺的治理目标究竟是“采集”“预防”，还是“最终保留”。
 
-## 17. Failure Semantics
+## 17. 失败语义
 
-| Failure | Optional mode | Required mode candidate |
+| 失败情形 | 可选模式 | 强制模式候选做法 |
 |---|---|---|
-| Server unavailable after local turn | Persist outbox; show pending | Persist within grace or mark/refuse according to policy |
-| Authentication expired | Refresh; otherwise show action required | Stop before policy threshold is exceeded |
-| Revision conflict | Preserve both; require fork/discard choice | Same; never overwrite |
-| Upload rejected for size/policy | Keep local session; explain unsynced state | Refuse further turns once policy says capture is mandatory |
-| Object stored, database transaction failed | Reconcile orphan later; do not acknowledge revision | Same |
-| Database row committed, object unavailable | Treat as integrity incident; revision not resumable until repaired | Same |
-| Download digest mismatch | Do not install; retain prior local copy | Same |
-| Unsupported schema | View metadata; require client upgrade | Same |
-| Space membership removed | Deny remote read/write | Deny; local copy cannot be clawed back |
-| Remote tombstone encountered | Stop re-upload; offer local export | Stop re-upload; obey retention policy |
-| Client crashes mid-turn | Last complete checkpoint remains valid; trace may show incomplete run | Same |
+| 本地轮次完成后 Server 不可用 | 持久化到发件箱；展示 pending 状态 | 在宽限期内持久化，或按策略标记/拒绝 |
+| 身份认证过期 | 刷新；否则提示需要操作 | 在超出策略阈值之前停止 |
+| 修订版本冲突 | 两者都保留；要求选择 Fork 或放弃 | 相同；永不覆写 |
+| 上传因大小/策略被拒 | 保留本地 session；说明未同步状态 | 一旦策略规定必须采集，则拒绝进一步的轮次 |
+| 对象已存储，数据库事务失败 | 之后对孤儿对象进行对账；不确认该修订版本 | 相同 |
+| 数据库行已提交，对象不可用 | 视为完整性事故；在修复之前该修订版本不可恢复 | 相同 |
+| 下载摘要不匹配 | 不安装；保留之前的本地副本 | 相同 |
+| 不受支持的 schema | 仅查看元数据；要求客户端升级 | 相同 |
+| Space 成员资格被移除 | 拒绝远程读/写 | 拒绝；本地副本无法被追回 |
+| 遇到远程墓碑标记 | 停止重新上传；提供本地导出 | 停止重新上传；遵守保留策略 |
+| 客户端在轮次中途崩溃 | 最后一个完整检查点仍然有效；trace 可能显示未完成的 run | 相同 |
 
-Every failure needs a user-visible sync state. A background logger is not
-enough when the deployment claims sessions are durable.
+每一种失败情形都需要一个用户可见的同步状态。当部署宣称 session 是持久化的时候，仅靠后台日志记录是不够的。
 
-## 18. Migration And Compatibility
+## 18. 迁移与兼容性
 
-### 18.1 Existing local sessions
+### 18.1 现有的本地 Session
 
-An authenticated user may opt into importing selected sessions or all sessions
-for one workspace. Import creates one current checkpoint as revision 1 with
-source `legacy_import`. The import records original `created_at`, current
-import time, and local workspace metadata. It does not infer earlier revision
-times from message order.
+已认证的用户可以选择导入某些指定的 session，或某个工作区的全部 session。导入操作会把当前状态创建为修订版本 1，来源标记为 `legacy_import`。导入过程会记录原始的 `created_at`、当前的导入时间，以及本地工作区元数据。它不会根据消息顺序去推断更早的修订版本时间。
 
-The uploader must tolerate an old readable session schema and preserve fields
-it understands. A future format envelope should let old clients decline to
-rewrite unknown versions rather than discard fields.
+上传方必须能够容忍较旧但仍可读的 session schema，并保留它所理解的字段。未来的格式信封应当让旧客户端可以对未知版本拒绝重写，而不是丢弃字段。
 
-### 18.2 Existing Worker sessions
+### 18.2 现有的 Worker Session
 
-The current TaskRun object-storage session is already durable within one Task
-and should continue to work during early implementation. A later adapter can
-register a corresponding Durable Agent Session and revisions after successful
-run upload. It should not copy historical run blobs into a new namespace until
-there is a retention and deduplication reason.
+当前基于对象存储的 TaskRun session，在单个 Task 内已经是持久化的，在早期实现阶段应当继续正常工作。之后可以增加一个适配器，在一次 run 成功上传之后，注册一个对应的持久化 Agent Session 及其修订版本。在没有保留与去重方面的理由之前，不应该把历史 run 的二进制对象拷贝到一个新的命名空间中。
 
-Task and TaskRun keep their current session correlation during migration. A
-new session table must not make a Worker unable to resume because Server
-metadata registration was temporarily degraded.
+在迁移期间，Task 与 TaskRun 会保留它们当前的 session 关联方式。一张新的 session 表，绝不能因为 Server 端元数据注册暂时出现降级，就导致 Worker 无法恢复。
 
-### 18.3 Portal Conversations
+### 18.3 Portal Conversation
 
-No automatic migration. A Portal Conversation may relate to or start a local
-session, and a local session may publish a result back, but their identities
-remain distinct. A future unified history view can project both without
-forcing one storage model.
+不存在自动迁移。一个 Portal Conversation 可以关联到，或发起一个本地 session，而一个本地 session 也可以把结果发布回去，但它们的身份始终保持独立。未来的统一历史视图，可以在不强行统一存储模型的前提下，把两者都投影出来。
 
-### 18.4 Local index
+### 18.4 本地索引
 
-The local `sessions.json` index needs remote state such as Server URL, Space,
-remote revision, sync state, and possibly fork origin. Storing all of that in
-the existing shared index risks making ordinary session listing fragile. A
-candidate is a separate sync-state store keyed by session ID, leaving the
-runtime session file and picker index backwards compatible.
+本地的 `sessions.json` 索引需要记录一些远程状态，例如 Server URL、Space、远程修订版本、同步状态，以及可能的 Fork 来源。把这些全都存进现有的共享索引中，可能会让普通的 session 列表展示变得脆弱。一个候选方案是使用一个以 session ID 为键、单独的同步状态存储，让运行时的 session 文件与选择器索引保持向后兼容。
 
-## 19. Surface Behavior
+## 19. 界面行为
 
 ### 19.1 CLI/TUI
 
-Candidate commands and displays, not committed syntax:
+候选的命令与展示方式，而非已确定的语法：
 
-- session list shows local-only, synced, pending, conflict, and remote-only;
-- a status command prints deployment, Space, local revision, remote revision,
-  and last error;
-- sync/import/download accept explicit session IDs and support dry-run where
-  an import is broad;
-- `resume` can resolve a remote-only session after authentication;
-- `fork` is offered when workspace compatibility or revision ownership makes
-  exact resume unsafe; and
-- a copy-link action emits an immutable revision URL, not a latest URL.
+- session 列表会展示“仅本地”“已同步”“待处理”“冲突”与“仅远程”这几种状态；
+- 一个状态命令会打印部署、Space、本地修订版本、远程修订版本以及最近一次错误；
+- 同步/导入/下载命令接受显式的 session ID，并在导入范围较大时支持 dry-run（演练模式）；
+- 在完成身份认证之后，`resume` 可以解析出一个仅存在于远程的 session；
+- 当工作区兼容性或修订版本归属使得精确恢复不安全时，系统会提供 `fork` 选项；以及
+- “复制链接”操作会生成一个不可变的修订版本 URL，而不是一个“最新版本”URL。
 
-Print-mode automation must retain deterministic output and stable exit codes.
-Background synchronization must not write progress into the answer stream.
+print 模式下的自动化必须保持确定性的输出与稳定的退出码。后台同步不能把进度信息写入到应答流之中。
 
 ### 19.2 Desktop
 
-Desktop is the natural first rich client:
+Desktop 是自然而然的首个富客户端：
 
-- local and remote session filters;
-- sync-state badges and actionable conflicts;
-- private/space visibility control;
-- remote download and workspace mapping;
-- session detail with linked outcomes;
-- copy immutable link and publish checkpoint; and
-- compatibility report before resume.
+- 本地与远程 session 筛选器；
+- 同步状态徽标与可操作的冲突提示；
+- 私有/space 可见性控制；
+- 远程下载与工作区映射；
+- 带有关联产出的 session 详情；
+- 复制不可变链接与发布检查点；以及
+- 恢复之前的兼容性报告。
 
-This remains a local workbench. Space membership, retention, break-glass, and
-deployment policy administration stay in Portal.
+它仍然是一个本地工作台。Space 成员管理、保留策略、紧急访问以及部署策略管理，仍然留在 Portal 中。
 
 ### 19.3 Portal
 
-Portal owns:
+Portal 拥有：
 
-- authorized session inventory and detail;
-- Space visibility and relations;
-- review projection and linked trace/results;
-- retention and governance surfaces;
-- operator metadata views; and
-- links back to Issue, Task, TaskRun, Artifact, repository, commit, or PR.
+- 经过授权的 session 清单与详情；
+- Space 可见性与关联关系；
+- 评审投影以及关联的 trace/结果；
+- 保留与治理界面；
+- 运营方元数据视图；以及
+- 指回 Issue、Task、TaskRun、Artifact、代码仓库、提交或 PR 的链接。
 
-Portal does not execute a downloaded local session against the user's machine.
-“Continue on device” may issue a short-lived handoff request that an
-authenticated Desktop accepts, but arbitrary browser-to-local control is a
-separate security design.
+Portal 不会把下载下来的本地 session 拿到用户的机器上执行。“在设备上继续”这一操作，可以发出一个短生命周期的交接请求，由已认证的 Desktop 接受，但从浏览器到本地的任意控制，属于一个独立的安全设计问题。
 
-### 19.4 External systems
+### 19.4 外部系统
 
-The stable URL is the minimum integration contract. Provider-specific apps,
-webhooks, or checks can follow. A generic relation API must validate URLs and
-must not fetch arbitrary external content on creation.
+稳定的 URL 是最基本的集成契约。特定提供商的应用、webhook 或 check 可以在此基础上跟进。一个通用的关联关系 API 必须校验 URL，并且不能在创建时抓取任意的外部内容。
 
-## 20. Architecture Placement
+## 20. 架构归属
 
-| Concern | Candidate owner |
+| 关注点 | 候选归属 |
 |---|---|
-| Pure session/revision/workspace-descriptor value types | `internal/core/session` where they remain domain-pure |
-| Local save, outbox, upload scheduling, download, compatibility | `internal/agentapp` |
-| CLI/TUI commands and status | `internal/interface/cli` |
-| Desktop bindings and local UX | `internal/interface/desktop` and Desktop frontend |
-| Authenticated HTTP client | `internal/interface/client` |
-| Durable session orchestration and policy | New focused service under `internal/service` |
-| Store contracts | `internal/core/model` or a focused pure domain package |
-| Metadata rows and queries | `internal/infra/db` |
-| Checkpoint, trace, and projection blobs | Existing object-storage abstraction, extended deliberately |
-| Space authorization and HTTP endpoints | `internal/server/handlers` |
-| Session viewer and governance UI | Portal |
-| Shared presentational transcript components | `gui/` where both Desktop and Portal need them |
+| 纯粹的 session/修订版本/工作区描述符值类型 | `internal/core/session`，保持领域纯粹 |
+| 本地保存、发件箱、上传调度、下载、兼容性 | `internal/agentapp` |
+| CLI/TUI 命令与状态展示 | `internal/interface/cli` |
+| Desktop 绑定与本地 UX | `internal/interface/desktop` 与 Desktop 前端 |
+| 已认证的 HTTP 客户端 | `internal/interface/client` |
+| 持久化 session 编排与策略 | `internal/service` 下新增的一个聚焦服务 |
+| Store 契约 | `internal/core/model`，或一个聚焦的纯领域包 |
+| 元数据行与查询 | `internal/infra/db` |
+| 检查点、trace 与投影的二进制对象 | 现有的对象存储抽象，经过审慎扩展 |
+| Space 授权与 HTTP 端点 | `internal/server/handlers` |
+| session 查看器与治理 UI | Portal |
+| 共享的展示型文字记录组件 | `gui/`，供 Desktop 与 Portal 共同需要时使用 |
 
-The Agent loop should not learn about HTTP synchronization. It already writes
-through session history and event seams; AgentApp is the correct assembly
-layer for persistence side effects. `internal/core/session` remains free of
-config, Server clients, database, and object storage.
+Agent 循环不应该知晓 HTTP 同步的存在。它已经通过 session 历史与事件接缝进行写入；AgentApp 才是承载持久化副作用的正确装配层。`internal/core/session` 应当继续不涉及 config、Server 客户端、数据库与对象存储。
 
-## 21. Phased Path
+## 21. 分阶段路径
 
-### Phase 0: Validate capture and policy
+### 阶段 0：验证采集与策略
 
-- Interview or observe design-partner spaces using local CLI/Desktop sessions
-  for work that reaches review.
-- Determine whether their first need is recovery, review provenance, handoff,
-  or compliance capture.
-- Decide disabled/optional/required policy and offline behavior.
-- Threat-model raw session ingestion, content access, deletion, membership
-  removal, and break-glass.
-- Establish retention and storage-size assumptions from real session files.
+- 对使用本地 CLI/Desktop session 完成、并进入评审阶段的工作，访谈或观察设计合作方的 space。
+- 确定他们最首要的需求是恢复、评审溯源、交接，还是合规采集。
+- 确定 disabled/optional/required 策略以及离线行为。
+- 对原始 session 摄取、内容访问、删除、成员移除与紧急访问进行威胁建模。
+- 基于真实的 session 文件，确立保留策略与存储大小方面的假设。
 
-Exit evidence: at least one real workflow repeatedly needs a durable session
-record, and operators/users agree on who may read its content.
+退出证据：至少存在一个真实的工作流反复需要一份持久化的 session 记录，并且运营方与用户就“谁可以读取其内容”达成一致。
 
-### Phase 1: Private backup and immutable viewer
+### 阶段 1：私有备份与不可变查看器
 
-- Add Durable Agent Session metadata and immutable revision storage.
-- Upload after completed local turns through a durable outbox.
-- Default to the user's personal Space and private visibility.
-- List and view one's own synchronized sessions in Portal.
-- Download/export a raw checkpoint and human-readable projection.
-- Show source trust, digest, revision, sync status, and retention.
-- Import existing sessions as one `legacy_import` revision.
+- 新增持久化 Agent Session 元数据与不可变的修订版本存储。
+- 在本地轮次完成后，通过一个持久化的发件箱进行上传。
+- 默认使用用户的个人 Space 与私有可见性。
+- 在 Portal 中列出并查看自己已同步的 session。
+- 下载/导出原始检查点以及人类可读的投影。
+- 展示来源信任等级、摘要、修订版本、同步状态与保留信息。
+- 把已有的 session 导入为一个 `legacy_import` 修订版本。
 
-No cross-device write, Space sharing, search, or PR automation is required.
+不要求跨设备写入、Space 共享、搜索或 PR 自动化。
 
-### Phase 2: Provenance and Space sharing
+### 阶段 2：溯源与 Space 共享
 
-- Publish a frozen revision to a Space with an explicit content preview.
-- Add typed Issue, Task, TaskRun, Artifact, repository, commit, and PR
-  relations.
-- Synchronize or link per-run traces and managed-call evidence.
-- Render changes, validation, outputs, and immutable provenance URL.
-- Add governance records for visibility, export, retention, deletion, and
-  break-glass actions.
-- Validate a structured provider integration such as a check details link.
+- 在附带明确内容预览的前提下，把一个冻结的修订版本发布到某个 Space。
+- 新增类型化的 Issue、Task、TaskRun、Artifact、代码仓库、提交与 PR 关联关系。
+- 同步或关联每次 run 的 trace 与托管调用证据。
+- 渲染变更、验证、产出以及不可变的溯源 URL。
+- 为可见性、导出、保留、删除与紧急访问操作新增治理记录。
+- 验证一种结构化的提供商集成方式，例如 check 详情链接。
 
-### Phase 3: Cross-device fork and compatible resume
+### 阶段 3：跨设备 Fork 与兼容恢复
 
-- Register device replicas and expose remote-only sessions in CLI/Desktop.
-- Add workspace descriptors and compatibility diagnostics.
-- Download and context-fork from a checkpoint.
-- Add optimistic revision writes and conflict UX.
-- Introduce a short writer lease only if exact resume needs it.
-- Support compatible exact resume for the same owner and repository.
+- 注册设备副本，并在 CLI/Desktop 中展示仅存在于远程的 session。
+- 新增工作区描述符与兼容性诊断。
+- 从某个检查点下载并进行上下文 Fork。
+- 新增乐观的修订版本写入与冲突 UX。
+- 只有在精确恢复确实需要时，才引入一个短期的写者租约。
+- 为同一所有者与同一代码仓库的情形支持兼容的精确恢复。
 
-Workspace snapshot materialization remains outside this phase. Nothing in
-BuildMax provides the service it would need, and no plan does either.
+工作区快照物化仍然不在本阶段范围之内。BuildMax 目前没有任何东西能提供它所需要的服务，也没有任何计划要提供。
 
-### Phase 4: Search, insights, and stronger capture
+### 阶段 4：搜索、洞察与更强的采集
 
-- Index the deliberately safe display projection under user/Space scope.
-- Add keyword and semantic search with retention-aware deletion.
-- Build standup, cost, repeated-failure, and instruction-improvement views only
-  after users validate them.
-- Evaluate live append-time capture, hash chaining, and Server receipts for
-  deployments that need stronger integrity.
-- Add operator aggregate inventory without granting raw-content access.
+- 在用户/Space 范围内，对经过刻意筛选、安全的展示投影建立索引。
+- 新增关键词与语义搜索，并支持感知保留策略的删除。
+- 只有在用户验证过之后，才构建站会、成本、重复性失败与指令改进方面的视图。
+- 为需要更强完整性保障的部署，评估实时的追加时采集、哈希链与 Server 回执。
+- 在不授予原始内容访问权限的前提下，新增运营方的聚合盘点能力。
 
-## 22. Prototype Acceptance Criteria
+## 22. 原型验收标准
 
-The first implementation slice is credible when:
+首个实现切片可信的标志是：
 
-1. A CLI or Desktop turn completes locally while the Server is unavailable,
-   appears as visibly pending, and uploads exactly once after recovery.
-2. Repeating an upload with the same idempotency key cannot create a second
-   revision.
-3. Two devices advancing the same base produce a conflict; neither accepted
-   revision is overwritten, and the losing branch can be saved as a fork.
-4. A URL naming revision N renders the same checkpoint after revisions N+1
-   and N+2 exist.
-5. A user outside the owning Space cannot distinguish a missing session from an
-   inaccessible one.
-6. Private captured content is not readable merely because someone is a Space
-   admin or System Administrator, unless an accepted policy says otherwise.
-7. A downloaded checkpoint is installed only after digest and schema checks.
-8. A session with image parts, provider state, compaction, notes, todos, and
-   additional prompt round-trips without losing resumable data.
-9. The default viewer never renders provider-owned state and does not execute
-   session content.
-10. A pull-request relation remains pinned to its original revision after the
-    session continues.
-11. Deleting a remote session creates a tombstone that prevents a stale local
-    outbox from recreating it.
-12. Optional sync failure does not break the Agent turn; required mode follows
-    its documented offline threshold and never silently claims compliance.
-13. An imported legacy session is labeled client-reported and does not acquire
-    invented historical revisions.
-14. `git diff --check`, documentation link checks, focused service/store tests,
-    and both CLI/Desktop sync-state tests pass without touching the user's real
-    `BUILDMAX_HOME`.
+1. 一次 CLI 或 Desktop 轮次在 Server 不可用时于本地完成，会明确显示为“待处理”状态，并在恢复后精确地只上传一次。
+2. 使用相同的幂等键重复上传，不会创建出第二个修订版本。
+3. 两台设备基于同一个基准继续推进会产生冲突；两个已被接受的修订版本都不会被覆写，落败的那条分支可以被保存为一个 Fork。
+4. 即使修订版本 N+1 与 N+2 已经存在，一个指明修订版本 N 的 URL 仍然渲染出同一个检查点。
+5. 所属 Space 之外的用户无法分辨一个 session 是不存在，还是无权访问。
+6. 除非有已被采纳的策略另行规定，否则不会仅仅因为某人是 Space 管理员或系统管理员，就能读取已采集的私有内容。
+7. 一个已下载的检查点，只有在通过摘要与 schema 检查之后才会被安装。
+8. 一个包含图像片段、提供商状态、压缩、笔记、待办事项与附加提示词的 session，在往返一轮之后不会丢失可恢复的数据。
+9. 默认查看器永远不会渲染提供商所有的状态，也不会执行 session 内容。
+10. 在 session 继续推进之后，一条 pull request 关联关系仍然固定指向其原始的修订版本。
+11. 删除一个远程 session 会创建一个墓碑标记，防止过期的本地发件箱重新创建它。
+12. 可选模式下的同步失败不会打断 Agent 轮次；强制模式则遵循其文档化的离线阈值，并且绝不会悄悄地宣称合规。
+13. 一个被导入的历史 session 会被标记为“客户端上报”，并且不会获得凭空捏造的历史修订版本。
+14. `git diff --check`、文档链接检查、聚焦的 service/store 测试，以及 CLI/Desktop 两侧的同步状态测试均能通过，且不会触碰用户真实的 `BUILDMAX_HOME`。
 
-## 23. Evidence Needed Before Acceptance
+## 23. 采纳前所需证据
 
-### 23.1 User evidence
+### 23.1 用户证据
 
-- How often do users need a prior session after the original task is complete?
-- Do reviewers open the record and answer a question faster, or is a generated
-  PR summary enough?
-- Are handoffs usually to the same user on another device or to another person?
-- How often does the target device already have a compatible checkout?
-- Do users understand the difference between view, fork, and exact resume?
-- Does required capture reduce willingness to use local Agent execution?
+- 用户在原始任务完成之后，多频繁地需要回溯之前的 session？
+- 评审者打开这份记录后，能否更快地回答问题，还是一份自动生成的 PR 摘要就已经足够？
+- 交接通常是发生在同一个用户的另一台设备上，还是发生在另一个人身上？
+- 目标设备已经拥有兼容检出的频率有多高？
+- 用户是否理解“查看”“Fork”与“精确恢复”之间的区别？
+- 强制采集是否会降低用户使用本地 Agent 执行的意愿？
 
-Useful pilot measures include session-link open rate, time from review question
-to answer, percentage of cross-device attempts that pass compatibility checks,
-pending-sync duration, conflict rate, storage per active user, and deletion or
-privacy support requests.
+有用的试点度量指标包括：session 链接的打开率、从评审提问到得到答案的时长、跨设备尝试中通过兼容性检查的比例、同步待处理的时长、冲突发生率、每个活跃用户的存储占用，以及删除或隐私相关的支持请求量。
 
-### 23.2 Operator evidence
+### 23.2 运营方证据
 
-- Is the desired governance outcome central retention, content inspection,
-  usage inventory, incident investigation, or prevention of unrecorded work?
-- Must administrators read raw content, or is Space-controlled sharing enough?
-- What retention and legal-hold rules apply to prompts, tool output, images,
-  and traces?
-- Is bounded offline execution acceptable under required capture?
-- Which repositories and Spaces need automatic relation creation?
+- 期望达成的治理效果究竟是集中保留、内容检查、用量盘点、事故调查，还是防止未被记录的工作？
+- 管理员是否必须能读取原始内容，还是由 Space 控制的共享就已足够？
+- 提示词、工具输出、图像与 trace 分别适用怎样的保留与法律保全规则？
+- 在强制采集之下，有界的离线执行是否可以被接受？
+- 哪些代码仓库与 Space 需要自动创建关联关系？
 
-### 23.3 Technical evidence
+### 23.3 技术证据
 
-- Size distribution of real session files and duplicate-prefix cost across
-  revisions.
-- Failure rate and latency of object-store uploads after completed turns.
-- Compatibility of session schemas across released BuildMax versions.
-- Accuracy of repository and workspace matching on users' actual layouts.
-- Ability to render a safe useful projection without losing raw resumability.
-- Reconciliation behavior under database/object-store partial failure.
-- Whether the existing Worker session path can share storage and retention
-  infrastructure without coupling local sessions to TaskRun ownership.
+- 真实 session 文件的大小分布，以及各修订版本之间重复前缀所带来的成本。
+- 轮次完成后，对象存储上传的失败率与延迟。
+- session schema 在各个已发布的 BuildMax 版本之间的兼容性。
+- 代码仓库与工作区匹配在用户实际布局下的准确度。
+- 在不损失原始可恢复性的前提下，渲染出安全且有用的投影的能力。
+- 数据库/对象存储发生部分失败时的对账行为。
+- 现有的 Worker session 路径能否在不把本地 session 与 TaskRun 归属耦合在一起的前提下，共享存储与保留基础设施。
 
-## 24. Open Questions
+## 24. 未决问题
 
-### Product and ownership
+### 产品与归属
 
-- Is a synchronized local session private in a personal Space by default, or
-  should a managed repository map it directly to a shared Space?
-- Does publishing to a Space copy a frozen revision or transfer the whole
-  session?
-- Can a Space member fork a space-visible session into a private personal
-  session, and what provenance remains visible?
-- Is session continuity primarily a personal feature or a space work-object
-  feature?
-- Should the product use “Session” everywhere while code uses
-  `agent_session`, or choose a different user-facing term such as “Agent run
-  history” or “work record”?
+- 一个已同步的本地 session，默认是位于个人 Space 中的私有内容，还是应该由某个受管代码仓库直接把它映射到一个共享 Space？
+- 发布到某个 Space，究竟是复制一个冻结的修订版本，还是转移整个 session？
+- 一个 Space 成员能否把一个 space 可见的 session Fork 成一个私有的个人 session，又有哪些溯源信息会保持可见？
+- session 连续性主要是一项个人特性，还是一项 space 工作对象特性？
+- 产品层面是否应该统一使用“Session”一词、而代码层面使用 `agent_session`，还是应该选用另一个面向用户的术语，例如“Agent 运行历史”或“工作记录”？
 
-### Capture policy
+### 采集策略
 
-- Which deployments need required synchronization?
-- In required mode, what offline grace is both honest and usable?
-- Is direct-model local execution capturable under the same policy, or does the
-  policy apply only to managed-model mode?
-- May a user exclude a single session containing especially sensitive data, or
-  would that violate the deployment's purpose?
-- Does the Server receive raw content, a client-encrypted blob, or both raw and
-  redacted projections? Client-held encryption keys would prevent Portal
-  rendering and organizational recovery.
+- 哪些部署需要强制同步？
+- 在强制模式下，怎样的离线宽限期既诚实又实用？
+- 直连模型的本地执行是否可以在同一策略下被采集，还是该策略仅适用于托管模型模式？
+- 用户是否可以把某个包含特别敏感数据的单个 session 排除在外，还是这会违背该部署的初衷？
+- Server 接收到的是原始内容、经过客户端加密的二进制对象，还是原始与脱敏投影两者兼有？由客户端持有加密密钥，会妨碍 Portal 渲染以及组织层面的恢复。
 
-### Identity and revisions
+### 身份与修订版本
 
-- Does the current UUID remain the external identity once an Agent session is a
-  Server table, especially if the entity-identity proposal is accepted?
-- Is one completed turn always one revision, including failed or canceled
-  runs?
-- Should metadata changes have their own revision stream for governance, or
-  only ordinary updated timestamps plus audit actions?
-- How long are tombstones kept after content erasure?
+- 一旦 Agent session 变成一张 Server 表，当前的 UUID 是否仍然作为外部身份保留，尤其是在实体身份提案被采纳的情况下？
+- 是否一次已完成的轮次总是对应一个修订版本，包括失败或被取消的 run？
+- 元数据变更是否应该拥有自己独立的、用于治理的修订版本流，还是仅使用普通的更新时间戳加审计操作即可？
+- 内容被擦除之后，墓碑标记会保留多久？
 
-### Workspace and resume
+### 工作区与恢复
 
-- What exact repository identity normalization works for SSH aliases, mirrors,
-  forks, and monorepos?
-- Which dirty-workspace summary can be uploaded safely without storing the
-  whole patch?
-- Is a writer lease needed, or do optimistic revisions plus explicit fork give
-  acceptable UX?
-- What session fields must be portable when the model protocol changes?
-- When current Server policy conflicts with the checkpoint's recorded setup,
-  which mismatches block resume and which only warn?
-- Does “continue on another device” require a Desktop handoff protocol, or is a
-  normal authenticated list/download flow sufficient?
+- 对于 SSH 别名、镜像、Fork 与 monorepo 而言，怎样的代码仓库身份归一化方式才是有效的？
+- 哪种脏工作区摘要可以在不存储整份补丁的情况下被安全地上传？
+- 是否需要写者租约，还是乐观修订版本加显式 Fork 就已经能提供可接受的 UX？
+- 当模型协议发生变化时，哪些 session 字段必须是可移植的？
+- 当当前的 Server 策略与检查点中记录的配置发生冲突时，哪些不匹配会阻止恢复，哪些只会给出警告？
+- “在另一台设备上继续”是否需要一套 Desktop 交接协议，还是一个普通的、已认证的列表/下载流程就已足够？
 
-### Viewer and relations
+### 查看器与关联关系
 
-- Which tool arguments and results are visible by default to a Space reviewer?
-- Should a PR relation use provider checks, comments, a PR body field, or only
-  a manually copied link?
-- Can one revision relate to several commits or PRs, and how are superseded
-  relations represented?
-- Is a generic external relation worth its validation and authorization cost,
-  or should the first release support only BuildMax entities plus GitHub?
+- 默认情况下，哪些工具参数与结果对 Space 评审者可见？
+- 一条 PR 关联关系应该使用提供商的 check、评论、PR 正文字段，还是仅通过手动复制的链接？
+- 一个修订版本能否关联到多个提交或多个 PR，被取代的关联关系又该如何表示？
+- 一种通用的外部关联关系，是否值得付出相应的校验与授权成本，还是首个版本应该只支持 BuildMax 实体加 GitHub？
 
-### Retention and evidence
+### 保留与证据
 
-- Are session and trace retention one policy or separate policies?
-- What does deletion mean when a frozen session revision is referenced by a
-  retained TaskRun, Artifact, audit investigation, or pull request?
-- Does a customer need legal hold before ordinary remote deletion ships?
-- What integrity statement is useful and supportable for client-reported local
-  work?
-- Which content reads, exports, shares, and forced ownership changes require
-  governance audit events?
+- session 与 trace 的保留是同一套策略，还是各自独立的策略？
+- 当一个冻结的 session 修订版本被某个已保留的 TaskRun、Artifact、审计调查或 pull request 引用时，“删除”意味着什么？
+- 在普通的远程删除功能上线之前，某个客户是否需要法律保全能力？
+- 对于客户端上报的本地工作而言，怎样的完整性声明才是既有用又站得住脚的？
+- 哪些内容读取、导出、共享与强制所有权变更，需要生成治理审计事件？
 
-## 25. Likely Destination If Accepted
+## 25. 若被采纳后的可能归宿
 
-Acceptance should not leave this proposal as a permanent shadow roadmap. It
-would require:
+被采纳并不应该让本提案永远停留在“影子路线图”的状态。它需要：
 
-1. Add the accepted priority and phase to `docs/ROADMAP.md`, likely after the
-   current Beta gates and within the bridge between Desktop session polish and
-   Space governance.
-2. Move stable rationale into a Durable Agent Session design record and split
-   security/retention decisions into existing governance designs where they
-   belong.
-3. Update the session architecture to distinguish local persistence from
-   remote replication without moving I/O into core.
-4. Update surface positioning only if synchronization changes the promised
-   Desktop/Portal bridge.
-5. Update the data model and store architecture when row structs and object
-   keys exist.
-6. Add user documentation for sync modes, visibility, links, download/resume,
-   deletion, and failure states when each behavior ships.
-7. Create focused implementation issues for Server metadata/blob storage,
-   AgentApp outbox, Portal viewer, provenance relations, and cross-device
-   continuation rather than one cross-repository feature branch.
-8. Delete this proposal after the accepted decisions have a durable home.
+1. 把被采纳的优先级与阶段加入 `docs/ROADMAP.md`，很可能排在当前 Beta 门禁之后，处于 Desktop session 打磨与 Space 治理之间的过渡位置。
+2. 把已经稳定下来的原理性内容迁移到一份持久化 Agent Session 设计记录中，并把安全/保留方面的决策拆分到它们各自所属的现有治理设计文档中。
+3. 更新 session 架构，以区分本地持久化与远程复制，同时不把 I/O 移入 core。
+4. 只有当同步能力改变了此前承诺的 Desktop/Portal 桥梁时，才更新界面定位文档。
+5. 在行结构体与对象 key 确定下来之后，更新数据模型与 store 架构文档。
+6. 在每一项行为上线时，补充关于同步模式、可见性、链接、下载/恢复、删除与失败状态的用户文档。
+7. 为 Server 元数据/二进制对象存储、AgentApp 发件箱、Portal 查看器、溯源关联关系与跨设备续接分别创建聚焦的实现 Issue，而不是开一个横跨整个仓库的功能分支。
+8. 在被采纳的决策都有了各自持久的归宿之后，删除本提案。
 
-If evidence supports only backup and recovery, accept Phase 1 and reject the
-broader Space provenance/search scope. If reviewers only need outcome summaries,
-strengthen Artifact and TaskRun views rather than retaining every local
-session. If required capture is the dominant requirement, design the stronger
-append-time evidence mode before claiming local session history is an audit
-record. If cross-device resume repeatedly fails on workspace mismatch, keep
-context fork and stop promising exact continuation until something can
-reconstruct workspace state — nothing in BuildMax does, and nothing is planned
-to.
+如果证据只支持备份与恢复，那就采纳阶段 1，并拒绝更宽泛的 Space 溯源/搜索范围。如果评审者只需要结果摘要，那就应该强化 Artifact 与 TaskRun 视图，而不是保留每一个本地 session。如果强制采集是主导性的需求，那就应该先设计出更强的追加时证据模式，再宣称本地 session 历史是一份审计记录。如果跨设备恢复反复因为工作区不匹配而失败，那就保留上下文 Fork，并停止承诺精确续接，直到有某种机制能够重建工作区状态为止——目前 BuildMax 没有任何东西能做到这一点，也没有任何计划要做到。
 
-## 26. Candidate Conclusion
+## 26. 候选结论
 
-> BuildMax should treat a synchronized local Agent session as a revisioned,
-> Space-owned Server resource whose execution remains local. Completed-turn
-> checkpoints provide private recovery first; immutable authorized URLs and
-> typed relations then make Agent work reviewable from PRs, Issues, Tasks, and
-> other systems. Cross-device continuation is explicit: view and context fork
-> come first, exact resume requires workspace compatibility and a single
-> writer, and divergence always creates a fork rather than an automatic merge.
-> Raw local checkpoints remain client-reported sensitive content, not audit
-> truth. Deployment policy decides whether capture is disabled, optional, or
-> required without removing BuildMax's direct local-only mode.
+> BuildMax 应当把已同步的本地 Agent session，当作一种带修订版本、由 Space 拥有的 Server 资源，而其执行仍然留在本地。已完成轮次的检查点首先提供私有恢复能力；不可变的、经过授权的 URL 与类型化的关联关系，随后让 Agent 工作可以从 PR、Issue、Task 与其他系统中被评审。跨设备续接是显式的：“查看”与“上下文 Fork”先行，精确恢复则需要工作区兼容性与单一写者，而分歧总是会创建一个 Fork，而不是被自动合并。原始的本地检查点仍然是客户端上报的敏感内容，而不是审计真相。部署策略决定采集是禁用、可选还是强制，但不会移除 BuildMax 的纯本地直连模式。
 
-This candidate is coherent with the current product boundaries and reuses
-working local and Worker session mechanisms. It is still contingent on real
-evidence that spaces value the provenance record, accept its content-access
-model, and can operate its retention cost.
+这一候选方案与当前的产品边界是自洽的，并且复用了已经可以正常工作的本地与 Worker session 机制。它仍然取决于真实证据：各个 space 是否真的重视这份溯源记录、能否接受其内容访问模型，并且能否承担其保留成本。

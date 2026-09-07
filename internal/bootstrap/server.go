@@ -82,8 +82,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 		return fmt.Errorf("jwt_secret is required (set in server.yaml or %s env var)", config.EnvKeyBuildmaxJWTSecret)
 	}
 
-	slog.Info("login accepts a password or a single-use code",
-		"set_password_with", "buildmax-server user set-password <email>",
+	slog.Info("login accepts a password or a single-use code; a code lets the account set its own password",
 		"issue_code_with", "buildmax-server user login-code <email>")
 	// Self-registration and a reachable server together mean anyone can create
 	// an account. Say so at startup rather than in a document nobody opened.
