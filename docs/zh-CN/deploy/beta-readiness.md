@@ -29,8 +29,8 @@ BuildMax **尚未通过 Beta 门槛**。本文既是首次私有部署 Beta 的�
 首次 Beta 面向私有网络中的单个可信 Space。记录运维人员和参与者已接受以下全部限制：
 
 - [ ] 部署不直接暴露给不可信公共网络。
-- [ ] Worker 的 `Bash` 没有操作系统沙箱。进程内高风险命令拦截不是操作系统隔离，轨迹和 Portal 会报告实际边界。
-- [ ] Worker 出站流量不受限制；没有已交付的 `NetworkPolicy` 或有证据支持的允许列表对其约束。
+- [ ] 官方 worker 镜像选择并探测严格 OS 沙箱基线，候选版本必须证明 Bash 受约束。MCP 子进程仍缺内部沙箱边界。原生 worker Pod 按文档使用 root、`SYS_ADMIN` 及 seccomp/AppArmor 配置；gVisor 尚未受支持。
+- [ ] 一般 worker 出站没有强制执行的 Pod 级目标 allow-list。已实现的 worker 端口 `NetworkPolicy` 限制控制通道入站，并不限制所有出站流量。
 - [ ] Worker 可获得存储凭证或投射的存储身份，因为它直接读写运行状态和 Artifact。
 - [ ] SSO、多区域运行和丢失运行的自动重新调度不属于此次 Beta。
 

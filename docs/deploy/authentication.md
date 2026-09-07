@@ -87,10 +87,12 @@ so inside a container they need no extra configuration.
 What the grant carries today is `/api/admin`: listing and inspecting accounts,
 creating one, issuing a login code, disabling and enabling access, revoking
 sessions, and granting or revoking the role itself. Portal's Administration area
-exposes the account, catalog, and audit routes; granting and revoking the role
-itself is done from the command line today. What the grant will never carry is
-access to a space's issues, conversations, artifacts, files, or run traces. Those stay behind
-space membership, and an administrator who is not in your space cannot read them.
+exposes Administrators, Accounts, Spaces, Models, Plugins, Overview, and Audit.
+Its Administrators section lists, grants, and revokes roles; `buildmax admin`
+provides the signed-in command-line path over the same API. What the grant will
+never carry is access to a space's issues, conversations, artifacts, files, or
+run traces. Those stay behind space membership, and an administrator who is not
+in your space cannot read them.
 
 Disabling an account refuses every credential it holds: password, login code,
 refresh token, the access token it is already carrying, and its webhook keys.
@@ -204,12 +206,14 @@ identity provider in front of it; OIDC is planned and not built.
 
 Login attempts are not throttled. See the note under [Passwords](#passwords).
 
-Sessions are manageable only by a System Administrator, through
-`/api/admin/users`: it reports how many live sessions an account has and can
-revoke them all at once. Nothing lists them individually, and no command
-revokes one. An access token still cannot be revoked — what stops it is the
-account check on the next request, which is why disabling an account works
-immediately and signing out one device does not.
+A System Administrator can list live login sessions in Portal's account detail
+or `GET /api/admin/users/{user_id}/sessions`, and revoke one through
+`DELETE /api/admin/users/{user_id}/sessions/{session_id}` or all through the
+collection DELETE route. The list shows session ID, platform, creation, last
+rotation, and expiry; last rotation is not a continuous device-presence signal.
+There is no self-service session-management page or dedicated admin CLI session
+verb. Revocation retires refresh tokens, not already-issued access tokens;
+disabling the account is what stops those on the next account check.
 
 ## The Other Credentials
 
@@ -229,13 +233,11 @@ A run token cannot be revoked before it expires either, for the same reason: it
 is a signature, not a row. What bounds it instead is scope — one run — and run
 status, since the inference route refuses a run that is no longer executing.
 
-A System Administrator can revoke an account's sessions through
-`DELETE /api/admin/users/{user_id}/sessions`, and from Portal's Administration
-area, which retires every refresh token the account holds at once. Neither
-revokes a single device, and neither retires an access token already issued —
-the account check on the next request is what stops that, which is why disabling
-an account takes effect immediately. Signing one specific person out no longer
-needs direct database access.
+Portal's account detail and the Admin API support both single-session and
+all-session revocation. A single-session revoke is checked against the named
+account and leaves its other login chains intact. Already-issued access tokens
+remain usable until expiry unless the account is disabled. These operations do
+not require direct database access.
 
 ## Reporting Problems
 

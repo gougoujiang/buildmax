@@ -46,7 +46,7 @@ BuildMax 是一个开箱即用、可私有部署的企业级 Agent 平台。
 
 在上述列表之外，仍然悬而未决的是：[`design/trust-harness.md`](design/信任保障.md) §3.9 留下的集群级 `NetworkPolicy` 问题——一个 worker pod 能够到达集群网络所允许的任何地方，与进程内沙箱无关——`buildmax sandbox overrides`，以及在 Portal 的 task-run 详情视图中（而不仅是在 API 响应和审计记录中）呈现一次 run 已解析出的层级。
 
-Server 控制通道是第一个划定边界的网络切片：把公共监听器和 worker 监听器分开，让 worker 路由不出现在公共 mux 上，加密 Pod 到 Server 的路径，并且只允许 worker Pod 接入其内部端口。已确定的方向及其限制见 [`design/worker-api-network-boundary.md`](design/Worker API网络边界.md)。它并不能解决上文提到的更广泛的、感知域名的 worker 出站问题。
+Server 控制通道切片已实现：公共与 worker 独立监听器、公共 mux 不暴露 worker 路由、Pod 到 Server 的 TLS，以及 worker 端口 NetworkPolicy。kind smoke 记录了对应的正向和负向可达性证据，见 [Worker API 网络边界](design/Worker API网络边界.md)。一般的域名感知 worker 出站策略仍待完成。
 
 Pod 到宿主机的边界有另一条已确定资格的方向：支持一个由运维人员选择、失败关闭（fail-closed）的 gVisor RuntimeClass，将整个 worker 包裹其中，同时保留 `bwrap` 用于命令级到 worker 的策略。在把它作为受支持或推荐的生产配置之前，必须让 BuildMax 的 worker 与沙箱探针在 `runsc` 下通过；见 [`design/gvisor-worker-runtime.md`](design/gVisor Worker运行时.md)。
 
@@ -67,12 +67,12 @@ Pod 到宿主机的边界有另一条已确定资格的方向：支持一个由�
 所需结果：
 
 - 在 CI 中针对关键的 store 与迁移行为运行一个封闭的 MySQL 集成范围 — **已完成**；
-- 针对真实数据库覆盖带授权的行为和运行状态转换 — **大部分完成**：task-run 转换、认领（claiming）、系统授权、plugin 激活，以及 space 邀请与所有权转移的完整生命周期均已覆盖；决定哪个调用者胜出的四种条件式 UPDATE 认领——task 认领、run 转换、结果投递认领，以及取消与报告并存的情形——如今已在竞争条件下测试，并通过变异测试检验。重试尝试、workflow 修订版本推进、重启恢复、跨 space 的 store 查找，以及 artifact 墓碑化仍待完成；见 [`design/verification-program.md`](design/验证计划.md) §4.2，其中也记录了 N-1 测试夹具为何被阻塞、配额相关条目为何被撤回；
+- 针对真实数据库覆盖授权行为和运行状态转换 — **大部分完成**：TaskRun 转换、认领、系统授权、插件激活及 Space 成员生命周期已有覆盖；Task 认领、Run 转换、取消，以及单个活跃 Run／幂等准入均有并发和变异测试。Artifact 墓碑删除及回收也已覆盖。Retry attempt、Workflow revision 推进、store 层跨 Space 查找及更广的重启恢复证据仍待补齐，见 [验证计划](design/验证计划.md) §4.2，其中也解释了 N-1 夹具和撤回的配额条目。
 - 将更广泛的 Compose、kind、故障、恢复与升级演练保留为部署证据，而不是强迫每一项都进入每个拉取请求 — 保持不变，且是有意为之。
 
 ### R3. 完善账户与 Space 操作
 
-账户创建、凭证签发、space 邀请、角色晋升、所有权转移、访问恢复和 space 审批，必须构成完整且经过审计的运维人员操作旅程。现有的身份验证、角色检查、系统管理、配额和审计代码是基础，而不是已完成的操作本身。
+账户创建与凭据签发、Space 邀请、角色变更、所有权转移和访问恢复已有操作路径。管理员授权完整性、Portal 可发现性与分页，以及登录后的 `buildmax admin` 也已实现。剩余 Session、容量及运维缺口见 [系统管理运维](proposals/system-administration-operations.md)。按 [Space 治理](design/Space治理.md) §6，Space 审批仍有意留在范围之外，等待具体需求；它不是已经接受但缺失的 R3 前置条件。
 
 ### R4. 拓宽资格认证覆盖面
 
@@ -162,7 +162,8 @@ Portal 已经拥有 issue、workflow、task、run 和 artifact。下一步是让
 
 - 已交付：hook 配置与传输、工具权限、本地 OS 沙箱、有界且脱敏的 trace、会话笔记/待办事项与压缩检查点、本地后台作业、subagent 的 trace 父子关联，以及 Portal 的 run trace 视图；
 - 已交付：一个 CLI/TUI/Desktop 共用的 Project 身份，以及有界的跨 session Project Memory（[design/local-project-memory.md](design/本地项目记忆.md)）。一个 Project 是一个 Git 仓库（包括其 worktree），或者一个目录；session 选择器和 session 清理都按 Project 而不是文件夹路径来选择，`--continue` 在 Workspace 范围内选择，配合 `--project` 可以扩大范围，Desktop 私有的 `projects.json` 已被移除。Memory 是一组小型 Markdown 文件，每条记忆一个文件，配有一份自动生成的索引；只有索引常驻内存，正文按需读取，替换某条记忆前必须先读取它，`--no-project-memory` 会同时撤销索引与相关工具。`buildmax project` 可以列出并重新关联。`context_sources` trace 记录取代了 `prompt_layers`，按自身种类命名一次 run 所组装用到的每个来源；`buildmax doctor` 会报告 Project、memory 数量与索引大小、被跳过的 memory 文件，以及处于分离状态的 session；
-- 仍然缺失：worker 尚未选择 `SandboxSurfaceWorker`、进程 rlimit、command/HTTP hook 传输的沙箱化、trace 保留策略、类型化的命令级边界、文件变更/hook/审批/重试与失败原因记录，以及 Project Memory 界面方面的工作——包括 Desktop 端的 memory 列表与编辑器、超越 `doctor` 的 CLI 检查命令、设计中第 2 阶段的、由用户主动触发的 session 复盘命令，以及能够支撑"提高 memory 数量上限""为索引排序"或"自动提升 memory"的使用证据；
+- 在该基线之后已实现：worker 沙箱选择、进程限制、command/HTTP hook 约束、Agent 层级与 Space 默认值及 Portal 选择器、`buildmax info`／TUI `/info`，以及 Desktop memory 列表和读取；
+- 仍然缺失：MCP 约束、trace 保留与更丰富的类型化诊断事件、Desktop memory 编辑／删除／启用控制、用户主动触发的 session 复盘，以及调整 memory 上限、排序或自动提升所需的使用证据；
 - 有意不在本地 Project 计划范围内的：全局用户 memory、space memory、Portal/worker memory、语义检索，以及自动 memory 提取。
 
 验收标准：
@@ -173,7 +174,7 @@ Portal 已经拥有 issue、workflow、task、run 和 artifact。下一步是让
 - memory 来源可见、限定范围明确，且用户可控
 - 本地与 worker 运行时的差异是明确呈现的，而不是隐藏在各界面专属代码里的
 
-Worker 执行的隔离控制如今是一个 Beta 门槛。一个 `k8s_job` worker 运行在受限的 Kubernetes pod 中，并报告自己未被沙箱化；它**不会**获得更严格的进程内沙箱基线。`local_process` 仍与 Server 处于同一信任域。候选版本必须接入并证明 worker 边界，或者在该路径上禁用不受限制的 Bash；记录一个不可用的边界只是差距的证据，而不是遏制本身。
+Worker 执行隔离仍是 Beta 门槛。官方 worker 镜像选择并探测严格沙箱基线，实际部署 smoke 已覆盖 Bash 约束及生产 Pod 配置。裸机 `local_process` 未显式配置时使用文档规定的主机基线，并不构成与 Server 分离的信任域。MCP 子进程和一般 worker 出站策略仍待完成。发布候选版本仍需自身的运维验证；已有 smoke 结果不能认证另一个镜像。
 
 ### P0.6. 评估与资格认证系统
 
@@ -280,8 +281,8 @@ Conversation 和部署适配器、model-grader 校准、私有或轮换的 holdo
 
 当前优先级顺序定义了工程实施顺序。Beta 验证随后按以下顺序收尾：
 
-1. **遏制 worker 执行，让拓扑变得诚实。** 接入并测试 worker 边界。将受支持的清单改为单个 Server 副本，除非共享协调机制先行落地。
-2. **为 CI 增加真实的持久化证据。** 该门槛已经在运行，竞争场景的用例也已写好；剩下的是重试、workflow 修订版本推进、重启恢复和 artifact 墓碑化，按 [`design/verification-program.md`](design/验证计划.md) §4.2 执行。
+1. **约束 worker 执行并使拓扑描述真实。** 完成 MCP 和一般 worker 边界的后续工作，并验证候选版本的隔离。除非先实现共享协调，否则将受支持的生产配置改为单个 Server 副本。
+2. **为 CI 增加真实的持久化证据。** 该门槛已经在运行，竞争场景的用例也已写好；剩下的是重试、Workflow revision 推进、store 层跨 Space 查找和重启恢复，按 [`design/verification-program.md`](design/验证计划.md) §4.2 执行。
 3. **完善负面场景的部署冒烟测试。** 取消场景已覆盖。需要加入硬性的 worker 丢失、数据库不可用和对象存储拒绝场景，并断言终态和保留下来的证据，而不仅仅是一个错误响应；见 [design/end-to-end-testing.md](design/端到端测试.md) §6.2。
 4. **对不可变候选镜像进行外部资格认证。** 针对操作人员旅程、成对恢复、schema 升级和二进制回滚，以及凭证轮换，使用外部 MySQL、S3 和 TLS。将确切的产物和证据记录在 [deploy/beta-readiness.md](deploy/beta-readiness.md) 中。
 5. **关闭候选版本记录。** 附上当前的 CI 结果、直接和托管两种 Compose/kind 冒烟测试、Portal 端到端测试、发布归档校验、镜像扫描、SBOM、溯源认证，以及所有必需的就绪产物。

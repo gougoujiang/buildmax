@@ -36,10 +36,13 @@ The first Beta is for one trusted space on a private network. Record that the
 operator and participants accepted all of these limits:
 
 - [ ] The deployment is not exposed directly to an untrusted public network.
-- [ ] Worker `Bash` has no OS sandbox. The in-process risky-command gate is not
-  OS containment, and the trace/Portal reports the effective boundary.
-- [ ] Worker egress is unrestricted; no shipped `NetworkPolicy` or evidenced
-  allow-list constrains it.
+- [ ] Official worker images select and probe the strict OS sandbox baseline;
+  the candidate must demonstrate confined Bash. MCP child processes still lack
+  an inner sandbox boundary. The native worker pod uses root plus `SYS_ADMIN`
+  with the documented seccomp/AppArmor profile; gVisor is not yet supported.
+- [ ] General worker egress has no enforced Pod-level destination allow-list.
+  The shipped worker-port `NetworkPolicy` restricts control-channel ingress;
+  it does not restrict all outbound traffic.
 - [ ] Storage credentials or projected storage identity are available to the
   worker because it reads and writes run state and artifacts directly.
 - [ ] SSO, multi-region operation, and automatic re-dispatch of lost runs are

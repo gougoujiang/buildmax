@@ -33,46 +33,28 @@ Related: [system administration design](../design/system-administration.md),
 
 ## 1. Problem
 
-BuildMax already has deployment-scoped system administration. The accepted
-[system administration design](../design/system-administration.md) is marked
-implemented, `internal/server/handlers/admin` registers the administration API,
-and Portal has an Administration area. The missing product is therefore not a
-new superuser or a second authorization system.
+BuildMax has deployment-scoped system administration. Its grant integrity,
+Administrators page, first-level navigation, account and Space pagination,
+redacted configuration display, and model creation have since shipped. This
+proposal remains open for the broader operating contract, not those completed
+slices. Status was reconciled against code at `97d5fbc7`; this was not a new
+MySQL or browser qualification run.
 
-The problem is that the existing capability does not yet form a complete,
-discoverable operator journey:
+The remaining gaps are concrete:
 
-- Administration appears only in the signed-in user's menu and only after
-  `GET /api/admin/me` confirms a grant. An operator who has not bootstrapped a
-  grant sees no hint that the area exists.
-- The Server can list, grant, and revoke `system_admin`, but Portal has no
-  interface for those routes.
-- Account and Space lists fetch one fixed page of 50 records and expose no way
-  to continue.
-- The Server returns a redacted effective configuration, but Portal displays
-  only its warnings.
-- Account sessions can be counted and revoked only as a whole. An operator
-  cannot identify or revoke one device.
-- Space quota and usage are visible, but quota tiers cannot be assigned after
-  creation.
-- The deployment overview reports coarse status, not enough runtime metadata
-  to distinguish an idle deployment from a blocked queue or a lost worker.
-- Audit search supports time bounds in the API, while Portal exposes raw Space,
-  actor, and action identifiers only.
-- Operator documentation still says the Portal administration area is being
-  built, although it exists.
+- the signed-in admin CLI has no session-list or single-session revoke verb;
+  those operations already exist in Portal and the Admin API;
+- an existing Space's quota tier cannot be changed through the admin surface;
+- runtime metadata is too coarse to explain queue stalls and lost workers;
+- Portal audit filters omit the API's time bounds;
+- grant/revoke audit is best-effort after the store mutation, not transactional;
+- plugin entry/release publication in Portal is deferred; the CLI remains its
+  publishing surface.
 
-The command line is a strength, not legacy surface to remove. It is suitable
-for automation, repeatable deployment, initial bootstrap, and recovery when the
-web application is unavailable. Portal serves a different caller: a human
-operator handling routine work interactively. Today those two callers receive
-different sets of outcomes even when the underlying service and API already
-exist. That difference is the central gap this proposal closes.
-
-These gaps make an implemented subsystem look absent and still send operators
-back to the command line or database for ordinary work. Expanding the surface
-also raises the value of the grant path, so correctness issues in that path
-must be fixed before the UI makes it easier to use.
+`buildmax admin` and Portal are authenticated peers over the Admin API.
+`buildmax-server` retains database-direct bootstrap and recovery primitives.
+The unresolved question is which remaining outcomes justify extending those
+surfaces; completed work must not be counted again as a prerequisite.
 
 ## 2. Current Evidence
 
@@ -84,10 +66,10 @@ under `/api/admin/*`. The current routes cover:
 | Area | Existing behavior |
 |---|---|
 | Authority | Read the caller's grant; list, grant, and revoke system roles |
-| Accounts | Search, inspect, create, issue a login code, disable, enable, and revoke all sessions |
+| Accounts | Search/filter, inspect, create, issue a login code, disable/enable, list live sessions, and revoke one or all |
 | Deployment | Read health, build/version facts, schema migrations, redacted configuration, and TaskRun counts |
 | Spaces | Search Space metadata; inspect members, roles, quota tier, and aggregate usage |
-| Models | List catalog entries and enable or disable one |
+| Models | List, create with an encrypted write-only credential, enable, and disable catalog entries |
 | Plugins | List and publish catalog entries, list and publish releases, archive, restore, and yank |
 | Audit | Search the deployment-wide trail and export CSV or JSONL |
 
@@ -111,28 +93,29 @@ a deployment with none.
 
 ### 2.2 Portal
 
-`portal/src/pages/admin/AdminSettings.tsx` exposes six sections:
+`portal/src/pages/admin/AdminSettings.tsx` exposes seven sections: Overview,
+Administrators, Accounts, Spaces, Models, Plugins, and Audit. Administration is a
+first-level sidebar destination for a confirmed administrator. The grant page
+lists history and grants/revokes by account email; Overview shows the caller's
+grant and a collapsible redacted configuration. Accounts and Spaces paginate,
+and account details have a stable route. Account filters include platform and
+last-login date bounds. Portal lists live login chains by session ID, platform,
+creation, last rotation, and expiry, and can revoke one or all. This revokes
+refresh tokens, not already-issued access tokens. Model creation is available
+in Portal.
 
-1. Overview
-2. Accounts
-3. Spaces
-4. Models
-5. Plugins
-6. Audit
+Evidence anchors include `portal/src/features/admin`, `portal/src/layout/Sidebar.tsx`,
+`portal/e2e/admin.spec.ts`, and the MySQL concurrency tests in
+`internal/infra/db/system_grant_test.go`. The presence of a page or test is not
+a claim that every later phase's acceptance criteria have passed.
 
-The pages perform real reads and some mutations. Account creation, login-code
-issuance, disablement, session revocation, model state changes, and plugin
-catalog changes are already usable. `portal/e2e/admin.spec.ts` proves route
-wiring, reload behavior, and deployment-only audit search, but it does not
-exercise the destructive operator journeys.
+### 2.3 Documentation Status
 
-### 2.3 Known Documentation Drift
-
-`docs/deploy/authentication.md` still says the Portal area is being built and
-later says session revocation requires direct database access. The code is the
-fact: the Portal area and the administrator's revoke-all route exist. The
-operator documentation is stale and should be corrected with the first
-accepted implementation slice.
+The operator authentication guide now describes Portal grant management and
+single and bulk session revocation. It still identifies self-service session
+management, login throttling, and enterprise identity as unbuilt. Keep current
+behavior there; this proposal owns only the remaining choices and their
+acceptance conditions.
 
 ## 3. Decision Boundary
 
@@ -197,81 +180,39 @@ be passed into `SpaceAction` or used as a fallback when Space authorization fail
 
 ## 6. Correctness Prerequisites
 
-The following are implementation defects or incomplete invariants, not product
-options. They should be fixed before adding a Portal grant-management surface.
+The grant-integrity defects that motivated this proposal have been fixed.
+The audit transaction requirement remains proposed and unimplemented.
 
-### 6.1 Enforce One Live Grant In The Database
+### 6.1 Enforce One Live Grant In The Database — implemented
 
-`systemGrantRow` currently declares a unique index over
-`(user_id, role, revoked_at)`, while `revoked_at` is `NULL` for a live grant.
-MySQL treats values containing `NULL` as distinct for unique-index purposes.
-The index therefore permits more than one row with the same user, role, and
-`NULL` revocation time, contrary to the code comment.
+`systemGrantRow` uses the unique key `(user_id, role, live_marker)`, with a
+fixed non-NULL marker for live grants and NULL for history. Revocation clears
+the marker. `GrantSystemRole` translates duplicate-key conflicts to
+`ErrSystemGrantExists`. `TestGrantSystemRoleConcurrentOneLiveRow` exercises
+concurrent admission against MySQL. The older nullable `revoked_at` index was
+not sufficient and is no longer the uniqueness mechanism.
 
-`GrantSystemRole` first checks for an existing live row and then inserts outside
-a transaction. Two concurrent grants can both pass the check, and the current
-index does not guarantee that one loses.
+### 6.2 Make Last-Holder Protection Atomic — implemented
 
-Recommended correction:
+`RevokeSystemRole` takes `keepLastHolder`; the store checks and revokes inside
+one transaction, serializing competing role mutations. The signed-in API uses
+this guard, while the database-authorized operator command retains its recovery
+path. `TestRevokeSystemRoleConcurrentKeepsLastHolder` covers concurrent revokes.
 
-- add a nullable live marker whose fixed non-`NULL` value denotes an active
-  grant and whose `NULL` value denotes a historical grant;
-- place the unique index on `(user_id, role, live_marker)`;
-- clear the marker in the same update that sets `revoked_at`;
-- keep every historical row;
-- translate the duplicate-key result to `ErrSystemGrantExists`;
-- prove concurrent grants against MySQL, not only a mock store.
+### 6.3 Count Effective Administrators — implemented
 
-An equivalent generated column is acceptable if it is expressed by the row
-schema, works with the supported MySQL version, and is covered by migration and
-schema tests.
+An effective holder has an unrevoked grant and an enabled account. Account
+disablement and revocation use the same protection. MySQL tests cover disabled
+holders, disabling the last holder, and concurrent revoke/disable. A disabled
+account cannot satisfy the invariant merely by retaining a grant row.
 
-### 6.2 Make Last-Holder Protection Atomic
+### 6.4 Transactional Authority Audit — open
 
-`systemadmin.Service.Revoke` currently counts active grants and revokes in two
-separate store calls. Two administrators can concurrently see two holders and
-both revoke, leaving the deployment with none.
-
-The store must expose one atomic operation that means:
-
-> Revoke this role if doing so leaves at least one effective holder; otherwise
-> return the last-holder refusal.
-
-The implementation should serialize mutations for one system role inside a
-database transaction. The operator command keeps a distinct force-capable path
-because it is the recovery mechanism and already possesses database authority.
-
-### 6.3 Count Effective Administrators
-
-An unrevoked grant on a disabled account cannot authorize a request because
-`Guard.ActiveUser` refuses the account first. Last-holder protection must
-therefore count effective holders, defined as:
-
-```text
-unrevoked system_admin grant AND user.disabled_at IS NULL
-```
-
-The same invariant applies when disabling an account that holds
-`system_admin`. Disabling may proceed only when another effective holder will
-remain. The existing refusal to disable oneself remains useful but is not a
-substitute for this invariant.
-
-Granting a role to a disabled account should be refused with an actionable
-conflict response. The operator can enable the account first.
-
-### 6.4 Decide Transactional Audit For Authority Changes
-
-Grant and revoke audit writes are currently best-effort and happen after the
-authority mutation. The existing design identifies this as its weakest point:
-the one event an investigation most needs may be the one that was dropped.
-
-The recommended decision for this narrow class is to commit the grant mutation
-and its audit event in one database transaction. This does not change the
-general fail-open audit policy for ordinary product actions. It creates an
-explicit stronger contract for changes to deployment authority.
-
-The domain-facing mutation input should carry the actor and desired transition,
-while GORM and transaction details remain in `internal/infra/db`.
+`internal/service/systemadmin/service.go` records grant/revoke audit after the
+store call. A committed authority change therefore does not guarantee a matching
+audit row. Transactional audit is a remaining proposal, not shipped behavior.
+Its acceptance must include rollback or an explicit outcome when audit storage
+fails; the current grant concurrency tests do not prove this property.
 
 ## 7. Options
 
@@ -312,7 +253,7 @@ Advantages:
 
 Costs:
 
-- requires MySQL concurrency work before the most visible UI work;
+- requires additional transactional audit work; the grant concurrency and initial UI work have shipped;
 - some runtime operations depend on the R1 single- versus multi-instance
   decision;
 - one broad role remains powerful over account lifecycle.
@@ -356,11 +297,11 @@ settings, with the following information architecture:
 | Plugins | What may this deployment publish and install? | Catalog and release metadata |
 | Audit | Who changed what and when? | Structured metadata events and exports |
 
-For a confirmed administrator, Administration should be a first-level sidebar
-destination rather than an item hidden inside the user menu. The server remains
+For a confirmed administrator, Administration is a first-level sidebar
+destination. The server remains
 the authority: hiding or showing navigation is presentation only.
 
-The overview should show the caller's grant source and time so the user can
+The overview shows the caller's grant source and time so the user can
 distinguish Space ownership from deployment authority. Every Space-oriented page
 must continue to state that it shows metadata, not contents.
 
@@ -461,6 +402,8 @@ too — so this keeps a bootstrap primitive, not a routine surface.
 
 ### Phase 0: Grant Integrity And Recovery
 
+Status: Partly implemented. Uniqueness, atomic last-effective-holder protection, disablement protection, and MySQL concurrency tests are in code. Transactional authority audit is not implemented; the complete acceptance list below is not yet met.
+
 Scope:
 
 - correct the live-grant uniqueness constraint;
@@ -482,6 +425,8 @@ Acceptance:
 - every committed grant transition has its matching audit event.
 
 ### Phase 1: Administrators And Discoverability
+
+Status: The Administrators section, grant actions, first-level navigation, caller-grant display, and redacted configuration are implemented. Treat the list below as the delivery contract, not a list of missing UI. Broader account actions and release-specific acceptance evidence remain subject to verification.
 
 Scope:
 
@@ -508,6 +453,8 @@ Acceptance:
 - no rendered or serialized response contains credential material.
 
 ### Phase 2: Account And Session Operations
+
+Status: Partly implemented. Account pagination, enabled/role/password/platform/date filters, reloadable detail, and live-session listing/single revocation exist. `TestAdminSessionsListAndSingleRevoke` covers revocation in handler tests; browser coverage lists sessions but deliberately does not revoke its own login. Proposed abuse limits and complete operator-journey evidence remain open.
 
 Scope:
 
@@ -580,6 +527,8 @@ a prepared archive, while the CLI remains the natural surface for turning a
 working directory into that archive and publishing it in one command.
 
 ### Phase 4: Space Capacity And Quota Assignment
+
+Status: Space pagination is implemented. Tier assignment and the proposed quota-pressure filters remain open; the existing read surface does not implement capacity mutation.
 
 Scope:
 

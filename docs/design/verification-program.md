@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/验证计划.md)
 
-> **Audience:** maintainers and contributors · **Status:** planned — implementation backlog
+> **Audience:** maintainers and contributors · **Status:** partially implemented — remaining evidence backlog
 
 Related records: [Local end-to-end verification](end-to-end-testing.md),
 [evaluation and qualification](evaluation-system.md), and the

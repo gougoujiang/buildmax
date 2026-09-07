@@ -38,8 +38,8 @@ last column says so, and the paper's own delivery phases hold the detail.
 | Proposal | Question | Built so far |
 |---|---|---|
 | [Single-maintainer Agent development workflow](single-maintainer-agent-development.md) | How can one maintainer use multiple coding Agents to increase accepted development throughput without becoming the task-preparation, review, conflict-resolution, and cleanup bottleneck? | The task runner, layered verification, implementation Issue template, `agent-ready` label, worktrees, CI, deployment smoke, and evaluation harness exist; readiness revalidation, leases, changed-scope verification, and independent acceptance are not one closed contribution loop |
-| [System administration operations](system-administration-operations.md) | How should the automation-friendly operator CLI and the human-facing Portal provide safe outcome parity for authority, accounts, sessions, catalogs, quotas, and runtime health? | The grant model, operator command, admin API, six-section Portal area, model and plugin catalog controls, and deployment-wide audit already exist; grant integrity hardening and full Portal parity do not |
-| [Client sessions and API credentials](client-sessions-and-api-credentials.md) | Should interactive login issue any long-lived credential beyond a rotating refresh token, and how should native managed clients and unattended callers authenticate? | None of its stages. The rotating two-token session it proposes to harden is in `internal/infra/db/user_refresh_token.go` |
+| [System administration operations](system-administration-operations.md) | How should the automation-friendly operator CLI and the human-facing Portal provide safe outcome parity for authority, accounts, sessions, catalogs, quotas, and runtime health? | Grant uniqueness and last-effective-holder protection, the authenticated admin CLI, seven-section Portal, pagination, redacted configuration, and model creation shipped. Transactional audit, admin CLI session parity, quota assignment, and richer runtime operations remain open |
+| [Client sessions and API credentials](client-sessions-and-api-credentials.md) | Should interactive login issue any long-lived credential beyond a rotating refresh token, and how should native managed clients and unattended callers authenticate? | Stage 1 is not complete. Admin API and Portal can list and revoke individual refresh-token session chains; explicit session state, absolute expiry, access-token claims, native secure storage, and self-service management remain unbuilt |
 | [Enterprise identity and access](enterprise-identity-and-access.md) | How should a private deployment connect corporate identity to BuildMax spaces and roles? | Nothing |
 | [Durable Agent sessions](durable-agent-sessions.md) | Should authenticated local Agent sessions become revisioned Server resources for recovery, provenance, sharing, and cross-device continuation? | Nothing; no server route serves a session resource |
 | [Assistant orchestration and the Workflow boundary](assistant-orchestration-and-workflow-boundary.md) | Does a bounded manager Agent create enough value over one strong Agent to become an Assistant product, and should Workflow narrow toward deterministic Automation? | Nothing; current Agents cannot admit durable child Space Agent Tasks |
@@ -134,7 +134,7 @@ by, and records all became settled behaviour while it was open, leaving one
 question that belongs to an existing plan — it is now §3.9 of the [trust harness
 design](../design/trust-harness.md), with the egress half it blocks.
 
-Git history holds all twelve papers.
+Git history holds all thirteen papers.
 
 ## Starting A Proposal
 

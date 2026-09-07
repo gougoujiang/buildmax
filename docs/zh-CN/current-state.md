@@ -6,7 +6,7 @@
 
 本文档是对 BuildMax 的一份以代码为准的评估。其完整梳理最初针对 `origin/main`
 提交 `67e9e4df77d42351c435fd21d74422c67a9f8a38` 进行；此后各章节随其所描述的边界
-发生变化而就地修订，最近一次针对 `ed664c7d`。它回答的是这个仓库实际实现了什么，
+发生变化而就地修订，最近一次针对 `97d5fbc7`（仅核对文档与代码，没有新增部署或评估运行）。它回答的是这个仓库实际实现了什么，
 以及这些实现距离可放心使用还有多远。它并非从路线图、提案、设计记录或功能文案
 推导而来。
 
@@ -88,14 +88,7 @@ run 的恢复。一个 Task 可恢复的文件系统现在会作为不可变的�
 清扫回收未被引用的载荷。参见
 [design/task-workspace-checkpoints.md](design/Task工作区检查点.md)。
 
-直接 Agent 执行已经交付：Portal 通过 Task 自己的线程页面运行，而不是一个合成的
-Conversation；`workflow` 和 `issue_agent` 这两个 Conversation channel，以及
-按 run 的输出文件列表，都被彻底移除而不是被隐藏；TaskRun 持有权威结果。一个
-Conversation 仍然可以创建一个 Task，但不会因此成为它的授权方或存储方的上级。
-剩余的开放事项——无 Conversation 场景下的流式传输，以及某些专属于直接 Task 的
-trace 与用量证据——记录在
-[design/agent-execution-and-task-threads.md](design/Agent执行与Task线程.md)
-§14 中。
+直接 Agent 执行已实现：Portal 通过 Task 线程页面运行任务，TaskRun 保存权威结果，合成 Conversation 和逐次运行输出文件列表已移除。Task 页面消费 SSE 输出增量，并轮询持久化的生命周期状态。Conversation 可以创建 Task，但不拥有其授权或存储。直接 Task 的 Artifact/trace/usage、故障恢复证据，以及 revision 展示仍由 [Agent 执行与 Task 线程](design/Agent执行与Task线程.md) §14 跟踪。
 
 Portal 暴露了主要的协作与管理流程，包括以只读方式展示一次 run 已提交和已恢复
 的工作区检查点状态。生产分支还包含 Compose、kind、Kubernetes、发布、SBOM、
@@ -210,12 +203,7 @@ SetSandboxDefaults`，并在 worker 的 `GetTaskRun` 响应中与 agent 自己�
 [`agent-sandbox-policy.md`](design/Agent沙箱策略.md) §9/§10 中此前都还没
 开始的两半。
 
-仍然开放的部分：[`trust-harness.md`](design/信任保障.md) §3.9 留下的集群级
-`NetworkPolicy` 问题——一个 worker pod 能到达集群网络所允许的任何地方，与
-本节涉及的进程内沙箱无关——没有被这一轮工作触及；`buildmax sandbox
-overrides` 仍未实现；并且无论是 plugin 的 pin 还是解析出的沙箱档位，目前都
-还没有在 Portal 里一次 task run 自己的详情视图中呈现，只出现在 API 响应和
-审计轨迹里。
+Worker 控制通道隔离已单独实现：公共与 worker 监听器、TLS、内部 Service、生命周期授权及 worker 端口 NetworkPolicy，kind 验证记录见 [Worker API 网络边界](design/Worker API网络边界.md)。一般的域名感知 worker 出站策略仍待完成，`buildmax sandbox overrides` 和 Portal 运行详情的插件 pins、沙箱生效层级展示也未实现。worker 端口入站策略不等于出站目标策略。
 
 那个非 root 配置最终被证明与 `bwrap` 在真实集群上实际运行不兼容。一个容器
 运行时把添加给一个*非 root* pod 的 capability（`Capabilities.Add`）只落到
@@ -284,15 +272,7 @@ check ci` 会在有 DSN 时运行它，在没有时明确说明自己没有运�
 它所属的 Tier 1 结果投递机制被移除；参见
 [Agent 执行与 Task 线程](design/Agent执行与Task线程.md)。
 
-剩下的是用例的覆盖广度，而不是机制本身。
-[`design/verification-program.md`](design/验证计划.md) §4.2 仍然列出了重试
-尝试、workflow 修订版本推进、投递重启恢复、跨 space 的存储查找，以及
-artifact 墓碑化。N-1 迁移夹具是被阻塞的，而不是被推迟的：在身份切换之后，
-明确的迁移列表是空的，所以一个夹具只会编码一段任何数据库都从未真正经历过
-的历史。该列表中的配额条目已被撤回——没有预留额度可测，只有一次滚动窗口
-读取，§4.2 现在也记录了这一点。数据库包在门禁之下测得的覆盖率是 53.3%，
-不启用门禁时是 3.5%，不过覆盖率尚未按 §4.3 所要求的那样，按关键包逐一
-报告。
+剩下的是用例覆盖广度，而不是机制本身。[验证计划](design/验证计划.md) §4.2 跟踪 Retry attempt、Workflow revision 固定和推进，以及 store 层跨 Space 查找。Artifact 墓碑删除和回收测试已实现并通过变异检验；重启与故障恢复属于更广的验证矩阵。已移除的 Tier 1 结果交付机制没有剩余恢复待办。N-1 夹具等待身份切换后的首个新增迁移；配额预留并未实现，测试不能假设存在。上文覆盖率来自先前评估，并非本次文档核对。
 
 ## 产品与运营缺口
 
@@ -341,7 +321,8 @@ artifact 墓碑化。N-1 迁移夹具是被阻塞的，而不是被推迟的：�
   部署能够被任何客户端登录之前，从数据库一侧为其播种首个账户与模型目录的
   方式，`buildmax admin` 一旦可用就承担同样的角色。账户列表和最后一名
   管理员的撤销都已经迁移到了经过身份验证的 `buildmax admin` 界面上。
-  Plugin 目录的管理仍然按既定决定留在命令行上。
+  Plugin 发布仍按既定决定留在命令行上；Portal 可以查看、退役、恢复和撤回
+  目录 release。
 
 ### P1 —— 资格验证的覆盖广度
 
@@ -391,9 +372,11 @@ Desktop 有一定的桥接层覆盖，但还没有完整的窗口自动化。Por
    artifact 墓碑化，依据[`verification-program.md`](design/验证计划.md)
    §4.2。
 4. 补齐账户与 space 运营中剩下的部分。剩下的比这个排序位置暗示的要少：
-   space 角色生命周期、所有权转移，以及成员范围内的找回都已完成；注册会
-   留下一个没有凭证的账户是有意为之；space 审批按决定不在范围内。剩下的
-   只是某个具体部署自身的经验是否值得重新打开其中任何一个决定。
+   Space 角色生命周期、所有权转移和成员范围的找回都已完成；注册留下一个
+   没有凭据的账户是有意为之；Space 审批按决定不在范围内。剩余已接受工作
+   更窄：权限变更的事务审计、管理 CLI 的 Session 操作对齐、quota tier 分配，
+   以及用于诊断队列阻塞和 worker 失联的运行时元数据。用户自助 Session 管理
+   仍属于另一项提案决策。
 5. 把产品自有的资格验证，从一个架构切片扩展为一套有代表性的发布套件。
 6. 根据观察到的需求，深化 workflow、真实的 channel adapter、可执行的
    space plugin、Portal 性能、Desktop 自动化，以及吞吐量。
