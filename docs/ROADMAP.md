@@ -2,583 +2,196 @@
 
 > **简体中文：** [阅读中文镜像](zh-CN/ROADMAP.md)
 >
-> **Audience:** maintainers and contributors · **Status:** current
+> **Audience:** users, operators, and contributors · **Status:** current — Alpha
+> **Last reviewed:** 2026-09-08
 
-## Product Promise
+BuildMax is an open-source Agent runtime for local work and private Space
+deployment. CLI/TUI, Desktop, and Server/Portal use the same Go Agent Core.
+You can use the local tools without deploying a Server.
 
-BuildMax is an out-of-the-box, privately deployable enterprise Agent platform.
+**The next milestone is a dependable private-deployment Beta:** an operator can
+deploy, run work, understand failures, and recover using documented procedures.
+BuildMax has not passed that gate. No Beta release date is committed here;
+release readiness depends on evidence, not the number of features implemented.
 
-It is built around one shared Go Agent Core:
+## At A Glance
 
-- local single-user execution through CLI/TUI and Desktop
-- enterprise/space operation through Server and Portal
-- background execution through worker task runs
+| Horizon | User outcome | Current position |
+|---|---|---|
+| Available in Alpha | Run Agents locally or in a private Space, with managed models, background work, shared results, and diagnostic traces. | Implemented capabilities have different limits; see the [current-state assessment](current-state.md) and [user manual](../manual/introduction.md). |
+| Next: private-deployment Beta | Trust the worker boundary, supported Server topology, persistence, and recovery procedures. | Engineering gaps and candidate operating evidence remain open. |
+| Later: evidence-led expansion | Richer Workflows, integrations, and local experiences that solve demonstrated user problems. | Candidate directions, not release commitments. |
 
-This is not a choice between a local AI file assistant and a space AI workspace.
-Users can use only the local surfaces, deploy the Portal for a company, or use
-both together. The core rule is that important Agent capability belongs in the
-shared runtime first, then each surface exposes it in the way that fits its job.
-
-## Roadmap Principle
-
-Plan by platform maturity, not by piling features onto one surface.
-
-This is a status-bearing document, not a record of intended work. "Shipped"
-means the behavior is present in the repository and covered by its relevant
-automated tests. It does **not** mean that a real customer deployment, upgrade,
-or recovery exercise has happened; those are called out separately as operating
-evidence. When the code and this document disagree, update this document.
-
-The [current-state assessment](current-state.md) records the code evidence,
-maturity judgment, and gaps behind this roadmap. Keep detailed audit evidence
-there. This document owns only priority, sequencing, and release gates.
-
-The near-term goal is:
-
-> A company can privately deploy BuildMax and immediately use the same Agent
-> Core for local execution, space collaboration, background work, result
-> delivery, and basic governance.
+This roadmap owns priority, sequencing, and release gates. Implementation
+evidence belongs in [current state](current-state.md), design rationale in
+[design records](design/README.md), and release proof in the
+[Beta readiness record](deploy/beta-readiness.md). “Implemented” does not mean
+qualified in a real deployment. Earlier P0–P4 phase names in design records are
+historical capability groupings; the R0–R5 order below governs current work.
 
 ## Active Priority Order
 
-The current milestone is operational trust, not another broad feature family.
-Work proceeds in this order unless new deployment evidence justifies changing
-it.
+R0–R2 come first because execution safety and state correctness underpin every
+Server feature. R3–R4 complete the operating and qualification evidence. These
+are priorities, not claims that someone is currently assigned to every item.
 
 ### R0. Contain Unattended Worker Execution
 
-Mostly closed. A worker run selects the stricter surface, `bwrap` actually
-confines its Bash commands on both the `k8s_job` and `local_process` paths, and
-the deployment smoke's own probe proves it organically rather than by
-inspection. What is left is a child process the boundary does not reach and a
-network boundary that was never in it.
+**Partly implemented.** Official worker images select the worker sandbox
+baseline; Bash confinement, process limits, hook transport policy, and backend
+self-tests are implemented and exercised by deployment smoke. MCP stdio child
+processes and cluster-level network egress remain outside that boundary.
+The worker API already has separate listeners, TLS support, and a shipped
+Server-ingress NetworkPolicy; worker-wide egress is a separate gap.
 
-Required outcomes:
+**Next:** define and enforce the MCP child-process boundary; verify the
+shipped worker API network boundary in the candidate environment; decide the
+wider worker egress policy.
+Make resolved sandbox policy understandable in the operator surfaces.
 
-- every worker run records and enforces an explicit worker sandbox surface —
-  **done**: `internal/agentapp/taskrun` passes `config.WorkerSandboxSurface()`,
-  and the resolved tiers are pinned onto the run for audit;
-- absence of the OS backend either fails closed or follows one documented,
-  visible downgrade policy — **done**: the strict baseline is selected only
-  where `BUILDMAX_SANDBOX_BACKEND_INSTALLED` marks the backend as installed,
-  and a `Manager` probes its backend with a real confined command before
-  trusting it, so one that cannot enforce anything fails closed;
-- process and resource limits are enforced and tested — **done**;
-- hook and MCP child processes have an explicit boundary of their own —
-  **half**: the `command` and `http` hook transports go through the same
-  wrapper and host policy `Bash` and `WebFetch` use; MCP does not.
-  `internal/infra/mcp/transport.go` execs a stdio server directly, with no
-  sandbox involvement anywhere in that package;
-- a Beta candidate does not run unrestricted worker Bash merely because it is
-  inside a Kubernetes pod — **done**.
+**Done when:** the supported worker profile enforces its documented process and
+network boundaries, fails closed when required enforcement is unavailable,
+and has deployment evidence for those claims. The optional gVisor profile
+requires qualification with the actual worker and sandbox probe before it is
+supported or recommended.
 
-Still open beyond that list: the cluster-level `NetworkPolicy` question
-[`design/trust-harness.md`](design/trust-harness.md) §3.9 leaves open — a
-worker pod reaches whatever the cluster's network allows, independent of the
-in-process sandbox — `buildmax sandbox overrides`, and surfacing a run's
-resolved tiers in Portal's task-run detail view rather than only in the API
-response and audit trail.
+Design: [trust harness](design/trust-harness.md),
+[worker API network boundary](design/worker-api-network-boundary.md), and
+[gVisor worker runtime](design/gvisor-worker-runtime.md).
 
-The Server control-channel slice has shipped: separate public and worker
-listeners, worker routes absent from the public mux, TLS on the Pod-to-Server
-path, and a worker-port NetworkPolicy. The kind smoke records the corresponding
-positive and negative reachability evidence; see
-[design/worker-api-network-boundary.md](design/worker-api-network-boundary.md).
-General domain-aware worker egress remains open.
+### R1. Qualify Shared Server Coordination
 
-The Pod-to-host boundary has a separate qualified direction: support an
-operator-selected, fail-closed gVisor RuntimeClass around the complete worker
-while retaining `bwrap` for command-to-worker policy. The exact BuildMax worker
-and sandbox probe must pass under `runsc` before this becomes a supported or
-recommended production profile; see
-[`design/gvisor-worker-runtime.md`](design/gvisor-worker-runtime.md).
+**Mechanism implemented; qualification open.** Local mode supports one Server;
+Redis mode supplies shared streams, connection events, and Conversation turn
+leases. Basic/kind and production manifests now use Redis with two replicas,
+and architecture tests reject multiple replicas without coordination.
 
-### R1. Make Multi-Instance Semantics Correct Or Declare One Replica
+**Next:** enforce lease fencing tokens in message-history writes and exercise
+worker updates, reconnects, concurrent turns, and Redis failures in a deployed
+candidate. Do not count an in-process two-replica test as a cluster exercise.
 
-Largely closed in mechanism. A `coordination` server setting selects a shared
-Redis backend that carries the three previously process-local structures —
-stream fan-out, WebSocket connection-event delivery, and conversation turn
-serialization — so more than one Server replica stays consistent;
-[`design/server-coordination.md`](design/server-coordination.md) records the
-design. `mode: local` (one replica) stays the default and fails no differently
-than before; `mode: redis` fails closed when Redis is unreachable, and the
-production manifest now ships a Redis and keeps two Server replicas as a
-supported topology rather than a latent defect.
+**Done when:** the supported topology has candidate evidence for live delivery,
+turn serialization, stale-writer protection, and recovery under failure.
 
-Required outcomes:
+Design: [Server coordination](design/server-coordination.md).
 
-- one supported topology whose live coordination actually holds — **done**:
-  either `mode: local` with one replica, or `mode: redis` with shared streaming,
-  connection-event fan-out, and a per-conversation distributed lease;
-- an honest manifest — **done**: an architecture test refuses a manifest that
-  runs more than one Server replica without a coordination backend;
-- what remains is operating evidence, not mechanism: exercise a worker update,
-  browser session, reconnect, and concurrent turns across two replicas in a
-  deployed candidate, and enforce the conversation fencing token in the
-  message-history write path (the lease already provides mutual exclusion).
+### R2. Widen Real-Database And Recovery Evidence
 
-### R2. Put Persistence In The Pull-Request Evidence Path
+**Partly implemented.** A MySQL integration scope runs on pull requests and
+covers critical authorization and TaskRun transitions, including contention.
+The remaining work is case coverage, not introducing the CI gate.
 
-The scope exists and runs: `./make test mysql` requires a DSN rather than
-skipping without one, runs on a database it creates and drops, fails if a test
-in the scope skips for the DSN's absence, and a pinned `mysql:8.0` service
-container runs it on every pull request. It found a defect on its first run
-that had been on `main` for 387 commits.
+**Next:** extend the existing retry, checkpoint, Artifact retention, and
+Space-isolation tests with remaining Workflow revision advancement, restart
+recovery, and cross-Space scenarios. Retry lineage and Artifact tombstoning
+already have real-database tests. Retire test plans for removed mechanisms, including the old
+result-delivery queue, rather than recreate them for a checklist.
 
-Required outcomes:
+**Done when:** the critical persistence and recovery paths have real-database
+regression tests and deployment failure evidence. Schema upgrade and rollback
+proof must exercise the existing migrations against an older schema and verify
+the candidate’s rollback limits; the migration list is no longer empty.
 
-- run a hermetic MySQL integration scope in CI for critical store and migration
-  behavior — **done**;
-- cover authorization-bearing and run-state transitions against the real
-  database — **largely**: task-run transitions, claiming, system grants, plugin
-  activation, and the space invitation and ownership-transfer lifecycle are
-  covered, and task claiming, run transitions, cancellation, and
-  one-active-run/idempotent admission are tested under contention and checked
-  by mutation. Artifact tombstoning and retention are covered too. Retry
-  attempts, workflow revision advancement, cross-space store lookups, and
-  broader restart recovery evidence remain; see
-  [`design/verification-program.md`](design/verification-program.md) §4.2,
-  which also records why the N-1 fixture is blocked and the quota bullet
-  withdrawn;
-- retain broader Compose, kind, failure, restore, and upgrade drills as
-  deployment evidence rather than forcing every one into every pull request —
-  unchanged, and deliberately so.
+Design: [verification program](design/verification-program.md) and
+[end-to-end testing](design/end-to-end-testing.md).
 
-### R3. Close Account And Space Operations
+### R3. Validate Account And Space Operator Journeys
 
-Account creation and credential issuance, Space invitation, role changes,
-ownership transfer, and access recovery have implemented operator paths.
-Administrator grant integrity, Portal discoverability/pagination, and the
-signed-in `buildmax admin` surface have also shipped. Remaining session,
-capacity, and operating gaps are tracked in
-[system administration operations](proposals/system-administration-operations.md).
-Space approvals remain deliberately out of scope pending a concrete need,
-per [space governance](design/space-governance.md) §6; they are not a missing
-accepted R3 prerequisite.
+**Core lifecycle implemented; operating evidence open.** Account bootstrap,
+login-code recovery, Space invitations, role changes, ownership transfer, and
+member-scoped recovery exist. Creating an account remains a system administrator
+authority. Space approval workflows are intentionally out of scope.
+
+**Next:** have an operator exercise these journeys through the documented UI
+and CLI, identify friction or missing audit evidence, and fix demonstrated gaps. Track
+transactional authority audit, admin CLI Session parity, quota-tier assignment,
+and runtime diagnosis metadata in the
+[administration operations proposal](proposals/system-administration-operations.md).
+
+**Done when:** an operator can onboard people, manage membership, transfer
+ownership, and recover access without reading code or bypassing authorization.
+Reopen account policy or approval workflow decisions only for a concrete need.
+
+Design: [Space membership lifecycle](design/space-membership-lifecycle.md) and
+[Space governance](design/space-governance.md).
 
 ### R4. Expand Qualification Breadth
 
-The evaluation framework is implemented, but three BuildMax-owned tasks and a
-one-task external canary do not qualify the platform. Expand representative
-local, worker, conversation, trust, failure-recovery, and deployment suites;
-add performance and soak evidence separately. Do not publish a Terminal-Bench
-claim until the pinned protocol has actually run.
+**Framework implemented; coverage limited.** Three BuildMax-owned tasks and a
+one-task external canary establish the evaluation path, not platform-wide
+reliability or a Terminal-Bench score.
+
+**Next:** expand representative local, worker, Conversation, trust-boundary,
+failure-recovery, and deployment scenarios. Collect performance and soak
+evidence separately. Run the pinned Harbor canary before the full benchmark
+protocol; publish a score only with the completed protocol and its conditions.
+
+**Done when:** a release candidate has representative, reproducible results
+across the supported surfaces, with failures and limits reported explicitly.
+
+Design: [evaluation system](design/evaluation-system.md).
 
 ### R5. Deepen Product Capability From Evidence
 
-After R0–R4, deepen the durable Workflow runtime selected in
-[the design record](design/workflow-runtime.md), or choose real channel
-adapters, executable space plugins, Portal performance, Desktop automation, or
-throughput work from observed user and qualification evidence. Workflow work
-starts with reconciliation and typed dataflow before graph breadth. Do not let
-the existence of names, types, or partial adapters count as a shipped product
-surface.
+**Later; scope depends on demand and qualification results.** Candidate work
+includes durable Workflow reconciliation and typed dataflow, real channel
+adapters, executable Space plugins, Portal performance, Desktop automation,
+and throughput. Local CLI/TUI and Desktop improvements remain welcome when they
+address concrete problems; the Beta focus does not make Portal the only product.
 
-A provider-neutral structured-output contract in the shared Agent runtime is a
-named prerequisite within this step: Workflow's typed routes, planners, and
-evaluators, and any richer Task result envelope, depend on it, and today the
-runtime has no such contract and a Task result is free text. See
+Workflow expansion starts with reconciliation and typed dataflow before graph
+breadth. A provider-neutral structured-output contract in the shared runtime is
+a prerequisite for typed routes, planners, evaluators, and richer Task results.
+Channel names or partial adapters do not count as delivered integrations.
+
+Design: [Workflow runtime](design/workflow-runtime.md) and
 [orchestration and continuity decisions](design/orchestration-and-continuity-decisions.md).
-
-## Existing Capability Baseline
-
-The phase labels below describe capability already built and the acceptance
-criteria those surfaces remain subject to. They are retained as a compact
-baseline for existing design records; they do not override the active order
-above. "Complete" means the scoped capability landed, not that production
-readiness is complete.
-
-### P0. Agent Core Stability — complete
-
-This was the highest priority because CLI, Desktop, worker execution, and Portal
-all depend on it.
-
-Focus:
-
-- context-window and token-budget behavior
-- reliable tool-calling error recovery
-- consistent MCP, skills, and subagent behavior across CLI, Desktop, and worker
-- safer file reading, editing, bash, grep, and glob behavior
-- run statistics, logs, traces, and tool-call summaries
-
-Acceptance:
-
-- the same task has comparable capability in CLI, Desktop, and worker execution
-- differences come from environment and permissions, not separate Agent implementations
-
-### P1. Local Agent Experience — complete
-
-CLI and Desktop are the direct expression of what one Agent can do for one user.
-They are not secondary to Portal.
-
-Focus:
-
-- CLI/TUI slash commands, session handling, model visibility, and tool visibility
-- Desktop project/workspace picker, session management, streaming polish
-- local output and artifact viewing
-- local file and diff awareness
-- local model, MCP, skill, and tool settings
-
-Acceptance:
-
-- a user can get a complete useful Agent experience without deploying Portal
-
-### P2. Portal Outcome Surface — complete
-
-Portal already has issues, workflows, tasks, runs, and artifacts. The next step
-is to make results the first-class user surface.
-
-Focus:
-
-- issue-level Results / Outputs section
-- conversation-visible result cards and artifact links
-- lightweight Markdown/text previews
-- stable `latest_result` / `outputs[]` aggregation shape
-- task/run/step pages become drill-down views, not the main result surface
-
-Acceptance:
-
-- opening an issue makes it obvious what was produced, without reading raw run or step internals
-
-Both surfaces are built. `issue_outputs.go` serves the aggregation, the API
-returns `latest_result`, and `IssueDetail.tsx` renders it. A Conversation now
-carries a card per task — status, output, files, run details, stop and run again
-— ordered against the messages by creation time and read from the database, so
-the cards survive a refresh, a dropped socket, and a summary that never arrives.
-The transcript excludes the system channel, so a `[Task Result]` message is no
-longer drawn as the user's own.
-
-The forced Tier 1 summary delivery is gone. A finished run no longer enqueues a
-presentation attempt (`task_result_delivery` and its retry sweep were removed
-along with the code that replayed a `[Task Result]` message into the
-conversation); a terminal run now only broadcasts an invalidation
-(`task.status.changed`) to connected clients, and the Conversation task card
-reads `task_run` directly. `task_run` was always authoritative for the
-result — this removed the obligation that a foreground model call had to
-succeed, or even run, before that result was durable or visible. Direct Agent
-Tasks require no Conversation at all. See
-[Agent execution and Task threads](design/agent-execution-and-task-threads.md).
-
-What was deliberately not done, and why, is in the [Portal execution
-design](design/portal-execution-model.md).
-
-### P0.5. Agent Core Trust Harness — partly shipped
-
-After Portal outcomes are visible, return to the shared Agent Core and close the
-trust gaps that separate a working agent from a serious execution harness.
-
-Focus:
-
-- sandbox and execution boundaries for filesystem, network, env, and process behavior
-- runtime hooks for approvals, tools, file changes, compaction, and run outcome
-- durable run traces with redaction, bounded tool output, usage, and latency
-- scoped memory and instruction loading across user, workspace, space, agent, and session
-- TUI/Desktop activity views and local diagnostics
-- local background jobs and monitors shared by TUI and Desktop
-  (see [design/local-background-jobs.md](design/local-background-jobs.md))
-- subagent trace linkage and optional isolation groundwork
-- safer non-interactive worker execution
-
-Code state:
-
-- shipped: hook configuration and transports, tool permissions, local OS
-  sandboxing, bounded redacted traces, session notes/todos and compaction
-  checkpoints, local background jobs, subagent trace parents, and the Portal
-  run-trace view;
-- shipped: one shared CLI/TUI/Desktop Project identity and bounded
-  cross-session Project Memory
-  ([design/local-project-memory.md](design/local-project-memory.md)). A Project
-  is one Git repository including its worktrees, or one directory; the session
-  pickers and session clearing select by it rather than by folder path,
-  `--continue` selects within the Workspace with `--project` to widen, and
-  Desktop's private `projects.json` is gone. Memory is a set of small Markdown
-  files, one per memory, with a generated index; only the index is resident,
-  bodies are read on demand, a replacement requires having read it, and
-  `--no-project-memory` withdraws index and tools together. `buildmax project`
-  lists and relinks. The `context_sources` trace record replaces `prompt_layers`
-  and names every source a run was assembled from by its own kind; `buildmax
-  doctor` reports the Project, the memory count and index size, skipped memory
-  files, and detached sessions;
-- shipped since that baseline: worker sandbox selection, process limits,
-  command/HTTP hook containment, Agent tiers and Space defaults with Portal
-  selectors, `buildmax info`/TUI `/info`, and Desktop memory listing/reading;
-- still absent: MCP containment, trace retention and richer typed diagnostic
-  events, Desktop memory editing/deletion/enable control, the user-invoked
-  session-review command, and usage evidence for changing memory bounds or
-  introducing ranking and automatic promotion;
-- deliberately not covered by the local Project plan: global user memory,
-  space memory, Portal/worker memory, semantic retrieval, and automatic memory
-  extraction.
-
-Acceptance:
-
-- users can inspect and explain Agent runs without leaving the local surfaces
-- local and worker sandbox boundaries are explicit and visible
-- worker runs produce enough trace data for Portal diagnostics
-- memory sources are visible, scoped, and user-controllable
-- local and worker runtime differences are explicit, not hidden in surface-specific code
-
-Worker execution containment remains a Beta gate. Official worker images select
-and probe the strict sandbox baseline; Bash confinement and the production pod
-profile are covered by the organic deployment smoke. Bare-host `local_process`
-uses the documented host baseline unless explicitly configured, and is not a
-separate trust domain from the Server. MCP child processes and general worker
-egress remain open. The release candidate still needs its own operating proof;
-an existing smoke result is not qualification of a different image.
-
-### P0.6. Evaluation And Qualification System
-
-BuildMax needs evidence for the capability, reliability, trust, and product
-outcome claims made across the shared runtime and its surfaces. This replaces
-the early coding benchmark rather than extending its formats.
-
-Focus:
-
-- a BuildMax-owned, versioned contract for tasks, subjects, trial bundles,
-  grader results, experiments, and qualification reports
-- black-box evaluation of built binaries and deployment artifacts across local,
-  worker, conversation, and deployment execution
-- product-owned capability, reliability, trust/control, and product-outcome
-  suites, reported separately rather than collapsed into a global score
-- repeated and paired trials, explicit uncertainty, and separate Agent,
-  grader, and infrastructure failure classes
-- private-by-default trial data, an access-controlled or rotating holdout, and
-  explicit bounded export
-- maintainer regression workflows and operator model/config/deployment
-  qualification
-- replaceable framework adapters: Inspect or a thin controller for experiments,
-  Harbor for container/public-benchmark execution, Terminal-Bench 2.1 as the
-  first external capability coordinate, and optional viewers
-
-Acceptance:
-
-- one representative black-box slice runs local, worker, conversation, and
-  trust-boundary scenarios against built artifacts
-- a failed trial yields a subject manifest, trace, final-state evidence,
-  classification, and bounded reproduction path
-- maintainers can compare a baseline and candidate with repetitions and
-  uncertainty; operators can qualify a model, configuration, or deployment in
-  their own environment
-- no private prompt, trace, workspace snapshot, or grader body must leave the
-  owning environment
-- Harbor can run the built BuildMax Agent against a pinned Terminal-Bench 2.1
-  release, preserve one BuildMax trial bundle per attempt, and compare harnesses
-  under the same model, effort, resources, and attempt count — **partly met**:
-  the oracle smoke and a one-task canary have run end to end and imported, so
-  the path works for one task. The canary subset is pinned in
-  `evaluation/harbor/pins.json` and selectable with `--canary`; the criterion
-  needs that subset run, and then the full protocol
-- the legacy `eval/` catalog and `internal/agenteval` are retired rather than
-  preserved behind compatibility code — **done**: both are deleted, and
-  `./make eval` now measures the built CLI against the CLI tasks in
-  `evaluation/suite/`; worker tasks are selected explicitly
-
-The black-box vertical slice is enabling work before substantial new Agent
-capability. Framework selection is deliberately downstream of that slice; see
-[design/evaluation-system.md](design/evaluation-system.md).
-
-Code state: **partly shipped**. `evaluation/contract`, the black-box CLI and
-worker adapters, deterministic/command/trace graders, preflight, repeated and
-paired experiments, and three representative tasks are implemented.
-`tools/eval` is the entry point for that contract; the old `eval/`
-catalog and `internal/agenteval` are deleted.
-
-`evaluation/harbor` adds the external Terminal-Bench 2.1 target: pinned harness,
-dataset ref, and adapter versions; the Python custom-Agent that uploads the
-built CLI into a task container; the importer that files a finished job as trial
-bundles; `./make doctor harbor` and `./make eval harbor`. The oracle smoke
-passed 5/5 and a one-task canary ran through the adapter and imported cleanly,
-so the path is verified for one task and no further. There is **no
-Terminal-Bench score**, and running it found one product bug — a Bash command
-that left a background process behind hung the agent indefinitely — which is
-fixed. Expect the first wider run to find more.
-
-Conversation and deployment adapters, model-grader calibration, a private or
-rotating holdout, and the Inspect spike remain open.
-
-### P3. Enterprise Deployment Loop — implementation mostly shipped; operating evidence open
-
-The product promise depends on private deployment being boring and repeatable.
-
-Focus:
-
-- recommended private deployment path for server, worker, Portal, MySQL, and MinIO/S3
-- synchronized server config, storage config, and deployment docs
-- clear startup errors and health checks
-- Docker/kind/k8s path that runs end to end
-- default admin/user/space/quota/model initialization story
-- optional managed LLM connection mode, so a deployment can supply approved
-  models without distributing provider credentials to users and workers —
-  shipped for CLI, TUI, Desktop, and task runs, none of which hold a provider
-  key. A task run reaches it with a per-run credential; an interactive client
-  reaches it with the session its user signed in with
-- an operator model catalog behind the shared LLM contract, with per-call usage
-  recorded before any spending limit is claimed — the catalog and call ledger
-  exist; catalog names and availability are deployment-wide, and the withdrawn
-  per-space alias layer must not be described as current
-  (see [design/client-modes.md](design/client-modes.md))
-- an orderly stop: a restart or a rolling upgrade drains connections, stops
-  claiming runs, and lets an interrupted run report what happened instead of
-  sitting in `RUNNING` until the stale-run reaper closes it
-  (see [design/graceful-shutdown.md](design/graceful-shutdown.md))
-
-Code state:
-
-- shipped: the production reference manifest, the local Compose and kind
-  deployment paths, `/healthz` plus dependency-aware `/readyz`, database schema
-  migrations, operator `user` and `admin` commands, System Administration UI,
-  managed inference for local clients and workers, per-run worker tokens, an
-  ordered shutdown across server, scheduler, and worker, and
-  post-merge/scheduled Compose and kind smoke workflows;
-- the smoke paths exercise account bootstrap, login, space authorization,
-  worker execution, artifacts, retry, managed inference, the call ledger, and
-  Portal browser views;
-- still unproven or incomplete: a deployment against real external MySQL/S3 and
-  TLS, backup/restore and schema-upgrade exercises, deployment-level
-  cancellation and worker-failure recovery, worker-launch and LLM-config
-  readiness checks, credential rotation, and a supported dependency-version
-  matrix.
-
-Acceptance:
-
-- a new environment can reach login, create work, run a worker task, and view the result without reading code
-- a deployment can serve approved models to CLI, Desktop, and worker runs without distributing provider keys, while direct mode still runs with no server
-
-### P4. Space Governance Foundation — first slice shipped
-
-Keep this practical. The near-term need is basic enterprise confidence, not a
-full policy platform.
-
-Focus:
-
-- space-scoped quota UI and documentation
-- role/permission boundary tests
-- clear workflow lifecycle UI and copy for draft/published/archived
-- design the smallest audit/event model
-- make sensitive assets traceable over time: webhook keys, agent definitions, workflows
-- a deployment-scoped System Administrator, separate from every Space role, so
-  account lifecycle, access recovery, system status, and cross-space audit stop
-  requiring database or cluster credentials
-  (see [design/system-administration.md](design/system-administration.md))
-
-Acceptance:
-
-- admins understand who can do what, what resources are used, and what state shared automation is in
-- an operator runs routine account and deployment work through an audited surface rather than through the database
-
-Code state: role-route matrix tests, quota visibility/enforcement, workflow
-lifecycle, audit retention/export, audit UI, System Administrator grants and
-administration routes are implemented. Audit-to-run correlation and a broader
-set of audited actions remain follow-ups; neither should be presented as a
-missing Beta prerequisite.
 
 ## Beta Gate
 
-Alpha to Beta is not more Agent capability. It is an **operating proof** for one
-trusted space, performed with the immutable artifacts proposed for release. Code
-and automated tests establish that a proof is worth attempting; they do not
-substitute for a restore, failure drill, or upgrade in the target environment.
+The first Beta targets **one trusted Space on a private network**. It is not a
+claim of public multi-tenant readiness. Qualification uses the same immutable
+Server, worker, and Portal artifacts proposed for release.
 
-Beta is reached only after all entry checks below pass and their exact evidence
-is recorded in [deploy/beta-readiness.md](deploy/beta-readiness.md):
+| Required proof | Acceptance outcome |
+|---|---|
+| Candidate deployment | Deploy pinned image digests with external MySQL, S3, and TLS; record versions, configuration, operator, and date. |
+| Execution boundary and topology | Prove the supported sandbox, resource limits, hook/MCP treatment, and Server topology. Unrestricted Bash with a recorded `none` boundary does not pass. Record residual worker egress and storage-credential limits explicitly. |
+| Persistence and failure behavior | Attach passing critical MySQL tests; exercise cancellation, worker loss, database outage, and storage denial. Runs reach documented terminal states and retain available results and diagnostic evidence. |
+| Recovery and maintenance | Restore the database and bucket together; exercise a schema upgrade and binary rollback, plus credential rotation. Record recovery time, data checks, and accepted loss. |
+| Operator journey | An operator who did not implement the feature can sign in, execute and retry work with a managed model, and diagnose results from TaskRun, Artifacts, traces, usage, and audit history. |
+| Release verification | Attach current CI, direct and managed Compose/kind smoke, Portal browser E2E, archive verification, image scans, SBOMs, and provenance. |
 
-> An operator can deploy pinned BuildMax server, worker, and Portal artifacts to
-> a private Kubernetes environment backed by external MySQL, S3, and TLS; sign
-> in; execute and retry work with an approved managed model; diagnose the result
-> from the TaskRun, artifacts, trace, managed-call ledger, and audit history;
-> and recover predictably from cancellation, worker loss, dependency outage,
-> restore, credential rotation, and an upgrade rollback.
+Engineering closes the execution and topology gaps first, then widens
+persistence and negative deployment tests. External candidate qualification
+follows, ending with a signed readiness record. Account journeys and evaluation
+coverage can progress alongside this work.
 
-| Entry proof | What the repository provides | Evidence required before Beta |
-|---|---|---|
-| Candidate deployment | Production manifest, migration ledger, `/readyz`, account bootstrap, managed worker inference, and deterministic Compose/kind smoke are implemented. | Deploy immutable candidate image digests against real external MySQL and S3 over TLS. Record the cluster and dependency versions, image digests, configuration, operator, and date. |
-| Constrained execution | Per-run JWT, minimized Job environment, read-only/capability-dropped pod (root, not non-root — see `docs/reference/configuration.md`), no service-account token, required CPU/memory bounds, an explicit trace boundary, and the worker's own `SandboxSurfaceWorker` selection with `bwrap`-confined Bash calls are implemented and organically verified by the deployment smoke's own probe. | Prove process/resource limits and hook/MCP child-process treatment against the deployed candidate, not only the smoke probe. Unrestricted Bash with a recorded `none` boundary does not pass. |
-| Server topology | Durable state is shared through MySQL, and the `coordination` backend now shares live stream fan-out, WebSocket connection events, and conversation turn serialization across replicas through Redis, so the reference manifest's two Server replicas are a supported topology. An architecture test refuses a multi-replica manifest with no backend. | Prove it in a deployed candidate: exercise cross-instance worker updates, reconnects, and concurrent turns across two replicas, and confirm the single-conversation serialization guarantee holds under contention. |
-| Persistence gate | `./make test mysql` runs the store scope against a pinned MySQL service container on every pull request, refusing to skip for an absent DSN. Its case list is still narrower than [`design/verification-program.md`](design/verification-program.md) §4.2 asks for. | Attach a passing hermetic MySQL CI scope for critical schema, query, authorization, and state-transition behavior, then repeat the candidate deployment proof against its external database. |
-| Failure behavior | Cancellation, interrupted-run reporting, liveness heartbeats, lost-worker reaping, partial artifact retention, and explicit retry exist with focused tests. | In the deployed candidate, cancel a running run, kill a worker without a graceful report, interrupt database access, and deny object-storage access. Prove each run reaches the documented terminal state, retains the available evidence, and can recover or be retried without an ambiguous or dangling result. |
-| Recovery and maintenance | Forward migrations, an N-1 binary compatibility rule, environment-injected credentials, and operator-visible readiness and status surfaces exist. | Restore the database and bucket as a pair, exercise an upgrade containing a schema change followed by binary rollback, and perform the documented drain/restart credential-rotation procedure. Record recovery time, data checks, and any accepted loss. |
-| Operator diagnosis and governance | Portal exposes the run result, stored trace, artifacts, managed-call usage, quota, audit history, and System Administration; authorization and retention/export paths are tested. | Have an operator who did not implement the feature perform the full journey and failure drills using documented surfaces. Record whether logs, `/readyz`, System Status, TaskRun/artifact state, trace, managed-call ledger, and audit are enough to explain every outcome. |
+The [Beta readiness record](deploy/beta-readiness.md) holds the detailed
+procedure and evidence. Passing unit tests or local smoke does not replace
+candidate restore, failure, and upgrade exercises. Desktop polish, SSO,
+executable Space plugin content, additional providers, and general durable
+Session sync are outside the first Beta gate.
 
-Every candidate must also attach current results for `./make check ci`, the
-direct and managed Compose/kind deployment smoke, Portal browser E2E, release
-archive verification, image vulnerability scans, SBOMs, and provenance
-attestations. These are **per-release evidence**, not one-time substitutes for
-the entry proof above.
+## How To Help
 
-The first Beta still accepts explicit limits. It is for a trusted space on a
-private network, not direct public exposure. Worker egress and storage
-credentials remain operator-owned threat-model decisions until an enforced
-network and credential boundary ships. The readiness record must repeat these
-limits. Unlike Alpha, however, Beta does not accept an accidentally inherited
-CLI sandbox baseline or multi-replica semantics that the Server cannot enforce.
+Start with [CONTRIBUTING.md](../CONTRIBUTING.md) and the
+[testing guide](contribute/testing.md). You do not need to tackle an entire
+priority to make a useful contribution.
 
-Deliberately outside the Beta gate: Desktop polish, SSO, executable space plugin
-content, additional model providers, and general durable Session sync. The
-instruction half of space plugin distribution — a space activating skill and
-subagent releases, and a worker materializing exactly what it pinned — is
-implemented; releases contributing hooks or MCP servers cannot be activated.
+| If you want to… | A useful contribution |
+|---|---|
+| Make a first contribution | Follow a local setup or operator journey and improve unclear documentation; browse [good first issues](https://github.com/gougoujiang/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). |
+| Improve reliability | Reproduce a failure and add a focused regression test, especially for the R1–R2 state and recovery paths. |
+| Help qualify private deployment | Run a documented deployment journey and report versions, topology, expected/actual behavior, and redacted evidence. |
+| Shape a feature | Describe the user problem, a concrete example, and why existing behavior is insufficient in [Discussions](https://github.com/gougoujiang/buildmax/discussions). |
 
-## Beta Execution Order
+Search [existing issues](https://github.com/gougoujiang/buildmax/issues) before
+opening a bug or implementation proposal. For substantial work, link the
+relevant R priority and design record and discuss scope before implementing it.
+An entry here does not imply an assigned owner or an open implementation issue.
 
-The active priorities define engineering order. The Beta proof then closes in
-this sequence:
-
-1. **Contain worker execution and prove the supported topology.** Finish MCP
-   and general worker-boundary follow-ups and qualify the candidate's
-   containment. The `coordination` Redis backend now makes multi-replica
-   streaming, events, and turn serialization consistent, and an architecture
-   test refuses a multi-replica manifest without it; what remains is proving
-   that topology across two replicas in a deployed candidate.
-2. **Add real persistence evidence to CI.** The gate runs and the contention
-   cases are written; what remains is retry, workflow revision, cross-space
-   store lookups, and restart recovery per
-   [`design/verification-program.md`](design/verification-program.md) §4.2.
-3. **Complete negative deployment smoke.** Cancellation is covered. Add hard
-   worker loss, database unavailability, and object-storage denial, asserting
-   terminal state and retained evidence rather than only an error response; see
-   [design/end-to-end-testing.md](design/end-to-end-testing.md) §6.2.
-4. **Qualify immutable candidate images externally.** Use external MySQL, S3,
-   and TLS for the operator journey, paired restore, schema upgrade and binary
-   rollback, and credential rotation. Record exact artifacts and evidence in
-   [deploy/beta-readiness.md](deploy/beta-readiness.md).
-5. **Close the candidate record.** Attach current CI, direct and managed
-   Compose/kind smoke, Portal E2E, release archive verification, image scan,
-   SBOM, provenance, and every required readiness artifact.
-6. **Widen qualification in parallel after the safety gates are explicit.** Run
-   the pinned Harbor canary and then the full protocol, and expand BuildMax's
-   product-owned conversation, deployment, trust, and recovery tasks. A
-   one-task canary proves the adapter path, not a product score.
-
-Account/space closure can proceed alongside steps 2–4 when it does not distract
-from the execution boundary. New workflow, channel, plugin, or local-session
-features wait for evidence from these steps or a concrete deployment partner.
-
-## Avoid For Now
-
-- a large workflow engine rewrite before results and runtime stability improve
-- a generic policy platform before the concrete space approval journey is clear
-- Desktop duplicating Portal issue/workflow/space administration
-- a full Git restore UI before the outcome and change model is clear
-- any Portal-only Agent capability that bypasses the shared runtime
-
-## Related Documents
-
-- [../README.md](../README.md) — current system overview
-- [current-state.md](current-state.md) — code-based implementation and readiness assessment
-- [design/README.md](design/README.md) — design document index
-- [design/product-vision.md](design/product-vision.md) — long-range AI-native workspace vision
-- [design/surface-positioning.md](design/surface-positioning.md) — product surface positioning
-- [design/trust-harness.md](design/trust-harness.md) — P0.5 Agent Core trust harness design
-- [design/evaluation-system.md](design/evaluation-system.md) — P0.6 evaluation and qualification design
-- [design/verification-program.md](design/verification-program.md) — R0–R4 verification matrix, persistence gate, failure evidence, and release rehearsal
-- [design/context-durability.md](design/context-durability.md) — P0.5 instructions and session notes that survive compaction
-- [design/local-project-memory.md](design/local-project-memory.md) — shared CLI/Desktop Project identity and bounded cross-session Project Memory
-- [design/local-background-jobs.md](design/local-background-jobs.md) — P0.5 local background jobs and monitors for TUI and Desktop
-- [design/workspace-root-and-worktrees.md](design/workspace-root-and-worktrees.md) — a session that moves its own workspace root into a worktree
-- [design/enterprise-deployment.md](design/enterprise-deployment.md) — P3 Enterprise deployment design
-- [design/llm-gateway.md](design/llm-gateway.md) — P3 Managed LLM gateway design
-- [design/graceful-shutdown.md](design/graceful-shutdown.md) — P3 shutdown ladder for server, scheduler, and worker
-- [design/server-coordination.md](design/server-coordination.md) — R1 shared Redis coordination for multi-replica streaming, events, and turn serialization
-- [design/space-governance.md](design/space-governance.md) — P4 Space governance design
-- [design/system-administration.md](design/system-administration.md) — P4 Deployment-scoped system administration design
-- [design/space-membership-lifecycle.md](design/space-membership-lifecycle.md) — R3 space invitation, role change, ownership transfer, and member-scoped access recovery
+Maintainers should update this page when a priority, completion criterion, or
+release gate changes, and keep the Chinese mirror in sync. Routine implementation
+details belong in the linked evidence and issue, rather than growing this page
+into another implementation inventory.
