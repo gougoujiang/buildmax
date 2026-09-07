@@ -3,11 +3,12 @@
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Space插件分发.md)
 
 > **Audience:** contributors and operators · **Status:** partly implemented —
-> D1 works end to end and Portal manages a space's activations; the agent
-> definition's plugin field is not in Portal yet. D2 and D3 are not started
+> D1 works end to end, including Portal activation and Agent plugin selection.
+> D2 executable content is unbuilt. D3 is tracked by Space Secrets, whose
+> environment-delivery phase is complete; later delivery modes remain open.
 >
 > Follows [plugin-marketplace.md](./plugin-marketplace.md), whose §12 Phase D
-> asks for this record before anything here is built.
+> introduced this distribution boundary.
 
 ## Contents
 
@@ -33,14 +34,12 @@
 ## Status
 
 - roadmap_priority: `post-Beta, after the Marketplace`
-- status: `partially_implemented` — D1 ships the activation record, the space
-  routes and the CLI read path, the agent's selection, server-side resolution
-  when a worker claims its run, materialization into the run, and Portal's space
-  plugin section. What §10 still lacks is the agent's own plugin field: a
-  selection can be set through the API but not yet in Portal's agent modal,
-  whose form takes text fields only. D2, executable content, and D3, secrets,
-  are not started. §16's Task-scoped autonomous acquisition is an accepted
-  extension and is also not implemented
+- status: `partially_implemented` — D1 ships activation, Agent selection,
+  claim-time server resolution, pinned worker materialization, and Portal
+  activation management and Agent plugin pickers. D2 executable content and
+  §16 Task-scoped autonomous acquisition remain unimplemented. D3 is tracked
+  by [space-secrets.md](space-secrets.md): Phase 1 environment delivery is
+  complete; file delivery and later phases remain open.
 - follows: [plugin-marketplace.md](./plugin-marketplace.md)
 - depends_on: nothing unbuilt. An earlier draft made the executable half wait
   on the worker sandbox surface being wired; §9 retires that, because the Bash

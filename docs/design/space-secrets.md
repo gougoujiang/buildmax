@@ -59,20 +59,20 @@ needs credentials: an Agent driving `git` and `gh` needs GitHub authority, one
 calling an internal service needs its credential, one deploying needs cloud
 authority.
 
-There is no Space-scoped Secret resource. A credential reaches a run only if the
-deployment put it in the worker's ambient environment, which gives every Space
-and every Agent the same values, has no rotation, no per-Agent choice, and no
-audit. [plugin-space-distribution.md](plugin-space-distribution.md) §5 stops at
-reporting the environment variable names a release reads; it does not decide
-who supplies them.
+Before Phase 1, there was no Space-scoped Secret resource: credentials arrived
+through the deployment environment without per-Agent selection or consumption
+audit. Phase 1 closes that product gap. The remaining ambient worker credential
+debt is tracked separately in §13 and Phase 0; adding Space Secrets does not
+remove deployment object-storage credentials or change run-token delivery.
 
-Two properties of the ambient path make it unusable rather than merely coarse:
+Two properties motivated the change; Phase 1 fixes the first, while §13 still
+tracks the second:
 
-- `internal/infra/sandbox/env_scrub.go` strips secret-shaped names from every
-  sandboxed child, including `GITHUB_TOKEN` and anything ending `_TOKEN`,
-  `_KEY`, `_SECRET`, or `_PASSWORD`. Because the sandbox defaults off on the
-  CLI baseline and on for workers, the same configuration works locally and
-  fails silently in a pod.
+- The old `env_scrub` denylist removed names such as `GITHUB_TOKEN`, so
+  credentials usable on the CLI baseline disappeared in workers. Phase 1
+  replaces this with a deny-by-default baseline that admits explicitly granted
+  environment names while keeping BuildMax's own credentials denied.
+
 - The worker still receives credentials that are not its Space's business at
   all — the deployment's object-store key, and in direct mode a provider API
   key. §13 records what has to leave.
@@ -992,9 +992,8 @@ a worker holds only what its run needs.
   Phase 1 is complete.
 
 Environment delivery is first because it is universal and needs no renderer.
-The core loop — a Space owner stores a Secret, an Agent declares it, a run
-receives it in its environment, and the materialization is recorded — is
-closed; the Portal surface and per-run exact-value redaction are what remain.
+Phase 1 is complete, including the Portal surface and exact-value redaction.
+Credential-file delivery and later backends remain in Phases 2–5.
 
 ### Phase 2 — Credential File Delivery
 

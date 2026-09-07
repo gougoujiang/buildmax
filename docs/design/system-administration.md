@@ -31,7 +31,10 @@
   the system status and redacted configuration routes, the cross-space audit
   search and space metadata routes, the Portal administration area, and the
   model catalog surface. What remains is in §17, and none of it is a gap in
-  the first slice
+  the first slice. Later grant integrity, Portal discoverability, pagination,
+  model creation, and authenticated `buildmax admin` operations have also
+  shipped; [system administration operations](../proposals/system-administration-operations.md)
+  distinguishes them from its remaining proposed work
 - follows: [space-governance.md](./space-governance.md) and
   [enterprise-deployment.md](./enterprise-deployment.md)
 - relates to: [enterprise identity and access](../proposals/enterprise-identity-and-access.md)
@@ -170,42 +173,23 @@ Two attacks shape the specifics below:
 
 ### 5.1 One Role, Persisted As A Grant
 
-```go
-// internal/core/identity/system_grant.go
-const SystemRoleAdmin = "system_admin"
+`internal/core/identity/system_grant.go` owns `SystemGrant` and
+`SystemGrantStore`. The public ID is an opaque string, `GrantedAt` is
+`time.Time`, and `RevokedAt` is an optional `time.Time`. Numeric relational keys
+stay inside the store; see [entity identity](entity-identity.md) and
+[timestamp representation](timestamp-representation.md).
 
-// SystemGrant is one deployment-scoped authority held by one user.
-type SystemGrant struct {
-    ID            uint   `json:"-"`
-    SystemGrantID string `json:"system_grant_id"`
-    UserID        string `json:"user_id"`
-    Role          string `json:"role"`
-    GrantedBy     string `json:"granted_by"`
-    GrantedAt     int64  `json:"granted_at"`
-    // RevokedAt is nil while the grant is active. Revoking sets it rather
-    // than deleting the row: who held authority and when is the question an
-    // investigation asks, and a deleted row cannot answer it.
-    RevokedAt *int64 `json:"revoked_at,omitempty"`
-}
+`systemGrantRow` persists on `system_grant`. Its unique index is
+`(user_id, role, live_marker)`: the marker is fixed and non-NULL while live, and
+cleared with `revoked_at` on revocation. A unique key containing nullable
+`revoked_at` would allow duplicate live grants in MySQL and is not the current
+mechanism.
 
-type SystemGrantStore interface {
-    // ActiveSystemRoles returns the roles userID currently holds. Empty for
-    // almost every caller, so it must stay a single indexed read.
-    ActiveSystemRoles(ctx context.Context, userID string) ([]string, error)
-    ListSystemGrants(ctx context.Context, includeRevoked bool) ([]SystemGrant, error)
-    GrantSystemRole(ctx context.Context, userID, role, grantedBy string, now int64) (*SystemGrant, error)
-    // RevokeSystemRole revokes the active grant and reports whether one was
-    // found. Revoking an absent grant is not an error.
-    RevokeSystemRole(ctx context.Context, userID, role string, now int64) (bool, error)
-    CountActiveSystemGrants(ctx context.Context, role string) (int, error)
-}
-```
-
-Persisted as `systemGrantRow` on the singular table `system_grant`, with a
-unique index on `(user_id, role, revoked_at)` so one user cannot hold two
-active grants of the same role. `SystemGrantID` uses the new `sg_` prefix
-registered in `internal/util/id.go` and
-[contribute/conventions.md](../contribute/conventions.md).
+`RevokeSystemRole` checks `keepLastHolder` and revokes atomically. The API
+preserves an effective holder, defined as an unrevoked grant on an enabled
+account; account disablement uses the same protection. The database-direct
+operator path can deliberately revoke the final grant for recovery. MySQL
+concurrency evidence is in `internal/infra/db/system_grant_test.go`.
 
 Three shape decisions, each of which was the other way at some point:
 
@@ -276,9 +260,9 @@ the ordinary path.
 
 One invariant guards the gap between the two:
 
-- The **API** refuses to revoke the last active `system_admin` grant, with a
-  message naming the command. An admin cannot leave the deployment with none
-  by clicking.
+- The **API** refuses to revoke or disable the last effective `system_admin`
+  holder, with a message naming the command. An admin cannot leave the
+  deployment with none by clicking.
 - The **command** allows it, and prints what it means. The operator whose
   admin left the company needs exactly that, and they already hold the
   credentials that make the restriction meaningless.
@@ -299,19 +283,22 @@ exactly the confusion §4 exists to prevent.
 | `GET /api/admin/me` | The caller's grant: role, granted at, granted by | — |
 | `GET /api/admin/grants` | Active grants, and revoked ones on request | — |
 | `POST /api/admin/grants` | Grants `system_admin` to a user id | A grant to an account that does not exist |
-| `DELETE /api/admin/grants/{user_id}` | Revokes it | The last active grant (§6) |
+| `DELETE /api/admin/grants/{user_id}` | Revokes it | The last effective holder (§6) |
 | `GET /api/admin/users` | Accounts, newest first, `?q=` on email, paged | Password hashes, login codes, token values |
 | `GET /api/admin/users/{user_id}` | One account: email, name, quota tier, last login and platform, `has_password`, `disabled_at`, space memberships with roles, active session count | Everything in the row above |
 | `POST /api/admin/users` | Creates an account and its personal space | — |
 | `POST /api/admin/users/{user_id}/login-code` | Issues a single-use code, shown once | A code that can be read back later |
 | `POST /api/admin/users/{user_id}/disable` | Disables the account (§8) | — |
 | `POST /api/admin/users/{user_id}/enable` | Re-enables it | — |
+| `GET /api/admin/users/{user_id}/sessions` | Live login chains: session ID, platform, creation, rotation, expiry | Token values |
+| `DELETE /api/admin/users/{user_id}/sessions/{session_id}` | Revokes one login chain's refresh tokens | A session belonging to another account |
 | `DELETE /api/admin/users/{user_id}/sessions` | Revokes every refresh session, returns the count | — |
 | `GET /api/admin/system` | Version, commit, schema migrations applied, readiness checks and their status, worker runner mode, signup and sandbox settings, run counts by status | Anything with a credential in it |
 | `GET /api/admin/config` | The effective configuration, redacted, plus computed warnings | Every secret — **presence only**. Not a length, not a prefix, not a hash: each of those narrows a search for someone who has the response and wants the secret |
 | `GET /api/admin/spaces` | Spaces with member count, quota tier, personal-space flag, created at | Space contents of any kind |
 | `GET /api/admin/spaces/{space_id}` | The same, plus members and roles, plus usage against the tier | Issues, conversations, artifacts, files, traces |
 | `GET /api/admin/audit-events` | The trail across every space, filtered by `space_id`, `actor_id`, `action`, `since`, `until`, paged | Anything the event does not already hold |
+| `POST /api/admin/llm/models` | Creates a model, encrypting a write-only credential | Credential material in the response |
 | `GET /api/admin/llm/models` | The catalog: name, provider, model, capabilities, enabled | `api_key`, in any form |
 | `POST /api/admin/llm/models/{model_id}/enable` · `/disable` | Retires or restores a catalog model | — |
 
@@ -322,11 +309,12 @@ decisions, and the CLI already separates them for the same reason.
 
 ### 7.2 What Is Not In It, And Why
 
-- **Model creation and provider credentials.** `buildmax-server model add`
-  stays the only way to put an API key into the catalog. Adding a model over
-  HTTP means a provider credential in a request body, in a proxy log, and in
-  whatever the browser did with the form. Enable and disable are the
-  operational half and carry no secret, so they ship; `add` does not.
+- **Model creation and provider credentials — later implemented.**
+  `POST /api/admin/llm/models`, Portal, and `buildmax admin model add` now accept
+  a write-only provider credential encrypted under the deployment KEK.
+  A credentialed model is refused when that encryption boundary is unavailable.
+  `buildmax-server model add` remains a database-direct bootstrap primitive.
+
 - **Configuration writes.** `GET /api/admin/config` is read-only, and the
   reason is mechanical rather than cautious: `server.yaml` is read at process
   start, and a multi-replica deployment has one file per replica. A write
@@ -357,7 +345,7 @@ decisions, and the CLI already separates them for the same reason.
 This answers proposal question 3, which needs a decision per affected
 credential rather than one sentence.
 
-A `disabled_at *int64` column on `userRow`, nil for an ordinary account.
+A nullable `disabled_at` timestamp on `userRow`, nil for an ordinary account.
 
 | What | Effect of disabling | Why |
 |---|---|---|
@@ -461,37 +449,36 @@ residue, and this design makes it more urgent rather than answering it.
 
 ## 10. Portal Administration Surface
 
-A separate `/admin` area, not another tab in space settings. The separation is
-the product statement: this is not something a space owner has more of.
+Administration is separate from Space settings and appears as a first-level
+sidebar destination only after `GET /api/admin/me` confirms a grant. Navigation
+is presentation; the Server authorizes each request independently.
 
-- A new `admin` segment in `portal/src/router.ts`, with sections
-  `overview`, `accounts`, `spaces`, `models`, and `audit`.
-- A new `portal/src/features/admin/` for the API client and the pages.
-  It shares presentational components and shares nothing else with
-  `features/audit/`, whose space-scoped client stays as it is.
-- Visibility comes from `GET /api/admin/me`. A 403 means no navigation entry
-  and no route: a non-admin who types `#/admin` gets the home page, not a
-  forbidden screen, because there is nothing there to tell them about.
-- Hiding the entry is presentation. The server refuses regardless, and §11 is
-  what proves it.
+`portal/src/pages/admin/AdminSettings.tsx` and `portal/src/features/admin` own
+seven sections:
 
-Page order follows §2's questions rather than the resource list:
+1. **Overview** — build/readiness, worker mode, run counts, caller grant, and
+   collapsible redacted configuration.
+2. **Administrators** — current and historical grants, grant by account email,
+   and revoke with last-effective-holder protection.
+3. **Accounts** — paginated filters, reloadable detail, creation, login codes,
+   disable/enable, and live-session listing with single or bulk revocation.
+4. **Spaces** — paginated metadata, membership and usage, without content access
+   or quota-tier mutation.
+5. **Models** — list, create with a write-only encrypted credential, enable and
+   disable. No read returns the credential.
+6. **Plugins** — catalog and release inspection, retirement, restoration, and
+   yanking; Portal publication remains deferred.
+7. **Audit** — cross-Space metadata search/export; time-bound filters remain
+   API-only.
 
-1. **Overview** — version, schema state, readiness checks, worker mode, run
-   counts. The first page because it answers "is this thing all right".
-2. **Accounts** — search, inspect, create, issue a code, disable, revoke
-   sessions. The page an operator opens on a joiner or leaver day.
-3. **Spaces** — spaces, sizes, quota tiers, usage. Explicitly labelled as
-   metadata, with no link into space content, because a link that 403s reads as
-   a bug rather than as a boundary.
-4. **Models** — catalog state, enable and disable, with `add` documented as a
-   command rather than hidden.
-5. **Audit** — the cross-space trail with filters, and a stable link from any
-   event to the account or space it names.
+Session revocation affects refresh tokens. It does not invalidate an already
+issued access token, and a last-rotation time is not a live presence signal.
+The session listing is covered in `portal/e2e/admin.spec.ts`; single revocation
+is exercised by `TestAdminSessionsListAndSingleRevoke`, not by that browser
+scenario, which deliberately preserves its own login.
 
-Every page states its scope in one line. "This shows space metadata, not space
-content" is not decoration: an operator who assumes otherwise will eventually
-report a missing feature that is actually the design.
+Broader operating choices remain in
+[system administration operations](../proposals/system-administration-operations.md).
 
 ## 11. The Authorization Matrix
 
@@ -557,7 +544,7 @@ without touching the database directly.
 ### M1. Grant Model, Command, And Authorization — DONE
 
 `identity.SystemGrant` and `SystemGrantStore`, `systemGrantRow` on `system_grant`,
-the `sg_` prefix, `buildmax-server admin grant | revoke`,
+opaque public IDs, `buildmax-server admin grant | revoke`,
 `requireSystemAdmin`, the audit actions, and the first route —
 `GET /api/admin/me` — so that the matrix test had something to cover from the
 start.
@@ -665,9 +652,10 @@ mentions no issue, conversation, artifact, task, workflow, or trace at all.
 
 ### M5. Portal `/admin` — DONE
 
-The router segment, `features/admin/`, and four of the five pages in §10's
-order. Models is the fifth and lands with M6, because there is nothing to show
-until the catalog routes exist.
+The initial Portal slice shipped and has since expanded to §10's seven
+sections, with first-level navigation, grant management, pagination, account
+session controls, and redacted configuration. The old five-page plan no longer
+describes the current Portal.
 
 Acceptance met: an admin sees the area, a non-admin sees no entry and is sent
 home rather than to a forbidden screen, and the server refuses either way.
@@ -692,7 +680,9 @@ hold a grant — `./make e2e` now issues one alongside the login code.
 ### M6. Model Catalog Read And Toggle — DONE
 
 `GET /api/admin/llm/models` and the enable/disable routes, reusing the audit
-actions `model_admin.go` already writes. `add` stays a command.
+actions `model_admin.go` already writes. Model creation subsequently shipped
+through the Admin API, Portal, and `buildmax admin model add`; the database-direct
+command remains for bootstrap.
 
 Acceptance met: a model can be retired from Portal, the catalog response
 contains no key, and the trail does not distinguish a CLI toggle from an API
@@ -724,15 +714,17 @@ rather than a window onto existing state, and nothing has asked for it yet.
 5. **Audit.** The cross-space trail reusing `features/audit/describe.ts`, which
    already renders an unrecognised action verbatim — the property that keeps a
    Portal older than its server from hiding events.
-6. **Models.** Catalog table with enable/disable and the `add` command shown as
-   copyable text.
+6. **Models.** Catalog table with enable/disable and a model-creation form.
+   The earlier CLI-only addition restriction was superseded by encrypted
+   write-only credential handling in the Admin API.
 
 ## 15. Validation
 
 Backend:
 
 ```sh
-go test ./internal/server/handlers ./internal/infra/db ./internal/service/audit ./internal/bootstrap
+./make test ./internal/server/handlers/... ./internal/service/audit ./internal/bootstrap
+./make test mysql
 ```
 
 Frontend:
@@ -757,7 +749,7 @@ Manual scenarios, each of which is a claim in this document:
 5. The API refuses to revoke the last grant; the command allows it and says so.
 6. Disabling an account: an in-flight request fails, refresh fails, the
    password login says `account_disabled`, a webhook key is refused, pending
-   runs are cancelled, a running one finishes.
+   runs fail at dispatch, a running one finishes.
 7. Every step above appears in the cross-space audit trail with the right actor.
 8. `buildmax-server user create` now appears in the trail as a system actor.
 9. No admin response contains an API key, a hash, or a token.

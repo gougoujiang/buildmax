@@ -34,8 +34,8 @@
 | 提案 | 问题 | 目前已构建的内容 |
 |---|---|---|
 | [单一维护者的 Agent 开发工作流](single-maintainer-agent-development.md) | 一位维护者如何使用多个编码 Agent 来提升被接受的开发吞吐量，同时不让自己成为任务准备、评审、冲突解决与清理工作的瓶颈？ | 任务执行器、分层验证、实现型 Issue 模板、`agent-ready` 标签、worktree、CI、部署冒烟测试与评估框架均已具备；就绪性复核、租约、变更范围验证与独立验收尚未构成一个闭环的贡献流程 |
-| [系统管理操作](system-administration-operations.md) | 面向自动化的运维 CLI 与面向人类的 Portal，应当如何在权限、账户、会话、目录、配额与运行时健康方面提供安全且一致的结果？ | 授权模型、operator 命令、管理 API、六大板块的 Portal 区域、模型与插件目录控制，以及覆盖整个部署的审计已经具备；授权完整性加固与完整的 Portal 对等能力尚未实现 |
-| [客户端会话与 API 凭证](client-sessions-and-api-credentials.md) | 交互式登录是否应当签发除滚动刷新令牌之外的任何长期凭证，原生托管客户端与无人值守调用方又应当如何认证？ | 其各阶段均未实现。它提议要加固的滚动双令牌会话位于 `internal/infra/db/user_refresh_token.go` |
+| [系统管理操作](system-administration-operations.md) | 面向自动化的运维 CLI 与面向人类的 Portal，应当如何在权限、账户、会话、目录、配额与运行时健康方面提供安全且一致的结果？ | 授权唯一性和最后有效持有者保护、认证后的管理 CLI、七区块 Portal、分页、脱敏配置及模型创建已实现。事务审计、管理 CLI 的 Session 操作对齐、quota tier 分配及更丰富的运行时操作仍待完成 |
+| [客户端会话与 API 凭证](client-sessions-and-api-credentials.md) | 交互式登录是否应当签发除滚动刷新令牌之外的任何长期凭证，原生托管客户端与无人值守调用方又应当如何认证？ | Stage 1 尚未完成。Admin API 和 Portal 已可列出及撤销单个 refresh-token Session 链；显式 Session 状态、绝对到期时间、access-token claims、原生安全存储及用户自助管理仍未实现 |
 | [企业身份与访问](enterprise-identity-and-access.md) | 私有部署应当如何将企业身份与 BuildMax 的 Space 及角色对接？ | 尚未开始 |
 | [持久化 Agent Session](durable-agent-sessions.md) | 经过身份验证的本地 Agent Session 是否应当成为带修订版本的 Server 资源，以支持恢复、来源追溯、分享与跨设备续接？ | 尚未开始；目前没有任何 Server 路由提供 Session 资源 |
 | [Assistant 编排与 Workflow 边界](assistant-orchestration-and-workflow-boundary.md) | 一个受限的管理者 Agent，相比一个强大的单体 Agent，是否能创造足够的价值以成为一款 Assistant 产品，Workflow 是否应当收窄为确定性的 Automation？ | 尚未开始；当前的 Agent 无法承接持久的子级 Space Agent Task |
@@ -123,7 +123,7 @@ execution loop* 探讨了在更大范围推广之前，是否应当先证明一�
 [信任保障设计](../design/信任保障.md)的 §3.9，连同它所阻断的出站访问那一半
 问题。
 
-git 历史保留了全部十二份文档的记录。
+git 历史保留了全部十三份文档的记录。
 
 ## 发起一份提案
 

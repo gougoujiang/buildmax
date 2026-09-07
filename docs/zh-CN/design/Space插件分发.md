@@ -3,12 +3,9 @@
 > **翻译说明：** 本文是[英文原文](../../design/plugin-space-distribution.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
 
-> **读者：** 贡献者和运营人员 · **状态：** 部分实施——D1 已端到端运行，
-> Portal 也能管理 Space 的激活项；Agent 定义中的插件字段尚未进入 Portal。
-> D2 和 D3 尚未开始。
+> **读者：** 贡献者和运维人员 · **状态：** 部分实现。D1 已端到端运行，包括 Portal 激活管理和 Agent 插件选择。D2 可执行内容未实现。D3 由 Space Secrets 跟踪，其环境变量交付已完成，后续交付模式仍待实现。
 >
-> 本文承接[插件市场](./插件市场.md)设计；后者第 12 节阶段 D
-> 要求在实现本文内容前先形成这份设计记录。
+> 承接 [Plugin 市场](插件市场.md) §12 阶段 D 所引入的分发边界。
 
 ## 目录
 
@@ -34,13 +31,8 @@
 ## 状态
 
 - roadmap_priority: `post-Beta, after the Marketplace`
-- status: `partially_implemented`——D1 已交付激活记录、Space 路由和 CLI
-  读取路径、Agent 选择、Worker 领取运行时的服务器端解析、向运行目录的
-  物化，以及 Portal 的 Space 插件区域。第 10 节仍缺 Agent 自身的插件
-  字段：可通过 API 设置选择，但 Portal 的 Agent 对话框目前只接受文本字段。
-  D2（可执行内容）和 D3（密钥）尚未开始。第 16 节的 Task 级自主获取是
-  已接受但也尚未实现的扩展。
-- 接下来:[插件-市场.md](./插件市场.md)
+- status: `partially_implemented` — D1 已实现激活、Agent 选择、领取时服务端解析、固定版本的 worker 物化，以及 Portal 激活管理和 Agent 插件选择器。D2 可执行内容和 §16 Task 范围的自主获取尚未实现。D3 见 [Space 密钥](Space密钥.md)：Phase 1 环境变量交付已完成，文件交付及后续阶段仍待实现。
+- 承接：[Plugin 市场](./插件市场.md)
 - depends_on: 没有尚未实现的依赖。早期草案要求可执行内容等待 Worker
   沙箱界面接通；第 9 节已取消这一前提，因为 Bash 沙箱从未约束这里涉及的进程。
 - relates_to: [Space 治理](./Space治理.md)、

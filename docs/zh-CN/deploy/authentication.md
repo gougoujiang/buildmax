@@ -58,7 +58,7 @@ buildmax-server admin revoke alice@example.com
 
 授权不会创建账户，请先运行 `buildmax-server user create`。这些命令和账户命令一样，读取服务器使用的 `server.yaml`，在容器中无需额外配置。
 
-目前该授权允许访问 `/api/admin`：列出和检查账户、创建账户、签发登录码、禁用和启用访问、撤销会话，以及授予或撤销该角色本身。Portal 的 Administration 区域提供账户、目录和审计路由对应的功能；角色本身的授予与撤销目前通过命令行完成。该授权永远不会包含对 Space 的 Issue、Conversation、Artifact、文件或运行轨迹的访问。它们始终受 Space 成员资格保护，不属于某个 Space 的管理员无法读取其内容。
+目前该授权允许访问 `/api/admin`：列出和检查账户、创建账户、签发登录码、禁用和启用访问、撤销会话，以及授予或撤销该角色本身。Portal 的 Administration 包含 Administrators、Accounts、Spaces、Models、Plugins、Overview 和 Audit。Administrators 区块支持列出、授予及撤销角色；`buildmax admin` 通过同一 API 提供登录后的命令行操作。该授权永远不会包含对 Space 的 Issue、Conversation、Artifact、文件或运行轨迹的访问。它们始终受 Space 成员资格保护，不属于某个 Space 的管理员无法读取其内容。
 
 禁用账户会拒绝该账户持有的全部凭证：密码、登录码、刷新令牌、已经持有的访问令牌及 webhook 密钥。同时撤销会话；该账户已排队但尚未开始的工作会失败而不会执行。这不是删除，不会移除任何内容；重新启用仅恢复账户状态。
 
@@ -115,7 +115,14 @@ buildmax-server admin revoke alice@example.com
 
 登录尝试没有限流，见[密码](#密码)一节的说明。
 
-只有 System Administrator 能通过 `/api/admin/users` 管理会话：该接口报告账户的活跃会话数量，并能一次撤销全部会话。没有逐一列出会话或撤销单个会话的命令。访问令牌仍无法撤销；下次请求的账户检查才能阻止它，因此禁用账户立即生效，而退出单个设备不会产生同样效果。
+System Administrator 可在 Portal 的账户详情页或通过
+`GET /api/admin/users/{user_id}/sessions` 查看有效登录 Session，并通过
+`DELETE /api/admin/users/{user_id}/sessions/{session_id}` 撤销单个 Session，
+或通过集合的 DELETE 路由撤销全部 Session。列表包含 Session ID、平台、创建
+时间、最近轮换时间与到期时间；最近轮换时间并不表示设备持续在线。目前没有
+用户自助 Session 管理页，也没有专门的管理 CLI Session 命令。撤销只会使
+refresh token 失效；已签发的 access token 仍需等待到期，或通过禁用账户来
+阻止其继续使用。
 
 ## 其他凭证
 
@@ -129,7 +136,9 @@ buildmax-server admin revoke alice@example.com
 
 同样，Run 令牌是签名而非数据库行，无法在过期前撤销。它由作用域（单次运行）和运行状态约束：推理路由拒绝已不在执行的运行。
 
-System Administrator 可通过 `DELETE /api/admin/users/{user_id}/sessions` 或 Portal 的 Administration 区域撤销账户会话，一次使该账户所有刷新令牌失效。两种方式都不能只撤销单个设备，也不会使已签发的访问令牌失效；后者靠下次请求的账户检查阻止，所以禁用账户立即生效。让某个特定用户登出已不再需要直接访问数据库。
+Portal 的账户详情页和 Admin API 都支持撤销单个或全部 Session。单 Session
+撤销会核对其所属账户，并保留该账户的其他登录链。已签发的 access token 在
+到期前仍可使用，除非账户被禁用。这些操作不需要直接访问数据库。
 
 ## 报告问题
 

@@ -7,7 +7,8 @@
 This document is a code-first assessment of BuildMax. Its full sweep was made
 at `origin/main` commit `67e9e4df77d42351c435fd21d74422c67a9f8a38`; the
 sections have since been amended in place as the boundaries they describe
-moved, most recently against `ed664c7d`. It answers what the repository actually
+moved, most recently against `97d5fbc7` (documentation/code reconciliation only;
+no new deployment or evaluation run). It answers what the repository actually
 implements and how close those implementations are to dependable use. It is
 not derived from the roadmap, proposals, design records, or feature copy.
 
@@ -105,12 +106,11 @@ unreferenced payloads. See
 [design/task-workspace-checkpoints.md](design/task-workspace-checkpoints.md).
 
 Direct Agent execution has shipped: Portal runs a Task through its own thread
-page rather than a synthetic Conversation, the `workflow` and `issue_agent`
-Conversation channels and the per-run output-file list were removed rather than
-hidden, and TaskRun holds the authoritative result. A Conversation may still
-create a Task without becoming its authorization or storage parent. The
-remaining open items — Conversation-less streaming and some trace and usage
-evidence specific to a direct Task — are tracked in
+page, TaskRun holds the authoritative result, and synthetic Conversations and
+per-run output-file lists are removed. The Task page consumes SSE output deltas
+and polls for durable lifecycle state. A Conversation may create a Task without
+owning its authorization or storage. Direct-Task artifact/trace/usage and failure
+recovery evidence, and revision visibility, remain tracked in
 [design/agent-execution-and-task-threads.md](design/agent-execution-and-task-threads.md)
 §14.
 
@@ -240,13 +240,13 @@ declared tier still always overrides the space default. This closes both
 halves of [`agent-sandbox-policy.md`](design/agent-sandbox-policy.md) §9/§10
 that were previously not started.
 
-What remains open: the cluster-level `NetworkPolicy` question
-[`trust-harness.md`](design/trust-harness.md) §3.9 leaves open — a worker
-pod reaches whatever the cluster's network allows, independent of the
-in-process sandbox this section covers — is untouched by this pass;
-`buildmax sandbox overrides` is still unimplemented; and neither plugin pins
-nor the resolved sandbox tiers are yet surfaced in a task run's own detail
-view in Portal, only in the API response and audit trail.
+Worker control-channel isolation is implemented separately: public and worker
+listeners, TLS, an internal Service, lifecycle authorization, and a worker-port
+NetworkPolicy, with kind evidence recorded in
+[worker-api-network-boundary.md](design/worker-api-network-boundary.md).
+General domain-aware worker egress remains open, as do `buildmax sandbox
+overrides` and Portal run-detail display of plugin pins and resolved sandbox
+tiers. A worker-port ingress policy is not an outbound destination policy.
 
 The non-root configuration turned out to be incompatible with `bwrap`
 actually running on a real cluster. A container
@@ -327,15 +327,15 @@ mechanism it belonged to was removed; see
 [agent execution and Task threads](design/agent-execution-and-task-threads.md).
 
 What remains is case breadth, not mechanism.
-[`design/verification-program.md`](design/verification-program.md) §4.2 still
-lists retry attempts, workflow revision advancement, delivery restart
-recovery, cross-space store lookups, and artifact tombstoning. The N-1 migration
-fixture is blocked rather than deferred: the explicit migration list is empty
-after the identity cutover, so a fixture would encode a history no database
-ever had. The quota bullet in that list is withdrawn — there is no reservation
-to test, only a rolling-window read, which §4.2 now records. The database
-package measures 53.3% under the gate against 3.5% without it, though coverage
-is not yet reported per critical package the way §4.3 asks.
+[design/verification-program.md](design/verification-program.md) §4.2 tracks
+retry attempts, workflow revision capture and advancement, and cross-space store
+lookups. Artifact tombstoning and retention tests are implemented and
+mutation-checked; restart/failure recovery belongs to the broader verification
+matrix. The removed Tier 1 result-delivery mechanism has no remaining recovery
+backlog. The N-1 fixture waits for the first appended migration after the identity
+cutover; quota reservation is not implemented and must not be assumed by tests.
+The coverage figures above are from the earlier reassessment, not this
+reconciliation.
 
 ## Product And Operating Gaps
 
@@ -390,7 +390,8 @@ deployment partner supplies evidence that changes the order.
   first account and its model catalog before any client can sign in, the same
   role `buildmax admin` plays once one can. Account listing and the last
   administrator's revocation moved onto the authenticated `buildmax admin`
-  surface. Plugin catalog management stays on the command line by decision.
+  surface. Plugin publication stays on the command line by decision; Portal
+  can inspect, retire, restore, and yank catalog releases.
 
 ### P1 — Qualification Breadth
 
@@ -444,14 +445,16 @@ throughput. None of these is a reason to block containment or correctness work.
    in a deployed candidate.
 3. Widen the persistence gate's cases. The gate runs on every pull request and
    the contention cases are written; what is missing is retry, workflow
-   revision, delivery restart recovery, and artifact tombstoning per
+   revision and cross-space lookups per
    [`verification-program.md`](design/verification-program.md) §4.2.
 4. Close what remains of account and space operations. Less remains than this
    position suggests: space role lifecycle, ownership transfer, and
    member-scoped recovery are done, signup leaving an account without a
    credential is deliberate, and space approvals are out of scope by decision.
-   What is left is whether a deployment's own experience argues for reopening
-   either decision.
+   Remaining accepted work is narrower: transactional authority audit, admin
+   CLI parity for Session operations, quota-tier assignment, and enough runtime
+   metadata to diagnose queue stalls and lost workers. User self-service Session
+   management remains a separate proposal decision.
 5. Expand product-owned qualification from an architectural slice into a
    representative release suite.
 6. Deepen workflows, real channel adapters, executable space plugins, Portal

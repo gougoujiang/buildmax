@@ -600,11 +600,11 @@ it rather than leaving the gap implicit.
    `task.agent_id` is asserted directly in the same spec.
 3. **Partly done.** Terminal output, cancellation, and retry work with
    `conversation_id` absent — covered by the same spec and by the Task page's
-   Stop/Retry actions. **Open:** streaming, and Artifacts/trace/usage evidence
-   specific to a direct (Conversation-less) Task. A backend SSE endpoint
-   already exists (`GET /api/spaces/{space_id}/tasks/{task_id}/stream`,
-   `internal/server/handlers/work/stream.go`, built for Conversation) but the
-   Task page consumes it nowhere — it polls every 1.5s instead.
+   Stop/Retry actions. The Task page now consumes
+   `GET /api/spaces/{space_id}/tasks/{task_id}/stream` through
+   `streamTaskOutput`, while polling every 1.5s for lifecycle state. **Open:**
+   direct-Task streaming/reconnect acceptance evidence and Artifacts/trace/usage
+   evidence; SSE wiring alone does not prove those journeys.
 4. **Done.** A refreshed Task page reconstructs every user input and Agent
    output from TaskRun records — the page holds no state a reload cannot
    rebuild from `GET .../tasks/{task_id}/runs`.

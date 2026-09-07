@@ -79,12 +79,12 @@ in-process sandbox — `buildmax sandbox overrides`, and surfacing a run's
 resolved tiers in Portal's task-run detail view rather than only in the API
 response and audit trail.
 
-The Server control channel is the first bounded network slice: separate the
-public and worker listeners, keep worker routes off the public mux, encrypt the
-Pod-to-Server path, and admit only worker Pods to its internal port. The
-accepted direction and its limits are in
-[`design/worker-api-network-boundary.md`](design/worker-api-network-boundary.md).
-It does not close the wider domain-aware worker egress question above.
+The Server control-channel slice has shipped: separate public and worker
+listeners, worker routes absent from the public mux, TLS on the Pod-to-Server
+path, and a worker-port NetworkPolicy. The kind smoke records the corresponding
+positive and negative reachability evidence; see
+[design/worker-api-network-boundary.md](design/worker-api-network-boundary.md).
+General domain-aware worker egress remains open.
 
 The Pod-to-host boundary has a separate qualified direction: support an
 operator-selected, fail-closed gVisor RuntimeClass around the complete worker
@@ -132,11 +132,11 @@ Required outcomes:
 - cover authorization-bearing and run-state transitions against the real
   database — **largely**: task-run transitions, claiming, system grants, plugin
   activation, and the space invitation and ownership-transfer lifecycle are
-  covered, and the four conditional-UPDATE claims that decide whether one
-  caller wins — task claiming, run transition, result-delivery claiming, and
-  cancellation beside a report — are now tested under contention and checked by
-  mutation. Retry attempts, workflow revision advancement, restart recovery,
-  cross-space store lookups, and artifact tombstoning remain; see
+  covered, and task claiming, run transitions, cancellation, and
+  one-active-run/idempotent admission are tested under contention and checked
+  by mutation. Artifact tombstoning and retention are covered too. Retry
+  attempts, workflow revision advancement, cross-space store lookups, and
+  broader restart recovery evidence remain; see
   [`design/verification-program.md`](design/verification-program.md) §4.2,
   which also records why the N-1 fixture is blocked and the quota bullet
   withdrawn;
@@ -146,11 +146,15 @@ Required outcomes:
 
 ### R3. Close Account And Space Operations
 
-Account creation, credential issuance, space invitation, role promotion,
-ownership transfer, access recovery, and space approvals must form complete,
-audited operator journeys. Existing authentication, role checks, system
-administration, quota, and audit code are the foundation, not the finished
-operation.
+Account creation and credential issuance, Space invitation, role changes,
+ownership transfer, and access recovery have implemented operator paths.
+Administrator grant integrity, Portal discoverability/pagination, and the
+signed-in `buildmax admin` surface have also shipped. Remaining session,
+capacity, and operating gaps are tracked in
+[system administration operations](proposals/system-administration-operations.md).
+Space approvals remain deliberately out of scope pending a concrete need,
+per [space governance](design/space-governance.md) §6; they are not a missing
+accepted R3 prerequisite.
 
 ### R4. Expand Qualification Breadth
 
@@ -295,14 +299,13 @@ Code state:
   and names every source a run was assembled from by its own kind; `buildmax
   doctor` reports the Project, the memory count and index size, skipped memory
   files, and detached sessions;
-- still absent: a worker selecting `SandboxSurfaceWorker`, process rlimits,
-  sandboxing of command/HTTP hook transports, trace retention, typed
-  command-level boundary, file-change, hook, approval, retry, and failure-cause
-  records, and the Project Memory surface work — a Desktop memory list and
-  editor, a CLI inspection command beyond `doctor`, the user-invoked
-  session-review command of the design's phase 2, and the usage evidence that
-  would justify raising the memory count, ranking the index, or promoting
-  memories automatically;
+- shipped since that baseline: worker sandbox selection, process limits,
+  command/HTTP hook containment, Agent tiers and Space defaults with Portal
+  selectors, `buildmax info`/TUI `/info`, and Desktop memory listing/reading;
+- still absent: MCP containment, trace retention and richer typed diagnostic
+  events, Desktop memory editing/deletion/enable control, the user-invoked
+  session-review command, and usage evidence for changing memory bounds or
+  introducing ranking and automatic promotion;
 - deliberately not covered by the local Project plan: global user memory,
   space memory, Portal/worker memory, semantic retrieval, and automatic memory
   extraction.
@@ -315,12 +318,13 @@ Acceptance:
 - memory sources are visible, scoped, and user-controllable
 - local and worker runtime differences are explicit, not hidden in surface-specific code
 
-Worker execution containment is now a Beta gate. A `k8s_job` worker runs in a
-constrained Kubernetes pod and reports that it is unsandboxed; it does **not**
-receive the stricter in-process sandbox baseline. `local_process` remains one
-trust domain with the Server. The candidate must wire and prove the worker
-boundary, or disable unrestricted Bash on that path; recording an unavailable
-boundary is evidence of the gap, not containment.
+Worker execution containment remains a Beta gate. Official worker images select
+and probe the strict sandbox baseline; Bash confinement and the production pod
+profile are covered by the organic deployment smoke. Bare-host `local_process`
+uses the documented host baseline unless explicitly configured, and is not a
+separate trust domain from the Server. MCP child processes and general worker
+egress remain open. The release candidate still needs its own operating proof;
+an existing smoke result is not qualification of a different image.
 
 ### P0.6. Evaluation And Qualification System
 
@@ -519,14 +523,15 @@ implemented; releases contributing hooks or MCP servers cannot be activated.
 The active priorities define engineering order. The Beta proof then closes in
 this sequence:
 
-1. **Contain worker execution and make topology honest.** Wire and test the
-   worker boundary. Topology is now honest in mechanism: the `coordination`
-   Redis backend makes multi-replica streaming, events, and turn serialization
-   consistent, and an architecture test refuses a multi-replica manifest without
-   it. What remains is proving it across two replicas in a deployed candidate.
+1. **Contain worker execution and prove the supported topology.** Finish MCP
+   and general worker-boundary follow-ups and qualify the candidate's
+   containment. The `coordination` Redis backend now makes multi-replica
+   streaming, events, and turn serialization consistent, and an architecture
+   test refuses a multi-replica manifest without it; what remains is proving
+   that topology across two replicas in a deployed candidate.
 2. **Add real persistence evidence to CI.** The gate runs and the contention
-   cases are written; what remains is retry, workflow revision, restart
-   recovery, and artifact tombstoning per
+   cases are written; what remains is retry, workflow revision, cross-space
+   store lookups, and restart recovery per
    [`design/verification-program.md`](design/verification-program.md) §4.2.
 3. **Complete negative deployment smoke.** Cancellation is covered. Add hard
    worker loss, database unavailability, and object-storage denial, asserting

@@ -599,13 +599,8 @@ Conversation 工具使用相同的 Task 服务规则。使重试可见并且
    没有前台 Conversation 模型调用。构造真实——直接
    入场永远不会打开 Conversation 或调用前台模型 - 并且
    `task.agent_id` 在同一规范中直接断言。
-3. **部分完成。** 终端输出、取消和重试工作
-   `conversation_id` 不存在 — 由相同规格和 Task 页面涵盖
-   停止/重试操作。 **开放：**流媒体和工件/跟踪/使用证据
-   具体到直接（Conversation-少）Task。后端 SSE 端点
-   已经存在（`GET /api/spaces/{space_id}/tasks/{task_id}/stream`，
-   `internal/server/handlers/work/stream.go`，专为 Conversation 构建），但
-   Task 页面无处消耗它——而是每 1.5 秒轮询一次。
+3. **部分完成。** `conversation_id` 缺失时的终态输出、取消和重试由同一 browser spec 及 Task 页面操作覆盖。页面现在通过 `streamTaskOutput` 消费 `GET /api/spaces/{space_id}/tasks/{task_id}/stream`，同时每 1.5 秒轮询生命周期状态。**仍待验证：**直接 Task 的流式输出／重连验收，以及 Artifact/trace/usage 证据；接入 SSE 本身不能证明这些完整路径。
+
 4. **完成。** 刷新的 Task 页面会重建每个用户输入和 Agent
    TaskRun 记录的输出 — 该页面不保存任何状态，重新加载无法
    从 `GET .../tasks/{task_id}/runs` 重建。
