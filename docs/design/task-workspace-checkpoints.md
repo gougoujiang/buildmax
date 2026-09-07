@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Task工作区检查点.md)
 
-> **Audience:** contributors, product designers, and operators · **Status:** planned — direction accepted, implementation not started
+> **Audience:** contributors, product designers, and operators · **Status:** largely implemented — the base/result/partial checkpoint lifecycle, object-store payload persistence, restore-before-Continue, ephemeral-storage bounds, orphan and retention sweeps, and read-only Portal workspace state have shipped, with unit, MySQL-gated, object-store, and kind evidence. §16.5 tracks exactly what is verified and what remains; deferred within this feature are setting and surfacing a failed-checkpoint status with the Continue gating that reads it (fail-open today) and Task-scoped autonomous Plugin installation, which is separate Plugin-distribution work.
 
 Related: [product vision](product-vision.md),
 [Agent execution and Task threads](agent-execution-and-task-threads.md),

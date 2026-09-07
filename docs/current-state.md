@@ -2,12 +2,12 @@
 
 > **简体中文：** [阅读中文镜像](zh-CN/current-state.md)
 >
-> **Audience:** maintainers and contributors · **Status:** current as of 2026-09-02
+> **Audience:** maintainers and contributors · **Status:** current as of 2026-09-07
 
 This document is a code-first assessment of BuildMax. Its full sweep was made
 at `origin/main` commit `67e9e4df77d42351c435fd21d74422c67a9f8a38`; the
 sections have since been amended in place as the boundaries they describe
-moved, most recently against `c8ef5bd`. It answers what the repository actually
+moved, most recently against `ed664c7d`. It answers what the repository actually
 implements and how close those implementations are to dependable use. It is
 not derived from the roadmap, proposals, design records, or feature copy.
 
@@ -94,13 +94,27 @@ audit, system administration, and a plugin catalog and activation model.
 
 Background execution supports local-process and Kubernetes Job launch modes,
 direct and managed inference, space-home materialization, run-scoped homes,
-artifact publication, heartbeats, cancellation, retry, stale-run recovery, and
-the current legacy result-presentation path into Conversations. TaskRun already
-holds the authoritative result; direct Agent execution and optional
-Conversation projection are planned in
-[design/agent-execution-and-task-threads.md](design/agent-execution-and-task-threads.md).
+artifact publication, heartbeats, cancellation, retry, and stale-run recovery. A
+Task's recoverable filesystem now persists as immutable workspace checkpoints in
+the configured object store: the first run seeds a base, a Continue or Retry
+restores the selected base before execution, and a run captures a result
+checkpoint on success or a partial one otherwise, under the worker pod's
+ephemeral-storage bounds and with orphan and retention sweeps reclaiming
+unreferenced payloads. See
+[design/task-workspace-checkpoints.md](design/task-workspace-checkpoints.md).
 
-Portal exposes the main collaboration and administration journeys. The
+Direct Agent execution has shipped: Portal runs a Task through its own thread
+page rather than a synthetic Conversation, the `workflow` and `issue_agent`
+Conversation channels and the per-run output-file list were removed rather than
+hidden, and TaskRun holds the authoritative result. A Conversation may still
+create a Task without becoming its authorization or storage parent. The
+remaining open items — Conversation-less streaming and some trace and usage
+evidence specific to a direct Task — are tracked in
+[design/agent-execution-and-task-threads.md](design/agent-execution-and-task-threads.md)
+§14.
+
+Portal exposes the main collaboration and administration journeys, including a
+run's committed and restored workspace checkpoint state shown read-only. The
 production tree also includes Compose, kind, Kubernetes, release, SBOM,
 vulnerability-scan, smoke, and browser-test infrastructure.
 
@@ -326,7 +340,10 @@ deployment partner supplies evidence that changes the order.
 - Signup can create an account that still has neither a password nor a login
   code. The code states this directly in
   [`internal/service/identity/account.go`](../internal/service/identity/account.go);
-  an operator must finish access manually.
+  an operator finishes access by issuing a single-use login code —
+  `buildmax admin user login-code` over the Admin API, or `buildmax-server user
+  login-code` directly against the database — after which the account chooses
+  its own password. The DB-direct `set-password` command was removed.
 - Space policy defines owner, admin, and member roles. The membership service
   now covers the full lifecycle — invitation bounded to an existing account,
   role promotion and demotion, unilateral ownership transfer, and
@@ -347,20 +364,26 @@ deployment partner supplies evidence that changes the order.
   [`design/space-membership-lifecycle.md`](design/space-membership-lifecycle.md)
   §6 declines to reopen it. Read a missing approval loop as unbuilt on
   purpose, pending a concrete space's need for one.
-- Deployment administrators manage the model catalog from Portal and the admin
-  API, not only the server command line: listing, enabling or disabling, and
-  adding a model. Provider credentials are encrypted at rest under the deployment
-  key-encryption key
+- Deployment administrators operate over the Admin API as a signed-in
+  administrator, not only from the server's own machine: `buildmax admin`
+  ([`internal/interface/cli`](../internal/interface/cli/admin.go)) mirrors the
+  Portal administration area with administrator grants (`list`/`grant`/`revoke`),
+  account operations (`user list`/`create`/`login-code`/`disable`/`enable`), and
+  model-catalog operations (`model list`/`add`/`enable`/`disable`). Managing the
+  model catalog therefore works from Portal, this CLI, and the API alike:
+  listing, enabling or disabling, and adding a model. Provider credentials are
+  encrypted at rest under the deployment key-encryption key
   ([`internal/infra/secret`](../internal/infra/secret/cipher.go)), so a model may
   be added over HTTP; a deployment with no encryption key configured refuses a
-  credentialed model rather than storing the key in the clear. `buildmax admin
-  model` reaches the same catalog from the command line as the signed-in
-  administrator. `buildmax-server model` is kept as the database-side bootstrap
-  primitive — how a fresh deployment's catalog is seeded before a client can sign
-  in, the same role `buildmax-server user create` plays for the first account —
-  while `set-password` and `admin list` were dropped from `buildmax-server` in
-  favour of `buildmax admin`. Plugin catalog management stays on the command line
-  by decision.
+  credentialed model rather than storing the key in the clear. `buildmax-server`
+  now keeps only the database-direct bootstrap and recovery subset:
+  first-administrator and last-administrator recovery (`admin grant`/`revoke`),
+  account bootstrap (`user create`/`login-code`), and model-catalog bootstrap
+  (`model list`/`add`/`enable`/`disable`) — how a fresh deployment seeds its
+  first account and its model catalog before any client can sign in, the same
+  role `buildmax admin` plays once one can. Account listing and the last
+  administrator's revocation moved onto the authenticated `buildmax admin`
+  surface. Plugin catalog management stays on the command line by decision.
 
 ### P1 — Qualification Breadth
 

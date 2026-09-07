@@ -1,11 +1,11 @@
 # Task 工作区检查点
 
-> **翻译说明：** 本文是[英文原文](../../design/task-workspace-checkpoints.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `c6a1ed781310b0d15cb74a0fd95904bfc890a3f18c0f606a794bbefb2daf2886`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../design/task-workspace-checkpoints.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `7970a35562424e273e378f1f19d0906cf506fac1de1a4656913574595ce73d0f`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 
 
-> **受众：**贡献者、产品设计师和运营人员 · **状态：**计划中——方向已确定，尚未开始实现
+> **受众：**贡献者、产品设计师和运营人员 · **状态：**基本已实现——基础/结果/部分检查点生命周期、对象存储载荷持久化、Continue 前的恢复、临时存储上限、孤儿与保留清扫，以及 Portal 只读工作区状态均已交付，并配有单元、MySQL 门禁、对象存储与 kind 证据。§16.5 逐项记录了已验证的内容与尚未完成的部分；本特性内仍推迟的是：为检查点提交失败设置并呈现失败状态、以及读取该状态的 Continue 门禁（当前为 fail-open），还有 Task 范围的自动 Plugin 安装（属于独立的 Plugin 分发工作）。
 
-相关文档：[产品愿景](产品愿景.md)、[Agent 执行与 Task 线程](Agent执行与Task线程.md)、[优雅关闭](优雅关闭.md)、[统一 Artifact](统一工件.md)、[Worker 运行令牌](Worker运行令牌.md)、[企业部署](企业部署.md)和[数据模型](../../contribute/architecture/data-model.md)。
+相关文档：[产品愿景](产品愿景.md)、[Agent 执行与 Task 线程](Agent执行与Task线程.md)、[优雅关闭](优雅关闭.md)、[统一 Artifact](统一工件.md)、[Worker 运行令牌](Worker运行令牌.md)、[企业部署](企业部署.md)和[数据模型](../contribute/architecture/data-model.md)。
 
 创建： 2026-09-06
 
