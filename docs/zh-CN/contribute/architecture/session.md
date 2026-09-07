@@ -1,6 +1,6 @@
 # Session
 
-> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/session.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `44839555d1b47dc2d60afb0ab6a74426f0a73469aaa8c93771117670fc9f9ff9`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/session.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 > **受众：** 贡献者 · **状态：** 当前有效
 >
 > 面向用户的视角：[manual/sessions-and-traces.md](../../../../manual/sessions-and-traces.md)

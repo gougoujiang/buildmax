@@ -1,6 +1,6 @@
 # 单一维护者的 Agent 开发工作流
 
-> **翻译说明：** 本文是[英文原文](../../proposals/single-maintainer-agent-development.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `925377174a88aca144081619fafaf55e193ca36e0d5af72724a1e2b72191a503`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../proposals/single-maintainer-agent-development.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
 > **受众：** 维护者、贡献者，以及编码-Agent 工作流的作者 · **状态：** 提案 — 讨论中
 >

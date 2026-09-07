@@ -1,6 +1,6 @@
 # 本地 Kubernetes 部署
 
-> **翻译说明：** 本文是[英文原文](../../deploy/local-kind.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `90508397c0095558d4be577d342b379a54a479118c8501e40636ef7e44dc4508`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../deploy/local-kind.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 > **受众：** 贡献者和运维人员 · **状态：** Beta
 >
 > Kubernetes Worker Job、RBAC、Ingress、MinIO、清单，以及行为跨越浏览器、API、入口、支撑服务或 Worker 执行的实质性 Portal/服务器改动，都应使用此路径。较快的 [Compose 冒烟测试](compose.md) 仍适合内层迭代，但不能证明这些 Kubernetes 边界。

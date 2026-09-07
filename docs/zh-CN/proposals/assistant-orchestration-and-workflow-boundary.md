@@ -1,6 +1,6 @@
 # 助理编排与 Workflow 边界
 
-> **翻译说明：** 本文是[英文原文](../../proposals/assistant-orchestration-and-workflow-boundary.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `9bde37299d1cf61b37611b7ca95b6f962e36f2dcf992246d1beddc7b15621ef5`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../proposals/assistant-orchestration-and-workflow-boundary.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
 > **受众：** 贡献者与产品评审者 · **状态：** 提案——讨论中
 > **开启日期：** 2026-09-05

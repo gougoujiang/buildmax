@@ -1,6 +1,6 @@
 # Session 树、Agent 邮箱与分支工作区
 
-> **翻译说明：** 本文是[英文原文](../../proposals/session-tree-and-agent-mailbox.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `4fedd7945a29bf09ee4f2a18b14d59a3418ed27fcef14de824c136b84317ce4c`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../proposals/session-tree-and-agent-mailbox.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
 > **受众：** 贡献者、产品设计师和早期采用者 · **状态：** 提案 — 讨论中
 >

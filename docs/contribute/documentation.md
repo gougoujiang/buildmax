@@ -95,17 +95,13 @@ The mirror has one fixed shape:
   `docs/zh-CN/design/`;
 - every English design record links to its Chinese counterpart immediately
   after the title;
-- every Chinese record links back to its English source and carries the
-  SHA-256 digest of the exact English file it translates;
-- the Chinese notice says that the translation is derived, identifies its
-  synchronization status, and makes the English text controlling when the two
-  differ.
+- every Chinese record links back to its English source;
+- the Chinese notice says that the translation is derived and makes the
+  English text controlling when the two differ.
 
-The digest is synchronization evidence, not a new source of product state. The
-normal documentation check recomputes it from `docs/design/` and rejects a
-missing, orphaned, or stale mirror. Do not update the digest without reviewing
-the corresponding translation, and do not resolve a disagreement by editing
-only the Chinese record. Correct the English source first, then synchronize the
+There is no automated freshness check: keeping a mirror current is a review
+responsibility, not a gate. Do not resolve a disagreement by editing only the
+Chinese record. Correct the English source first, then synchronize the
 translation in the same change.
 
 Translate prose, headings, tables, link labels, and contents lists completely.
@@ -119,10 +115,9 @@ records stay inside the Chinese mirror; links to documentation outside the
 mirrored tree continue to point to the authoritative English page.
 
 The author of any English design change owns synchronization of its Chinese
-counterpart. Reviewers verify semantic fidelity in proportion to the decision's
-risk; the automated check verifies coverage and freshness, not translation
-quality. Other documentation remains English unless its directory receives an
-explicit mirror policy here.
+counterpart. Reviewers verify both coverage and semantic fidelity, in
+proportion to the decision's risk. Other documentation remains English unless
+its directory receives an explicit mirror policy here.
 
 ## Retiring A Document
 

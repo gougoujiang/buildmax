@@ -1,6 +1,6 @@
 # Agent 原生协作底座备忘录
 
-> **翻译说明：** 本文是[英文原文](../../proposals/agent-native-collaboration-substrate.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `09944e035d9691e00a47d15bb622330c92a02d73c0f9ce669bcad07152d34f09`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../proposals/agent-native-collaboration-substrate.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 >
 > **受众：** 产品设计者、维护者与早期采用者 · **状态：** 提案 — 讨论中
 >

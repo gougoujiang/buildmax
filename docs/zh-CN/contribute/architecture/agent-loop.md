@@ -1,6 +1,6 @@
 # Agent 循环
 
-> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/agent-loop.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `026012c595413ddb661ddc9622e9eff855ab0138665d8dc8c6b1efa4e19d2430`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/agent-loop.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 > **受众：** 贡献者 · **状态：** 当前有效
 >
 > 面向用户的同一循环视角：[manual/concepts.md](../../../../manual/concepts.md)

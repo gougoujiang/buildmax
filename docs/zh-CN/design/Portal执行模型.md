@@ -1,6 +1,6 @@
 # Portal 执行模型：Tier 1、Tier 2 与结果交付
 
-> **翻译说明：** 本文是[英文原文](../../design/portal-execution-model.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `73d920c18c5df7f4cf67bf7bfe70e6ef796091c5f1fb222c05bb7ea486a8015a`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../design/portal-execution-model.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
 
 ## 内容

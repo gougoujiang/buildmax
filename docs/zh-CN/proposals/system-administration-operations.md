@@ -1,6 +1,6 @@
 # 系统管理运维
 
-> **翻译说明：** 本文是[英文原文](../../proposals/system-administration-operations.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `2ab6ef3fd1a19d68065f6d39881af6aec262d90dc21b346217ba99c953af5a6c`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../proposals/system-administration-operations.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
 > **受众：** 贡献者、运维人员与安全审查者 · **状态：** 提案 — 讨论中
 >

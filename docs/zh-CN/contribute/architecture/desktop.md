@@ -1,6 +1,6 @@
 # Desktop
 
-> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/desktop.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `bb092aa3d571709e9c40e45923a8f8b1734861622d6d69096731320bfac8cfb7`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/desktop.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 > **读者：** 贡献者 · **状态：** 当前
 >
 > 构建与使用说明：[`cmd/buildmax-desktop/README.md`](../../../../cmd/buildmax-desktop/README.md)

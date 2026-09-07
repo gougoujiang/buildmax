@@ -1,6 +1,6 @@
 # 客户端 Session 与 API 凭据
 
-> **翻译说明：** 本文是[英文原文](../../proposals/client-sessions-and-api-credentials.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `4fcccc1ab7f6d5354a37166aa218488df0e1f756f03bc402ddc5142104984ee0`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../proposals/client-sessions-and-api-credentials.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
 > **受众：** 贡献者、产品评审人、运维人员与安全评审人 · **状态：** 提案 —— 讨论中
 >
