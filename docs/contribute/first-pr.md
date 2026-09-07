@@ -70,6 +70,8 @@ In order of how easy they are to get merged:
 
 To claim an issue so others know you are on it, comment `/assign` on it — a bot
 assigns you, no repository permission required. Comment `/unassign` to release it.
+You can hold two open issues at a time, and a claim that goes quiet for a few
+weeks is released automatically so the work does not stay blocked.
 
 Before starting anything larger, read [manual/support.md](../../manual/support.md).
 It says which surfaces and deployment paths the project supports today and which

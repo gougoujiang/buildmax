@@ -48,9 +48,8 @@ jobs:
               return;
             }
 
-            // "/assign": claim the issue when it is unclaimed or already the
-            // commenter's own, otherwise report who holds it.
-            if (assignees.length === 0 || assignees.includes(commenter)) {
+            // "/assign": re-adding the commenter's own claim is idempotent.
+            if (assignees.includes(commenter)) {
               await github.rest.issues.addAssignees({
                 ...common,
                 assignees: [commenter],
@@ -58,9 +57,35 @@ jobs:
               return;
             }
 
-            await github.rest.issues.createComment({
+            // Held by someone else: report who, do not steal it.
+            if (assignees.length > 0) {
+              await github.rest.issues.createComment({
+                ...common,
+                body: `@${commenter} this issue is already assigned to ` +
+                  assignees.map((a) => `@${a}`).join(', ') +
+                  `. Comment \`/unassign\` on it once free, or ask them to release it.`,
+              });
+              return;
+            }
+
+            // Unclaimed: cap how many open issues one person may hold so the
+            // backlog is not hoarded. The stale-assignment sweep releases the
+            // ones that go quiet.
+            const MAX_OPEN = 2;
+            const search = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${context.repo.owner}/${context.repo.repo} is:issue is:open assignee:${commenter}`,
+            });
+            if (search.data.total_count >= MAX_OPEN) {
+              await github.rest.issues.createComment({
+                ...common,
+                body: `@${commenter} you already hold ${search.data.total_count} open ` +
+                  `assigned issues (the limit is ${MAX_OPEN}). Finish or \`/unassign\` ` +
+                  `one before claiming another.`,
+              });
+              return;
+            }
+
+            await github.rest.issues.addAssignees({
               ...common,
-              body: `@${commenter} this issue is already assigned to ` +
-                assignees.map((a) => `@${a}`).join(', ') +
-                `. Comment \`/unassign\` on it once free, or ask them to release it.`,
+              assignees: [commenter],
             });
