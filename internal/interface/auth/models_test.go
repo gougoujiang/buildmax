@@ -117,6 +117,31 @@ func TestResolveModelSourceReportsAnExpiredLogin(t *testing.T) {
 	}
 }
 
+// TestResolveModelSourceReportsAServerRejectedLogin is the same no-fallback rule
+// for the other shape of a dead login: the credential is on disk and not locally
+// expired, so it is handed to the deployment, but the deployment answers 401
+// because the session was revoked or the token is no longer trusted. That is not
+// a bare failure to puzzle over — it is an expired login, and it must offer the
+// same return to local mode. See docs/design/client-modes.md section 8.
+func TestResolveModelSourceReportsAServerRejectedLogin(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
+	}))
+	t.Cleanup(srv.Close)
+	t.Setenv(config.EnvKeyBuildmaxHome, t.TempDir())
+	saveUsableLogin(t, srv.URL)
+
+	source, err := ResolveModelSource(context.Background())
+	if !errors.Is(err, ErrLoginExpired) {
+		t.Fatalf("want ErrLoginExpired for a server-rejected credential, got %v", err)
+	}
+	if source.Managed() || len(source.Entries) > 0 {
+		t.Errorf("source = %+v, want nothing usable alongside the error", source)
+	}
+}
+
 // An empty catalog is reported rather than returned as a usable managed mode
 // with nothing in it, which would fail later with no explanation.
 func TestResolveModelSourceRejectsAnEmptyCatalog(t *testing.T) {
