@@ -2,463 +2,306 @@
 
 > **简体中文：** [阅读中文镜像](zh-CN/current-state.md)
 >
-> **Audience:** maintainers and contributors · **Status:** current as of 2026-09-07
+> **Audience:** users, operators, and contributors · **Status:** current as of 2026-09-08
 
-This document is a code-first assessment of BuildMax. Its full sweep was made
-at `origin/main` commit `67e9e4df77d42351c435fd21d74422c67a9f8a38`; the
-sections have since been amended in place as the boundaries they describe
-moved, most recently against `97d5fbc7` (documentation/code reconciliation only;
-no new deployment or evaluation run). It answers what the repository actually
-implements and how close those implementations are to dependable use. It is
-not derived from the roadmap, proposals, design records, or feature copy.
+This assessment was checked against repository code at `29efe806`. It describes
+implemented behavior, test coverage, and remaining limits. Priority and future
+sequencing belong in the [roadmap](ROADMAP.md), not in a second priority list
+here. Design records explain decisions; their unfinished checklists are not
+proof that code is missing.
 
-The code remains the source of truth. The maturity percentages below are
-engineering judgments, not mechanically calculated completion scores or release
-promises. Update this assessment when a material capability or readiness
-boundary changes; put future sequencing in the [roadmap](ROADMAP.md).
+## Assessment And Evidence Scope
 
-## Executive Assessment
+BuildMax remains Alpha. Local Agent execution and the private Space execution
+path are implemented, including direct Task threads, persistent workspace
+checkpoints, managed inference, and operator administration. This is not yet
+proof of production multi-tenant readiness or of a qualified Beta candidate.
+The [Beta readiness record](deploy/beta-readiness.md) remains unqualified.
 
-BuildMax is no longer a prototype. It contains a substantial shared Agent
-runtime, complete local surfaces, a broad space/server domain, background
-workers, a Portal, deployment assets, and an unusually serious test and release
-harness for an Alpha project.
+The main remaining boundaries are MCP child processes outside the Bash sandbox,
+worker-wide network egress, distributed lease fencing at database writes, and
+candidate failure/recovery evidence. Shared Redis coordination is implemented. The worker API already has a separate listener, TLS
+support, and a shipped ingress NetworkPolicy; that bounded network slice must
+not be confused with unrestricted worker egress.
 
-It is also not yet a production-safe multi-tenant Agent platform. Two gaps now
-dominate the assessment: unattended worker execution now selects and passes
-the worker sandbox baseline against the production pod's own hardening, but
-MCP child processes and cluster-level network egress remain outside it. The
-reference deployment's multiple Server replicas now have a shared coordination
-backend, so what is left there is operating evidence rather than mechanism.
-Pull-request tests do now exercise the real MySQL store; what is left there is
-the breadth of the cases, not the gate.
+This review inspected implementation, assembly, manifests, and test assertions.
+It does not reuse old full-build results, coverage percentages, mutation-test
+claims, or maturity percentages as evidence for this revision. The verification
+performed for this update is recorded at the end. A test file's existence means
+coverage is implemented, not that its deployment or database prerequisites were
+exercised in this review.
 
-| Target | Current maturity | Assessment |
-|---|---:|---|
-| Local general-purpose Agent | 80–85% | Useful and broadly implemented; remaining work is mostly reliability evidence, edge cases, and surface polish. |
-| End-to-end private space platform | 60–65% | The vertical path exists across Server, Portal, worker, artifacts, traces, and deployment, but several operational loops are incomplete. |
-| Production-safe multi-tenant platform | 45–55% | Authorization and governance foundations exist, worker Bash is confined, and persistence is in the pull-request evidence path. Multi-instance correctness, the MCP child-process boundary, cluster-level egress, and operating evidence from a real deployment are still below the production bar. The range is unchanged because what closed was mechanism, and what is left is the part no code change can supply. |
+## Shared Runtime And Local Surfaces
 
-The most accurate short description is:
+CLI/TUI, Desktop, and workers assemble the shared Agent runtime. The core has a
+streamed model/tool loop, tool error recovery, parallel read-only tool execution,
+permissions, approvals, compaction and checkpoints, hooks, bounded redacted
+traces, usage statistics, sessions, notes, todos, Project Memory, subagents,
+worktrees, and background jobs. Model assembly supports OpenAI-compatible chat,
+OpenAI Responses, Anthropic, and Ollama.
 
-> BuildMax is a capable Alpha Agent runtime with a broad, working platform
-> shell. Its next milestone should be proving safety and operational
-> correctness, not adding another large feature family.
+Local inspection includes `buildmax info`, TUI `/info`, and Desktop memory
+listing/reading. Desktop memory editing, deletion, and enable controls remain
+unimplemented.
 
-## Evidence Snapshot
+Local execution does not require a Server. Signed-in clients can use the managed
+model catalog; a server-rejected credential is treated as an expired login, and
+`buildmax logout` returns the client to local mode. See
+[`internal/interface/auth/models.go`](../internal/interface/auth/models.go) and
+its [tests](../internal/interface/auth/models_test.go).
 
-The repository contains a shared Go runtime and four shipped binaries, a
-server API described by the checked OpenAPI document, an authoritative GORM
-schema, Go and frontend test suites, and BuildMax-owned black-box evaluation
-tasks. Exact file, route, row, and test counts are intentionally omitted: they
-change too frequently to be useful maintained facts.
+The shared LLM request contract does not yet expose a provider-neutral
+structured-output schema. Tool-argument JSON schemas are a separate capability;
+see [`internal/core/llm/llm.go`](../internal/core/llm/llm.go).
 
-The reassessment exercised the contributor environment, full build, Go and
-frontend checks, CI-equivalent checks, and the fast CLI and Desktop end-to-end
-suites. They passed. Go statement coverage measured 59.7% with a MySQL DSN
-configured, so the store's own tests ran rather than skipping. The database
-package measured 53.3% that way and 3.5% without a DSN — the difference is the
-whole reason `./make test mysql` exists, and every pull request now runs it.
+## Tasks, Results, And Workspace Continuity
 
-The reassessment did not start the Compose, local deployment, or kind suites,
-because those mutate Docker or cluster state. The store integration tests still
-skip under a plain `./make test`, which is why `./make test mysql` exists and
-runs them on every pull request instead; a passing default suite remains no
-evidence that MySQL behavior was exercised. Real-provider smoke and evaluation
-runs were also not repeated: they spend credentials or tokens and answer a
-different question from whether code is wired.
+Direct Agent execution creates a Task and TaskRun without requiring a
+Conversation. Continue appends a run to that Task; Retry creates a new attempt
+with explicit lineage. TaskRun is authoritative for the result. A Conversation
+may create a Task but is not its authorization or storage parent. The previous
+result-delivery queue and mandatory foreground summary attempt are removed.
 
-## What Is Implemented
+**Direct Task streaming is implemented.** The worker appends deltas by Task ID,
+the Task SSE handler subscribes to that ID, and Portal's Task page reads the
+stream while polling durable run state. This path does not depend on a
+Conversation. The page also opens a stored run trace. Sources:
 
-### Shared Agent Runtime
+- [`internal/server/handlers/worker/worker.go`](../internal/server/handlers/worker/worker.go)
+- [`internal/server/handlers/work/stream.go`](../internal/server/handlers/work/stream.go)
+- [`portal/src/pages/tasks/TaskDetail.tsx`](../portal/src/pages/tasks/TaskDetail.tsx)
 
-The shared Go runtime implements a real streamed model/tool loop rather than a
-surface-specific demo. It includes tool-call recovery, parallel read-only tool
-execution, permissions and approvals, loop guards, context compaction and
-checkpoints, hooks, bounded redacted traces, cost and usage statistics,
-sessions, notes, todos, Project Memory, subagents, worktrees, background jobs,
-and partial cancellation.
+Stream behavior depends on the coordination mode: local mode buffers in memory;
+Redis mode shares bounded streams across replicas with expiration. Neither is
+an indefinite replay log. The [Portal Task-thread test](../portal/e2e/task-thread.spec.ts)
+covers direct execution, Continue, and Retry through the UI. The
+[two-replica streaming test](../internal/server/handlers/work/stream_multireplica_test.go)
+uses miniredis to exercise cross-replica deltas and buffered output. These tests
+do not prove every streaming, trace, or managed-usage failure scenario.
 
-The built-in tool surface covers file reading and mutation, search, Bash, web
-fetching, skills, subagents, MCP, notes and todos, memory, worktrees, jobs and
-monitors, Issues, and artifacts. Model assembly supports OpenAI-compatible
-chat, OpenAI Responses, Anthropic, and Ollama paths.
+Task workspaces persist as immutable object-store checkpoints. The first run
+seeds a base; Continue uses the Task's workspace head, while Retry uses the
+repeated run's base. Successful result checkpoints advance the head; partial
+checkpoints preserve failed or canceled work without advancing it. The worker
+records restoration status, and terminal reporting finalizes available
+checkpoints. Checkpoint finalization failure does not rewrite the run outcome.
 
-CLI/TUI and Desktop assemble this shared runtime. They are functional local
-Agent products, not thin placeholders for Portal.
+Implementation and tests span
+[`internal/agentapp/taskrun/checkpoint.go`](../internal/agentapp/taskrun/checkpoint.go),
+[`internal/service/workspace/checkpoint.go`](../internal/service/workspace/checkpoint.go),
+[`internal/infra/db/workspace_checkpoint.go`](../internal/infra/db/workspace_checkpoint.go),
+and the worker checkpoint handlers. Worker Jobs have ephemeral-storage limits;
+orphan and retention sweeps reclaim unreferenced payloads. Portal displays
+checkpoint and restoration state read-only. These mechanisms do not establish
+paired database/bucket restore or upgrade-rollback qualification.
 
-### Space And Background Platform
+## Worker Execution And Network Boundaries
 
-The Server implements authentication, spaces, agents and revisions, issues and
-comments, workflows and revisions, conversations, tasks and task runs, worker
-claim/report flows, artifacts and files, traces, a managed LLM gateway, quota,
-audit, system administration, and a plugin catalog and activation model.
+### Bash Sandbox And Child Processes
 
-Background execution supports local-process and Kubernetes Job launch modes,
-direct and managed inference, space-home materialization, run-scoped homes,
-artifact publication, heartbeats, cancellation, retry, and stale-run recovery. A
-Task's recoverable filesystem now persists as immutable workspace checkpoints in
-the configured object store: the first run seeds a base, a Continue or Retry
-restores the selected base before execution, and a run captures a result
-checkpoint on success or a partial one otherwise, under the worker pod's
-ephemeral-storage bounds and with orphan and retention sweeps reclaiming
-unreferenced payloads. See
-[design/task-workspace-checkpoints.md](design/task-workspace-checkpoints.md).
+[`config.WorkerSandboxSurface`](../internal/config/sandbox.go) selects the strict
+worker baseline when `BUILDMAX_SANDBOX_BACKEND_INSTALLED` is present. Official
+images install `bubblewrap` and `socat` and set this marker. This includes Compose
+workers launched as local processes inside the official image. An unmarked bare
+host inherits the CLI baseline unless configured otherwise; the code does not
+make every possible worker launch fail closed by default.
 
-Direct Agent execution has shipped: Portal runs a Task through its own thread
-page, TaskRun holds the authoritative result, and synthetic Conversations and
-per-run output-file lists are removed. The Task page consumes SSE output deltas
-and polls for durable lifecycle state. A Conversation may create a Task without
-owning its authorization or storage. Direct-Task artifact/trace/usage and failure
-recovery evidence, and revision visibility, remain tracked in
-[design/agent-execution-and-task-threads.md](design/agent-execution-and-task-threads.md)
-§14.
+The selected sandbox resolves settings, policy, run overrides, and Agent tiers.
+Worker handlers resolve and pin the effective Agent/Space tiers for audit.
+The backend self-test refuses unavailable enforcement when fail-closed policy
+is selected. Resource controls prefix wrapped commands with shell limits;
+the memory limit is not enforced on macOS. Command hooks use the Bash wrapper
+and scrubbed environment; HTTP hooks consult the allowed-host policy.
 
-Portal exposes the main collaboration and administration journeys, including a
-run's committed and restored workspace checkpoint state shown read-only. The
-production tree also includes Compose, kind, Kubernetes, release, SBOM,
-vulnerability-scan, smoke, and browser-test infrastructure.
+The Kubernetes worker security context is **root with `SYS_ADMIN` added**, with
+a read-only root filesystem and a supplied Localhost seccomp profile. The Linux
+Bash wrapper rebinds the container's `/proc` read-only. This is not a non-root
+pod or whole-worker isolation equivalent to the command sandbox. Sources:
+[`internal/infra/k8s/job.go`](../internal/infra/k8s/job.go),
+[`internal/infra/sandbox/bwrap_linux.go`](../internal/infra/sandbox/bwrap_linux.go),
+and [seccomp deployment instructions](../deployment/seccomp/README.md).
 
-### Evaluation
+Deployment smoke contains an actual worker Bash probe that checks successful
+execution and denial of an out-of-workspace write
+([`tools/mk/deploy_smoke.go`](../tools/mk/deploy_smoke.go)). This is implemented
+end-to-end coverage, not a claim that this review ran the cluster smoke.
 
-The evaluation framework is structurally sound: versioned task and trial
-contracts, built-binary local and worker adapters, deterministic, command, and
-trace graders, repeated and paired experiments, failure bundles, and a pinned
-Harbor/Terminal-Bench adapter exist. The oracle smoke and one-task canary verify
-that external path for one task only. There is no Terminal-Bench score.
+Remaining limits:
 
-## Readiness Blockers
+- MCP stdio servers launch with `exec.Command` and do not pass through the Bash
+  sandbox ([`internal/infra/mcp/transport.go`](../internal/infra/mcp/transport.go)).
+- `local_process` remains in the Server's host trust domain even when its Bash
+  commands are sandboxed.
+- `buildmax sandbox overrides` is not implemented. Portal exposes Agent tiers
+  and Space defaults, but not resolved tiers and plugin pins in the Task's own
+  run detail presentation.
+- No worker RuntimeClass selection is wired in the Job builder. gVisor remains
+  a qualification direction, not a shipped supported worker profile.
 
-### P0 — Worker Sandbox Wired And Verified Against The Production Pod Security Context; Cluster Egress Still Open
+### Worker API Boundary
 
-The worker task runtime now selects `config.SandboxSurfaceWorker` and applies
-an agent-declared network/filesystem tier in
-[`internal/agentapp/taskrun/runtime.go`](../internal/agentapp/taskrun/runtime.go),
-resolved by the server at claim time and pinned onto the run for audit, per
-[`docs/design/agent-sandbox-policy.md`](design/agent-sandbox-policy.md).
+**Implemented:** public and worker routes use separate muxes and listeners.
+Worker routes are absent from the public listener, independently of a caller's
+token. Server bootstrap builds the worker listener's TLS configuration; optional
+client-CA configuration enables native mTLS. Workers can use a configured CA and
+client identity. Per-run authentication remains required.
 
-Selecting it unconditionally was tried first and broke CI outright: a bare
-Linux host without `bwrap` installed, and every native-Windows worker (no
-sandbox backend exists there at all), both hit
-`SandboxSurfaceWorker`'s own `fail_if_unavailable: true` and refused to run
-any task — caught by `evaluation`'s black-box worker-surface tests and a
-Windows CI run, not by local development on a Mac, where Seatbelt is always
-present and the failure never reproduces. `config.WorkerSandboxSurface`
-now selects the strict baseline only when
-`BUILDMAX_SANDBOX_BACKEND_INSTALLED` is set — an `ENV` line in
-`Dockerfile.buildmax`/`Dockerfile.release`, present in every container built
-from either image and therefore inside a `k8s_job` worker pod, absent on a
-bare host, CI, or native Windows, which keep the CLI baseline exactly as
-before this work started. An operator who has installed `bwrap` themselves
-on a bare host can still opt in explicitly via `BUILDMAX_SANDBOX_ENABLED`.
+The basic and production Kubernetes manifests include a worker API Service and
+a Server-ingress NetworkPolicy admitting the worker port only from matching
+worker pods in the namespace. The public API port remains open to cluster
+traffic under that policy. Enforcement requires a CNI that implements
+NetworkPolicy; manifest presence alone is not proof of enforcement.
 
-Selecting the surface alone was not enough. Reproducing the worker Job's
-initial non-root `PodSecurityContext` in a real pod and running
-`bwrap` inside it failed outright: `RuntimeDefault` drops the
-`unshare`/`setns`/`mount`/`umount2`/`pivot_root`/`clone`/`clone3` rules a
-container's own default profile gates behind `CAP_SYS_ADMIN`, and an empty
-capability set drops the gated rule from the compiled filter entirely, not
-just the capability. `internal/infra/k8s/job.go` now requests a `Localhost`
-profile built for exactly this — [`deployment/seccomp/worker-bwrap.json`](../deployment/seccomp/worker-bwrap.json),
-Docker's own default profile with those seven syscalls made unconditional —
-distributed to every node by a `DaemonSet`
-([`deployment/buildmax-deploy.yaml`](../deployment/buildmax-deploy.yaml),
-[`deployment/production/buildmax.yaml`](../deployment/production/buildmax.yaml)).
-See [`deployment/seccomp/README.md`](../deployment/seccomp/README.md) for the
-full root-cause chain.
+Sources and coverage:
+[`internal/server/server.go`](../internal/server/server.go),
+[listener boundary tests](../internal/server/listener_boundary_test.go),
+[`internal/bootstrap/worker_tls.go`](../internal/bootstrap/worker_tls.go), and
+[production manifest](../deployment/production/buildmax.yaml).
 
-A second, independent failure surfaced once namespace creation worked:
-mounting a fresh `/proc` inside `--unshare-pid` triggered the kernel's "mount
-too revealing" VFS protection (`SB_I_USERNS_VISIBLE`), reproducible even with
-seccomp fully disabled and real root — a genuine container-runtime mount
-namespace restriction, not a seccomp or capability gap.
-[`internal/infra/sandbox/bwrap_linux.go`](../internal/infra/sandbox/bwrap_linux.go)
-now re-binds the parent's `/proc` read-only instead of mounting a fresh one;
-the accepted cost is a sandboxed process seeing the host container's process
-list under `/proc` rather than an isolated one.
+**Still absent:** a worker egress NetworkPolicy. The Server-ingress policy does
+not constrain all outbound traffic from a worker, sandbox MCP processes, or hide
+the storage credentials used by the worker. TLS support also does not mean every
+local development configuration requires TLS.
 
-Both fixes were verified against a real pod carrying the worker's exact
-security context and a `DaemonSet`-delivered profile, not a relaxed
-stand-in: the full `bwrap` invocation `bwrap_linux.go` builds ran a real
-command, correctly confined to the bound workspace and denied a write
-outside it.
+## Server Topology And Persistence
 
-An organic run closes the loop: the deployment smoke now arms its mock model
-(`internal/testsupport/mockllm`'s queued one-shot tool-call override, `GET
-/control/requests` to read a tool result back) to make a real dispatched
-task call `Bash` through the actual server → worker → Kubernetes Job path,
-then asserts the *tool result* — not the task's scripted final text, which
-answers the same regardless of what a tool did — shows the command ran and a
-write outside the workspace was denied
-(`tools/mk/deploy_smoke.go`'s `assertWorkerSandboxConfines`). It is not a
-pull-request gate — kind and compose suites never are — but it is free, mock
-model only, and now runs automatically every `./make kind up` or `./make
-compose smoke`, closing the gap that let the bwrap/seccomp break above ship
-unnoticed in the first place. The worker container images also now install
-`bubblewrap` and `socat` in
-[`deployment/docker/Dockerfile.buildmax`](../deployment/docker/Dockerfile.buildmax)
-and
-[`deployment/docker/Dockerfile.release`](../deployment/docker/Dockerfile.release),
-which the images lacked entirely before this pass and which the Linux
-sandbox backend requires regardless of the profile question.
+### Shared Coordination Is Implemented
 
-What this closes: a worker run is no longer built with an empty
-`SandboxSurface` resolving to the permissive CLI baseline, `bwrap` now
-functions under the worker pod's actual production hardening rather than
-merely being installed and unable to run, that functioning is now proven by
-an organic run rather than a one-off manual pod reproduction, and an agent
-author can request the `registries` or `open` network tier and a shared
-read/external-write filesystem tier without an operator hand-editing
-`policy.yaml` per agent.
+`coordination.mode: local` remains the single-instance default. Redis mode wires
+shared Task streams, connection-event fan-out, and renewable Conversation turn
+leases through [Server adapters](../internal/server/coordination/coordination.go)
+and [Redis primitives](../internal/infra/coordination). Bootstrap rejects an
+unreachable configured Redis rather than silently falling back to local mode.
 
-Process resource limits (`sandbox.process.{max_cpu_seconds,max_memory_mb,
-max_processes,max_open_files}`) are also now implemented as `ulimit`
-statements prefixed onto the wrapped command, verified against real Alpine
-and macOS shells (`max_memory_mb` is a documented no-op on macOS, which has
-no `RLIMIT_AS`) — closing [`sandbox-boundaries.md`](design/sandbox-boundaries.md)
-§13.1 gap 2.
+Both the basic/kind and production manifests now configure Redis and two Server
+replicas. Architecture tests reject multiple replicas without coordination.
+Multi-replica streaming and lease behavior have automated tests; candidate
+reconnect, contention, outage, and recovery exercises still need operating
+proof. The lease exposes a fencing token, but message-history writes do not yet
+enforce it. Lease mutual exclusion alone does not establish protection against
+stale writers after lease loss. See the
+[coordination design](design/server-coordination.md).
 
-The `command` and `http` hook transports now also consult `SandboxView`
-(§13.1 gap 3): a hook's command runs through the same `WrapBashCommand` call
-and scrubbed environment `Bash` uses, and a hook's HTTP request is checked
-against the same `HostAllowed` policy `WebFetch` uses, with no
-`dangerously_disable_sandbox`-equivalent escape hatch, since hooks are
-config-authored automation rather than an LLM-chosen call an operator is
-watching turn by turn. Verified against a real `sandbox.Manager` (Seatbelt),
-not only a test double.
+The scheduler has one concurrent dispatch slot per instance. In local-process
+mode that slot remains occupied during execution. Kubernetes dispatch returns
+after creating a Job, so the same setting does **not** limit the cluster to one
+running worker. See
+[`internal/server/scheduler/scheduler.go`](../internal/server/scheduler/scheduler.go)
+and [`internal/infra/k8s/job.go`](../internal/infra/k8s/job.go).
 
-Portal's agent editor now exposes both tiers as selectors beside name and
-instructions, defaulting to "Space default" (the empty string, which inherits
-the space's own default and only then falls through to the strictest
-baseline) rather than a hardcoded strictest choice, and a space's Plugins
-settings tab gains a "Sandbox defaults" section, visible to any member and
-editable by owner or admin, that sets what an agent declaring nothing
-inherits (`PUT /api/spaces/{space_id}/sandbox-defaults`,
-`internal/service/space.SetSandboxDefaults`, resolved into the worker's
-`GetTaskRun` response alongside the agent's own declaration). An agent's own
-declared tier still always overrides the space default. This closes both
-halves of [`agent-sandbox-policy.md`](design/agent-sandbox-policy.md) §9/§10
-that were previously not started.
+### Database Coverage And Migrations
 
-Worker control-channel isolation is implemented separately: public and worker
-listeners, TLS, an internal Service, lifecycle authorization, and a worker-port
-NetworkPolicy, with kind evidence recorded in
-[worker-api-network-boundary.md](design/worker-api-network-boundary.md).
-General domain-aware worker egress remains open, as do `buildmax sandbox
-overrides` and Portal run-detail display of plugin pins and resolved sandbox
-tiers. A worker-port ingress policy is not an outbound destination policy.
+`./make test mysql` requires a DSN, creates and drops an isolated database, and
+rejects missing-DSN skips. CI supplies a pinned `mysql:8.0` service. A default test
+run without a DSN still skips database-dependent tests.
 
-The non-root configuration turned out to be incompatible with `bwrap`
-actually running on a real cluster. A container
-runtime lands a capability added to a *non-root* pod (`Capabilities.Add`) in
-that pod's capability bounding set only, never its effective set at exec
-time — confirmed by isolating every other variable (this section's own
-seccomp and `/proc` fixes, an AppArmor override, `no-new-privileges`, file
-capabilities on `bwrap` itself) one at a time against a real Deployment
-smoke run and a throwaway container carrying the same configuration. The
-worker Job pod now runs root with `SYS_ADMIN` added, which does not have
-this gap; see `docs/reference/configuration.md`'s "How A Worker Pod Is
-Confined" for the current pod security context and
-`internal/infra/k8s/job.go`'s `containerSecurityContext` for the full
-finding. The Compose target's `local_process` worker needs the equivalent
-fix (`cap_add: SYS_ADMIN` plus the same seccomp and an `apparmor:unconfined`
-override, since it also runs root and Docker's default seccomp *and*
-AppArmor profiles each independently blocked a different syscall `bwrap`
-needs) — see `deployment/compose/compose.yaml`.
+The database coverage is broader than the previous assessment reported:
 
-### P0 — Multi-Replica Coordination Now Has A Backend; Operating Evidence Is Open
+| Behavior covered by database tests | Evidence |
+|---|---|
+| Retry lineage and original attempt preservation | [task_run_retry_test.go](../internal/infra/db/task_run_retry_test.go) |
+| Continue versus Retry workspace base selection | [task_run_base_test.go](../internal/infra/db/task_run_base_test.go) |
+| Direct Tasks, continuation, and idempotency keys | [task_direct_test.go](../internal/infra/db/task_direct_test.go) |
+| Task claiming, run transitions, one active run, and cancellation/report races | [concurrency_test.go](../internal/infra/db/concurrency_test.go) |
+| Artifact soft deletion, concurrent deletion, expiry, byte accounting, and purge lifecycle | [artifact_retention_test.go](../internal/infra/db/artifact_retention_test.go) |
+| Checkpoint head advancement and partial checkpoint retention | [workspace_checkpoint_test.go](../internal/infra/db/workspace_checkpoint_test.go) |
+| Workflow initial revision and revision queries | [revision_query_test.go](../internal/infra/db/revision_query_test.go) |
+| Space isolation for secrets and independent invitations | [secret_test.go](../internal/infra/db/secret_test.go), [space_invitation_test.go](../internal/infra/db/space_invitation_test.go) |
 
-The three previously process-local structures — the live stream hub in
-[`internal/server/websocket/hub.go`](../internal/server/websocket/hub.go),
-WebSocket connection-event fan-out in
-[`internal/server/websocket/registry.go`](../internal/server/websocket/registry.go),
-and per-conversation turn serialization in
-[`internal/server/turnqueue/turnqueue.go`](../internal/server/turnqueue/turnqueue.go)
-— can now share state across replicas through a `coordination` backend. When
-`coordination.mode` is `redis`, streaming rides Redis Streams, connection events
-ride Redis Pub/Sub, and each conversation's turn is guarded by a Redis lease, so
-a worker update, browser connection, or conversation turn landing on different
-processes is delivered and serialized correctly. `mode: local` (one replica)
-stays the default; `mode: redis` fails closed when Redis is unreachable, since
-serving with process-local coordination under a multi-replica manifest is the
-corruption the backend exists to prevent. See
-[`design/server-coordination.md`](design/server-coordination.md).
+This is not exhaustive proof of cross-Space store behavior or Workflow revision
+advancement under edits and contention. Restart and external dependency recovery
+also need scenario-specific evidence. The removed result-delivery queue has no
+remaining restart-recovery obligation of its own.
 
-The production manifest configures two Server replicas in
-[`deployment/production/buildmax.yaml`](../deployment/production/buildmax.yaml)
-and now ships a Redis and sets `coordination.mode: redis` to match, and an
-architecture test refuses a manifest that runs more than one replica without a
-backend. What is left is operating evidence, not mechanism: exercising cross-
-instance worker updates, reconnects, and concurrent turns across two replicas in
-a deployed candidate, and threading the conversation fencing token into the
-message-history write path (the lease already provides mutual exclusion).
+**The explicit migration list is no longer empty.**
+[`internal/infra/db/migration.go`](../internal/infra/db/migration.go) contains
+`system_grant_live_marker` and `llm_model_credential_encryption`.
+The latter drops the old plaintext credential column without migrating its
+values; affected models must be re-added. The migration test covers ledger
+recording and skipping on a second run. Neither that test nor an N-1 policy in
+a design document establishes an exercised old-schema upgrade and binary
+rollback. The old explanation that a fixture is blocked by an empty migration
+history is obsolete.
 
-### P0 — The Pull-Request Gate Now Proves MySQL Behavior, For The Cases That Are Written
+## Account, Space, And Extension Surfaces
 
-`./make test mysql` (`tools/mk/test_mysql.go`) runs the store scope against a
-real server: it requires `BUILDMAX_TEST_DSN` rather than skipping without one,
-creates and drops a uniquely named database so it never writes to the one the
-DSN names, and fails when a test in the scope skips for the DSN's absence
-anyway — the property that keeps the gate from going green by testing nothing.
-A pinned `mysql:8.0` service container runs it on every pull request
-([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)), and `./make check
-ci` runs it when a DSN is present and says it did not when one is absent.
+Account creation, single-use login codes, password sign-in, system administrator
+grants, Space invitations to existing accounts, role changes, ownership
+transfer, and member-scoped recovery are implemented. Signup defaults off;
+creating an account does not itself issue a credential. See the
+[identity service](../internal/service/identity/account.go) and
+[Space service](../internal/service/space/service.go).
 
-The gate justified itself on its first run. `CreateSpace` returned a `Space`
-whose `PluginCuration` was empty while `GetSpace` answered `open` for the same
-row, so a create and a later read disagreed and the API omitted the field on
-one path. `TestSetSpacePluginCurationRoundTrips` had asserted that since
-2026-08-23 and skipped every time; the defect sat on `main` for 387 commits
-because nothing ever ran the test.
+`buildmax admin` provides authenticated administrator, account, and model-catalog
+operations. `buildmax-server` retains database-direct bootstrap and recovery
+commands. Model credentials are encrypted under the deployment key-encryption
+key; credentialed model creation refuses to store a key without encryption.
+Space secrets and Agent secret-consumption declarations also have storage and
+worker delivery implementations, with run-scoped authorization. Their presence
+does not isolate delivered secrets from the worker process that consumes them.
 
-Three store methods claim in their own comments that exactly one of several
-simultaneous callers may win — `ClaimTask`, `TransitionTaskRun`, and
-`RequestTaskRunCancel` — and each implements that as a conditional UPDATE
-resting on the server serializing two writes to one row.
-`internal/infra/db/concurrency_test.go` now tests all three under contention,
-and each was checked by mutation: replacing the conditional UPDATE with a
-read-then-write makes its test fail. That check mattered. The first task-claim
-test passed against a deliberately broken implementation, because MySQL
-reports rows *changed* rather than rows *matched*, so the seven losing callers
-writing a status the row already held were counted as zero affected rows — a
-concurrency test nobody has watched fail proves nothing. A fourth method,
-`ClaimTaskResultDelivery`, made the same claim until the Tier 1 result-delivery
-mechanism it belonged to was removed; see
-[agent execution and Task threads](design/agent-execution-and-task-threads.md).
+System administration, quota, audit, role checks, and Space lifecycle UI exist.
+Remaining administration gaps include transactional authority audit, admin CLI
+Session listing/revocation parity, quota-tier assignment, and runtime metadata
+for queue/worker diagnosis. These are tracked in the
+[administration operations proposal](proposals/system-administration-operations.md);
+proposal status must not be confused with an implemented feature. Plugin
+publication remains CLI-only, while Portal can inspect, retire, restore, and
+yank catalog releases.
 
-What remains is case breadth, not mechanism.
-[design/verification-program.md](design/verification-program.md) §4.2 tracks
-retry attempts, workflow revision capture and advancement, and cross-space store
-lookups. Artifact tombstoning and retention tests are implemented and
-mutation-checked; restart/failure recovery belongs to the broader verification
-matrix. The removed Tier 1 result-delivery mechanism has no remaining recovery
-backlog. The N-1 fixture waits for the first appended migration after the identity
-cutover; quota reservation is not implemented and must not be assumed by tests.
-The coverage figures above are from the earlier reassessment, not this
-reconciliation.
+Space approval workflows remain unimplemented and deliberately out of scope;
+that is not evidence of an unfinished invitation or ownership-transfer feature.
 
-## Product And Operating Gaps
+Workflow definitions remain linear `agent_task` steps. They have versioned
+definitions and durable run/step records, but no branching, parallel graph,
+manual approval, loops, or typed input/output mapping in the definition contract
+([`internal/core/workflow/workflow.go`](../internal/core/workflow/workflow.go)).
 
-These are material, but they should follow the P0 boundaries above unless a
-deployment partner supplies evidence that changes the order.
+Portal and inbound webhook execution are assembled. Telegram and cron remain
+channel vocabulary, and the webhook callback sender is not assembled into the
+Server. Space plugin activation supports skill/subagent content but rejects
+releases containing hooks or MCP servers
+([activation service](../internal/service/plugin/activation.go)). Foreground
+Conversations do not load Space plugins.
 
-### P1 — Account And Space Operations
+## Qualification And Operating Evidence
 
-- Signup can create an account that still has neither a password nor a login
-  code. The code states this directly in
-  [`internal/service/identity/account.go`](../internal/service/identity/account.go);
-  an operator finishes access by issuing a single-use login code —
-  `buildmax admin user login-code` over the Admin API, or `buildmax-server user
-  login-code` directly against the database — after which the account chooses
-  its own password. The DB-direct `set-password` command was removed.
-- Space policy defines owner, admin, and member roles. The membership service
-  now covers the full lifecycle — invitation bounded to an existing account,
-  role promotion and demotion, unilateral ownership transfer, and
-  member-scoped login-code recovery — in
-  [`internal/service/space/service.go`](../internal/service/space/service.go),
-  [`internal/server/handlers/space/spaces.go`](../internal/server/handlers/space/spaces.go),
-  and Portal's Space → Members and Account → Invitations surfaces. Bringing in
-  someone who has never had a BuildMax account is still deliberately a
-  `system_admin` operation, not a space-scoped one — see
-  [`design/space-membership-lifecycle.md`](design/space-membership-lifecycle.md)
-  §1 for why account creation and space membership are kept as two different
-  authorities.
-- System administration, quotas, role checks, and audit exist. Space-level
-  approvals do not, and that is a decision rather than a backlog item:
-  [`design/space-governance.md`](design/space-governance.md) §6 lists approval
-  workflows as out of scope and §11 gives the reason — avoid custom roles and
-  approvals until basic traceability lands.
-  [`design/space-membership-lifecycle.md`](design/space-membership-lifecycle.md)
-  §6 declines to reopen it. Read a missing approval loop as unbuilt on
-  purpose, pending a concrete space's need for one.
-- Deployment administrators operate over the Admin API as a signed-in
-  administrator, not only from the server's own machine: `buildmax admin`
-  ([`internal/interface/cli`](../internal/interface/cli/admin.go)) mirrors the
-  Portal administration area with administrator grants (`list`/`grant`/`revoke`),
-  account operations (`user list`/`create`/`login-code`/`disable`/`enable`), and
-  model-catalog operations (`model list`/`add`/`enable`/`disable`). Managing the
-  model catalog therefore works from Portal, this CLI, and the API alike:
-  listing, enabling or disabling, and adding a model. Provider credentials are
-  encrypted at rest under the deployment key-encryption key
-  ([`internal/infra/secret`](../internal/infra/secret/cipher.go)), so a model may
-  be added over HTTP; a deployment with no encryption key configured refuses a
-  credentialed model rather than storing the key in the clear. `buildmax-server`
-  now keeps only the database-direct bootstrap and recovery subset:
-  first-administrator and last-administrator recovery (`admin grant`/`revoke`),
-  account bootstrap (`user create`/`login-code`), and model-catalog bootstrap
-  (`model list`/`add`/`enable`/`disable`) — how a fresh deployment seeds its
-  first account and its model catalog before any client can sign in, the same
-  role `buildmax admin` plays once one can. Account listing and the last
-  administrator's revocation moved onto the authenticated `buildmax admin`
-  surface. Plugin publication stays on the command line by decision; Portal
-  can inspect, retire, restore, and yank catalog releases.
+The evaluation contract, built-binary local and worker adapters, graders,
+repeated and paired experiments, and pinned Harbor adapter are implemented.
+[`evaluation/suite`](../evaluation/suite) contains three product-owned tasks.
+That scope cannot qualify all supported surfaces. Historical oracle/canary
+reports are not a benchmark result for this revision; this review ran neither
+real-model evaluation nor a Terminal-Bench protocol and reports no score.
 
-### P1 — Qualification Breadth
+Portal has browser tests, including direct Task threads and workspace state.
+Desktop has bridge tests and browser-based UI suites under
+[`desktop/frontend/e2e`](../desktop/frontend/e2e); these do not exercise a
+packaged native window. Portal routes are eagerly imported, with no route-level
+lazy loading in the current source. No fresh bundle size or throughput number
+was measured in this review.
 
-Three product-owned tasks are enough to prove the evaluation architecture, not
-the product's capability or reliability claims. Add representative suites for
-tool use, context durability, cancellation, failure recovery, permission
-boundaries, conversation delivery, and deployment behavior before using
-evaluation results for release qualification. Add performance and soak evidence
-separately; correctness trials do not measure throughput or resource behavior.
+Deployment smoke includes retry, managed inference and its call ledger,
+cancellation of a running worker, and the Bash confinement probe. Scheduler
+unit tests cover stale-run handling and cleanup. These are not equivalent to
+candidate exercises for hard worker loss, database outage, object-storage
+access denial, paired restore, credential rotation, and schema rollback.
 
-### P2 — Workflow, Channels, And Plugins
+Compose, kind, production Kubernetes manifests, release verification, SBOM,
+image scanning, and provenance workflows exist. Their presence does not fill
+the unsigned [Beta readiness record](deploy/beta-readiness.md).
 
-- Workflow definitions contain a linear list of `agent_task` steps in
-  [`internal/core/workflow/workflow.go`](../internal/core/workflow/workflow.go).
-  Branching, parallelism, manual approval, loops, and explicit input/output
-  mapping are absent.
-- Channel names include Portal, Telegram, cron, and webhook in
-  [`internal/service/conversation/channel/types.go`](../internal/service/conversation/channel/types.go),
-  but only Portal and inbound webhook paths are assembled. Telegram and cron
-  are vocabulary, not shipped adapters; the webhook callback sender is not
-  assembled by the Server.
-- Space background runs can materialize activated skill and subagent content,
-  but plugin releases containing hooks or MCP servers are rejected by
-  [`internal/service/plugin/activation.go`](../internal/service/plugin/activation.go),
-  and Tier 1 conversations do not load space plugins.
+## Verification For This Review
 
-### P2 — Surface And Throughput Evidence
+This is a source-and-tests reassessment, not a fresh deployment qualification.
+Focused `./make test` runs passed for configuration, bootstrap, Server listener
+separation, Task/worker handlers, scheduler, Kubernetes Job construction, plugin
+activation, worker runtime assembly, client authentication, and shared
+coordination (including two-replica streaming against miniredis).
+`./make check docs` and `git diff --check` passed. Documentation checks cover
+links and formatting; they do not prove runtime behavior.
 
-Desktop has useful bridge-level coverage but not full window automation. Portal
-has browser coverage, although its production bundle remains a large single
-chunk. The local scheduler intentionally dispatches one run at a time; this is
-acceptable as a conservative default but is not evidence of sustained
-throughput. None of these is a reason to block containment or correctness work.
-
-## Rebased Priority Order
-
-1. Decide the cluster-level `NetworkPolicy` question
-   [`trust-harness.md`](design/trust-harness.md) §3.9 leaves open, and give
-   MCP stdio child processes a boundary. Everything else in the in-process
-   sandbox is closed: the worker sandbox surface, its interaction with the
-   pod's hardening, process resource limits, the command/http hook boundary,
-   a backend self-test that fails closed, and an organic Bash-calling run
-   through the real server → worker → Job path are all proven and exercised
-   automatically by the deployment smoke. MCP is the one child process the
-   boundary still does not reach — `internal/infra/mcp/transport.go` execs a
-   stdio server directly.
-2. Prove the production topology across replicas. Shared coordination has landed
-   — the `coordination` Redis backend makes streaming, connection events, and
-   turn serialization multi-replica correct, and an architecture test refuses a
-   multi-replica manifest without it — so what remains is exercising two replicas
-   in a deployed candidate.
-3. Widen the persistence gate's cases. The gate runs on every pull request and
-   the contention cases are written; what is missing is retry, workflow
-   revision and cross-space lookups per
-   [`verification-program.md`](design/verification-program.md) §4.2.
-4. Close what remains of account and space operations. Less remains than this
-   position suggests: space role lifecycle, ownership transfer, and
-   member-scoped recovery are done, signup leaving an account without a
-   credential is deliberate, and space approvals are out of scope by decision.
-   Remaining accepted work is narrower: transactional authority audit, admin
-   CLI parity for Session operations, quota-tier assignment, and enough runtime
-   metadata to diagnose queue stalls and lost workers. User self-service Session
-   management remains a separate proposal decision.
-5. Expand product-owned qualification from an architectural slice into a
-   representative release suite.
-6. Deepen workflows, real channel adapters, executable space plugins, Portal
-   performance, Desktop automation, and throughput based on observed demand.
-
-This ordering treats safety, consistency, and evidence as product capability.
-It deliberately does not make another broad feature area the next milestone.
+The review did not run the real-MySQL scope (no `BUILDMAX_TEST_DSN` was supplied),
+full builds, frontend/browser suites, Compose/kind deployment smoke, external
+recovery drills, or paid model evaluation. Database test assertions above were
+read, not claimed as executed. Historical coverage and deployment results have
+therefore not been carried forward as current measurements.
