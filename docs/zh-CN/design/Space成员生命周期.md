@@ -30,7 +30,7 @@
   页面（Space → Members：邀请、待处理列表、角色选择器、转让确认和登录代码；
   Account → Invitations：列表和接受）。§12 的四个未决问题均已确定。
 - 后续依据：[space-governance.md](./Space治理.md)、[system-administration.md](./系统管理.md)
-- 路线图：[ROADMAP.md](../../ROADMAP.md)
+- 路线图：[ROADMAP.md](../ROADMAP.md)
 - created_at： `2026-08-30`
 
 ## 1. 决策

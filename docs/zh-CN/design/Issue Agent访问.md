@@ -21,11 +21,11 @@
 
 ## 状态
 
-- roadmap_priority：`unscheduled` — 本记录决定了已实施的 Issue 模型刻意留出的 Agent 修改权限问题；该工作尚未列入 [ROADMAP.md](../../ROADMAP.md)
+- roadmap_priority：`unscheduled` — 本记录决定了已实施的 Issue 模型刻意留出的 Agent 修改权限问题；该工作尚未列入 [ROADMAP.md](../ROADMAP.md)
 - status：`implemented` — §10 已在两个执行平面交付：从 Issue 启动的 Worker 运行，以及通过 `buildmax issue start` 启动的本地 CLI 会话。`GetIssue` 中的 Artifact 引用仍被推迟，原因见 §5.1
 - follows：[tool-permissions.md](./工具权限.md)、[unified-artifacts.md](./统一工件.md)
 - relates：[surface-positioning.md](./界面定位.md)、[portal-execution-model.md](./Portal执行模型.md)
-- precedes：[local-issue-work-bridge.md](../../proposals/local-issue-work-bridge.md)。该提案询问 Agent 可以通过工具执行哪些上下文修改；本记录给出答案。桥接方案的本地部分使用这里的工具，而不另行定义 Issue 访问方式
+- precedes：[local-issue-work-bridge.md](../proposals/local-issue-work-bridge.md)。该提案询问 Agent 可以通过工具执行哪些上下文修改；本记录给出答案。桥接方案的本地部分使用这里的工具，而不另行定义 Issue 访问方式
 - touches：`internal/tool`、`internal/agentapp`、`internal/agentapp/taskrun`、`internal/service/issue`、`internal/server/handlers/work`、`internal/interface/client`
 - created_at：`2026-08-29`
 ## 1. 决策
@@ -132,7 +132,7 @@ Artifact引用是**不实现**。 Issue的唯一集成是`aggregateIssueOutputs`
 
 ### 5.4 报告预算
 
-运行得到一个小的，固定的 `ReportToIssue`调用三，因此网络故障后的纠正和一次重试都适合.在预算之后，工具拒绝使用预算命名错误，这是[会议](../../contribute/conventions.md)下一个有意义的工具结果。
+运行得到一个小的，固定的 `ReportToIssue`调用三，因此网络故障后的纠正和一次重试都适合.在预算之后，工具拒绝使用预算命名错误，这是[会议](../contribute/conventions.md)下一个有意义的工具结果。
 
 预算而不是一个很好的描述，因为失败模式不是假设的：一个没有预算的Agent写入一个耐用的人类线程，将其作为一个块， `RunReporter` Issue
 

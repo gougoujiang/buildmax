@@ -1,101 +1,64 @@
-# Assistant Orchestration And Workflow Boundary
+# 助理编排与 Workflow 边界
 
-> **翻译说明：** 本文是[英文原文](../../proposals/assistant-orchestration-and-workflow-boundary.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `4832c56ee673d8bce43649eec678de90fcbe2fd5644f23ff7916adce3fc6ea46`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../proposals/assistant-orchestration-and-workflow-boundary.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `9bde37299d1cf61b37611b7ca95b6f962e36f2dcf992246d1beddc7b15621ef5`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 
-# Assistant Orchestration And The Workflow Boundary
+> **受众：** 贡献者与产品评审者 · **状态：** 提案——讨论中
+> **开启日期：** 2026-09-05
 
-> **Audience:** contributors and product reviewers · **Status:** proposal — under discussion
-> **Opened:** 2026-09-05
+相关文档：[路线图](../ROADMAP.md)、[产品愿景](../design/产品愿景.md)、[Workflow 运行时](../design/Workflow运行时.md)、[Agent 执行与 Task 线程](../design/Agent执行与Task线程.md)、[Portal 执行模型](../design/Portal执行模型.md)，以及[技能与子 Agent](../../../manual/skills-and-subagents.md)。
 
-Related: [roadmap](../ROADMAP.md),
-[product vision](../../design/product-vision.md),
-[Workflow runtime](../../design/workflow-runtime.md),
-[Agent execution and Task threads](../../design/agent-execution-and-task-threads.md),
-[Portal execution model](../../design/portal-execution-model.md), and
-[skills and subagents](../../../manual/skills-and-subagents.md).
+## 目录
 
-## Contents
+- [1. 问题与建议](#1-问题与建议)
+- [2. 当前背景](#2-当前背景)
+- [3. 第一性原理模型](#3-第一性原理模型)
+- [4. 候选产品概念](#4-候选产品概念)
+- [5. 对比分析](#5-对比分析)
+- [6. 委托何时创造真正价值](#6-委托何时创造真正价值)
+- [7. 用户体验与信息架构](#7-用户体验与信息架构)
+- [8. 候选运行时契约](#8-候选运行时契约)
+- [9. 与 Workflow 的关系](#9-与-workflow-的关系)
+- [10. 方案](#10-方案)
+- [11. 风险与失败模式](#11-风险与失败模式)
+- [12. 证据计划](#12-证据计划)
+- [13. 分阶段交付](#13-分阶段交付)
+- [14. 目标与非目标](#14-目标与非目标)
+- [15. 待解决问题](#15-待解决问题)
+- [16. 可能的归宿](#16-可能的归宿)
 
-- [1. Question And Recommendation](#1-question-and-recommendation)
-- [2. Current Context](#2-current-context)
-- [3. First-Principles Model](#3-first-principles-model)
-- [4. Candidate Product Concepts](#4-candidate-product-concepts)
-- [5. Comparative Analysis](#5-comparative-analysis)
-- [6. When Delegation Creates Real Value](#6-when-delegation-creates-real-value)
-- [7. User Experience And Information Architecture](#7-user-experience-and-information-architecture)
-- [8. Candidate Runtime Contract](#8-candidate-runtime-contract)
-- [9. Relationship To Workflow](#9-relationship-to-workflow)
-- [10. Options](#10-options)
-- [11. Risks And Failure Modes](#11-risks-and-failure-modes)
-- [12. Evidence Program](#12-evidence-program)
-- [13. Staged Delivery](#13-staged-delivery)
-- [14. Goals And Non-Goals](#14-goals-and-non-goals)
-- [15. Open Questions](#15-open-questions)
-- [16. Likely Destination](#16-likely-destination)
+## 1. 问题与建议
 
-## 1. Question And Recommendation
+BuildMax 已经接受了一个以锁定修订版本的执行图为核心的、持久化的自适应 Workflow 设计。现在值得测试一个与之竞争的产品方向：让一个配置好的 Agent 充当管理者，使其可以调用一份有界的、来自现有 Space Agent 的名册，并动态决定如何完成一个目标。本文将这一暂定的、面向用户的概念称为**助理（Assistant）**。
 
-BuildMax has accepted a durable adaptive Workflow design centered on a
-revision-pinned execution graph. A competing product direction is now worth
-testing: let one configured Agent act as a manager that may invoke a bounded
-roster of existing Space Agents and dynamically decide how to complete an
-objective. This paper calls that provisional user-facing concept an
-**Assistant**.
+这里要决定的问题不是一个足够强大的模型能否调用另一个模型，而是暴露并持久化一个"助理"相较于一个强大的 Agent，是否创造了足够的价值，值得为其新增一个产品概念，以及这是否会改变 Workflow 的范围或优先级。
 
-The decision is not whether a sufficiently capable model can call another
-model. It is whether exposing and persisting an Assistant creates enough value
-over one strong Agent to justify another product concept, and whether that
-changes the scope or priority of Workflow.
+暂定的建议是：
 
-The provisional recommendation is:
+1. 将一个强大的 Agent 作为开放式工作的默认基线。
+2. 将有界的 Agent 到 Agent 的委托作为一种可选的 Agent 能力来测试，而不是作为一个新的顶层领域实体。
+3. 只有当差异化的专家、并行性或治理产生了单个 Agent 无法产生的、可衡量的价值时，才把这种能力提升为"助理"产品概念。
+4. 保留 Workflow，用于触发条件、策略、审批和重要副作用都必须是确定性的、持久化且可重复的自动化。
+5. 不要优先建设一个通用的图形编辑器。如果"助理"的证据是积极的，就让"助理"成为自适应工作的默认界面，并把 Workflow 面向用户的角色收窄为 Automation。
 
-1. Treat one strong Agent as the default baseline for open-ended work.
-2. Test bounded Agent-to-Agent delegation as an optional Agent capability,
-   not as a new top-level domain entity.
-3. Promote that capability to an Assistant product concept only when
-   differentiated specialists, parallelism, or governance produce measured
-   value that a single Agent does not.
-4. Retain Workflow for durable, repeatable automation whose trigger, policy,
-   approvals, and important side effects must be deterministic.
-5. Do not prioritize a general-purpose graph editor. If Assistant evidence is
-   positive, make Assistant the default interface for adaptive work and narrow
-   Workflow's user-facing role toward Automation.
+由此得到的产品原则会是：
 
-The resulting product principle would be:
+> 用 Agent 完成直接工作，用有界委托完成自适应的 Space 工作，用 Workflow 完成可靠的自动化。三者都通过 Task 和 TaskRun 执行。
 
-> Use an Agent for direct work, bounded delegation for adaptive spacework, and
-> Workflow for reliable automation. All three execute through Task and
-> TaskRun.
+这是一项提案，不是对已接受的 [Workflow 运行时](../design/Workflow运行时.md) 的推翻。该记录中关于持久性、权威、幂等性和恢复的决定，在任何方案下都依然有用。这里重新讨论的是默认的创作模型、值得交付的图广度，以及 Portal 的用词。
 
-This is a proposal, not a reversal of the accepted
-[Workflow runtime](../../design/workflow-runtime.md). The durability, authority,
-idempotency, and recovery decisions in that record remain useful under every
-option. What is reopened here is the default authoring model, the amount of
-graph breadth worth shipping, and the Portal vocabulary.
+## 2. 当前背景
 
-## 2. Current Context
+### 2.1 产品当前暴露的内容
 
-### 2.1 What The Product Exposes
+Portal 目前在同一导航层级暴露 Home、Issues、Workflows、Agents 和 Artifacts。Home 用于发起一个 Conversation；也可以通过一个持久化的 Task 和 TaskRun 直接调用一个 Agent。Workflow 是一个 Space 范围内的可复用线性方案，其每个步骤都会启动一个 Agent Task。
 
-Portal currently exposes Home, Issues, Workflows, Agents, and Artifacts at the
-same navigation level. Home starts a Conversation; an Agent can also be invoked
-directly through a durable Task and TaskRun. Workflow is a Space-scoped reusable
-linear plan whose steps each start an Agent Task.
+当前的 Workflow 编辑器要求管理员维护有序的步骤记录以及底层的 JSON 定义。这对于 Alpha 阶段的线性前身是可以接受的，但无法扩展成一个能胜任绑定、分支、扇出、重试、人工等待和结果契约的、易用的编辑器。
 
-The current Workflow editor asks an administrator to maintain ordered step
-records and the underlying JSON definition. This is acceptable for the Alpha
-linear precursor but does not scale into an approachable editor for bindings,
-branches, fan-out, retries, human waits, and result contracts.
+已接受的 Workflow 设计通过用一个持久化的图取代线性的回调式排序器，解决了运行时的正确性问题。它有意指出：语义化表单应当先于通用画布出现，而一个一次性的、开放式的目标通常应当保持为一个 Agent Task。
 
-The accepted Workflow design addresses runtime correctness by replacing the
-linear callback sequencer with a durable graph. It deliberately says that a
-semantic form should precede a general canvas and that a one-off open-ended
-objective should normally remain one Agent Task.
+### 2.2 新的助理假设
 
-### 2.2 The New Assistant Hypothesis
-
-The proposed Assistant is not a different kind of model loop. It is an Agent
-definition with a bounded delegation capability:
+被提议的"助理"并不是一种不同种类的模型循环。它是一个带有有界委托能力的 Agent 定义：
 
 ```text
 User objective
@@ -105,215 +68,154 @@ User objective
        -> coordinating Agent returns one result
 ```
 
-The coordinating Agent owns semantic decomposition and synthesis. The system
-still owns admission, permissions, budget, concurrency, deadlines, durable
-child execution, cancellation, and audit.
+协调 Agent 拥有语义分解与综合的职责。系统仍然拥有准入、权限、预算、并发、截止时间、持久化的子执行、取消和审计。
 
-This resembles the manager pattern described by the
-[OpenAI Agents SDK](https://openai.github.io/openai-agents-python/multi_agent/):
-specialists are exposed as tools while one manager retains control and owns the
-final response. It is distinct from a handoff, where the selected specialist
-becomes the active user-facing Agent.
+这类似于 [OpenAI Agents SDK](https://openai.github.io/openai-agents-python/multi_agent/) 所描述的管理者模式：专家以工具的形式暴露出来，而一个管理者保留控制权并拥有最终响应。它不同于"移交（handoff）"，在移交中，被选中的专家会成为面向用户的活跃 Agent。
 
-### 2.3 Ecosystem Signal
+### 2.3 生态系统信号
 
-The ecosystem does not point to one universal orchestration model:
+生态系统并未指向一种统一的编排模型：
 
-- [Anthropic distinguishes workflows from agents](https://www.anthropic.com/engineering/building-effective-agents):
-  predefined code paths provide predictability for well-defined work, while
-  model-directed agents provide flexibility for open-ended work. Its guidance
-  also starts with the simplest solution because agentic complexity trades
-  latency and cost for task performance.
-- The
-  [OpenAI Agents SDK orchestration guide](https://openai.github.io/openai-agents-python/multi_agent/)
-  presents LLM-decided and code-decided orchestration as composable choices,
-  not exclusive architectures. It also makes specialist Agents callable as
-  tools, which is close to the Assistant hypothesis.
-- [LangGraph](https://docs.langchain.com/oss/python/langgraph/overview)
-  treats durable execution, persistence, human intervention, and observability
-  as runtime concerns that remain necessary for both workflows and agents.
-- [Genspark Workflow](https://www.genspark.ai/helpcenter/workflows) uses
-  natural-language creation, continued conversational refinement, simulated
-  test runs, and explicit activation. This is useful authoring evidence, but
-  its public documentation does not specify the internal durability, dataflow,
-  versioning, or recovery contract.
+- [Anthropic 区分了 workflow 和 agent](https://www.anthropic.com/engineering/building-effective-agents)：预定义的代码路径为定义良好的工作提供可预测性，而模型主导的 agent 为开放式工作提供灵活性。其指导原则也主张从最简单的方案开始，因为 agent 化的复杂性会以延迟和成本换取任务表现。
+- [OpenAI Agents SDK 编排指南](https://openai.github.io/openai-agents-python/multi_agent/)将由 LLM 决定和由代码决定的编排呈现为可组合的选择，而非互斥的架构。它还让专家 Agent 可以作为工具被调用，这与"助理"假设很接近。
+- [LangGraph](https://docs.langchain.com/oss/python/langgraph/overview) 将持久化执行、持久化存储、人工干预和可观测性，视为对 workflow 和 agent 都仍然必要的运行时关切。
+- [Genspark Workflow](https://www.genspark.ai/helpcenter/workflows) 使用自然语言创建、持续的对话式细化、模拟试运行以及显式激活。这是有用的创作证据，但其公开文档并未说明内部的持久性、数据流、版本管理或恢复契约。
 
-The common signal is a hybrid boundary: models decide semantic work; software
-retains authority over durable state and consequential actions.
+其中共同的信号是一种混合边界：由模型决定语义化的工作；由软件保留对持久化状态和有实际后果的行动的权威。
 
-## 3. First-Principles Model
+## 3. 第一性原理模型
 
-An Agent system must solve three different problems. Treating them as one
-problem creates either needless ceremony or an unsafe control plane.
+一个 Agent 系统必须解决三个不同的问题。把它们当作同一个问题来处理，要么会带来不必要的繁文缛节，要么会造成不安全的控制平面。
 
-| Problem | Dominant concern | Best initial authority |
+| 问题 | 主要关切 | 最佳初始权威 |
 |---|---|---|
-| Semantic execution | Understand intent, search, use tools, revise an approach | One capable Agent |
-| Adaptive decomposition | Decide which specialist work is useful from intermediate results | A coordinating Agent within a bounded roster |
-| Stateful coordination | Persist facts, enforce policy, admit work, recover, cancel, and audit | Deterministic application code |
+| 语义执行 | 理解意图、检索、使用工具、修正方案 | 一个有能力的 Agent |
+| 自适应分解 | 从中间结果判断哪些专家工作是有用的 | 一个在有界名册内的协调 Agent |
+| 有状态的协调 | 持久化事实、执行策略、准入工作、恢复、取消和审计 | 确定性的应用代码 |
 
-Increasing model capability may collapse the first two rows: one model may be
-able to perform work itself or decide when another context is beneficial. It
-does not eliminate the third row. A more capable model does not become the
-transaction log, authorization service, lease manager, quota ledger, or
-side-effect owner.
+模型能力的提升可能会让前两行合并：一个模型可能既能自己完成工作，也能判断何时另一个上下文是有益的。但这并不会消除第三行。一个能力更强的模型不会变成事务日志、鉴权服务、租约管理器、配额账本或副作用的所有者。
 
-This leads to two independent axes rather than a hierarchy of intelligence:
+这带来了两条独立的轴线，而不是一种智能层级：
 
-| Axis | Low end | High end |
+| 轴线 | 低端 | 高端 |
 |---|---|---|
-| Semantic adaptivity | Published path | Model decides useful next work |
-| Operational authority | Model proposes | System validates, commits, and records |
+| 语义自适应性 | 已发布的路径 | 由模型决定接下来做什么有用的工作 |
+| 操作权威 | 模型提出建议 | 系统校验、提交并记录 |
 
-BuildMax may choose high semantic adaptivity without granting high operational
-authority. Assistant is viable only with that separation.
+BuildMax 可以选择高语义自适应性，而不必授予高操作权威。只有在这种分离之下，"助理"才是可行的。
 
-## 4. Candidate Product Concepts
+## 4. 候选产品概念
 
 ### 4.1 Agent
 
-An Agent remains reusable execution configuration: instructions, model policy,
-tools, plugins, sandbox and Secret consumption, hooks, and output behavior. A
-Task is one durable objective for that Agent; TaskRun owns each turn or attempt.
+Agent 仍然是可复用的执行配置：指令、模型策略、工具、Plugin、沙箱与 Secret 的使用、hook，以及输出行为。Task 是该 Agent 的一个持久化目标；TaskRun 拥有每一轮或每一次尝试。
 
-The strongest default should be one Agent with all capabilities that are safe
-and relevant to its objective. Introducing more Agents must earn its cost.
+最强的默认选择应当是一个具备了所有安全且与其目标相关的能力的 Agent。引入更多 Agent 必须证明其代价是值得的。
 
-### 4.2 Assistant
+### 4.2 助理
 
-Assistant is a provisional product label for an Agent revision that declares:
+"助理"是一个暂定的产品标签，用于一个声明了以下内容的 Agent 修订版本：
 
-- a stable responsibility and completion contract;
-- a bounded catalog of callable Agent revisions under role aliases;
-- delegation, parallelism, depth, budget, and deadline limits;
-- rules for consequential operations and human confirmation; and
-- the structured result the coordinating Agent must return.
+- 一个稳定的职责与完成契约；
+- 一份在角色别名下可调用的、有界的 Agent 修订版本目录；
+- 委托、并行度、深度、预算和截止时间方面的限制；
+- 针对有实际后果的操作与人工确认的规则；以及
+- 协调 Agent 必须返回的结构化结果。
 
-An Assistant is therefore not intrinsically more intelligent than an Agent.
-It is a reusable Space interface with a delegation and governance envelope.
+因此，"助理"本质上并不比一个 Agent 更智能。它是一个带有委托与治理外壳的、可复用的 Space 界面。
 
-Initially, Assistant should not be a separate table, execution plane, run type,
-or model loop. The internal name can remain a coordinating or delegation-enabled
-Agent until product evidence justifies a distinct projection.
+最初，"助理"不应当是一张独立的表、一个独立的执行平面、一种独立的运行类型或模型循环。在产品证据证明有必要之前，其内部名称可以保持为"协调 Agent"或"启用委托的 Agent"，而不必单独投射。
 
-### 4.3 Specialist
+### 4.3 专家
 
-Specialist is a possible user-facing label for an ordinary Agent made
-available to an Assistant. It becomes useful only when it has a meaningful
-difference in at least one of these dimensions:
+"专家（Specialist）"是一个可能面向用户的标签，用于标记一个可供"助理"使用的普通 Agent。只有当它在以下至少一个维度上具有实质性差异时，它才有意义：
 
-- tools or data access;
-- domain instructions or retained context;
-- sandbox or permission boundary;
-- required input and output contract;
-- model and cost profile; or
-- independent work that benefits from parallel execution.
+- 工具或数据访问权限；
+- 领域指令或保留的上下文；
+- 沙箱或权限边界；
+- 所需的输入与输出契约；
+- 模型与成本画像；或
+- 能从并行执行中受益的独立工作。
 
-Splitting one prompt into several Agents with the same model, tools, context,
-and permissions is not specialization. It is extra inference and coordination.
+把一个提示词拆分成若干个使用相同模型、工具、上下文和权限的 Agent，并不是专业化，而只是多余的推理与协调。
 
-### 4.4 Workflow Or Automation
+### 4.4 Workflow 还是 Automation
 
-Workflow remains a revision-pinned deterministic coordinator over Task and
-TaskRun. If the Assistant hypothesis succeeds, the clearer user-facing label
-may be **Automation**: a repeatable process whose trigger, fixed gates,
-approvals, delivery, and side-effect boundaries are known before a run starts.
+Workflow 仍然是一个锁定修订版本的、确定性的、凌驾于 Task 和 TaskRun 之上的协调者。如果"助理"假设成立，更清晰的面向用户的标签可能是 **Automation**：一个可重复的流程，其触发条件、固定关卡、审批、交付和副作用边界，在一次运行开始之前就是已知的。
 
-An Automation may call an Assistant as one node. Its deterministic envelope
-does not imply that all semantic work inside that Assistant follows a static
-graph.
+一个 Automation 可以把"助理"作为其中一个节点来调用。它的确定性外壳并不意味着该"助理"内部的所有语义化工作都遵循一张静态图。
 
-## 5. Comparative Analysis
+## 5. 对比分析
 
-### 5.1 Product And Runtime Comparison
+### 5.1 产品与运行时对比
 
-| Dimension | One strong Agent | Assistant with bounded delegation | Workflow / Automation |
+| 维度 | 一个强大的 Agent | 带有界委托的助理 | Workflow / Automation |
 |---|---|---|---|
-| User definition | Objective plus Agent selection | Objective plus coordinating policy and specialist roster | Trigger, typed stages, bindings, policy, and result |
-| Next semantic action | Agent | Coordinating Agent | Published definition, optionally informed by typed model output |
-| Path known before run | No | No | Yes within declared bounded expansion |
-| Best fit | One-off and open-ended work | Open-ended work needing real specialization or parallelism | Repeated, governed, event-driven work |
-| Setup cost | Lowest | Medium | Highest |
-| Model calls | Baseline | Usually higher | Depends on declared nodes |
-| Latency predictability | Medium | Lowest unless bounded carefully | Highest |
-| Cost predictability | Medium | Lowest unless bounded carefully | Highest |
-| Adaptation to novel evidence | High | Highest | Bounded by the definition |
-| Reproducibility | Low | Low | Highest |
-| Permission separation | Coarse per Agent | Per coordinator and specialist | Per declared node and run policy |
-| Failure diagnosis | One trace and Task | Parent decision ledger plus child Tasks | Declared topology plus NodeRuns |
-| Durable recovery need | Task/TaskRun | Parent Task plus durable child Tasks | WorkflowRun, NodeRuns, Tasks, and TaskRuns |
-| Primary UX | Ask this Agent | Give work to this managed space | When this happens, reliably do this |
+| 用户的定义方式 | 目标加 Agent 选择 | 目标加协调策略和专家名册 | 触发条件、类型化的阶段、绑定、策略和结果 |
+| 下一步语义化动作由谁决定 | Agent | 协调 Agent | 已发布的定义，可选地由类型化的模型输出提供参考 |
+| 运行前是否已知路径 | 否 | 否 | 在声明的有界展开范围内是 |
+| 最佳适用场景 | 一次性且开放式的工作 | 需要真正专业化或并行性的开放式工作 | 重复的、受治理的、事件驱动的工作 |
+| 搭建成本 | 最低 | 中等 | 最高 |
+| 模型调用次数 | 基线 | 通常更高 | 取决于已声明的节点 |
+| 延迟可预测性 | 中等 | 除非精心限界，否则最低 | 最高 |
+| 成本可预测性 | 中等 | 除非精心限界，否则最低 | 最高 |
+| 对新证据的适应能力 | 高 | 最高 | 受定义所限 |
+| 可复现性 | 低 | 低 | 最高 |
+| 权限分离 | 按 Agent 粗粒度划分 | 按协调者和专家划分 | 按已声明的节点和运行策略划分 |
+| 故障诊断 | 一条 trace 和一个 Task | 父级决策台账加子 Task | 已声明的拓扑加 NodeRun |
+| 持久化恢复需求 | Task/TaskRun | 父 Task 加持久化的子 Task | WorkflowRun、NodeRun、Task 和 TaskRun |
+| 主要用户体验 | 向这个 Agent 提问 | 把工作交给这个受管理的 space | 当这件事发生时，可靠地执行那件事 |
 
-### 5.2 What A Stronger Model Changes
+### 5.2 更强的模型改变了什么
 
-A stronger general Agent weakens several common arguments for multi-Agent
-systems. It can keep a larger context, select tools, plan, critique its own
-work, and produce a unified result without handoff loss. For many tasks this
-is cheaper and more reliable than a manager plus specialists.
+一个更强的通用 Agent 削弱了多个支持多 Agent 系统的常见论点。它可以维持更大的上下文、选择工具、做计划、批判自己的成果，并在不产生移交损失的情况下产出统一的结果。对许多任务来说，这比"管理者加专家"更便宜、更可靠。
 
-It does not erase all delegation value. Separate child contexts can isolate
-large investigations, parallel Tasks can reduce wall-clock time, and distinct
-permissions can reduce blast radius. These are system properties rather than
-claims that several weaker models necessarily reason better than one stronger
-model.
+但它并不会抹去所有委托的价值。独立的子上下文可以隔离大型调查，并行的 Task 可以缩短实际耗时，不同的权限可以缩小影响范围。这些是系统层面的属性，而不是"若干个较弱的模型必然比一个更强的模型推理得更好"的主张。
 
-The correct baseline is therefore not a weak monolithic Agent. Every
-delegation evaluation must compare against the best affordable single-Agent
-configuration with equivalent safe access to tools and information.
+因此，正确的基线不是一个薄弱的单体 Agent。每一次委托评估都必须与在具备等效的、安全的工具和信息访问权限下、可负担得起的最佳单个 Agent 配置进行比较。
 
-### 5.3 Definition Burden
+### 5.3 定义负担
 
-| Configuration | One strong Agent | Assistant | Workflow |
+| 配置项 | 一个强大的 Agent | 助理 | Workflow |
 |---|---|---|---|
-| Goal and instructions | Required | Required | Required per Agent node |
-| Tool and permission selection | Required | Required for coordinator and specialists | Required for every referenced Agent |
-| Specialist roster | None | Required | Optional; nodes reference Agents directly |
-| Data bindings | Implicit in Agent context | Proposed by coordinator and recorded by runtime | Declared and validated |
-| Branches and parallelism | Dynamic and implicit | Dynamic and explicit in child Tasks | Declared and versioned |
-| Trigger | Caller starts a Task | Caller starts a Task | First-class automation concern |
-| Publish-time graph review | None | No static graph; review roster and limits | Required |
+| 目标与指令 | 必需 | 必需 | 每个 Agent 节点都必需 |
+| 工具与权限选择 | 必需 | 协调者与专家都必需 | 每个被引用的 Agent 都必需 |
+| 专家名册 | 无 | 必需 | 可选；节点直接引用 Agent |
+| 数据绑定 | 隐含在 Agent 上下文中 | 由协调者提出并由运行时记录 | 已声明并经过校验 |
+| 分支与并行 | 动态且隐式 | 动态且在子 Task 中显式体现 | 已声明并纳入版本管理 |
+| 触发条件 | 调用者启动一个 Task | 调用者启动一个 Task | 一等的自动化关切 |
+| 发布时的图审查 | 无 | 没有静态图；审查名册和限制 | 必需 |
 
-Assistant reduces graph authoring only if roster configuration remains
-materially smaller and more stable than the graph it replaces. A large roster
-with elaborate role instructions, routing descriptions, and inter-Agent
-contracts can become a graph encoded badly in prose.
+只有当名册配置在规模和稳定性上明显小于并优于它所取代的图时，"助理"才能减少图的创作负担。一个带有繁复角色说明、路由描述和 Agent 间契约的庞大名册，可能会变成一张用文字拙劣编码的图。
 
-## 6. When Delegation Creates Real Value
+## 6. 委托何时创造真正价值
 
-### 6.1 Strong Cases
+### 6.1 有力场景
 
-Delegation is most likely to beat one Agent when one or more of these are true:
+当以下一种或多种情况成立时，委托更有可能胜过单个 Agent：
 
-1. **Context isolation.** A specialist needs to inspect a large corpus or
-   workspace and can return a bounded result instead of polluting the parent
-   context.
-2. **True parallel work.** Several independent investigations dominate elapsed
-   time and their results can be synthesized later.
-3. **Capability isolation.** Different Agents require distinct tools, Secrets,
-   sandboxes, or data access that should not be granted to one broad Agent.
-4. **Stable specialist contract.** A frequently reused domain role has a
-   measurable input/output contract and can be improved independently.
-5. **Cost routing.** Narrow subtasks can safely use cheaper models while the
-   coordinator retains a stronger model for synthesis.
-6. **Independent accountability.** Users or operators need to inspect which
-   role produced a conclusion, Artifact, or side effect.
+1. **上下文隔离。** 一个专家需要检查一个庞大的语料库或工作区，并能返回一个有界的结果，而不是污染父级上下文。
+2. **真正的并行工作。** 若干个独立的调查主导了总耗时，其结果可以在之后被综合起来。
+3. **能力隔离。** 不同的 Agent 需要不同的工具、Secret、沙箱或数据访问权限，这些权限不应授予一个宽泛的 Agent。
+4. **稳定的专家契约。** 一个被频繁复用的领域角色具有可衡量的输入/输出契约，并可以被独立改进。
+5. **成本路由。** 狭窄的子任务可以安全地使用更便宜的模型，而协调者为综合工作保留一个更强的模型。
+6. **独立可问责性。** 用户或运维人员需要检查是哪个角色产生了某个结论、Artifact 或副作用。
 
-### 6.2 Weak Cases
+### 6.2 薄弱场景
 
-Assistant is unlikely to justify itself when:
+在以下情况下，"助理"不太可能证明自身的价值：
 
-- all participants use the same model, instructions, tools, and context;
-- the manager merely paraphrases a request and later summarizes the answer;
-- the work is short enough for one context;
-- sequencing is stable and can be expressed more cheaply as a Workflow;
-- coordination cost dominates specialist work;
-- the output cannot be evaluated beyond subjective preference; or
-- the roster exists only to make a multi-Agent product claim.
+- 所有参与者都使用相同的模型、指令、工具和上下文；
+- 管理者只是复述一次请求，随后再总结一次答案；
+- 工作量小到足以放进一个上下文；
+- 顺序是稳定的，可以更廉价地表达为一个 Workflow；
+- 协调成本主导了专家工作；
+- 输出结果除了主观偏好之外无法被评估；或
+- 名册的存在只是为了宣称这是一个多 Agent 产品。
 
-### 6.3 The Dominance Rule
+### 6.3 占优规则
 
-For any class of work, select the least complex mechanism that meets its
-requirements:
+对于任何一类工作，应选择满足其要求的、最不复杂的机制：
 
 ```text
 Can one capable Agent complete it within policy and quality targets?
@@ -325,20 +227,15 @@ Can one capable Agent complete it within policy and quality targets?
                     no  -> improve the Agent, tools, context, or task definition
 ```
 
-This is a product default, not a prohibition. Evaluation may demonstrate that
-a different mechanism dominates for a specific workload.
+这是一个产品默认选择，而不是一条禁令。评估可以证明对于某个特定工作负载，另一种机制更占优势。
 
-## 7. User Experience And Information Architecture
+## 7. 用户体验与信息架构
 
-### 7.1 Do Not Add Three Peer Navigation Items
+### 7.1 不要添加三个并列的导航项
 
-Putting Workflows, Agents, and Assistants beside each other makes an internal
-type distinction into a prerequisite for doing work. Users would have to learn
-which one to create first, which one to invoke, and why an Assistant is both an
-Agent and a peer of Agents.
+把 Workflows、Agents 和 Assistants 并列放置，会把一个内部的类型区分变成做事之前必须先学习的前提：用户将不得不学习先创建哪一个、调用哪一个，以及为什么一个"助理"既是一个 Agent，又是 Agents 的同级。
 
-If Assistant earns a product surface, the information architecture should
-communicate containment:
+如果"助理"赢得了一个产品界面，信息架构应当传达出包含关系：
 
 ```text
 SPACE
@@ -353,44 +250,36 @@ BUILD
   Automations
 ```
 
-This is a direction for usability testing, not committed navigation or naming.
-`AI Space`, `Assistant`, `Specialist`, and `Automation` are provisional labels.
+这是一个用于可用性测试的方向，而不是已经确定的导航或命名。`AI Space`、`Assistant`、`Specialist` 和 `Automation` 都是暂定标签。
 
-### 7.2 Home Is The Default Work Surface
+### 7.2 Home 是默认的工作界面
 
-Home should let a user state an objective without first understanding the
-configuration taxonomy. If a Space has one default coordinating Agent, the
-composer can name it directly. If several exist, the composer may offer a
-small selector near the input rather than requiring navigation into a catalog.
+Home 应当让用户能够先陈述一个目标，而不必先理解配置的分类法。如果一个 Space 有一个默认的协调 Agent，输入框可以直接以其命名。如果存在多个，输入框附近可以提供一个小型选择器，而不必强制用户导航进入一个目录。
 
-The normal user mental model becomes:
+普通用户的心智模型会变成：
 
-- an Assistant is who receives adaptive work;
-- a Specialist is a configured capability the Assistant may use; and
-- an Automation is when and under what fixed policy mature work runs again.
+- "助理"是接收自适应工作的对象；
+- "专家"是"助理"可以使用的一项已配置能力；
+- "Automation"决定了成熟的工作在何时、以何种固定策略再次运行。
 
-Administrators may inspect the underlying Agent identity and revisions. Those
-details do not need to lead the ordinary work-starting experience.
+管理员可以检查底层的 Agent 身份与修订版本。这些细节不需要主导普通的、开始工作的体验。
 
-### 7.3 Assistant Authoring
+### 7.3 助理创建
 
-An Assistant editor should ask for semantic and governance choices rather than
-a graph:
+一个"助理"编辑器应当询问语义与治理方面的选择，而不是一张图：
 
-- responsibility and examples of appropriate work;
-- completion criteria and structured result;
-- permitted specialists, shown by role and capability;
-- maximum child count, concurrency, total budget, deadline, and depth;
-- whether consequential specialist calls require approval; and
-- whether the Assistant may finish without delegating.
+- 职责范围以及合适工作的示例；
+- 完成标准与结构化结果；
+- 被允许的专家，按角色和能力展示；
+- 最大子任务数量、并发度、总预算、截止时间和深度；
+- 有实际后果的专家调用是否需要审批；以及
+- "助理"是否可以在不委托的情况下完成任务。
 
-The last point is important. Delegation is available, not mandatory. The
-coordinating Agent should answer directly when delegation would not improve the
-result.
+最后一点很重要。委托是可用的，而不是强制的。当委托无助于改善结果时，协调 Agent 应当直接给出答案。
 
-### 7.4 Automation Authoring
+### 7.4 Automation 创建
 
-Automation should lead with a readable rule:
+Automation 应当以一条可读的规则为主：
 
 ```text
 Every Monday at 09:00
@@ -399,19 +288,15 @@ Every Monday at 09:00
   -> after approval, deliver it to the selected channel
 ```
 
-The runtime may compile this into a graph, but the primary editor need not be
-a canvas. Natural-language creation can propose a draft; semantic controls,
-validation, a safe test run, and an explicit publish or enable action remain
-the maintainable source of user confidence.
+运行时可以把它编译成一张图，但主要的编辑器不必是一张画布。自然语言创建可以提出一份草案；语义化控制项、校验、一次安全的试运行，以及一个显式的发布或启用动作，仍然是维持用户信心的可维护来源。
 
-## 8. Candidate Runtime Contract
+## 8. 候选运行时契约
 
-This section is intentionally narrower than an implementation design. It
-defines what must be true before a delegation experiment can be trusted.
+本节有意比一份实现设计更加狭窄。它定义了在一次委托实验值得被信任之前，必须成立的事实。
 
-### 8.1 Agent Revision Extension
+### 8.1 Agent 修订版本扩展
 
-A delegation-enabled Agent revision may declare a catalog such as:
+一个启用了委托的 Agent 修订版本，可以声明一份如下的目录：
 
 ```json
 {
@@ -437,22 +322,18 @@ A delegation-enabled Agent revision may declare a catalog such as:
 }
 ```
 
-The exact persisted shape is deferred. The important invariants are:
+具体的持久化形状留待后续确定。重要的不变量是：
 
-- publication pins every delegate Agent revision;
-- the model selects a role alias, never an arbitrary Agent id;
-- authorization may narrow the published catalog at admission but never widen
-  it;
-- a child receives only explicitly constructed input, not the parent's hidden
-  prompt or unrestricted session;
-- the parent cannot grant tools, Secrets, plugins, sandbox access, or Issue
-  access that the child definition and caller do not permit; and
-- total depth, child count, concurrency, deadline, and spend remain bounded by
-  system-enforced policy.
+- 发布会锁定每一个受托 Agent 的修订版本；
+- 模型只能选择一个角色别名，绝不能选择任意的 Agent ID；
+- 鉴权可以在准入时收窄已发布的目录，但绝不能扩大它；
+- 一个子任务只接收显式构造好的输入，而不是父级隐藏的提示词或不受限制的 Session；
+- 父级不能授予子级定义和调用者本身并不允许的工具、Secret、Plugin、沙箱访问权限或 Issue 访问权限；以及
+- 总深度、子任务数量、并发度、截止时间和花费，都受到系统强制执行的策略的限制。
 
-### 8.2 Delegation Is A Durable Operation
+### 8.2 委托是一种持久化操作
 
-The coordinating Agent may propose operations resembling:
+协调 Agent 可以提出类似如下的操作：
 
 ```text
 delegate(role, objective, input)
@@ -461,89 +342,74 @@ request_human_input(question)
 finish(result)
 ```
 
-These are logical capabilities, not committed LLM-facing tool names.
+这些是逻辑能力，不是已确定的、面向 LLM 的工具名称。
 
-`delegate` must admit a normal child Task through the Task service. The child
-Task and each TaskRun remain authoritative for execution, trace, usage,
-Artifacts, cancellation, and result. The parent-child relation and idempotency
-key must be durable so a retry cannot create duplicate child work.
+`delegate` 必须通过 Task 服务准入一个普通的子 Task。子 Task 及其每个 TaskRun 仍然是执行、trace、用量、Artifact、取消和结果方面的权威。父子关系与幂等键必须是持久化的，这样一次重试就不会创建重复的子工作。
 
-Waiting for children must not hold a worker. The parent Task needs a durable
-waiting or resumable condition, and child completion must wake it through a
-recoverable reconciliation path rather than an in-memory callback. A resumed
-parent turn receives bounded, typed child results and references to full
-Artifacts and traces.
+等待子任务不得占用一个 Worker。父 Task 需要一种持久化的等待或可恢复的状态，子任务的完成必须通过一条可恢复的协调路径唤醒它，而不是通过一个内存中的回调。一个被恢复的父级回合会收到有界的、类型化的子结果，以及指向完整 Artifact 和 trace 的引用。
 
-### 8.3 Decision Ledger
+### 8.3 决策台账
 
-A dynamic plan is not known before execution, so observability must record
-decisions as they occur. At minimum, operators need to answer:
+一个动态方案在执行之前是未知的，因此可观测性必须在决策发生时就记录下来。运维人员至少需要能够回答：
 
-- why the coordinator requested a specialist;
-- which pinned Agent revision ran;
-- what bounded input it received;
-- whether the request was admitted, refused, or required approval;
-- what the child produced and consumed;
-- whether the coordinator used or ignored the result; and
-- why the parent declared completion or requested more work.
+- 协调者为什么请求了一个专家；
+- 运行的是哪一个被锁定的 Agent 修订版本；
+- 它收到了什么样的有界输入；
+- 该请求是被准入、被拒绝，还是需要审批；
+- 子任务产生了什么、消耗了什么；
+- 协调者是使用了还是忽略了这个结果；以及
+- 父级为什么宣布完成或请求更多工作。
 
-The decision ledger is evidence, not a second execution authority. Task and
-TaskRun state remain authoritative.
+决策台账是证据，而不是第二个执行权威。Task 与 TaskRun 的状态仍然是权威的。
 
-### 8.4 Initial Boundaries
+### 8.4 初始边界
 
-The first experiment should enforce:
+第一次实验应当强制执行：
 
-- maximum delegation depth of one;
-- only ordinary worker Agents in the delegate catalog;
-- no Assistant-to-Assistant recursion;
-- no dynamically discovered Space Agent;
-- no mutation of the catalog during a run;
-- no direct child side-effect permission inherited from the parent;
-- no worker held while a parent waits; and
-- one structured final result owned by the parent TaskRun.
+- 最大委托深度为一；
+- 受托目录中只能包含普通的 Worker Agent；
+- 不允许"助理"到"助理"的递归；
+- 不允许动态发现 Space Agent；
+- 运行期间不允许修改目录；
+- 不允许子级直接继承来自父级的副作用权限；
+- 父级等待期间不占用 Worker；以及
+- 由父 TaskRun 拥有唯一一个结构化的最终结果。
 
-These limits remove several interesting demos. They also make cost, recovery,
-authorization, and causality testable.
+这些限制排除了几个有趣的演示场景。但它们也让成本、恢复、鉴权和因果关系变得可测试。
 
-## 9. Relationship To Workflow
+## 9. 与 Workflow 的关系
 
-### 9.1 What Remains Shared
+### 9.1 保持共享的部分
 
-Both adaptive delegation and deterministic Workflow require:
+自适应委托与确定性 Workflow 都需要：
 
-- immutable execution-sensitive revisions;
-- idempotent Task and TaskRun admission;
-- deadlines, quotas, cancellation, and retry ownership;
-- durable waits and restart recovery;
-- structured inputs and results;
-- Artifact references rather than lossy summaries;
-- human authorization for consequential actions; and
-- an inspectable event history.
+- 对执行敏感的不可变修订版本；
+- 幂等的 Task 与 TaskRun 准入；
+- 截止时间、配额、取消和重试的归属；
+- 持久化的等待与重启恢复；
+- 结构化的输入与结果；
+- 指向 Artifact 的引用，而不是有损的摘要；
+- 针对有实际后果的行动的人工授权；以及
+- 可检查的事件历史。
 
-The accepted Workflow design remains valuable because it specifies much of
-this substrate. Assistant should reuse those invariants instead of creating a
-second scheduler or callback chain.
+已接受的 Workflow 设计仍然有价值，因为它规定了这套基础设施的大部分内容。"助理"应当复用这些不变量，而不是创建第二个调度器或回调链。
 
-### 9.2 What Must Stay Different
+### 9.2 必须保持不同的部分
 
-| Concern | Assistant | Workflow / Automation |
+| 关切点 | 助理 | Workflow / Automation |
 |---|---|---|
-| Semantic path | Emerges during the run | Declared or bounded by the published definition |
-| Reuse unit | Responsibility, roster, and policy | Trigger, graph, bindings, and policy |
-| Change review | Agent and roster revision diff | Definition and topology diff |
-| Completion | Model proposes a structured result; runtime validates it | Declared result node and state machine determine readiness |
-| Replay expectation | Re-execution may choose different work | Same revision preserves the permitted topology and transitions |
-| Primary failure | Bad decomposition or synthesis | Bad definition or deterministic coordination failure |
+| 语义路径 | 在运行过程中产生 | 由已发布的定义声明或限界 |
+| 复用单元 | 职责、名册和策略 | 触发条件、图、绑定和策略 |
+| 变更审查 | Agent 与名册修订版本的差异 | 定义与拓扑的差异 |
+| 完成方式 | 模型提出一个结构化结果；运行时校验它 | 已声明的结果节点与状态机决定就绪与否 |
+| 重放预期 | 重新执行可能选择不同的工作 | 同一修订版本保持相同的允许拓扑与状态迁移 |
+| 主要故障类型 | 糟糕的分解或综合 | 糟糕的定义或确定性协调失败 |
 
-Assistant is not a Workflow with invisible edges. Workflow is not an Assistant
-whose choices were cached. They may share a coordinator implementation, but
-their user contracts and debugging models differ.
+"助理"不是一个带有隐形边的 Workflow。Workflow 也不是一个把选择缓存下来的"助理"。它们可能共享同一个协调者实现，但它们面向用户的契约与调试模型是不同的。
 
-### 9.3 Automation Around An Assistant
+### 9.3 围绕助理的 Automation
 
-A useful composition is a deterministic envelope around adaptive semantic
-work:
+一种有用的组合方式，是在自适应的语义化工作外面包一层确定性外壳：
 
 ```text
 inbound event or schedule
@@ -553,13 +419,11 @@ inbound event or schedule
   -> consequential delivery action
 ```
 
-The envelope fixes trigger deduplication, authorization, deadline, approval,
-and delivery. The Assistant remains free to decide whether and how to delegate
-inside its bounded execution.
+这层外壳固定了触发去重、鉴权、截止时间、审批和交付。"助理"在其有界执行内部，仍然可以自由决定是否以及如何委托。
 
-### 9.4 Discovery Then Hardening
+### 9.4 先探索后固化
 
-Assistant and Workflow can form a lifecycle rather than competing catalogs:
+"助理"与 Workflow 可以构成一种生命周期，而不是相互竞争的目录：
 
 ```text
 one capable Agent explores a new task
@@ -569,339 +433,270 @@ one capable Agent explores a new task
   -> test, review, and publish harden it
 ```
 
-BuildMax should not automatically convert one successful trace into an active
-Workflow. A trace contains contingent decisions and data, not a safe reusable
-contract. Conversion must produce a reviewable draft with typed inputs,
-bindings, limits, Agent revisions, and side-effect policy.
+BuildMax 不应当自动把一条成功的 trace 转换成一个已启用的 Workflow。一条 trace 包含的是偶然的决定与数据，而不是一份安全的、可复用的契约。转换必须产出一份可供审查的草案，其中包含类型化的输入、绑定、限制、Agent 修订版本和副作用策略。
 
-## 10. Options
+## 10. 方案
 
-### 10.1 Option A: Continue With Workflow-First Product Development
+### 10.1 方案 A：继续采用 Workflow 优先的产品开发
 
-Build the accepted durable graph, semantic form, topology view, and bounded
-adaptive patterns before adding Space Agent delegation.
+在添加 Space Agent 委托之前，先构建已接受的持久化图、语义化表单、拓扑视图和有界的自适应模式。
 
-**Advantages**
+**优点**
 
-- follows an accepted design with explicit correctness criteria;
-- produces predictable repeated execution;
-- has a strong fit for governance and operational automation; and
-- avoids another user-facing concept.
+- 遵循一个具有明确正确性标准的、已接受的设计；
+- 产生可预测的重复执行；
+- 非常适合治理和运营自动化；以及
+- 避免引入另一个面向用户的概念。
 
-**Costs**
+**代价**
 
-- complex authoring remains expensive;
-- users must anticipate paths that a capable model could choose at run time;
-- graph breadth may be built before demand is demonstrated; and
-- open-ended knowledge work may fit one Agent better.
+- 复杂的创作仍然代价高昂；
+- 用户必须预先设想一个有能力的模型在运行时本可以自行选择的路径；
+- 图的广度可能会在需求被证实之前就被构建出来；以及
+- 开放式的知识工作可能更适合一个 Agent。
 
-### 10.2 Option B: Add Assistant As A Separate First-Class Entity
+### 10.2 方案 B：将助理添加为独立的一等实体
 
-Create Assistant, AssistantRevision, and AssistantRun beside Agent and
-Workflow and expose all three in Portal.
+在 Agent 和 Workflow 之外创建 Assistant、AssistantRevision 和 AssistantRun，并在 Portal 中把三者都暴露出来。
 
-**Advantages**
+**优点**
 
-- makes the managed-space concept explicit;
-- permits independent Assistant lifecycle and product presentation; and
-- can optimize APIs and analytics around orchestration.
+- 让"受管理的 space"这一概念变得明确；
+- 允许"助理"拥有独立的生命周期和产品呈现方式；以及
+- 可以围绕编排来优化 API 和分析能力。
 
-**Costs**
+**代价**
 
-- duplicates Agent identity, revision, execution, or result concepts unless
-  boundaries are exceptionally disciplined;
-- creates immediate navigation and vocabulary ambiguity;
-- commits to a product taxonomy before value is measured; and
-- risks a second execution plane.
+- 除非边界划分极其克制，否则会重复 Agent 的身份、修订版本、执行或结果概念；
+- 立即造成导航与用词上的歧义；
+- 在价值被衡量之前就确定了一套产品分类法；以及
+- 有形成第二个执行平面的风险。
 
-This option is not recommended for the first experiment.
+不建议将此方案用于第一次实验。
 
-### 10.3 Option C: Add Bounded Delegation To Agent, Then Decide The Product
+### 10.3 方案 C：为 Agent 添加有界委托，再决定产品形态
 
-Extend an Agent revision with an optional pinned delegate catalog and run every
-delegation as a durable child Task. Keep one strong Agent as the default. If
-evidence is positive, present selected delegation-enabled Agents as Assistants
-inside an `AI Space` surface and narrow Workflow toward Automation.
+为一个 Agent 修订版本扩展一份可选的、锁定版本的受托目录，并将每一次委托都作为一个持久化的子 Task 来运行。保持一个强大的 Agent 作为默认选择。如果证据是积极的，就把选定的、启用委托的 Agent 作为"助理"呈现在一个 `AI Space` 界面中，并把 Workflow 收窄为 Automation。
 
-**Advantages**
+**优点**
 
-- tests the hard value proposition before adding a new domain entity;
-- reuses Agent, Task, TaskRun, worker, trace, Artifact, and policy boundaries;
-- keeps direct Agent execution intact;
-- supports an evidence-based Portal taxonomy; and
-- preserves Workflow for deterministic cases.
+- 在添加一个新的领域实体之前，先测试这个困难的价值主张；
+- 复用 Agent、Task、TaskRun、Worker、trace、Artifact 和策略边界；
+- 保持直接的 Agent 执行不受影响；
+- 支持一个基于证据的 Portal 分类法；以及
+- 为确定性场景保留 Workflow。
 
-**Costs**
+**代价**
 
-- requires durable parent-child Task semantics not yet designed;
-- an Agent definition gains another capability dimension;
-- Assistant-specific reporting may later require a projection or migration;
-  and
-- the Workflow roadmap must avoid assuming graph breadth is the next priority.
+- 需要目前尚未设计的持久化父子 Task 语义；
+- 一个 Agent 定义会多出一个能力维度；
+- "助理"专属的报表未来可能需要一次投射或迁移；以及
+- Workflow 的路线图必须避免假定图的广度是下一个优先事项。
 
-This is the recommended experiment.
+这是建议进行的实验。
 
-### 10.4 Option D: Use One Strong Agent And Do Not Add Delegation
+### 10.4 方案 D：使用一个强大的 Agent，不添加委托
 
-Continue improving the main Agent's model, tools, context engineering, skills,
-and direct Task experience. Retain Workflow only for deterministic automation.
+继续改进主 Agent 的模型、工具、上下文工程、技能，以及直接的 Task 体验。仅将 Workflow 保留用于确定性自动化。
 
-**Advantages**
+**优点**
 
-- lowest product and runtime complexity;
-- lowest coordination latency and failure surface;
-- no Agent-versus-Assistant vocabulary problem; and
-- likely best for many ordinary objectives as models improve.
+- 产品与运行时复杂度最低；
+- 协调延迟与故障面最低；
+- 不存在 Agent 与"助理"的用词问题；以及
+- 随着模型不断改进，很可能是许多普通目标的最佳选择。
 
-**Costs**
+**代价**
 
-- no child-context isolation or independent parallel work;
-- coarse capability and permission boundaries;
-- large investigations compete for one context; and
-- no reusable Space roster contract.
+- 没有子上下文隔离或独立的并行工作；
+- 能力与权限边界粗糙；
+- 大型调查会争抢同一个上下文；以及
+- 没有可复用的 Space 名册契约。
 
-This is not a rejected fallback. It is the baseline that Option C must beat.
+这不是一个被否决的退路，而是方案 C 必须超越的基线。
 
-## 11. Risks And Failure Modes
+## 11. 风险与失败模式
 
-### 11.1 Coordination Tax Without Quality Gain
+### 11.1 没有质量收益的协调税
 
-The manager may restate the request, wait for workers, and summarize outputs
-without adding information. Cost and latency rise while quality stays flat or
-falls through lossy handoffs.
+管理者可能只是复述请求、等待工作者，并总结输出结果，却没有增加任何信息。成本与延迟上升，而质量保持不变，甚至因为有损的移交而下降。
 
-Mitigation is empirical: compare against one strong Agent, expose delegation
-counts and cost, and let the coordinator finish without delegation.
+缓解手段是经验性的：与一个强大的 Agent 进行对比，暴露委托次数与成本，并允许协调者在不委托的情况下完成任务。
 
-### 11.2 Prompt-Encoded Hidden Graph
+### 11.2 编码在提示词中的隐藏图
 
-A large roster description may become a fragile routing program written in
-natural language. It is harder to diff and test than the Workflow graph it was
-meant to avoid.
+一份庞大的名册说明可能会变成一个用自然语言写成的、脆弱的路由程序。它比它本想避免的那张 Workflow 图更难以比较差异、也更难测试。
 
-When a path becomes stable, move it into Automation rather than accumulating
-more routing prose.
+当一条路径变得稳定时，应当把它移入 Automation，而不是继续堆积更多的路由文字。
 
-### 11.3 Unbounded Recursive Work
+### 11.3 无界的递归工作
 
-Assistants calling Assistants can produce exponential task creation, cost,
-ambiguous cancellation, and cycles that are invisible before execution.
+"助理"调用"助理"可能会产生指数级增长的任务创建、成本、含混不清的取消，以及在执行之前不可见的循环。
 
-Initial depth one and system-enforced total budgets are mandatory. Deeper
-delegation remains an evidence-gated extension.
+最初的深度限制为一，以及系统强制执行的总预算，是强制性的。更深的委托仍然是一个以证据为前提的扩展项。
 
-### 11.4 Confused Authority
+### 11.4 权责混乱
 
-If the parent mutates child state directly or treats its conversation context
-as authoritative, restart and retry semantics become unreliable.
+如果父级直接修改子级的状态，或者把自己的对话上下文当作权威来源，重启与重试的语义就会变得不可靠。
 
-Every child must be an ordinary Task admitted by the Task service. The parent
-observes durable results; it does not own worker state.
+每一个子任务都必须是一个由 Task 服务准入的普通 Task。父级只观察持久化的结果，并不拥有 Worker 状态。
 
-### 11.5 Permission Amplification
+### 11.5 权限放大
 
-A coordinator with a broad roster can become a confused deputy: untrusted
-content persuades it to invoke a specialist with privileges the initiating
-user did not intend.
+一个拥有宽泛名册的协调者可能会变成一个"混淆代理人"：不受信任的内容说服它去调用一个拥有发起用户本不希望赋予的权限的专家。
 
-Admission must intersect caller authority, parent policy, child policy, and
-Space policy. Consequential delegation may require human approval even when the
-child Agent is in the catalog.
+准入过程必须综合考虑调用者权限、父级策略、子级策略以及 Space 策略的交集。即使子 Agent 本就在目录中，有实际后果的委托也可能需要人工审批。
 
-### 11.6 UX Taxonomy Becomes The Architecture
+### 11.6 UX 分类法变成了架构
 
-Prematurely adding Assistant to navigation can force long-lived distinctions
-that users do not understand. Conversely, hiding meaningful permission and
-cost boundaries behind one generic Agent label can make control impossible.
+过早地把"助理"添加到导航中，可能会强行造成用户无法理解的、长期存在的区分。反过来，把有意义的权限与成本边界隐藏在一个通用的 Agent 标签之后，也可能使控制变得不可能。
 
-The experiment should test both behavior and comprehension before committing
-names or navigation.
+这项实验应当在确定名称或导航之前，先测试行为与理解程度。
 
-### 11.7 Model Progress Invalidates The Split
+### 11.7 模型进步使这种划分失效
 
-A future model may absorb tasks that currently benefit from specialists. A
-static multi-Agent topology could then become permanent overhead.
+未来的模型可能会吸收目前受益于专家的那些任务。一个静态的多 Agent 拓扑届时可能会变成永久的额外开销。
 
-The roster must remain optional, and evaluation must be rerun when the default
-model changes. Product value should rest on context isolation, parallelism,
-permissions, or accountability, not on an assumption that the coordinator is
-too weak to do specialist work.
+名册必须保持可选，并且每当默认模型改变时都必须重新运行评估。产品价值应当建立在上下文隔离、并行性、权限或可问责性之上，而不是建立在"协调者太弱以至于无法完成专家工作"这一假设之上。
 
-## 12. Evidence Program
+## 12. 证据计划
 
-### 12.1 Evaluation Arms
+### 12.1 评估组
 
-Every candidate workload should run through three comparable arms:
+每一个候选工作负载都应当在三个可比较的评估组中运行：
 
-| Arm | Configuration |
+| 组 | 配置 |
 |---|---|
-| A | Best affordable single Agent with equivalent safe information and tool access |
-| B | The same coordinator class with a bounded, differentiated specialist roster |
-| C | A deterministic Workflow when the task has a plausible stable decomposition |
+| A | 具有等效的、安全的信息与工具访问权限的、可负担得起的最佳单个 Agent |
+| B | 同一类协调者，配有一份有界的、差异化的专家名册 |
+| C | 当任务存在一种合理的稳定分解方式时，采用确定性的 Workflow |
 
-Models, total budget, available data, success criteria, and side-effect policy
-must be recorded. Artificially weakening Arm A would make the result useless.
+模型、总预算、可用数据、成功标准和副作用策略都必须被记录下来。人为削弱 A 组会使结果失去意义。
 
-### 12.2 Workload Classes
+### 12.2 工作负载类别
 
-The first suite should include:
+第一批测试套件应当包括：
 
-- broad research where independent lines of inquiry can run in parallel;
-- one large-context investigation where a child can return a bounded result;
-- cross-tool work with distinct permission domains;
-- a simple task expected to favor one Agent;
-- a stable repeated process expected to favor Workflow; and
-- a deceptive or malformed input that attempts permission amplification.
+- 独立调查方向可以并行运行的广泛研究；
+- 一次大型上下文调查，其中一个子任务可以返回一个有界的结果；
+- 涉及不同权限域的跨工具工作；
+- 一个预期更适合单个 Agent 的简单任务；
+- 一个预期更适合 Workflow 的稳定重复流程；以及
+- 一个试图进行权限放大的、具有欺骗性或格式错误的输入。
 
-At least one workload must contain a server restart or lost completion signal
-while a parent waits for child Tasks. Otherwise the experiment measures a demo,
-not the proposed durable product.
+至少有一个工作负载必须包含服务器重启或父级等待子 Task 时丢失完成信号的情形。否则，这个实验衡量的只是一次演示，而不是所提议的持久化产品。
 
-### 12.3 Metrics
+### 12.3 度量指标
 
-Measure:
+需要测量：
 
-- task completion and output quality against workload-specific graders;
-- unsupported claims and lost information across delegation boundaries;
-- user setup time and correction turns;
-- model and tool cost;
-- median and tail completion latency;
-- number of child Tasks and unused child results;
-- policy refusals and unauthorized-action attempts;
-- successful recovery after parent, worker, or server interruption;
-- variance across repeated runs; and
-- operator time to explain a failure from persisted evidence.
+- 相对于特定工作负载评分器的任务完成情况与输出质量；
+- 跨越委托边界的、未经证实的断言与信息丢失；
+- 用户搭建时间与纠正回合数；
+- 模型与工具成本；
+- 完成延迟的中位数与尾部值；
+- 子 Task 的数量与未被使用的子结果；
+- 策略拒绝与未授权操作尝试；
+- 在父级、Worker 或服务器中断后的成功恢复；
+- 重复运行之间的方差；以及
+- 运维人员根据持久化证据解释一次失败所需的时间。
 
-Assistant earns a product surface only if it materially improves a target
-workload over Arm A without an unacceptable safety, reliability, cost, or
-usability regression. Thresholds should be set per workload before running the
-evaluation; this proposal does not invent one universal percentage.
+只有当"助理"在没有造成不可接受的安全性、可靠性、成本或可用性倒退的情况下，相较于 A 组显著改善了某个目标工作负载时，它才能赢得一个产品界面。阈值应当在运行评估之前，针对每一种工作负载单独设定；本提案不会发明一个普适的百分比。
 
-### 12.4 UX Research
+### 12.4 UX 研究
 
-Show participants three navigation and creation models without explaining the
-architecture first:
+在不预先解释架构的情况下，向参与者展示三种导航与创建模型：
 
-1. Agents, Assistants, and Workflows as peer items;
-2. Assistants and Specialists nested under `AI Space`, plus Automations; and
-3. one Agent catalog with optional delegation settings, plus Workflows.
+1. Agents、Assistants 和 Workflows 作为并列条目；
+2. Assistants 和 Specialists 嵌套在 `AI Space` 之下，外加 Automations；以及
+3. 一个 Agent 目录，配有可选的委托设置，外加 Workflows。
 
-Ask participants to start an open-ended analysis, configure a reusable space,
-and schedule a governed repeat run. Record first-click success, completion
-time, taxonomy errors, and their explanation of each concept afterward.
+要求参与者发起一次开放式分析、配置一个可复用的 space，并安排一次受治理的重复运行。记录首次点击成功率、完成时间、分类错误，以及他们事后对每个概念的解释。
 
-The peer-navigation model should not ship merely because participants can be
-taught it. The test is whether the product communicates the distinction before
-instruction.
+不应仅仅因为参与者可以被教会使用并列导航模型，就将其上线。真正的检验标准是：产品能否在不经说明的情况下，把这种区别传达清楚。
 
-## 13. Staged Delivery
+## 13. 分阶段交付
 
-### 13.1 Phase 0: Preserve Baselines And Instrumentation
+### 13.1 阶段 0：保留基线与埋点
 
-- Add evaluation tasks that represent the workload classes in section 12.
-- Record direct-Agent quality, cost, latency, tool use, and intervention rate.
-- Define the expected parent-child evidence and fault-injection cases.
-- Do not change Portal navigation or introduce an Assistant entity.
+- 添加代表第 12 节中各工作负载类别的评估任务。
+- 记录直接 Agent 方式的质量、成本、延迟、工具使用和干预率。
+- 定义预期的父子证据与故障注入用例。
+- 不要改动 Portal 导航，也不要引入一个"助理"实体。
 
-### 13.2 Phase 1: Bounded Delegation Primitive
+### 13.2 阶段 1：有界委托原语
 
-- Let an Agent revision reference a small pinned delegate catalog.
-- Add one server-owned delegation capability that admits durable child Tasks.
-- Enforce depth one, child count, concurrency, deadline, budget, and authority.
-- Suspend and resume the parent without holding a worker.
-- Expose child Tasks and decisions in the existing Task detail experience.
-- Run the comparative evaluation before expanding the feature.
+- 让一个 Agent 修订版本引用一份小型的、锁定版本的受托目录。
+- 添加一个由 Server 拥有的委托能力，用于准入持久化的子 Task。
+- 强制执行深度为一、子任务数量、并发度、截止时间、预算和权限方面的限制。
+- 在不占用 Worker 的情况下挂起并恢复父级。
+- 在现有的 Task 详情体验中暴露子 Task 与决策。
+- 在扩展该功能之前先运行对比评估。
 
-This phase proves runtime value. It does not promise an Assistant product.
+这一阶段证明了运行时层面的价值，但不承诺一个"助理"产品。
 
-### 13.3 Phase 2: Product Projection If Evidence Is Positive
+### 13.3 阶段 2：若证据积极，则进行产品投射
 
-- Present qualifying delegation-enabled Agents as Assistants.
-- Test the `AI Space` grouping and `Specialist` vocabulary.
-- Let a Space select a default Assistant for Home.
-- Add semantic roster and policy authoring without a graph editor.
-- Preserve direct execution for ordinary Agents and simple work.
+- 将符合条件的、启用委托的 Agent 呈现为"助理"。
+- 测试 `AI Space` 分组与"专家（Specialist）"用词。
+- 让一个 Space 可以为 Home 选择一个默认"助理"。
+- 添加语义化的名册与策略创作能力，而不使用图编辑器。
+- 为普通 Agent 与简单工作保留直接执行方式。
 
-### 13.4 Phase 3: Revisit Workflow Scope
+### 13.4 阶段 3：重新审视 Workflow 的范围
 
-Use observed work rather than forecasts to decide whether to:
+根据观察到的实际工作情况，而不是预测，来决定是否：
 
-- continue the full static graph phases in the accepted Workflow design;
-- narrow the primary Portal concept and label to Automation;
-- permit an Automation to invoke one Assistant node;
-- generate reviewable Automation drafts from repeated Assistant traces; or
-- keep Workflow internal until a trigger or governance use case earns a
-  dedicated user surface.
+- 继续推进已接受的 Workflow 设计中完整的静态图各阶段；
+- 把主要的 Portal 概念与标签收窄为 Automation；
+- 允许一个 Automation 调用一个"助理"节点；
+- 从重复出现的"助理" trace 中生成可供审查的 Automation 草案；或
+- 让 Workflow 保持内部使用，直到某个触发或治理用例值得拥有一个专用的用户界面。
 
-Any accepted change updates the Workflow design, product vision, roadmap, and
-Portal terminology together. This proposal is then retired.
+任何被接受的变更，都应当一并更新 Workflow 设计、产品愿景、路线图和 Portal 用语。到那时，本提案即告退休。
 
-## 14. Goals And Non-Goals
+## 14. 目标与非目标
 
-### 14.1 Goals
+### 14.1 目标
 
-- Determine whether bounded delegation has durable product value over one
-  strong Agent.
-- Define a safe experiment that reuses Task and TaskRun rather than inventing
-  another execution plane.
-- Separate adaptive semantic planning from scheduling and policy authority.
-- Clarify the lasting role of Workflow if adaptive work becomes Agent-led.
-- Prevent Portal navigation from exposing an incoherent Agent, Assistant, and
-  Workflow taxonomy.
-- Establish evidence that can change roadmap priority responsibly.
+- 判断有界委托相较于一个强大的 Agent 是否具有持久的产品价值。
+- 定义一个安全的实验，复用 Task 与 TaskRun，而不是发明另一个执行平面。
+- 把自适应的语义化规划，与调度和策略权威区分开来。
+- 如果自适应工作变为由 Agent 主导，澄清 Workflow 长期扮演的角色。
+- 防止 Portal 导航暴露出一套不连贯的 Agent、助理和 Workflow 分类法。
+- 建立能够负责任地改变路线图优先级的证据。
 
-### 14.2 Non-Goals
+### 14.2 非目标
 
-- Declaring multi-Agent execution inherently better than one Agent.
-- Renaming Portal navigation before usability evidence.
-- Replacing the accepted Workflow runtime design in this paper.
-- Allowing arbitrary Agent discovery, recursive delegation, or model-granted
-  permissions.
-- Building a new Assistant execution loop, scheduler, trace, or Artifact store.
-- Treating a successful run trace as a safe executable definition.
-- Adding a general visual DAG editor.
-- Claiming that stronger future models remove the need for durable execution,
-  authorization, or audit.
+- 断言多 Agent 执行本质上优于单个 Agent。
+- 在可用性证据出现之前重命名 Portal 导航。
+- 在本文中取代已接受的 Workflow 运行时设计。
+- 允许任意的 Agent 发现、递归委托，或由模型授予权限。
+- 构建一个新的"助理"执行循环、调度器、trace 或 Artifact 存储。
+- 把一次成功的运行 trace 当作一份安全的可执行定义。
+- 添加一个通用的可视化 DAG 编辑器。
+- 宣称未来更强的模型会消除对持久化执行、鉴权或审计的需要。
 
-## 15. Open Questions
+## 15. 待解决问题
 
-1. Does a separate child Task preserve enough parent context while maintaining
-   a useful trust and context boundary?
-2. Should the parent Task enter a new durable waiting state, or can waiting be
-   represented without expanding the public Task state machine?
-3. What minimum structured input and result contract is necessary before a
-   Space Agent can appear in a delegate catalog?
-4. Can a child Task continue independently when its parent is canceled, or
-   must cancellation always propagate downward?
-5. Who may add a privileged Specialist to a coordinating Agent revision, and
-   what publication review is required?
-6. Is `Assistant` clearer than `Space`, `Coordinator`, or simply a named Agent
-   in user research?
-7. Is `Automation` clearer than `Workflow` once the latter may invoke an
-   adaptive Assistant?
-8. Which real workloads show quality, latency, permission, or context benefits
-   large enough to justify delegation?
-9. Does a stable pattern extracted from Assistant traces become a Workflow,
-   an Agent skill, or neither?
-10. Which parts of the accepted Workflow reconciler can coordinate dynamic
-    child Tasks without merging Assistant and Workflow semantics?
+1. 一个独立的子 Task 能否在保持有用的信任与上下文边界的同时，保留足够的父级上下文？
+2. 父 Task 应当进入一种新的持久化等待状态，还是可以在不扩展公开的 Task 状态机的情况下表示等待？
+3. 在一个 Space Agent 能够出现在受托目录中之前，需要具备怎样的最小结构化输入与结果契约？
+4. 当父任务被取消时，子 Task 能否独立继续执行，还是取消必须始终向下传播？
+5. 谁可以向一个协调 Agent 修订版本添加一个具有特权的"专家"，需要经过怎样的发布审查？
+6. 在用户研究中，"Assistant" 是否比 "Space"、"Coordinator"，或者干脆一个具名的 Agent 更清晰？
+7. 一旦 Workflow 可以调用一个自适应的"助理"，"Automation" 是否比 "Workflow" 更清晰？
+8. 哪些真实工作负载展现出足够大的质量、延迟、权限或上下文收益，值得引入委托？
+9. 从"助理" trace 中提炼出的一个稳定模式，最终会变成一个 Workflow、一项 Agent 技能，还是两者都不是？
+10. 已接受的 Workflow 协调器中，哪些部分能够在不把"助理"与 Workflow 的语义合并的情况下，协调动态的子 Task？
 
-## 16. Likely Destination
+## 16. 可能的归宿
 
-If evidence supports bounded delegation, the durable decisions should be split
-across existing semantic records rather than preserved as one cross-cutting
-paper:
+如果证据支持有界委托，那么这些持久化的决定应当被拆分到现有的各份语义化记录中，而不是保留为一篇横切多个主题的文章：
 
-- Agent roster, revision pinning, parent-child Task ownership, and result
-  propagation belong in
-  [Agent execution and Task threads](../../design/agent-execution-and-task-threads.md).
-- The user-facing role of Assistant, AI Space, and Home belongs in
-  [product vision](../../design/product-vision.md) and the relevant Portal design.
-- The deterministic Automation boundary, Assistant node contract, and delivery
-  sequence belong in [Workflow runtime](../../design/workflow-runtime.md).
-- Accepted priority belongs only in [the roadmap](../ROADMAP.md).
+- Agent 名册、修订版本锁定、父子 Task 归属，以及结果传递，应当归入 [Agent 执行与 Task 线程](../design/Agent执行与Task线程.md)。
+- "助理"、"AI Space" 和 Home 面向用户的角色，应当归入 [产品愿景](../design/产品愿景.md) 以及相关的 Portal 设计。
+- 确定性的 Automation 边界、"助理"节点契约，以及交付顺序，应当归入 [Workflow 运行时](../design/Workflow运行时.md)。
+- 已接受的优先级只应归入[路线图](../ROADMAP.md)。
 
-If bounded delegation does not beat one strong Agent, retire this proposal and
-retain the simpler product: direct Agent execution for adaptive work and
-Workflow for deterministic automation. That outcome is a valid design result,
-not a failed implementation.
+如果有界委托无法胜过一个强大的 Agent，就应当让本提案退休，并保留更简单的产品形态：用直接的 Agent 执行完成自适应工作，用 Workflow 完成确定性自动化。这也是一个有效的设计结果，而不是一次失败的实现。

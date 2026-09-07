@@ -25,7 +25,7 @@
 - roadmap_priority:`P0.5`
 - 状态：`implemented`——16 个事件和四种传输方式均已交付；可选的检查器和 frontmatter 集成仍待后续实现
 - 后续依据：[trust-harness.md](./信任保障.md)
-- 路线图：[ROADMAP.md](../../ROADMAP.md)
+- 路线图：[ROADMAP.md](../ROADMAP.md)
 - created_at:`2026-05-23`
 
 ## 1. 目的

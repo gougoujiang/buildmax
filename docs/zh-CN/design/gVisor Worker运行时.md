@@ -545,7 +545,7 @@ TaskRun。
 
 在支持船舶时：
 
-- 文件[配置参考](../../reference/configuration.md)
+- 文件[配置参考](../reference/configuration.md)
 证实性，并没有反弹行为； `runtime_kind` `runtime_class_name`
 - 文件[产业部署](../../../deployment/production/README.md)
 节点安装，运行时间类，安排，接入，升级，
@@ -554,9 +554,9 @@ TaskRun。
 产品和gVisor Pod的配置文件；
 - [沙箱指南](../../../manual/sandbox.md)解释了外部运行时间隔离与
 内部指挥政策；
-- 记录运行时间的[服务器架构](../../contribute/architecture/server.md)记录
+- 记录运行时间的[服务器架构](../contribute/architecture/server.md)记录
 验证和工作失败观察；
-- 报告了准确的资格证明 [现状](../../current-state.md)
+- 报告了准确的资格证明 [现状](../current-state.md)
 测量限制；
 - 克相关标识符区分原生和合格 [支持矩阵](../../../manual/support.md)
 工人gVisor；以及

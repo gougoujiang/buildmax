@@ -1,29 +1,26 @@
-# 会话
+# Session
 
-> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/session.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `2b1d7847649334387aec9053c714c64532bff04c49aca0270b1357638bc56940`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
-> **简体中文：** [阅读中文镜像](session.md)
-> **Audience:** contributors · **Status:** current
+> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/session.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `44839555d1b47dc2d60afb0ab6a74426f0a73469aaa8c93771117670fc9f9ff9`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **受众：** 贡献者 · **状态：** 当前有效
 >
-> User-facing view: [manual/sessions-and-traces.md](../../../../manual/sessions-and-traces.md)
+> 面向用户的视角：[manual/sessions-and-traces.md](../../../../manual/sessions-and-traces.md)
 >
-> Rationale and the full record contract:
-> [design/local-session-storage.md](../../../design/local-session-storage.md)
+> 设计理由与完整的记录契约：
+> [design/local-session-storage.md](../../design/本地会话存储.md)
 
-## Purpose
+## 用途
 
-Local chat session state is split across three packages:
+本地聊天 Session 状态被拆分到三个包中：
 
-| Package | Owns |
+| 包 | 拥有的内容 |
 |---|---|
-| `internal/core/session` | Record types, validation, the linked-history reducer, recovery analysis, and the `Store` seam. No file I/O. |
-| `internal/infra/sessionstore` | Physical durability: JSONL codec, atomic metadata, the single-writer lock, tail repair, salvage |
-| `internal/agentapp` | `SessionManager` and `SessionContext`: when state commits, and lifecycle |
+| `internal/core/session` | 记录类型、校验、链式历史归约器（reducer）、恢复分析，以及 `Store` 接缝。不涉及文件 I/O。 |
+| `internal/infra/sessionstore` | 物理持久化：JSONL 编解码、原子化的元数据写入、单写者锁、尾部修复、抢救式恢复 |
+| `internal/agentapp` | `SessionManager` 与 `SessionContext`：状态何时提交，以及生命周期 |
 
-`SessionManager` is the entry point for anything that runs a session. Core holds
-what the records mean, infra holds how they survive, `agentapp` holds when they
-are written.
+`SessionManager` 是任何运行一个 Session 的入口点。core 层持有这些记录“意味着什么”，infra 层持有它们“如何存活下来”，`agentapp` 持有它们“何时被写入”。
 
-## On-disk shape
+## 磁盘布局
 
 ```text
 <BUILDMAX_HOME>/sessions/
@@ -35,136 +32,86 @@ are written.
     writer.lock                 who holds this session
 ```
 
-Two records, two kinds of authority, and neither is a projection of the other:
+有两类记录，两种权威性来源，彼此都不是对方的投影：
 
-- **`history.jsonl`** is authoritative for anything that reconstructs the
-  conversation — messages, tool outcomes, compaction, durable state. It is
-  append-only and lossless.
-- **`meta.json`** is authoritative for current selections and running
-  aggregates — title, pin, workspace, selected model, tokens, cost. Replay does
-  not recover these, and no history record needs to. It also carries
-  `project_id`, the local Project this session belongs to; unlike the fields
-  beside it that is immutable, and `MetaUpdate` has no way to change it.
-- **`index.json`** is the only pure projection, and the only file rebuilt by
-  scanning.
+- **`history.jsonl`** 对任何需要重建对话的场景而言都是权威来源——消息、工具结果、压缩、持久状态。它只追加、无损。
+- **`meta.json`** 对当前选择和运行时累计值而言是权威来源——标题、置顶状态、工作区、所选模型、token 数、花费。回放并不会恢复这些内容，也没有任何历史记录需要这样做。它还携带 `project_id`，即这个 Session 所属的本地 Project；与它旁边的其他字段不同，这个字段是不可变的，`MetaUpdate` 没有办法修改它。
+- **`index.json`** 是唯一纯粹的投影，也是唯一通过扫描重建的文件。
 
-Nothing lives in both. The current head is *derived*: it is the last record in
-the journal, because `head_selected` chains to the item a rewind returns to, so
-the parent links already express the branch.
+没有任何内容同时存在于两处。当前的 head 是*派生*出来的：它就是日志中的最后一条记录，因为 `head_selected` 链接到的是一次回退所返回的那个条目，所以父级链接本身就已经表达了分支关系。
 
-## Records
+## 记录
 
-Every journal line carries `seq` (physical order), `id`/`parent_id` (logical
-order), a `type`, and `required` — whether a reader that cannot interpret the
-type must refuse the session or may skip the record. That one bit is what lets
-the format grow without older readers either mis-reducing a conversation or
-refusing every session containing something new.
+日志中的每一行都携带 `seq`（物理顺序）、`id`/`parent_id`（逻辑顺序）、一个 `type`，以及 `required`——标记一个无法理解该类型的读取者，是必须拒绝这个 Session，还是可以跳过这条记录。正是这一个比特位，让格式得以持续演进，而不会让较旧的读取者要么错误地归约一段对话，要么对任何包含新内容的 Session 一概拒绝。
 
-The type vocabulary and each payload are listed in
-[design §6.3](../../../design/local-session-storage.md); the two that matter most
-here are `tool_execution_started` and `tool_result`. The first is written — and
-synced — *before* a tool runs, which is the only way an interrupted run can tell
-a call that never started from one that may already have changed the world.
+类型词表及各自的负载列在[设计文档 §6.3](../../design/本地会话存储.md)中；这里最重要的两种是 `tool_execution_started` 和 `tool_result`。前者会在一个工具运行*之前*被写入——并同步落盘——这是让一次被中断的运行，能够区分“从未开始的调用”与“可能已经改变了世界的调用”的唯一办法。
 
-## Commit path
+## 提交路径
 
-`SessionContext` is the committing context. It has no exported fields: every
-change a resumed turn would have to see goes through a method that reaches the
-journal before returning, so a caller cannot change resumable state without
-committing it.
+`SessionContext` 是负责提交的 context。它没有任何导出字段：任何一次被恢复的回合需要看到的变更，都要经过某个方法，在返回之前先落到日志中，因此调用方不可能在不提交的情况下改变可恢复的状态。
 
-| Change | Method | Lands in |
+| 变更 | 方法 | 落到哪里 |
 |---|---|---|
-| A message | `Append` | history |
-| A tool about to run | `ToolExecutionStarted` | history |
-| A tool's outcome | `AppendToolResult` | history |
-| Compaction boundary | `AddCompaction` | history |
-| Notes / todos / additional prompt | `SetNotes`, `SetTodos`, `SetAdditionalPrompt` | history |
-| Turn open / close | `BeginTurn`, `FinishTurn` | history |
-| Title, workspace, model, usage | `SetTitle`, `SetWorkspace`, `SetModel`, `AddUsage` | metadata |
+| 一条消息 | `Append` | history |
+| 一个即将运行的工具 | `ToolExecutionStarted` | history |
+| 一个工具的结果 | `AppendToolResult` | history |
+| 压缩边界 | `AddCompaction` | history |
+| 笔记 / 待办 / 附加提示词 | `SetNotes`、`SetTodos`、`SetAdditionalPrompt` | history |
+| 回合的开始 / 结束 | `BeginTurn`、`FinishTurn` | history |
+| 标题、工作区、模型、用量 | `SetTitle`、`SetWorkspace`、`SetModel`、`AddUsage` | metadata |
 
-The agent loop reaches the first four through `MessageHistory` and its
-optional extensions (`CompactionHistory`, `NotesHistory`,
-`ToolBoundaryHistory`), so the loop itself stays free of storage.
+Agent 循环通过 `MessageHistory` 及其可选扩展（`CompactionHistory`、`NotesHistory`、`ToolBoundaryHistory`）来触及前四种变更，因此循环本身完全不涉及存储细节。
 
-## Lifecycle
+## 生命周期
 
-| Operation | Function |
+| 操作 | 函数 |
 |---|---|
-| Create, or create under an assigned id | `SessionManager.Create`, `CreateWithID` |
-| Create a subagent's hidden bundle | `SessionManager.CreateSubagent` |
-| Open for writing (takes the lock) | `SessionManager.Open` |
-| Read without the lock | `SessionManager.Load` |
-| List (picker projection) | `SessionManager.List` |
-| Rename / pin | `SessionManager.Rename`, `SetPinned` |
-| Delete one, or every session for a workspace | `SessionManager.Delete`, `DeleteByWorkspace` |
-| Finish a turn — title, usage, metadata | `SessionManager.Finalize` |
+| 创建，或在指定 id 下创建 | `SessionManager.Create`、`CreateWithID` |
+| 创建子代理的隐藏会话包 | `SessionManager.CreateSubagent` |
+| 以写入方式打开（获取锁） | `SessionManager.Open` |
+| 不加锁读取 | `SessionManager.Load` |
+| 列表（选择器投影） | `SessionManager.List` |
+| 重命名 / 置顶 | `SessionManager.Rename`、`SetPinned` |
+| 删除单个，或删除某个工作区的全部 Session | `SessionManager.Delete`、`DeleteByWorkspace` |
+| 结束一个回合——标题、用量、元数据 | `SessionManager.Finalize` |
 
-`Finalize` writes metadata only. The conversation is already durable by the time
-it runs, so a failure there loses reporting rather than the turn.
+`Finalize` 只写入元数据。运行到这一步时，对话内容早已持久化，因此这里失败丢掉的只是统计报告，而不是这个回合本身。
 
-`DeleteByWorkspace` matches through `workspaceAliases`, because the same
-directory can be recorded under different spellings (symlinks, `~` expansion,
-trailing slashes). A session with no recorded workspace never matches.
+`DeleteByWorkspace` 通过 `workspaceAliases` 做匹配，因为同一个目录可能以不同的写法被记录下来（符号链接、`~` 展开、末尾斜杠）。一个没有记录工作区的 Session 永远不会被匹配到。
 
-## The writer lock
+## 写入锁
 
-One writer per session, held for as long as the session is open rather than per
-append — which is what stops two turns interleaving into one span. It is an OS
-advisory lock (`flock` on unix, `LockFileEx` on Windows) on `writer.lock`, not
-on the journal, so a reader can still inspect a stable prefix while a writer
-holds the session. `Load` never takes it.
+每个 Session 只有一个写者，这个锁在 Session 保持打开期间一直持有，而不是每次追加各取一次——这正是防止两个回合交错写入同一段内容的手段。它是操作系统层面的协作锁（advisory lock，unix 上是 `flock`，Windows 上是 `LockFileEx`），加在 `writer.lock` 上，而不是加在日志文件本身，因此即便某个写者持有着这个 Session，读取者依然可以查看一段稳定的前缀。`Load` 从不获取这把锁。
 
-The file's contents are diagnostics. Ownership is the kernel's answer, because a
-recorded PID cannot say whether that process is still alive, and a lock the
-kernel holds is released when its owner exits however it exits.
+这个文件的内容只是诊断信息。归属权由内核来回答，因为一个记录下来的 PID 无法说明那个进程是否还活着，而内核持有的锁，无论其持有者以何种方式退出，都会随之释放。
 
-Opening a session that another process holds returns `sessionstore.ErrLocked`.
+打开一个正被另一个进程持有的 Session，会返回 `sessionstore.ErrLocked`。
 
-## Recovery
+## 恢复
 
-`Open` repairs a torn final line, then — only if the branch still has calls left
-uncertain by an interruption — appends one `turn_recovered` record and one
-`unknown` tool result per uncertain call. The gate is "is anything still
-uncertain", not "was the turn left open", so a session repaired once is not
-repaired again.
+`Open` 会修复被截断的最后一行，然后——仅当该分支上仍有调用因中断而处于状态不确定时——追加一条 `turn_recovered` 记录，并为每个状态不确定的调用各追加一条 `unknown` 工具结果。判断依据是“是否还有内容处于不确定状态”，而不是“这个回合是否曾被开着”，因此一个已经修复过一次的 Session 不会被再次修复。
 
-`Writer.Loaded().Recovery` reports what *was* repaired, for a caller that wants
-to tell the user. `Load` computes the same classification without writing
-anything.
+`Writer.Loaded().Recovery` 报告*实际*修复了什么，供想要告知用户的调用方使用。`Load` 会计算出同样的分类结果，但不会写入任何内容。
 
-## Subagents
+## 子代理
 
-Every subagent run gets its own bundle with `kind: subagent`, hidden from the
-picker and from `--continue`, recording which session, run, and tool call
-delegated to it. Its traces are filed under the *parent's* session, because a
-hidden bundle is not somewhere a person navigates to.
+每一次子代理运行都会得到自己的一个会话包，`kind: subagent`，在选择器和 `--continue` 中都是隐藏的，其中记录着是哪个 Session、哪次运行、哪次工具调用委派给了它。它的轨迹归档在*父级*的 Session 之下，因为一个隐藏的会话包不是人会主动导航过去的地方。
 
-`internal/tool` declares `SubAgentSession` and `agentapp` supplies it, since
-`tool` sits below `agentapp`. A runner with no factory falls back to an
-in-memory session, so the run path has no branch in it.
+`internal/tool` 声明了 `SubAgentSession`，由 `agentapp` 提供实现，因为 `tool` 位于 `agentapp` 之下。一个没有工厂的 runner 会回退到一个内存中的 Session，因此运行路径上不需要为此专门分支。
 
-## Session ID In Context
+## Context 中的 Session ID
 
-`CtxWithSessionID(ctx, id)` and `SessionIDFromContext(ctx)` carry the session id
-through call stacks that should not take it as a parameter — tools and the trace
-recorder read it from the context rather than having it threaded down.
+`CtxWithSessionID(ctx, id)` 和 `SessionIDFromContext(ctx)` 把 Session ID 携带穿过那些不应该把它作为参数接收的调用栈——工具和轨迹记录器都是从 context 中读取它，而不是靠层层传参下去。
 
-## Dependencies
+## 依赖
 
-- `internal/core/session` **uses**: `internal/core/llm`, `internal/core/agent`
-  (note and todo types, tool outcome statuses), `github.com/google/uuid`
-- `internal/infra/sessionstore` **uses**: `internal/core/session`,
-  `internal/util` (atomic file replacement), `golang.org/x/sys` (the lock)
-- **Used by**: `internal/agentapp`, `internal/interface/cli`,
-  `internal/interface/desktop`, and worker task-run session restore
+- `internal/core/session` **使用**：`internal/core/llm`、`internal/core/agent`（笔记与待办类型、工具结果状态）、`github.com/google/uuid`
+- `internal/infra/sessionstore` **使用**：`internal/core/session`、`internal/util`（原子文件替换）、`golang.org/x/sys`（加锁）
+- **使用方**：`internal/agentapp`、`internal/interface/cli`、`internal/interface/desktop`，以及 worker 的 TaskRun Session 恢复
 
-## Notes
+## 说明
 
-- All JSON keys are `snake_case`, per the repository convention.
-- The system prompt is never stored in a session; it is built per run by
-  `agentapp.BuildEffectiveSystemPrompt`. The *additional* system prompt is
-  stored, because a resumed session would otherwise lose the identity it ran
-  under.
-- Session directories and files use private permissions (`0700`/`0600`).
-- See also: [Agent Loop](agent-loop.md), [CLI](cli.md), [TUI](tui.md).
+- 所有 JSON 键均为 `snake_case`，遵循仓库约定。
+- 系统提示词从不存储在 Session 中；它由 `agentapp.BuildEffectiveSystemPrompt` 按每次运行重新构建。而*附加*系统提示词会被存储，否则一个被恢复的 Session 就会丢失它当初运行所依据的身份。
+- Session 目录和文件使用私有权限（`0700`/`0600`）。
+- 另见：[Agent 循环](agent-loop.md)、[CLI](cli.md)、[TUI](tui.md)。

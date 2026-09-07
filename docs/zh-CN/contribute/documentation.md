@@ -1,6 +1,6 @@
 # 文档约定
 
-> **翻译说明：** 本文是[英文原文](../../../docs/contribute/documentation.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `2ee6f72ede55e9daa17d94237d2a2b4924abdd2aea0db75c1f906bb329a2dda3`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../contribute/documentation.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `81364d69b4c549241c166a1bce50f6ecfb23052be09ff53459b9cc1a35551d58`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 > **读者：** 贡献者 · **状态：** 当前有效
 
 ## 按读者组织，而非按产物组织
@@ -117,10 +117,10 @@ git show <commit>^:docs/path/to/file.md
 | 事实 | 所在位置 | 其他位置 |
 |---|---|---|
 | 仓库目录树 | [repo-layout.md](repo-layout.md) | 链接 |
-| 环境变量 | `internal/config/env_spec.go` → [reference/configuration.md](../../reference/configuration.md) | 链接 |
-| 配置文件字段 | `config-examples/*.example.yaml` → [reference/configuration.md](../../reference/configuration.md) | 链接 |
+| 环境变量 | `internal/config/env_spec.go` → [reference/configuration.md](../reference/configuration.md) | 链接 |
+| 配置文件字段 | `config-examples/*.example.yaml` → [reference/configuration.md](../reference/configuration.md) | 链接 |
 | HTTP 路由 | 各 handler 子包的 `Register` 方法 → `/openapi.json` | 链接 |
-| 路线图优先级 | [ROADMAP.md](../../ROADMAP.md) | 链接 |
+| 路线图优先级 | [ROADMAP.md](../ROADMAP.md) | 链接 |
 
 ## 自动强制检查的内容
 
@@ -130,7 +130,7 @@ git show <commit>^:docs/path/to/file.md
 |---|---|
 | `TestDocsLinksResolve` | 相对 Markdown 链接指向不存在的文件 |
 | `TestDesignTranslationsMirrorEnglish` | 中文设计镜像缺失、孤立、链接不正确，或落后于英文源文档 |
-| `TestEnvVarsDocumented` | `config.EnvVars()` 新增的变量未出现在 [reference/configuration.md](../../reference/configuration.md) |
+| `TestEnvVarsDocumented` | `config.EnvVars()` 新增的变量未出现在 [reference/configuration.md](../reference/configuration.md) |
 | `TestToolNamesDocumented` | 工具名称常量未出现在 [manual/tools.md](../../../manual/tools.md) |
 | `TestArchitectureToolInventoryCoversEveryToolNameConstant` | `internal/tool/names.go` 声明的工具未出现在贡献者[工具清单](architecture/tools.md) |
 | `TestAgentsMDPathsExist` / `TestAgentsMDRoutesExist` | [AGENTS.md](../../../AGENTS.md) 引用了不存在的路径或路由 |
@@ -150,7 +150,7 @@ git show <commit>^:docs/path/to/file.md
 |---|---|
 | 包边界或运行时契约 | 同一拉取请求中更新 [architecture/](architecture/README.md) 对应文档 |
 | 用户可见行为或配置 | `manual/` 手册、`reference/` 和 `config-examples/` |
-| 方向 | 在 [../design/](../../design/README.md) 添加或更新语义化记录 |
+| 方向 | 在 [../design/](../design/设计文档索引.md) 添加或更新语义化记录 |
 | 包移动 | 仅更新 [repo-layout.md](repo-layout.md) |
 
 ## 风格

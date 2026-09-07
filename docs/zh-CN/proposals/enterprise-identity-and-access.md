@@ -1,12 +1,12 @@
 # 企业身份与访问
 
-> **翻译说明：** 本文是[英文原文](../../proposals/enterprise-identity-and-access.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `10777c3140cd7539d73bad545b213394d02be2345f24b8636083d4a88fff1259`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
-
+> **翻译说明：** 本文是[英文原文](../../proposals/enterprise-identity-and-access.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `a4ac62af9693de9f3410950b1e9877fd5a6bb5e285bf4139e869f6b3ce96b43a`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+>
 > **受众：** 贡献者、运维人员与安全审查者 · **状态：** 提案 — 讨论中
 >
 > **讨论开始：** 2026-08-16
 
-相关文档：[../ROADMAP.md](../ROADMAP.md) P4、[Space 治理设计](../../design/space-governance.md)及[部署认证](../../deploy/authentication.md)。
+相关文档：[../ROADMAP.md](../ROADMAP.md) P4、[Space 治理设计](../design/Space治理.md)及[部署认证](../deploy/authentication.md)。
 
 ## 目录
 

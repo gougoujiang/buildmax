@@ -32,7 +32,7 @@
 
 ## 1. 问题
 
-本地模型今天已经可以访问：`provider: openai_compatible` 通过 `api_url: http://localhost:11434/v1` 与 Ollama 的兼容端点通信，简单的聊天是可行的。[quickstart.md](../../../manual/quickstart.md) 和 [configuration.md](../../reference/configuration.md) 都说明了这一点。
+本地模型今天已经可以访问：`provider: openai_compatible` 通过 `api_url: http://localhost:11434/v1` 与 Ollama 的兼容端点通信，简单的聊天是可行的。[quickstart.md](../../../manual/quickstart.md) 和 [configuration.md](../reference/configuration.md) 都说明了这一点。
 
 一旦该端点承载的是一个 *Agent* 运行而不是聊天，就会出现四种问题。
 
@@ -236,7 +236,7 @@ models:
 
 - **端点是部署的网络，而不是调用者的网络。** 一个命名 `localhost` 的目标意味着*服务器*的 localhost，而一个容器的 localhost 就是该容器。只有系统管理员才能添加目标，并且从未有客户端请求能够提供一个端点——这就是为什么一个操作员提供的回环地址是部署决策而不是请求伪造表面的原因。
 - **本地目标与其他目标一样被计量。** 它每令牌不花费任何费用，仍然在 `llm_call` 账本中与 `provider_type: ollama` 一起记录，这使得它能够在不为此付费的情况下执行网关、配额和审计路径。
-- **从集群访问主机守护进程是操作员的问题，并且在每个平台上都有一个正确的答案。** 在 Docker Desktop 中，`host.docker.internal` 在 Pod 内部解析并转发到绑定到主机回环地址的守护进程；在 Linux 上，它是 Docker 桥接网关加上 `OLLAMA_HOST=0.0.0.0`。将守护进程运行在集群内部是错误的默认设置：一个 Pod 无法访问主机的 GPU，因此推理会回退到集群运行的任何 VM 的 CPU。这应该在部署指南中说明，而不是在代码中，并在 [../deploy/local-kind.md](../../deploy/local-kind.md) 中。
+- **从集群访问主机守护进程是操作员的问题，并且在每个平台上都有一个正确的答案。** 在 Docker Desktop 中，`host.docker.internal` 在 Pod 内部解析并转发到绑定到主机回环地址的守护进程；在 Linux 上，它是 Docker 桥接网关加上 `OLLAMA_HOST=0.0.0.0`。将守护进程运行在集群内部是错误的默认设置：一个 Pod 无法访问主机的 GPU，因此推理会回退到集群运行的任何 VM 的 CPU。这应该在部署指南中说明，而不是在代码中，并在 [../deploy/local-kind.md](../deploy/local-kind.md) 中。
 ## 13. 交付计划
 
 **第一阶段 — 适配器 — 已发布。** `provider: ollama`, `/api/chat` 阻塞和流式传输、合成的工具调用标识符，`num_ctx` 始终发送、使用情况、错误分类、在 `LLMClientCache.build` 中调度，扩展到四个协议的合规性套件。可以通过手动编辑 `settings.yaml` 来使用。
@@ -255,7 +255,7 @@ models:
 - **`num_ctx` 从不缺失。** 适配器构建的每一个请求都携带它，在 §7 的所有三个解析分支中得到断言，包括探测失败的分支。
 - **清单解析** 针对记录的 `/api/tags` 和 `/api/show` 体，包括一个没有能力列表的模型。
 - **§9 表格中每一行的 `doctor` 输出**，以及在 `checkModelConfig` 和 `checkModels` 中断言的凭证豁免。
-- **一个真实的守护进程不是 CI 依赖。** 以上所有内容都针对 `httptest` 运行。一个针对运行中的 Ollama 的手动烟雾测试应放在 [testing.md](../../contribute/testing.md) 旁边，那里已经有“需要真实模型”的检查。`deployment/smoke/mock-llm` 保持 OpenAI 兼容。
+- **一个真实的守护进程不是 CI 依赖。** 以上所有内容都针对 `httptest` 运行。一个针对运行中的 Ollama 的手动烟雾测试应放在 [testing.md](../contribute/testing.md) 旁边，那里已经有“需要真实模型”的检查。`deployment/smoke/mock-llm` 保持 OpenAI 兼容。
 
 ## 15. 已考虑的替代方案
 

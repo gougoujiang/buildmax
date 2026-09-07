@@ -46,7 +46,7 @@
 - relates_to: [Space 治理](./Space治理.md)、
   [信任验证框架](./信任保障.md)、[Worker 运行令牌](./Worker运行令牌.md)和
   [沙箱边界](./沙箱边界.md)
-- roadmap: [路线图](../../ROADMAP.md)
+- roadmap: [路线图](../ROADMAP.md)
 - created_at： `2026-08-22`
 
 ## 1. 决策

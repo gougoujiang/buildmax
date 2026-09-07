@@ -5,7 +5,7 @@
 
 > **受众：**贡献者、产品评审者和运营人员 · **状态：**计划中——方向已确定；当前实现仍是线性的、由回调驱动的前身
 
-相关文档：[路线图](../../ROADMAP.md)、[产品愿景](产品愿景.md)、[表面定位](界面定位.md)、[Agent 执行与 Task 线程](Agent执行与Task线程.md)、[Space 治理](Space治理.md)、[统一 Artifact](统一工件.md)、[数据模型](../../contribute/architecture/data-model.md)和[验证计划](验证计划.md)。
+相关文档：[路线图](../ROADMAP.md)、[产品愿景](产品愿景.md)、[表面定位](界面定位.md)、[Agent 执行与 Task 线程](Agent执行与Task线程.md)、[Space 治理](Space治理.md)、[统一 Artifact](统一工件.md)、[数据模型](../contribute/architecture/data-model.md)和[验证计划](验证计划.md)。
 
 ## 目录
 

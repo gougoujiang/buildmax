@@ -5,7 +5,7 @@
 
 > **受众：** 贡献者 · **状态：** 已在每条 `/api/worker/*` 路由上实施，并且是这些路由接受的唯一凭证。部署级共享 Worker Token 已移除。
 
-相关文档：[托管 LLM 网关](LLM网关.md) §11、[信任保障](信任保障.md)和 [ROADMAP.md](../../ROADMAP.md) P0.5、P3。
+相关文档：[托管 LLM 网关](LLM网关.md) §11、[信任保障](信任保障.md)和 [ROADMAP.md](../ROADMAP.md) P0.5、P3。
 
 ## 目录
 
@@ -190,4 +190,4 @@ POST   /api/worker/task-runs/{task_run_id}/llm/completions
 
 - [通过线路.md](LLM网关.md)
 - 工人执行界限，这是坐在 [信用.md](信任保障.md)
-- `worker.run_token_ttl` `BUILDMAX_RUN_TOKEN` [参考/配置.md](../../reference/configuration.md)
+- `worker.run_token_ttl` `BUILDMAX_RUN_TOKEN` [参考/配置.md](../reference/configuration.md)

@@ -1,6 +1,6 @@
 # Desktop
 
-> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/desktop.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `d100d6176635c7047b1ea3d0a14752d163e68aeea297dad4185b923e270701bb`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/desktop.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `bb092aa3d571709e9c40e45923a8f8b1734861622d6d69096731320bfac8cfb7`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 > **读者：** 贡献者 · **状态：** 当前
 >
 > 构建与使用说明：[`cmd/buildmax-desktop/README.md`](../../../../cmd/buildmax-desktop/README.md)
@@ -20,9 +20,9 @@ Desktop 与 CLI 一样，使用以下两种模式之一：
 | `local` | Agent 在本机运行，使用 `settings.yaml` 中的模型，无需服务器。 |
 | `server` | 同一个本地 Agent，加上已登录的 BuildMax 账户：提供托管模型，并连接 Space 中的工作。 |
 
-模式不改变 Agent 的运行位置：聊天始终由 `agentapp` 在本地执行。服务器提供身份及其管理的模型，因此 Portal 登录是连接器而非准入门槛。参见[界面定位](../../../design/surface-positioning.md)。
+模式不改变 Agent 的运行位置：聊天始终由 `agentapp` 在本地执行。服务器提供身份及其管理的模型，因此 Portal 登录是连接器而非准入门槛。参见[界面定位](../../design/界面定位.md)。
 
-`GetAuthStatus` 返回已登录账户，不提供模式字段：凭据本身就是模式。`<BUILDMAX_HOME>/auth.json` 中存有登录信息时报告 `server`，没有时报告 `local`；不会再保存一个并行状态，因为同一事实的第二份记录就是第二个权威来源。服务器不再认可的登录会报告过期：应用保留托管模式并拒绝运行，不会悄悄使用本地模型；用户可以重新登录或退出。`Logout` 撤销会话并删除凭据，删除凭据本身就完成了向本地模式的切换。参见[客户端模式](../../../design/client-modes.md)第 3 和第 8 节。
+`GetAuthStatus` 返回已登录账户，不提供模式字段：凭据本身就是模式。`<BUILDMAX_HOME>/auth.json` 中存有登录信息时报告 `server`，没有时报告 `local`；不会再保存一个并行状态，因为同一事实的第二份记录就是第二个权威来源。服务器不再认可的登录会报告过期：应用保留托管模式并拒绝运行，不会悄悄使用本地模型；用户可以重新登录或退出。`Logout` 撤销会话并删除凭据，删除凭据本身就完成了向本地模式的切换。参见[客户端模式](../../design/客户端模式.md)第 3 和第 8 节。
 
 ## 层次
 
@@ -45,7 +45,7 @@ Desktop 与 CLI 一样，使用以下两种模式之一：
 5. React 前端渲染增量内容，并通过 `RespondApproval` 返回审批决定。
 6. 会话持久化和持久 trace 由 `agentapp` 处理，与 CLI 完全一致。
 
-每个 Project 最多一个运行正在进行。期间提交的提示词会排队：`SendMessageStream` 返回从 1 开始的队列位置（0 表示启动了运行），`QueuedMessages` 重新读取 Project 的队列。队列通过 `RunPromptOpts.Pending` 交给运行，因此排队提示词通常会在下一次迭代边界加入当前回合；之后入队的内容由运行 goroutine 的回合循环继续接收。两种情况下前端都会收到 `desktop/message-dequeued`；hook 拒绝消息时收到 `desktop/message-blocked`，但拒绝不会终止运行本身。`CancelRun` 在取消前丢弃队列。参见[排队消息](../../../design/queued-messages.md)。
+每个 Project 最多一个运行正在进行。期间提交的提示词会排队：`SendMessageStream` 返回从 1 开始的队列位置（0 表示启动了运行），`QueuedMessages` 重新读取 Project 的队列。队列通过 `RunPromptOpts.Pending` 交给运行，因此排队提示词通常会在下一次迭代边界加入当前回合；之后入队的内容由运行 goroutine 的回合循环继续接收。两种情况下前端都会收到 `desktop/message-dequeued`；hook 拒绝消息时收到 `desktop/message-blocked`，但拒绝不会终止运行本身。`CancelRun` 在取消前丢弃队列。参见[排队消息](../../design/排队消息.md)。
 
 完成的回合还会发出 `desktop/turn-digest`：简短回顾本回合做了什么，以及回合以提问结束时用户可能即将输入的答案。它按回合而非按运行发出，因为排空队列的一个运行会执行多个回合，每份回顾仅描述自己的回合。因此事件在回合结束、仍持有会话时发出，而不是与 `desktop/stream-done` 一起发出。两部分都不属于对话内容，所以前端将其放在 `messages` 旁而非其中；`desktop/stream-done` 会从会话重新加载消息列表，而 digest 不在会话中。回顾渲染为线程末尾的 `notice` 行；建议成为 `ChatComposer` 的幽灵文本，在输入为空时作为占位符显示，按 Tab 接受。`settings.yaml` 中的 `agent.turn_digest` 可以分别关闭两部分。终端中的相同功能见 [tui.md](tui.md)。
 
@@ -61,9 +61,9 @@ Desktop 不在调用间持有会话。运行打开会话，在包括排队提示
 
 这使“运行进行中不可操作”自然得到强制执行，无需额外标志：历史移动获取写锁，运行正持有该锁就是它发现无法继续的方式。绑定将其转换成指明会话忙碌的消息。这些操作都不触发会话生命周期 hook：用户编辑历史时没有任何会话开始或结束，临时打开只是 Desktop 所有权模型的实现细节，不应成为 hook 可见的事件。
 
-Project 元数据位于 `<BUILDMAX_HOME>/projects/<project_id>/`，旁边的 `memory/` 中每条记忆一个文件，与 CLI 共享，详见[本地 Project 记忆](../../../design/local-project-memory.md) §8。Session 仍位于顶层 `<BUILDMAX_HOME>/sessions/`，按 ID 指定所属 Project；设置、trace、认证和日志使用 `BUILDMAX_HOME` 下的常规路径，Project 源文件保留在用户选择的文件夹。
+Project 元数据位于 `<BUILDMAX_HOME>/projects/<project_id>/`，旁边的 `memory/` 中每条记忆一个文件，与 CLI 共享，详见[本地 Project 记忆](../../design/本地项目记忆.md) §8。Session 仍位于顶层 `<BUILDMAX_HOME>/sessions/`，按 ID 指定所属 Project；设置、trace、认证和日志使用 `BUILDMAX_HOME` 下的常规路径，Project 源文件保留在用户选择的文件夹。
 
-`/info` 面板的 **memory** 标签页列出 Project 记住的内容，并展示单条记忆正文，读取与 CLI 和 TUI 相同的存储。它是只读的：记忆是用户可以直接编辑的 Markdown 文件，标签页会显示目录供其操作。在这里编辑需要处理带摘要校验的写入拒绝路径：替换本会话尚未读取或读取后已经变化的记忆。这属于[本地 Project 记忆](../../../design/local-project-memory.md) §11.5 的第 3 阶段。
+`/info` 面板的 **memory** 标签页列出 Project 记住的内容，并展示单条记忆正文，读取与 CLI 和 TUI 相同的存储。它是只读的：记忆是用户可以直接编辑的 Markdown 文件，标签页会显示目录供其操作。在这里编辑需要处理带摘要校验的写入拒绝路径：替换本会话尚未读取或读取后已经变化的记忆。这属于[本地 Project 记忆](../../design/本地项目记忆.md) §11.5 的第 3 阶段。
 
 Desktop 在默认工作区打开 Project，因此这里一个 Project 对应一个根目录，运行时缓存只按 Project 索引。添加文件夹是解析而非创建：已列出仓库的 worktree 会打开该仓库的 Project。删除 Project 与删除其会话是独立决定；`DeleteProject` 会拒绝仍拥有会话的 Project，除非调用者明确要求一起删除。
 

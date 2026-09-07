@@ -1,221 +1,195 @@
-# Single Maintainer Agent Development
+# 单一维护者的 Agent 开发工作流
 
-> **翻译说明：** 本文是[英文原文](../../proposals/single-maintainer-agent-development.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `2687e6e51202d0af66b8b23b5c0df1c549299fc92b75ca151301149a152f0101`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../proposals/single-maintainer-agent-development.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `925377174a88aca144081619fafaf55e193ca36e0d5af72724a1e2b72191a503`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 
-# Single-Maintainer Agent Development Workflow
-
-> **Audience:** maintainers, contributors, and coding-Agent workflow authors · **Status:** proposal — under discussion
+> **受众：** 维护者、贡献者，以及编码-Agent 工作流的作者 · **状态：** 提案 — 讨论中
 >
-> **Opened:** 2026-09-06
+> **提出日期：** 2026-09-06
 
-Related: [roadmap](../ROADMAP.md),
-[current-state assessment](../current-state.md),
-[testing guide](../../contribute/testing.md),
-[verification program](../../design/verification-program.md),
-[evaluation system](../../design/evaluation-system.md),
-[workspace root and worktrees](../../design/workspace-root-and-worktrees.md),
-[repository Agent guide](../../../AGENTS.md), and
-[this repository's BuildMax configuration](../../../.buildmax/README.md).
+相关文档：[路线图](../ROADMAP.md)、
+[当前状态评估](../current-state.md)、
+[测试指南](../contribute/testing.md)、
+[验证计划](../design/验证计划.md)、
+[评估系统](../design/评估系统.md)、
+[工作区根与工作树](../design/工作区根与工作树.md)、
+[仓库 Agent 指南](../../../AGENTS.md)，以及
+[本仓库的 BuildMax 配置](../../../.buildmax/README.md)。
 
-## Contents
+## 目录
 
-- [1. Question And Recommendation](#1-question-and-recommendation)
-- [2. Current Evidence](#2-current-evidence)
-- [3. Maintainer Outcome And Constraints](#3-maintainer-outcome-and-constraints)
-- [4. Goals And Non-Goals](#4-goals-and-non-goals)
-- [5. Options And Trade-Offs](#5-options-and-trade-offs)
-- [6. Proposed Development Loop](#6-proposed-development-loop)
-- [7. Task Readiness And Portfolio Control](#7-task-readiness-and-portfolio-control)
-- [8. Agent Roles And Concurrency](#8-agent-roles-and-concurrency)
-- [9. Verification And Independent Acceptance](#9-verification-and-independent-acceptance)
-- [10. Candidate Repository Automation](#10-candidate-repository-automation)
-- [11. Maintainer Cadence And Measures](#11-maintainer-cadence-and-measures)
-- [12. Delivery Sequence](#12-delivery-sequence)
-- [13. Future Operations Extension](#13-future-operations-extension)
-- [14. Risks And Failure Modes](#14-risks-and-failure-modes)
-- [15. Open Questions And Evidence Needed](#15-open-questions-and-evidence-needed)
-- [16. Likely Destination If Accepted](#16-likely-destination-if-accepted)
+- [1. 问题与建议](#1-问题与建议)
+- [2. 当前证据](#2-当前证据)
+- [3. 维护者的成果与约束](#3-维护者的成果与约束)
+- [4. 目标与非目标](#4-目标与非目标)
+- [5. 可选方案与权衡](#5-可选方案与权衡)
+- [6. 提议的开发闭环](#6-提议的开发闭环)
+- [7. 任务就绪性与任务组合控制](#7-任务就绪性与任务组合控制)
+- [8. Agent 角色与并发](#8-agent-角色与并发)
+- [9. 验证与独立验收](#9-验证与独立验收)
+- [10. 候选的仓库自动化](#10-候选的仓库自动化)
+- [11. 维护者节奏与度量指标](#11-维护者节奏与度量指标)
+- [12. 交付顺序](#12-交付顺序)
+- [13. 未来的运维扩展](#13-未来的运维扩展)
+- [14. 风险与失效模式](#14-风险与失效模式)
+- [15. 开放问题与所需证据](#15-开放问题与所需证据)
+- [16. 若被采纳后的可能归宿](#16-若被采纳后的可能归宿)
 
-## 1. Question And Recommendation
+## 1. 问题与建议
 
-How can one BuildMax maintainer use multiple modern coding Agents to develop a
-large project quickly without turning task preparation, review, conflict
-resolution, and cleanup into a larger manual burden than writing the code?
+一位 BuildMax 维护者，如何能使用多个现代编码 Agent 快速开发一个大型项目，
+同时不让任务准备、评审、冲突解决与清理工作变成比自己写代码更沉重的人工
+负担？
 
-The recommendation is to optimize for **maintainer attention per accepted
-change**, not Agent count or generated output:
+这里的建议是围绕**每一次被接受变更所耗费的维护者注意力**进行优化，而不是
+围绕 Agent 数量或产出的多少：
 
-1. Keep a small, continuously validated pool of implementation-ready Issues.
-2. Give every active task one lease and one primary writing Agent.
-3. Encode test selection and delivery evidence in the repository task runner.
-4. Separate implementation from acceptance with a fresh verifier context.
-5. Let Agents carry routine work to a reviewable pull request; reserve human
-   attention for priorities, real design choices, exceptions, and merge or
-   release authority.
-6. Convert every repeated human intervention into a task-contract rule,
-   deterministic check, regression test, or Agent evaluation task.
+1. 维持一个小而持续被验证的、可供实现的 Issue 池。
+2. 为每一个活跃任务分配一个租约与一个主要的写入 Agent。
+3. 把测试选择与交付证据编码进仓库的任务执行器中。
+4. 用一个全新的验证者上下文，把实现与验收分离开来。
+5. 让 Agent 把常规工作一路推进到一个可评审的 pull request；把人类的注意力
+   保留给优先级判断、真正的设计选择、例外情况以及合并或发布的决定权。
+6. 把每一次重复出现的人工介入，都转化为一条任务契约规则、一项确定性检查、
+   一个回归测试，或一个 Agent 评估任务。
 
-This is a development-process proposal. Section 13 records how the same
-principles could later support supervised AI operations, but operations are not
-the current implementation priority.
+这是一份关于开发流程的提案。第 13 节记录了同样的原则日后如何能够支持一个
+受监督的 AI 运维闭环，但运维并不是当前的实现优先级。
 
-## 2. Current Evidence
+## 2. 当前证据
 
-BuildMax already provides an unusually strong base for Agent-assisted
-development:
+BuildMax 已经为 Agent 辅助开发提供了一个异常扎实的基础：
 
-- the repository task runner gives build, test, check, end-to-end, deployment,
-  evaluation, and release work one cross-platform command surface;
-- the [testing guide](../../contribute/testing.md) maps changes to proportional
-  unit, MySQL, browser, Compose, and kind evidence;
-- tests isolate `BUILDMAX_HOME`, and owned end-to-end environments avoid
-  colliding with a maintainer's persistent state;
-- pull-request CI covers Go, frontend, open-source policy, real MySQL behavior,
-  and the health of the latest deployment smoke on `main`;
-- scheduled and post-merge deployment verification exercises Compose, kind,
-  worker execution, managed inference, and Portal browser journeys;
-- the Issue template asks for goal, scope, code areas, acceptance,
-  verification, and constraints;
-- `agent-ready` is defined as an Issue property rather than a claim about the
-  contributor using it;
-- the root Agent guide records product principles, architecture boundaries,
-  runtime invariants, verification expectations, and change rules;
-- the evaluation harness can measure built CLI and worker subjects and retain
-  failure bundles.
+- 仓库的任务执行器为构建、测试、检查、端到端、部署、评估与发布工作提供了
+  统一的跨平台命令界面；
+- [测试指南](../contribute/testing.md)把各种变更映射到相应比例的单元、
+  MySQL、浏览器、Compose 与 kind 证据上；
+- 测试会隔离 `BUILDMAX_HOME`，独占的端到端环境也避免与维护者的持久状态发生
+  冲突；
+- pull request 的 CI 覆盖了 Go、前端、开源政策合规、真实 MySQL 行为，以及
+  `main` 上最新一次部署冒烟测试的健康状况；
+- 定期以及合并后的部署验证，会演练 Compose、kind、worker 执行、托管推理与
+  Portal 浏览器测试流程；
+- Issue 模板要求填写目标、范围、代码区域、验收标准、验证方式与约束条件；
+- `agent-ready` 被定义为一个 Issue 的属性，而不是关于使用它的贡献者的一种
+  声明；
+- 根目录的 Agent 指南记录了产品原则、架构边界、运行时不变量、验证期望，
+  以及变更规则；
+- 评估框架可以对已构建的 CLI 与 worker 主体进行测量，并保留失败样本。
 
-The remaining bottleneck is coordination and evidence closure:
+真正的瓶颈在于协调与证据闭合：
 
-- At the review on 2026-09-06, the repository had ten open Issues and only
-  three carrying `agent-ready`. Much near-term work remained embedded in the
-  roadmap and design records rather than available as an implementation queue.
-- Issue [#55](https://github.com/gougoujiang/buildmax/issues/55) was labelled
-  `agent-ready` while still naming the old `cmd/mk` location after the task
-  runner had moved to `tools/mk`. Readiness can therefore become stale without
-  losing its label.
-- Pull requests [#401](https://github.com/gougoujiang/buildmax/pull/401) and
-  [#402](https://github.com/gougoujiang/buildmax/pull/402) independently
-  designed Task workspace continuity. Both records briefly reached `main`
-  before [#404](https://github.com/gougoujiang/buildmax/pull/404) reconciled
-  them into one accepted direction and deleted the losing proposal. The
-  resolution was correct, but parallel production still created avoidable
-  arbitration and cleanup work for the maintainer.
-- The [verification program](../../design/verification-program.md) asks for a
-  fresh acceptance pass and a structured behavior review block, but neither is
-  yet a normal executable stage of every behavior-changing contribution.
-- The testing matrix is precise human-readable guidance. An Agent must still
-  interpret it, choose commands, and explain omitted evidence independently on
-  every change.
-- The product-owned evaluation suite proves its architecture with three tasks;
-  it does not yet measure the common ways repository-maintenance Agents require
-  human rescue.
+- 在 2026-09-06 的这次评审中，仓库共有十个开放 Issue，其中只有三个带有
+  `agent-ready` 标签。大量近期工作仍然嵌在路线图与设计记录里，而没有作为
+  一个可实现的任务队列存在。
+- Issue [#55](https://github.com/gougoujiang/buildmax/issues/55) 在任务
+  执行器已经从旧的 `cmd/mk` 位置迁移到 `tools/mk` 之后，仍然被打上了
+  `agent-ready` 标签，而其内容里指名的还是旧位置。可见就绪性可以在不失去
+  标签的情况下变得过时。
+- Pull request [#401](https://github.com/gougoujiang/buildmax/pull/401) 与
+  [#402](https://github.com/gougoujiang/buildmax/pull/402) 各自独立设计了
+  Task 工作区连续性方案。两份记录都曾短暂地进入 `main`，直到
+  [#404](https://github.com/gougoujiang/buildmax/pull/404) 把它们统一到一个
+  被采纳的方向，并删除了未被采纳的那份提案。这一处理结果是正确的，但并行
+  产出仍然为维护者制造了本可避免的仲裁与清理工作。
+- [验证计划](../design/验证计划.md)要求进行一次全新的验收核查，以及一个
+  结构化的行为评审区块，但这两者都还不是每一次改变行为的贡献所要经历的
+  常规可执行阶段。
+- 测试矩阵是一份精确的、供人阅读的指导文档。一个 Agent 在每一次变更中，
+  仍然必须独立地解读它、选择命令，并独立地解释被省略的证据。
+- 产品自带的评估套件用三个任务证明了其架构的可行性；它还没有衡量出仓库
+  维护类 Agent 需要人工救援的常见方式。
 
-The evidence argues against spending the next increment on more prose or more
-concurrent implementers. BuildMax first needs a thin control loop around the
-automation it already has.
+这些证据都指向：下一步投入不应该花在更多的文字说明，或更多并行的实现者
+身上。BuildMax 首先需要围绕它已经拥有的自动化，建立一个薄薄的控制闭环。
 
-## 3. Maintainer Outcome And Constraints
+## 3. 维护者的成果与约束
 
-The essential outcome is:
+其本质的成果是：
 
-> The maintainer decides what matters and resolves genuine ambiguity. Agents
-> perform the routine investigation, implementation, verification, delivery
-> preparation, and cleanup needed to turn that decision into a reviewable
-> change.
+> 维护者决定什么才重要，并解决真正的歧义。Agent 完成把这一决定转化为一次
+> 可评审变更所需的常规调研、实现、验证、交付准备与清理工作。
 
-A successful workflow should let the maintainer review five things rather than
-reconstruct a whole Agent session:
+一个成功的工作流，应当让维护者只需评审以下五项内容，而不是重构整个 Agent
+会话：
 
-1. the requested user outcome;
-2. the important decision or assumption;
-3. the meaningful part of the diff;
-4. the independent acceptance verdict;
-5. the verification evidence and remaining gap.
+1. 所请求的用户成果；
+2. 重要的决策或假设；
+3. diff 中有意义的部分；
+4. 独立的验收结论；
+5. 验证证据与仍然存在的缺口。
 
-The constraints today are:
+目前的约束条件是：
 
-- one person owns product direction, architecture arbitration, merge policy,
-  release decisions, and incident accountability;
-- the repository spans Go, React, persistence, model protocols, local
-  interfaces, Server and Portal behavior, workers, and deployment boundaries;
-- some checks are fast and hermetic, while kind, real providers, and external
-  qualification have machine, time, credential, or cost effects;
-- unrelated parallel work must survive in shared checkouts;
-- current Alpha policy prefers coherent breaking corrections over compatibility
-  layers;
-- generated code, tests, and documents still need evidence independent of the
-  context that produced them.
+- 一个人拥有产品方向、架构仲裁、合并策略、发布决策与事故责任；
+- 该仓库横跨 Go、React、持久化、模型协议、本地界面、Server 与 Portal 行为、
+  worker，以及部署边界；
+- 一些检查快速且封闭，而 kind、真实 provider 与外部合规校验则会带来机器、
+  时间、凭证或成本上的影响；
+- 无关的并行工作必须能够在共享的检出目录中共存；
+- 当前的 Alpha 政策倾向于连贯的破坏性修正，而不是兼容层；
+- 生成的代码、测试与文档，仍然需要独立于产生它们的上下文的证据。
 
-## 4. Goals And Non-Goals
+## 4. 目标与非目标
 
-### Goals
+### 目标
 
-- Reduce maintainer interventions between a ready Issue and a reviewable pull
-  request.
-- Keep enough ready work available that an Agent does not wait for the
-  maintainer to restate context.
-- Detect stale or contradictory tasks before implementation starts.
-- Prevent two writing Agents from unknowingly owning the same task or design
-  decision.
-- Make proportional verification reproducible and machine-readable.
-- Give acceptance a context independent from implementation.
-- Bound concurrent work so integration remains cheaper than the work it saves.
-- Make worktree, branch, temporary environment, and task-lease cleanup part of
-  completion.
-- Measure the workflow by maintainer attention and accepted outcomes.
+- 减少从一个就绪 Issue 到一个可评审 pull request 之间维护者的介入次数。
+- 保持足够的就绪工作量，使一个 Agent 不必等待维护者重新讲述上下文。
+- 在实现开始之前，检测出过时或自相矛盾的任务。
+- 防止两个写入 Agent 在不知情的情况下同时拥有同一个任务或设计决策。
+- 使按比例进行的验证可复现、机器可读。
+- 让验收拥有一个独立于实现的上下文。
+- 限定并行工作的规模，使集成成本始终低于它所节省的成本。
+- 把 worktree、分支、临时环境与任务租约的清理，变成"完成"定义的一部分。
+- 用维护者的注意力与被接受的成果来衡量这一工作流。
 
-### Non-Goals
+### 非目标
 
-- Replacing GitHub Issues, pull requests, or the repository task runner with a
-  second planning system.
-- Creating a human-company simulation with many permanent Agent titles.
-- Allowing an Agent to resolve an actual product or security trade-off by
-  silently choosing one option.
-- Requiring every small fix to gain a proposal or design record.
-- Running every expensive or stateful suite for every change.
-- Automatically merging architecture, security, persistence, deployment, or
-  other high-impact changes in the first slice.
-- Treating volume of commits, tokens, or parallel Agents as productivity.
-- Building autonomous production operations before the development loop proves
-  the same task, evidence, authority, and recovery disciplines locally.
+- 用第二套规划系统取代 GitHub Issue、pull request 或仓库任务执行器。
+- 创造一个拥有许多常设 Agent 头衔的人类公司模拟系统。
+- 允许一个 Agent 通过默默选择某一个选项，来解决一个真正的产品或安全权衡。
+- 要求每一个小修复都必须撰写一份提案或设计记录。
+- 让每一次变更都跑一遍昂贵或有状态的完整套件。
+- 在第一个切片中自动合并架构、安全、持久化、部署或其他高影响变更。
+- 把提交数量、token 用量或并行 Agent 数量当作生产力。
+- 在开发闭环于本地证明同样的任务、证据、权限与恢复纪律之前，先构建自治的
+  生产运维能力。
 
-## 5. Options And Trade-Offs
+## 5. 可选方案与权衡
 
-### Option A: Continue With Ad Hoc Agent Sessions
+### 方案 A：继续使用临时的 Agent 会话
 
-The maintainer opens tasks when needed, gives each Agent context, reviews its
-result, and decides which checks or follow-ups remain.
+维护者在需要时开启任务，给每个 Agent 提供上下文，评审其结果，并决定还剩下
+哪些检查或后续工作。
 
-This has no new machinery and works for one task at a time. It does not scale
-because task preparation, repeated repository explanation, test selection,
-stale work detection, and cleanup remain human work. Adding more Agents makes
-those costs concurrent.
+这不需要任何新机制，并且在同一时间只处理一个任务时是可行的。但它无法
+规模化，因为任务准备、重复的仓库讲解、测试选择、过时工作检测与清理，都
+仍然是人工工作。增加更多 Agent，只会让这些成本并发地增加。
 
-### Option B: Maximize Parallel Agent Count
+### 方案 B：最大化并行 Agent 数量
 
-Give many Agents broad objectives, let each create worktrees or pull requests,
-and reconcile their output later.
+给许多 Agent 分配宽泛的目标，让每一个都自行创建 worktree 或 pull request，
+之后再统一协调它们的产出。
 
-This increases speculative output but not necessarily accepted throughput.
-Overlapping designs, adjacent edits, duplicated investigation, inconsistent
-verification, and large review queues consume the one resource that cannot be
-parallelized: the maintainer's attention.
+这会增加投机性的产出，但未必会增加被接受的吞吐量。相互重叠的设计、相邻的
+编辑、重复的调研、不一致的验证，以及庞大的评审队列，都会消耗那唯一无法
+并行化的资源：维护者的注意力。
 
-### Option C: Build A Bounded Contribution Loop — Recommended
+### 方案 C：构建一个有界的贡献闭环 —— 推荐方案
 
-Keep GitHub Issues and pull requests as the work and integration records. Add a
-small amount of executable policy around readiness, leases, changed-scope
-verification, independent acceptance, and delivery preparation.
+把 GitHub Issue 与 pull request 作为工作与集成的记录保留下来。围绕就绪性、
+租约、变更范围验证、独立验收与交付准备，加入少量可执行的策略。
 
-Agents remain replaceable workers. Roles are workflow phases, not new product
-entities. Most work stops at an evidence-complete pull request until the
-workflow has earned broader authority through measured results.
+Agent 仍然是可替换的工作者。角色是工作流阶段，而不是新的产品实体。大多数
+工作都止步于一个证据完备的 pull request，直到该工作流通过可衡量的结果，
+赢得更广泛的权限为止。
 
-This option adds some tooling, but each proposed mechanism removes a repeated
-human decision rather than creating a parallel abstraction.
+这一方案会增加一些工具，但每一项被提议的机制，消除的都是一个重复出现的
+人工决定，而不是创造一层并行的抽象。
 
-## 6. Proposed Development Loop
+## 6. 提议的开发闭环
 
-The normal contribution path becomes:
+正常的贡献路径变成：
 
 ```text
 roadmap, defect, feedback, or test gap
@@ -246,133 +220,122 @@ roadmap, defect, feedback, or test gap
      lease and workspace reclamation
 ```
 
-The loop has three human-facing queues.
+这一闭环包含三个面向人类的队列。
 
-### Decision Needed
+### 需要决策
 
-This queue contains product direction, architecture boundaries, security and
-data choices, or alternatives whose trade-offs can materially change the
-result. An Agent may investigate and recommend, but implementation waits for
-one recorded decision.
+这个队列包含产品方向、架构边界、安全与数据方面的选择，或是那些权衡足以
+实质性改变结果的替代方案。一个 Agent 可以进行调研并给出建议，但实现工作
+要等待一次被记录下来的决策。
 
-A decision request should normally contain only:
+一份决策请求通常应当只包含：
 
-- user outcome;
-- current evidence;
-- current constraints;
-- recommended option;
-- one meaningful alternative;
-- the exact decision requested from the maintainer.
+- 用户成果；
+- 当前证据；
+- 当前约束；
+- 建议的方案；
+- 一个有意义的替代方案；
+- 向维护者请求的确切决定。
 
-Large speculative design documents should not be the default. The maintainer
-should be able to decide before reviewing hundreds of lines that assume a
-direction.
+大篇幅的、投机性的设计文档不应当成为默认做法。维护者应当能够在阅读那些
+预设了某个方向的数百行文字之前，就先做出决定。
 
-### Ready For Agent
+### 可供 Agent 领取
 
-Maintain a small queue, initially eight to twelve Issues, whose direction,
-scope, acceptance, and verification are clear. A planning Agent may draft or
-refresh these Issues, but the readiness check and maintainer's priority decide
-which enter the queue.
+维护一个规模不大的队列，初始规模为八到十二个 Issue，其方向、范围、验收
+标准与验证方式都是清晰的。一个规划 Agent 可以起草或刷新这些 Issue，但
+就绪性检查与维护者的优先级判断，决定哪些任务能进入这个队列。
 
-### Ready For Review
+### 待评审
 
-The Agent delivers a pull request with an independent verdict and evidence, not
-a conversation ending with a list of work the maintainer must still perform.
-The maintainer reviews the outcome, decision, critical diff, evidence, and
-remaining risk.
+Agent 交付的是一个带有独立结论与证据的 pull request，而不是一段以"维护者
+仍需完成的工作清单"收尾的对话。维护者评审的是成果、决策、关键的 diff、
+证据与剩余的风险。
 
-## 7. Task Readiness And Portfolio Control
+## 7. 任务就绪性与任务组合控制
 
-An implementation-ready Issue should have:
+一个可供实现的 Issue 应当具备：
 
-| Field | Purpose |
+| 字段 | 用途 |
 |---|---|
-| Stable work ID | Correlate Issue, lease, branch, worktree, pull request, and evidence |
-| Observable outcome | Define what becomes true for a user, operator, or contributor |
-| Motivation | Explain why this work matters now |
-| In scope | Bound the required behavior and surfaces |
-| Out of scope | Stop adjacent cleanup from expanding the change |
-| Current source anchors | Point to live code, tests, and current documentation |
-| Accepted decision | Remove unresolved product or architecture choices |
-| Acceptance criteria | State checkable positive, negative, and failure outcomes |
-| Verification | Name the narrow starting checks and special environment needs |
-| Effect profile | Declare filesystem, Docker, network, provider, deployment, and external-system effects |
-| Budget | Bound time, Agent turns, expensive trials, and automated repair attempts |
+| 稳定的工作 ID | 把 Issue、租约、分支、worktree、pull request 与证据关联起来 |
+| 可观察的成果 | 定义对用户、运维人员或贡献者而言，什么将变为真实 |
+| 动机 | 说明为什么这项工作现在很重要 |
+| 范围之内 | 限定所需的行为与涉及的界面 |
+| 范围之外 | 阻止相邻的清理工作让变更范围不断扩大 |
+| 当前源码定位 | 指向真实存在的代码、测试与当前文档 |
+| 已被采纳的决策 | 消除尚未解决的产品或架构选择 |
+| 验收标准 | 陈述可核查的正向、负向与失败结果 |
+| 验证方式 | 指明起始的窄范围检查与特殊的环境需求 |
+| 影响画像 | 声明对文件系统、Docker、网络、provider、部署与外部系统的影响 |
+| 预算 | 限定时间、Agent 轮次、昂贵的试验次数与自动修复尝试次数 |
 
-Readiness is not permanent. A scheduled check should re-evaluate every ready
-Issue when its referenced files, commands, design decision, dependency, or
-base branch changes. A stale Issue leaves the queue until refreshed.
+就绪性并非永久有效。当一个就绪 Issue 所引用的文件、命令、设计决策、依赖项
+或基准分支发生变化时，一次定期检查应当对其重新评估。一个过时的 Issue 会
+离开该队列，直到被刷新为止。
 
-Only one live lease may own an Issue. Before granting it, the workflow checks
-open pull requests, active branches, worktrees, and other Issues for the same
-stable work ID or decision key. A lease expires when its Agent disappears and
-is released when the pull request merges, closes, or is deliberately abandoned.
+一个 Issue 只能被一个存活的租约拥有。在授予租约之前，工作流会检查开放的
+pull request、活跃分支、worktree，以及其他共享同一个稳定工作 ID 或决策
+关键字的 Issue。当其 Agent 消失时租约会过期，当 pull request 合并、关闭，
+或被有意放弃时租约会被释放。
 
-The first version does not need semantic conflict prediction. Stable IDs,
-explicit affected areas, exact branch relationships, and a conservative
-same-capability write limit remove the common conflicts without introducing a
-new planning engine.
+第一个版本不需要语义化的冲突预测。稳定的 ID、明确的受影响区域、精确的
+分支关系，以及一个保守的同能力写入上限，就能消除常见的冲突，而不需要引入
+一个全新的规划引擎。
 
-## 8. Agent Roles And Concurrency
+## 8. Agent 角色与并发
 
-Roles are short-lived execution profiles:
+角色是短生命周期的执行画像：
 
-| Role | Responsibility | Default authority |
+| 角色 | 职责 | 默认权限 |
 |---|---|---|
-| Planner | Turn current roadmap items, defects, and verification gaps into Issue drafts; refresh stale tasks | Read repository and GitHub state; draft only |
-| Investigator | Reproduce, trace, or compare alternatives before a decision or implementation | Read-only unless the task explicitly requests a disposable reproduction |
-| Implementer | Complete one leased Issue in one isolated checkout | Write the scoped repository; run authorized local checks |
-| Verifier | Try to falsify the claimed behavior from the Issue, public interfaces, and diff | Read-only by default; may add a focused acceptance test when authorized |
-| Integrator | Detect overlap, order related changes, inspect CI, and prepare cleanup | Branch and pull-request coordination; no authority to redefine the outcome |
+| Planner | 把当前的路线图条目、缺陷与验证缺口，转化为 Issue 草稿；刷新过时的任务 | 只读仓库与 GitHub 状态；只能起草 |
+| Investigator | 在一次决策或实现之前，复现、追踪或比较各种备选方案 | 默认只读，除非任务明确要求一次可丢弃的复现 |
+| Implementer | 在一个隔离的检出环境中完成一个已被租用的 Issue | 写入被限定范围的仓库；运行经授权的本地检查 |
+| Verifier | 尝试从 Issue、公开接口与 diff 出发，证伪所声称的行为 | 默认只读；经授权时可以添加一个聚焦的验收测试 |
+| Integrator | 检测重叠、为相关变更排序、检视 CI，并准备清理工作 | 分支与 pull request 协调；无权重新定义成果本身 |
 
-One task usually needs an Implementer and a Verifier. Additional Agents are
-justified by independent work, not by task size alone.
+一个任务通常需要一个 Implementer 和一个 Verifier。增加更多 Agent，应当
+由独立的工作量来证明其合理性，而不仅仅是任务规模。
 
-An initial concurrency policy for one maintainer is:
+一位维护者的初始并发策略是：
 
-- no more than two or three active writing tasks;
-- no more than one writing task in the same capability at a time;
-- investigation of the next task may run beside implementation;
-- acceptance of the previous task may run beside both;
-- one accepted direction per design decision;
-- stateful deployment suites are serialized unless their commands own isolated
-  environments;
-- a red shared boundary pauses new changes to that boundary until it is
-  classified.
+- 同时最多两到三个活跃的写入任务；
+- 同一能力领域同时最多一个写入任务；
+- 下一个任务的调研，可以与当前的实现并行进行；
+- 上一个任务的验收，可以与两者同时并行；
+- 每一项设计决策只有一个被采纳的方向；
+- 除非其命令拥有独占的环境，否则有状态的部署套件是串行执行的；
+- 一个共享边界出现红色状态时，会暂停针对该边界的新变更，直到它被分类为止。
 
-This yields useful parallelism without making the maintainer the merge queue.
+这样能带来有用的并行度，而不会让维护者本人变成合并队列。
 
-## 9. Verification And Independent Acceptance
+## 9. 验证与独立验收
 
-### Changed-Scope Verification
+### 变更范围验证
 
-The [testing guide](../../contribute/testing.md) should remain the explanatory
-source. The task runner should encode its current path-to-evidence decisions so
-two Agents do not independently reinterpret the same matrix.
+[测试指南](../contribute/testing.md)应当继续作为解释性来源。任务执行器
+应当把它当前"路径到证据"的判断逻辑编码进去，这样两个 Agent 就不会各自独立
+地重新解读同一份矩阵。
 
-Given a base revision and the current diff, changed-scope verification should
-report:
+给定一个基准修订版本与当前的 diff，变更范围验证应当报告：
 
-- which checks are required and why;
-- which checks ran and their exact outcomes;
-- which checks did not run and why;
-- which prerequisite or authorization is missing;
-- retained logs, screenshots, traces, and other failure artifacts;
-- the commit and dirty state against which the evidence was produced.
+- 哪些检查是必需的，以及原因；
+- 哪些检查已经运行，及其确切结果；
+- 哪些检查没有运行，以及原因；
+- 缺失了哪个前置条件或授权；
+- 保留下来的日志、截图、trace 与其他失败产物；
+- 生成这份证据所依据的提交与脏状态。
 
-It must not claim that a skipped real dependency passed. Expensive provider
-qualification and external deployment rehearsals remain explicit evidence
-classes rather than hidden side effects of a generic check.
+它绝不能声称一个被跳过的真实依赖项测试通过了。昂贵的 provider 合规校验与
+外部部署演练，仍然是明确的证据类别，而不是某个通用检查隐藏的副作用。
 
-### Fresh Acceptance
+### 全新的验收
 
-The verifier receives the original Issue, relevant public interfaces, the diff,
-and produced evidence. It does not receive the implementer's private reasoning
-as its starting explanation.
+验证者获得的是原始 Issue、相关的公开接口、diff 与已产生的证据。它不会把
+实现者的私人推理过程，当作自己的起始说明。
 
-Its result follows the behavior block already selected by the
-[verification program](../../design/verification-program.md):
+其结果遵循[验证计划](../design/验证计划.md)中已经选定的行为区块：
 
 ```text
 Behavior:
@@ -385,255 +348,235 @@ Not tested:
 Verdict:
 ```
 
-The verifier checks for omitted surfaces, implementation-coupled assertions,
-unsupported documentation claims, weakened tests, unhandled failure paths, and
-work outside the Issue. Authorization, state-machine, sandbox, migration, and
-other high-risk changes include a meaningful negative or mutation check.
+验证者会检查被遗漏的界面、与实现耦合的断言、缺乏支撑的文档声明、被削弱的
+测试、未处理的失败路径，以及超出 Issue 范围的工作。授权、状态机、沙箱、
+迁移及其他高风险变更，需要包含一次有意义的负向检查或变异测试。
 
-The verdict is one of:
+结论只能是以下之一：
 
-- `accept`: the evidence supports the Issue's acceptance criteria;
-- `reject`: a concrete defect or missing proof must return to implementation;
-- `needs-decision`: the remaining question changes product intent or authorized
-  scope and therefore belongs to the maintainer.
+- `accept`：证据支持该 Issue 的验收标准；
+- `reject`：存在一个具体缺陷，或缺少证明，必须打回实现阶段；
+- `needs-decision`：剩余的问题会改变产品意图或已授权的范围，因此属于维护者
+  的职责。
 
-### Bounded Repair
+### 有界的修复
 
-An Agent may repair deterministic test or CI failures within the Issue's scope.
-The workflow limits automatic repair attempts. Repeated failure, a changed
-design assumption, an environmental incident, or a proposed weakening of the
-oracle leaves the loop and requests classification rather than consuming an
-unbounded number of turns.
+一个 Agent 可以在 Issue 范围内修复确定性的测试或 CI 失败。工作流会限制自动
+修复的尝试次数。反复的失败、一个已改变的设计假设、一次环境事故，或者一次
+削弱判定标准的提议，都会脱离这一闭环并请求分类，而不是无限制地消耗轮次。
 
-## 10. Candidate Repository Automation
+## 10. 候选的仓库自动化
 
-The following are candidate task-runner capabilities, not implemented command
-contracts.
+以下是候选的任务执行器能力，而不是已经实现的命令契约。
 
-### Changed Verification
+### 变更验证
 
-A `verify changed` capability would derive proportional checks from a base
-revision and emit a machine-readable evidence summary. It is the highest-value
-first addition because it removes a decision repeated on every change and
-makes omissions visible to both the verifier and maintainer.
+一个 `verify changed` 能力将会依据一个基准修订版本，推导出成比例的检查项，
+并输出一份机器可读的证据摘要。这是价值最高的第一项新增能力，因为它消除了
+一个在每次变更中都要重复的决策，并让遗漏对验证者与维护者双方都变得可见。
 
-### Issue Readiness Check
+### Issue 就绪性检查
 
-An `issue check` capability would validate required sections, referenced live
-paths, known task-runner commands, decision status, dependencies, effect
-profile, acceptance criteria, and overlap with active work. GitHub automation
-would apply or remove `agent-ready` from that result rather than treating the
-label as a permanent manual assertion.
+一个 `issue check` 能力将会校验必需的章节、被引用的真实存在的路径、已知的
+任务执行器命令、决策状态、依赖项、影响画像、验收标准，以及与活跃工作之间
+的重叠。GitHub 自动化会根据这一结果来添加或移除 `agent-ready` 标签，而不是
+把这个标签当作一个永久的人工断言。
 
-### Pull-Request Delivery Check
+### Pull Request 交付检查
 
-A `pr ready` capability would:
+一个 `pr ready` 能力将会：
 
-- inspect the diff for unrelated work;
-- invoke changed-scope verification;
-- check documentation and changelog obligations;
-- record untested behavior without converting it to success;
-- prepare the pull-request summary from the real diff and evidence;
-- link the Issue, lease, acceptance verdict, and artifacts;
-- verify that no temporary state is mistaken for a committed artifact.
+- 检视 diff 中是否存在无关的工作；
+- 调用变更范围验证；
+- 检查文档与 changelog 的义务；
+- 记录未经测试的行为，而不是把它转换为"成功";
+- 依据真实的 diff 与证据准备 pull request 摘要；
+- 关联 Issue、租约、验收结论与证据产物；
+- 验证没有临时状态被误当作已提交的产物。
 
-### Lease And Workspace Reclamation
+### 租约与工作区回收
 
-The coordination helper would create or associate one task lease with its
-branch and worktree, report stale owners, and propose cleanup after merge or
-abandonment. Destructive cleanup still resolves exact targets and follows the
-repository's safety rules.
+这一协调助手会创建或关联一个任务租约及其分支与 worktree，报告过期的持有者，
+并在合并或放弃之后提出清理建议。破坏性的清理仍然需要精确解析目标，并遵循
+仓库的安全规则。
 
-### Maintainer Digest
+### 维护者摘要
 
-A scheduled read-only report would identify:
+一份定期的只读报告将会识别：
 
-- roadmap work not represented by ready Issues;
-- ready Issues whose references or dependencies became stale;
-- overlapping design directions or active changes;
-- merged or abandoned worktrees and branches eligible for cleanup;
-- failing, skipped, or flaky verification;
-- documentation drift;
-- evaluation gaps and recurring human interventions.
+- 没有对应就绪 Issue 的路线图工作；
+- 引用或依赖项已经过时的就绪 Issue；
+- 相互重叠的设计方向或活跃变更；
+- 已合并或已放弃、可以清理的 worktree 与分支；
+- 失败、被跳过或不稳定的验证；
+- 文档漂移；
+- 评估缺口与反复出现的人工介入。
 
-The digest proposes changes. It does not reprioritize the roadmap or delete
-state by itself.
+这份摘要只是提出变更建议，它本身不会重新排定路线图的优先级，也不会自行
+删除状态。
 
-## 11. Maintainer Cadence And Measures
+## 11. 维护者节奏与度量指标
 
-The workflow should make maintainer attention predictable.
+这一工作流应当让维护者的注意力投入变得可预测。
 
-### Daily Or Per Work Session
+### 每日或每个工作会话
 
-At the beginning of a work session, the maintainer:
+在一个工作会话开始时，维护者：
 
-1. reviews only new decision requests and Planner drafts;
-2. selects the next two or three ready tasks;
-3. records the one assumption that would otherwise cause divergence.
+1. 只评审新的决策请求与 Planner 起草的内容；
+2. 挑选接下来的两到三个就绪任务；
+3. 记录那个若不明确就会导致分歧的假设。
 
-At the end, the maintainer:
+在结束时，维护者：
 
-1. reviews `needs-decision` or rejected acceptance outcomes;
-2. reads evidence-complete pull requests;
-3. merges, redirects, or closes work;
-4. classifies any intervention that should become a reusable rule or test.
+1. 评审 `needs-decision` 或被拒绝的验收结果；
+2. 阅读证据完备的 pull request；
+3. 合并、重新定向或关闭工作；
+4. 把任何一次介入归类为一条可复用的规则或一个测试。
 
-### Weekly
+### 每周
 
-The Agent-prepared digest lets the maintainer refresh the ready queue, resolve
-one or two decision bottlenecks, inspect persistent verification failures, and
-approve exact cleanup targets.
+由 Agent 准备的摘要，让维护者能够刷新就绪队列、解决一到两个决策瓶颈、检视
+持续存在的验证失败，并批准精确的清理目标。
 
-### Measures
+### 度量指标
 
-Track:
+追踪以下内容：
 
-- maintainer interventions per ready Issue;
-- maintainer review minutes per accepted change;
-- time from lease to reviewable pull request;
-- first-pass CI rate;
-- independent-acceptance rejection rate and cause;
-- reopened or reverted changes;
-- stale ready Issues;
-- duplicate or conflicting active work;
-- automatic repair attempts per accepted change;
-- Agent evaluation pass rate for repository-maintenance tasks;
-- model cost per accepted, rejected, and abandoned change.
+- 每个就绪 Issue 的维护者介入次数；
+- 每个被接受变更所耗费的维护者评审时间（分钟）；
+- 从租约建立到可评审 pull request 的耗时；
+- 首次通过 CI 的比例；
+- 独立验收的拒绝率及其原因；
+- 被重新打开或被回退的变更；
+- 过期的就绪 Issue；
+- 重复或相互冲突的活跃工作；
+- 每个被接受变更的自动修复尝试次数；
+- 仓库维护类任务的 Agent 评估通过率；
+- 每个被接受、被拒绝与被放弃变更的模型成本。
 
-Agent count, generated lines, pull-request count, and tokens spent are capacity
-signals, not success measures.
+Agent 数量、生成的代码行数、pull request 数量与消耗的 token 数量，是产能
+信号，而不是成功的度量指标。
 
-## 12. Delivery Sequence
+## 12. 交付顺序
 
-### Phase 0: Process Without New Product Code
+### 阶段 0：没有新产品代码的流程
 
-- Refresh the current open Issues and keep eight to twelve genuinely ready.
-- Use one stable work ID and one primary writer per task.
-- Limit active writing tasks to two or three.
-- Require a fresh acceptance pass for behavior changes.
-- Shorten decision requests and stop parallel implementation at unresolved
-  product choices.
-- Record why the maintainer intervened.
+- 刷新当前的开放 Issue，并保持八到十二个真正就绪的 Issue。
+- 每个任务使用一个稳定的工作 ID 与一个主要写入者。
+- 把活跃写入任务限制在两到三个。
+- 对行为变更要求一次全新的验收核查。
+- 缩短决策请求的篇幅，并在遇到尚未解决的产品选择时停止并行实现。
+- 记录维护者为什么介入。
 
-This phase tests whether the proposed control points reduce review burden
-before automating them.
+这一阶段是在把这些提议的控制点自动化之前，先验证它们是否真的能减少评审
+负担。
 
-### Phase 1: Compile Verification
+### 阶段 1：编译验证
 
-- Encode changed-path verification selection in the task runner.
-- Emit a bounded evidence summary with omissions and prerequisites.
-- Reuse the existing commands and suites rather than wrapping them in a second
-  test framework.
-- Add tests showing that relevant path mutations select the expected evidence.
+- 把变更路径的验证选择逻辑编码进任务执行器。
+- 输出一份带有遗漏项与前置条件的有界证据摘要。
+- 复用现有的命令与套件，而不是把它们包裹进第二套测试框架。
+- 添加测试证明相关的路径变更能够选中预期的证据。
 
-### Phase 2: Compile Readiness And Delivery
+### 阶段 2：编译就绪性与交付
 
-- Add Issue readiness validation and periodic revalidation.
-- Add leases and conservative overlap checks.
-- Add pull-request delivery preparation.
-- Reclaim merged and abandoned workspaces through exact, reviewable targets.
+- 添加 Issue 就绪性校验与定期复核。
+- 添加租约与保守的重叠检查。
+- 添加 pull request 交付准备。
+- 通过精确的、可评审的目标，回收已合并与已放弃的工作区。
 
-### Phase 3: Measure Independent Acceptance
+### 阶段 3：衡量独立验收
 
-- Run the verifier in a fresh context.
-- Add repository-maintenance evaluation tasks from real interventions.
-- Compare accepted changes, escaped defects, review time, and Agent cost against
-  the pre-change baseline.
-- Permit bounded automatic CI repair only after the failure classifications are
-  useful.
+- 在一个全新的上下文中运行验证者。
+- 从真实的人工介入案例中添加仓库维护类评估任务。
+- 把被接受的变更、逃逸的缺陷、评审时间与 Agent 成本，与变更前的基线进行
+  比较。
+- 只有在失效分类变得有用之后，才允许有界的自动 CI 修复。
 
-### Phase 4: Expand Authority From Evidence
+### 阶段 4：依据证据扩大权限
 
-Low-risk documentation, test, and mechanical maintenance may move from
-evidence-complete pull request to automatic merge only after a sustained sample
-shows low escape and revert rates. Architecture, security, persistence,
-deployment, and product decisions retain maintainer review.
+低风险的文档、测试与机械式维护工作，只有在持续的样本表明逃逸率与回退率都
+很低之后，才可以从"证据完备的 pull request"升级为"自动合并"。架构、安全、
+持久化、部署与产品决策仍然保留维护者评审。
 
-## 13. Future Operations Extension
+## 13. 未来的运维扩展
 
-The development loop and a future supervised operations loop should share four
-properties: a typed task, bounded authority, independent success evidence, and
-an auditable result. That does not make AI operations the next development
-priority.
+开发闭环与未来一个受监督的运维闭环，应当共享四个属性：一个带类型的任务、
+有界的权限、独立的成功证据，以及一个可审计的结果。但这并不意味着 AI
+运维会成为下一个开发优先事项。
 
-If BuildMax later adopts automated operations, the safe progression is:
+如果 BuildMax 之后采用自动化运维，安全的推进路径是：
 
-1. read-only health and incident evidence collection;
-2. remediation proposals with explicit preconditions and rollback;
-3. execution in disposable or staging environments;
-4. production execution only for pre-approved, reversible runbooks with a
-   bounded blast radius and automatic verification;
-5. human authorization for destructive, identity, credential-root, data
-   restore, broad network, and material spending decisions.
+1. 只读的健康状况与事故证据采集；
+2. 带有明确前置条件与回滚方案的补救提议；
+3. 在可丢弃或预发布环境中执行；
+4. 只对预先批准的、可逆的运行手册，在具备有界爆炸半径与自动验证的前提下，
+   进行生产环境执行；
+5. 破坏性操作、身份、凭证根、数据恢复、大范围网络访问与实质性支出决策，
+   需要人工授权。
 
-The Agent should call narrow operational outcomes such as drain, inspect,
-canary, or rollback rather than receive unrestricted cluster and database
-authority. Deterministic code owns authorization, idempotency, budgets,
-preconditions, rollback, and audit.
+Agent 应当调用诸如排空、检视、灰度发布或回滚这样的窄范围运维成果，而不是
+获得不受限制的集群与数据库权限。确定性的代码拥有授权、幂等性、预算、
+前置条件、回滚与审计的所有权。
 
-The first useful future vertical slice is to turn the manual
-[Beta readiness record](../deploy/beta-readiness.md) into repeatable evidence
-collection for a pinned candidate. It already names the operator journey,
-failure drills, restore, upgrade, rollback, credential rotation, and evidence
-that such a workflow must preserve.
+未来第一个有用的垂直切片，是把手动的
+[Beta 就绪记录](../deploy/beta-readiness.md)转变为针对一个已锁定候选版本
+的可重复证据采集。它已经指名了运维人员的操作流程、故障演练、恢复、升级、
+回滚、凭证轮换，以及这样一个工作流必须保留的证据。
 
-This section is retained only so development automation does not choose a shape
-that cannot later extend to operations. It does not place operations ahead of
-the current roadmap.
+保留本节内容，只是为了不让开发自动化选择一种日后无法扩展到运维场景的形状。
+它并不意味着把运维置于当前路线图之前。
 
-## 14. Risks And Failure Modes
+## 14. 风险与失效模式
 
-| Risk | Consequence | Mitigation |
+| 风险 | 后果 | 缓解措施 |
 |---|---|---|
-| Too many writing Agents | Conflicts and review queues erase parallel gains | Start with two or three writers and one writer per capability |
-| Stale ready work | Agent implements yesterday's architecture correctly | Revalidate paths, commands, dependencies, and decision status |
-| Speculative design volume | Maintainer reads more than the decision is worth | Require a compact decision request before a large record |
-| Self-validating implementation | Tests prove the author's assumptions rather than behavior | Fresh verifier context and public outcome oracles |
-| Broad automated repair | Agent changes requirements or weakens tests to turn CI green | Bound retries and reject oracle weakening |
-| Hidden expensive checks | Routine work mutates infrastructure or spends provider quota | Effect profiles and explicit evidence classes |
-| Duplicate planning systems | Issue, roadmap, Agent state, and local notes drift | Keep roadmap, Issue, pull request, and code as their existing authorities |
-| Permanent specialist hierarchy | More configuration and stale prompts than useful work | Treat roles as short-lived phases |
-| Automatic merge too early | Fast defects reach `main` and consume more recovery time | Earn authority by risk class from measured results |
-| Metrics reward volume | Agents optimize commits or lines rather than accepted outcomes | Measure maintainer attention, acceptance, escapes, and cost |
+| 写入 Agent 过多 | 冲突与评审队列抹去了并行带来的收益 | 从两到三个写入者起步，且每个能力领域只有一个写入者 |
+| 就绪工作过时 | Agent 正确地实现了昨天的架构 | 重新校验路径、命令、依赖项与决策状态 |
+| 投机性设计文档过多 | 维护者阅读的内容超过了该决策本身的价值 | 在一份大篇幅记录之前，要求一份简短的决策请求 |
+| 实现自我验证 | 测试证明的是作者自己的假设，而不是真实行为 | 全新的验证者上下文与公开的成果判定标准 |
+| 大范围自动修复 | Agent 修改需求或削弱测试，以让 CI 变绿 | 限定重试次数，并拒绝削弱判定标准 |
+| 隐藏的昂贵检查 | 常规工作变更了基础设施，或消耗了 provider 配额 | 影响画像与明确的证据类别 |
+| 重复的规划系统 | Issue、路线图、Agent 状态与本地笔记相互漂移 | 让路线图、Issue、pull request 与代码保持其现有的权威地位 |
+| 常设的专家层级 | 配置与过时的提示词比有用的工作还要多 | 把角色当作短生命周期的阶段对待 |
+| 自动合并过早 | 快速产生的缺陷进入 `main`，消耗更多恢复时间 | 依据被衡量出的结果，按风险等级逐步赢得权限 |
+| 指标奖励产出量 | Agent 优化提交数或代码行数，而不是被接受的成果 | 衡量维护者注意力、验收结果、缺陷逃逸与成本 |
 
-## 15. Open Questions And Evidence Needed
+## 15. 开放问题与所需证据
 
-1. What active-writing limit minimizes elapsed time without increasing merge
-   conflicts: two, three, or a capability-specific value?
-2. Is a GitHub label plus a checked Issue body sufficient for readiness, or is
-   a small machine-readable block needed inside the Issue?
-3. Which path-to-verification decisions are stable enough to encode now, and
-   which still require judgment from the testing guide?
-4. Should the verifier be strictly read-only, or may it commit an acceptance
-   test to the same pull request under a separately attributed step?
-5. Which failure classes are safe for automatic repair, and what attempt bound
-   prevents loops without stopping useful recovery?
-6. What diff, risk, or subsystem threshold should require a maintainer-approved
-   design decision before implementation?
-7. Which low-risk change class, if any, should be the first automatic-merge
-   experiment?
-8. Should lease and cleanup state live only in GitHub and Git, or does local
-   multi-client work require one small checked coordination record?
+1. 什么样的活跃写入上限，能在不增加合并冲突的前提下最小化耗时：两个、
+   三个，还是一个按能力领域细分的值？
+2. 一个 GitHub 标签加上一份经过核查的 Issue 正文，对就绪性而言是否足够，
+   还是需要在 Issue 内部加入一个小型的机器可读区块？
+3. 哪些"路径到验证"的判断已经足够稳定，可以现在就编码下来，哪些仍然需要
+   依赖测试指南中的判断力？
+4. 验证者应当严格保持只读，还是可以在一个单独署名的步骤下，向同一个
+   pull request 提交一个验收测试？
+5. 哪些失效类别对自动修复而言是安全的，什么样的尝试次数上限，既能防止
+   循环，又不会阻止有用的恢复？
+6. 什么样的 diff、风险或子系统门槛，应当要求在实现之前先经过维护者批准的
+   设计决策？
+7. 如果有的话，哪一类低风险变更，应当成为第一个自动合并的实验对象？
+8. 租约与清理状态应当只存在于 GitHub 与 Git 中，还是本地的多客户端工作
+   需要一份小型的、经过核查的协调记录？
 
-Evidence should come from at least twenty ready Issues across more than one
-subsystem. Record task age, interventions, conflicts, acceptance outcomes, CI
-repairs, review time, escaped defects, and model cost. Compare the bounded loop
-with recent ad hoc Agent-assisted work before adding more orchestration.
+证据应当来自跨越不止一个子系统的至少二十个就绪 Issue。记录任务存续时间、
+介入次数、冲突、验收结果、CI 修复、评审时间、逃逸的缺陷与模型成本。在
+加入更多编排机制之前，把这个有界闭环与最近的临时性 Agent 辅助工作进行
+对比。
 
-The direction should be rejected or narrowed if task preparation and control
-metadata consume more maintainer time than they save, or if independent
-acceptance does not reduce review time or escaped defects.
+如果任务准备与控制元数据所消耗的维护者时间，超过了它们所节省的时间，或者
+独立验收并没有减少评审时间或缺陷逃逸，这一方向就应当被否决或收窄。
 
-## 16. Likely Destination If Accepted
+## 16. 若被采纳后的可能归宿
 
-The stable contributor workflow and command behavior would move into
-[contributor documentation](../../contribute/README.md) and the task runner's own
-help. Verification rationale and accepted evidence policy would update the
-[verification program](../../design/verification-program.md). Agent-facing
-invariants would enter the root Agent guide only when they apply to every task;
-details would remain in executable commands and scoped documentation.
+这一稳定的贡献者工作流与命令行为，将迁移进[贡献者文档](../contribute/README.md)
+以及任务执行器自身的帮助信息中。验证的理由与被采纳的证据政策，将更新到
+[验证计划](../design/验证计划.md)中。面向 Agent 的不变量，只有在适用于每一个
+任务时，才会进入根目录的 Agent 指南；具体细节仍将留在可执行命令与限定范围的
+文档中。
 
-Accepted implementation work would become focused GitHub Issues. The roadmap
-would mention this effort only if maintainer-efficiency evidence makes it an
-active product or engineering priority. This proposal would then be deleted;
-git history would preserve the discussion.
+被采纳的实现工作将变成聚焦的 GitHub Issue。只有当维护者效率方面的证据使其
+成为一个活跃的产品或工程优先事项时，路线图才会提到这项工作。届时本提案将
+被删除；git 历史会保留这次讨论。

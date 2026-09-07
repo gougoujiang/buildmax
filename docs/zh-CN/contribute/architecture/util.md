@@ -1,6 +1,6 @@
 # Util
 
-> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/util.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `067a0a8bc2845c0bf719a9bdeb0c7e08fb713de0f80dd86a15e2e1e7eb8a42b6`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/util.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `77b2d4911be98897a9d613a2ba99473e89b3c6fccf19458182b8aadcd87ed2b2`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 > **受众：** 贡献者 · **状态：** 当前有效
 
 ## 用途
@@ -16,7 +16,7 @@ id, err := util.NewPublicID()             // → "ivyoh5qcfu6ypfkhyedq"
 id, ok := util.CanonicalPublicID(input)   // any case in → canonical text, or ok=false
 ```
 
-服务器实体的公开标识符是 96 位密码学随机数据，编码为 20 个小写 base32 字符（`a-z2-7`），并以完全相同的文本形式存储，因此直接查询数据库时看到的句柄与每个 API 响应展示的一致。这是唯一离开进程的句柄；数字主键是关系键，只留在 `internal/infra/db` 内部。为何选择 base32 而非更短的 base64url、为何文本形式也是存储形式，以及哪些表拥有公开 ID，见 [../../design/entity-identity.md](../../../design/entity-identity.md)。
+服务器实体的公开标识符是 96 位密码学随机数据，编码为 20 个小写 base32 字符（`a-z2-7`），并以完全相同的文本形式存储，因此直接查询数据库时看到的句柄与每个 API 响应展示的一致。这是唯一离开进程的句柄；数字主键是关系键，只留在 `internal/infra/db` 内部。为何选择 base32 而非更短的 base64url、为何文本形式也是存储形式，以及哪些表拥有公开 ID，见 [../../design/entity-identity.md](../../design/实体身份.md)。
 
 `NewPublicID` 返回错误而非 panic：熵源失败应仅导致一次创建失败，不应在请求内部终止进程。`CanonicalPublicID` 接受大小写输入并拒绝一切不规范的值，保证同一值只有一种拼写。因此，规范 ID 始终以 `a` 或 `q` 结尾，而手写的 fixture 通常不符合规范。
 

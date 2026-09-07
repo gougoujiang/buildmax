@@ -1,6 +1,6 @@
 # 身份认证
 
-> **翻译说明：** 本文是[英文原文](../../deploy/authentication.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `b44bf6a990a9823a45b52c1ccc7948bfb5598fbb35435b80e7af2eabf9633175`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../deploy/authentication.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `8a3290c7ee213c87907dbd8263fadc91d9aec4c367c35c7ffe32af5510c06cec`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 > **受众：** 运维人员 · **状态：** 当前
 用户使用电子邮件地址和密码登录。BuildMax 无法发送电子邮件，以下特殊安排都源于这一点：账户由运维人员创建，领取账户或重置遗忘密码所需的一次性验证码也由人工交付。
 
@@ -27,14 +27,7 @@ Valid until 2026-08-15T19:22:58+08:00, and only once.
 
 通过你们已经信任的渠道发送验证码。用户在登录表单中选择“Forgot your password, or have a login code?”（忘记密码或已有登录码？），使用验证码登录，然后在账户设置中设置密码。此后就能正常登录，无需你再次介入。`--ttl` 可修改验证码的有效期，默认是一小时。
 
-如果要代为设置密码，请通过管道传入，不要作为命令行参数，以免出现在 shell 历史和进程列表中：
-
-```bash
-echo -n 'correct horse battery staple' | \
-  buildmax-server user set-password alice@example.com
-```
-
-让用户自行设置更好：密码只会出现在用户自己放置它的地方。
+登录码是设置首个密码的唯一方式：用户凭它登录并选择自己的密码，该密码此后只存在于用户自己放置它的地方。没有任何命令可以代替他人设置密码——那会把一个密钥留在 shell 历史中，还要通过一个你随后必须信任的渠道交给对方。
 
 这两条命令读取与服务器相同的 `server.yaml`，因此在容器中无需额外配置：
 
@@ -58,9 +51,10 @@ System Administrator 是账户拥有的、针对整个**部署**的权限，与�
 
 ```bash
 buildmax-server admin grant alice@example.com
-buildmax-server admin list
 buildmax-server admin revoke alice@example.com
 ```
+
+`buildmax-server admin` 是紧急恢复路径：签发第一份授权，以及在部署失去全部管理员时通过撤销恢复访问。查看谁持有授权，以及日常的授权与撤销，通过针对运行中服务器的 `buildmax admin` 或在 Portal 中完成。
 
 授权不会创建账户，请先运行 `buildmax-server user create`。这些命令和账户命令一样，读取服务器使用的 `server.yaml`，在容器中无需额外配置。
 

@@ -9,12 +9,12 @@
 [界面定位](界面定位.md),
 [Portal执行型号](Portal执行模型.md),
 [本地会话存储](本地会话存储.md)，以及
-[服务器架构](../../contribute/architecture/server.md)。
+[服务器架构](../contribute/architecture/server.md)。
 
 创建时间：2026-09-02
 
 该记录是已退役的两层 Agent 架构的综合
-圆桌会议（参见[提案索引](../../proposals/README.md)；git 历史记录成立
+圆桌会议（参见[提案索引](../proposals/README.md)；git 历史记录成立
 它的四份立场文件，随着这一记录而退休）。 §1 的决定——直接
 当用户或产品已经选择该功能时执行，承认
 通过不可变的 Task/TaskRun 授权边界 - 是

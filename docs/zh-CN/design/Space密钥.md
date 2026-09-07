@@ -29,8 +29,8 @@
 
 ## 状态
 
-- roadmap_priority：第13条证书债务的[`R0`](../../ROADMAP.md)，
-面向太空的界面的[`R3`](../../ROADMAP.md)。
+- roadmap_priority：第13条证书债务的[`R0`](../ROADMAP.md)，
+面向太空的界面的[`R3`](../ROADMAP.md)。
 推迟的[插件空间分布.md](Space插件分发.md)
 秘密传递给后续记录。
 - 状态:`Phase 1 complete` 一个Space的所有者存储了一个秘密 (加密，

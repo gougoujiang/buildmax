@@ -1,25 +1,22 @@
 # 配置参考
 
-> **翻译说明：** 本文是[英文原文](../../reference/configuration.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `f129ed4f4e3bdefbb2de40235b8a0976366401f40cf7fbe581054b3616d04a50`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../reference/configuration.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `51dbb8330034a01a16606277f669b2274e9d09f43fde5af71ee38d510858e757`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 > **受众：** 用户和运维人员 · **状态：** 当前
 
-BuildMax is configured by **YAML files inside the data directory**, not by a
-long list of environment variables. Only a handful of bootstrap values stay in
-the environment, because they must be known before any file can be read.
+BuildMax 通过**数据目录内的 YAML 文件**进行配置，而不是通过一长串环境变量。只有极少数引导阶段的值留在环境变量中，因为它们必须在任何文件被读取之前就已知。
 
-| File | Read by | 用途 |
+| 文件 | 读取方 | 用途 |
 |---|---|---|
-| `<BUILDMAX_HOME>/settings.yaml` | CLI, Desktop | Models, hooks, sandbox, log level |
-| `<BUILDMAX_HOME>/server.yaml` | Server, Worker | Port, auth, database, storage, worker, Tier 1 model |
-| `<BUILDMAX_HOME>/policy.yaml` | CLI, Desktop, Worker | Operator policy: sandbox settings that override `settings.yaml`, and which plugin sources may load |
-| `<workspace>/.buildmax/hooks.yaml` | CLI, Desktop | Per-workspace hook overlay, additive to global hooks |
-| `<BUILDMAX_HOME>/mcp.json` | CLI, Desktop, Worker | MCP servers, merged with the workspace file |
-| `<workspace>/.buildmax/mcp.json` | CLI, Desktop | Per-workspace MCP servers; wins on a duplicate server id |
-| `<BUILDMAX_HOME>/plugins/<name>/` | CLI, Desktop, Worker | An installed local plugin, or an exact Space-activated release materialized into a run-scoped worker home; see [manual/plugins.md](../../../manual/plugins.md) |
-| `<workspaces_dir>/.marketplace/` | Server | Published plugin packages, when the deployment has no object store |
+| `<BUILDMAX_HOME>/settings.yaml` | CLI、Desktop | 模型、hook、沙箱、日志级别 |
+| `<BUILDMAX_HOME>/server.yaml` | Server、Worker | 端口、认证、数据库、存储、worker、Tier 1 模型 |
+| `<BUILDMAX_HOME>/policy.yaml` | CLI、Desktop、Worker | 运维人员策略：覆盖 `settings.yaml` 的沙箱设置，以及允许加载哪些 plugin 来源 |
+| `<workspace>/.buildmax/hooks.yaml` | CLI、Desktop | 按工作区叠加的 hook 配置，在全局 hook 基础上追加 |
+| `<BUILDMAX_HOME>/mcp.json` | CLI、Desktop、Worker | MCP 服务器，与工作区文件合并 |
+| `<workspace>/.buildmax/mcp.json` | CLI、Desktop | 按工作区配置的 MCP 服务器；服务器 id 重复时以此为准 |
+| `<BUILDMAX_HOME>/plugins/<name>/` | CLI、Desktop、Worker | 一个已安装的本地 plugin，或某个 Space 激活的确切版本，被物化到某次运行范围内的 worker home 中；见 [manual/plugins.md](../../../manual/plugins.md) |
+| `<workspaces_dir>/.marketplace/` | Server | 已发布的 plugin 包，用于部署未接入对象存储的情况 |
 
-`BUILDMAX_HOME` defaults to `~/.buildmax`. Copy the starting points from
-[`config-examples/`](../../../config-examples/):
+`BUILDMAX_HOME` 默认值为 `~/.buildmax`。从 [`config-examples/`](../../../config-examples/) 复制起始模板：
 
 ```bash
 mkdir -p ~/.buildmax
@@ -29,186 +26,102 @@ cp config-examples/policy.example.yaml   ~/.buildmax/policy.yaml   # operator po
 cp config-examples/mcp.example.json      ~/.buildmax/mcp.json      # MCP servers, optional
 ```
 
-`mcp.example.json` carries a `_comment` key holding its own documentation; drop
-that key before use.
+`mcp.example.json` 携带一个 `_comment` 键，其中保存着自身的说明文档；使用前请删除该键。
 
 ## 环境变量
 
-This is the complete list. `internal/config/env_spec.go` is the source of truth;
-anything not listed here is not read by BuildMax.
+以下是完整列表。`internal/config/env_spec.go` 是权威来源；未在此列出的变量都不会被 BuildMax 读取。
 
 | 变量 | 默认值 | 用途 |
 |---|---|---|
-| `BUILDMAX_HOME` | `~/.buildmax` | Data directory; locates `settings.yaml` and `server.yaml`. Must be an env var — nothing else can be found until it is known. |
-| `BUILDMAX_SERVER_URL` | — | Address this process uses to reach `buildmax-server`. Overrides `settings.yaml` `server_url` for CLI/Desktop and `server.yaml` `worker.server_url` for workers. |
-| `BUILDMAX_JWT_SECRET` | — | Overrides `jwt_secret` in `server.yaml`. Inject this at deploy time rather than committing the secret to a file. |
-| `BUILDMAX_CORS_ORIGIN` | — | Overrides `cors_origin` in `server.yaml`. It has to name the origin the Portal is served from, which is a host port the deployment picks — the Compose stack derives it from `BUILDMAX_PORTAL_PORT`, so moving that port is one change rather than two. |
-| `BUILDMAX_PUBLIC_BASE_URL` | — | Overrides `public_base_url` in `server.yaml`: the externally reachable origin at which people open BuildMax. Artifact public share links are built from it; leave it unset to keep public sharing off. It is distinct from `BUILDMAX_SERVER_URL`, which is the address a process uses to *reach* the server. |
-| `BUILDMAX_WORKER_LLM_TRANSPORT` | — | Overrides `worker.llm.transport` (`direct` or `buildmax`). Flips task runs between a direct provider call and the managed gateway. The server reads it and tells each worker its transport per run, so the choice stays on the server; a worker is never handed this variable. |
-| `BUILDMAX_LLM_DEFAULT_MODEL` | — | Overrides `llm.default_model` — the catalog model name a managed run and any caller that names none resolves to. A name not in the catalog stops the server at startup. |
-| `BUILDMAX_CONVERSATION_MODEL_TARGET` | — | Overrides `conversation.model_target` — a catalog model name or ID for Tier 1 conversations. Together with the two above, this flips a running cluster between the mock and a seeded model by environment alone; `./make kind use-model` and `./make kind mock` do exactly that. |
-| `BUILDMAX_SANDBOX_ENABLED` | — | Overrides user `sandbox.enabled`, below per-run CLI and operator policy. Accepts `1/true/yes/on` or `0/false/no/off`. |
-| `BUILDMAX_SANDBOX_BACKEND_INSTALLED` | — | Not an operator setting. Set via `ENV` in `Dockerfile.buildmax`/`Dockerfile.release`, present in every container built from either image; marks that the image installs the sandbox's OS backend (`bwrap`+`socat`), which is what `config.WorkerSandboxSurface` gates the worker's strict sandbox baseline on. |
-| `BUILDMAX_TRACE_DISABLED` | — | Disables durable run traces when truthy. Traces are on by default. |
-| `BUILDMAX_CREDENTIAL_STORE` | — | Set to `file` to keep a CLI or Desktop login's access and refresh tokens in `auth.json` instead of the OS credential store (Keychain, Credential Manager, Secret Service). `buildmax login`, `buildmax whoami`, and `buildmax doctor` report which one a login actually used. |
-| `BUILDMAX_RUN_TOKEN` | — | One task run's credential for every `/api/worker/*` route. Minted per run by the scheduler and placed in the worker process or Job pod — not something an operator sets. |
-| `BUILDMAX_RUN_INTERRUPT_GRACE` | — | How long a worker asked to stop may spend reporting what its run produced. Set per dispatch by the scheduler from `shutdown_grace`, so the two windows nest — not something an operator sets. |
-| `BUILDMAX_TEST_DSN` | — | MySQL DSN for store integration tests. Unset skips those tests. |
-| `BUILDMAX_CACHE_QUALIFY_PROVIDER` | — | Provider for `./make cache-qualify`, which calls a real paid provider. Unset skips the suite. |
-| `BUILDMAX_CACHE_QUALIFY_MODEL` | — | Model identifier for that suite. |
-| `BUILDMAX_CACHE_QUALIFY_API_KEY` | — | Credential for that suite. |
-| `BUILDMAX_CACHE_QUALIFY_BASE_URL` | — | Endpoint override for that suite. |
-| `BUILDMAX_CACHE_QUALIFY_SLOW` | — | Include the qualification scenarios that wait out a retention window. Truthy values only; they take minutes of wall clock. |
+| `BUILDMAX_HOME` | `~/.buildmax` | 数据目录；用于定位 `settings.yaml` 和 `server.yaml`。必须是环境变量——在它已知之前，其他任何东西都无法被找到。 |
+| `BUILDMAX_SERVER_URL` | — | 该进程用来访问 `buildmax-server` 的地址。为 CLI/Desktop 覆盖 `settings.yaml` 中的 `server_url`，为 worker 覆盖 `server.yaml` 中的 `worker.server_url`。 |
+| `BUILDMAX_JWT_SECRET` | — | 覆盖 `server.yaml` 中的 `jwt_secret`。请在部署时注入该值，而不要把密钥提交到文件中。 |
+| `BUILDMAX_CORS_ORIGIN` | — | 覆盖 `server.yaml` 中的 `cors_origin`。它必须写明 Portal 所在的来源（origin），也就是部署所选择的宿主端口——Compose 编排栈会从 `BUILDMAX_PORTAL_PORT` 推导出它，因此更改该端口只需改一处而不是两处。 |
+| `BUILDMAX_PUBLIC_BASE_URL` | — | 覆盖 `server.yaml` 中的 `public_base_url`：人们打开 BuildMax 所使用的外部可达来源（origin）。Artifact 的公开分享链接由它构建；不设置则保持公开分享关闭。它与 `BUILDMAX_SERVER_URL`（进程用来*访问*服务器的地址）是不同的概念。 |
+| `BUILDMAX_WORKER_LLM_TRANSPORT` | — | 覆盖 `worker.llm.transport`（`direct` 或 `buildmax`）。在 task run 直接调用提供商与使用受管网关之间切换。Server 读取该值，并按每次运行把使用哪种传输方式告诉对应的 worker，因此这一选择始终留在 server 端；worker 永远不会拿到这个变量。 |
+| `BUILDMAX_LLM_DEFAULT_MODEL` | — | 覆盖 `llm.default_model`——受管运行以及任何未指定模型的调用方最终解析到的目录模型名称。若名称不在目录中，server 会在启动时停止。 |
+| `BUILDMAX_CONVERSATION_MODEL_TARGET` | — | 覆盖 `conversation.model_target`——用于 Tier 1 conversation 的目录模型名称或 ID。结合上面两项，仅凭环境变量即可让一个运行中的集群在 mock 模型和某个已 seed 的模型之间切换；`./make kind use-model` 和 `./make kind mock` 正是这样做的。 |
+| `BUILDMAX_SANDBOX_ENABLED` | — | 覆盖用户级 `sandbox.enabled`，优先级低于按次运行的 CLI 选项和运维人员策略。接受 `1/true/yes/on` 或 `0/false/no/off`。 |
+| `BUILDMAX_SANDBOX_BACKEND_INSTALLED` | — | 不是运维人员设置项。通过 `Dockerfile.buildmax`/`Dockerfile.release` 中的 `ENV` 设置，出现在由这两个镜像构建出的每个容器中；标记该镜像已安装沙箱所需的操作系统层后端（`bwrap`+`socat`），`config.WorkerSandboxSurface` 正是据此判断是否启用 worker 的严格沙箱基线。 |
+| `BUILDMAX_TRACE_DISABLED` | — | 为真值时禁用持久化运行 trace。Trace 默认开启。 |
+| `BUILDMAX_CREDENTIAL_STORE` | — | 设为 `file` 可将 CLI 或 Desktop 登录的 access token 和 refresh token 保存在 `auth.json` 中，而不是保存在操作系统凭据存储（Keychain、Credential Manager、Secret Service）中。`buildmax login`、`buildmax whoami` 和 `buildmax doctor` 会报告某次登录实际使用了哪一种。 |
+| `BUILDMAX_RUN_TOKEN` | — | 某次 task run 用于访问所有 `/api/worker/*` 路由的凭据。由调度器按每次运行铸造，并放入 worker 进程或 Job pod 中——不是运维人员要设置的值。 |
+| `BUILDMAX_RUN_INTERRUPT_GRACE` | — | 被要求停止的 worker 用来汇报其运行产出所能花费的时长。由调度器根据 `shutdown_grace` 按每次分发设置，因此两个时间窗口是嵌套的——不是运维人员要设置的值。 |
+| `BUILDMAX_TEST_DSN` | — | 用于 store 集成测试的 MySQL DSN。不设置则跳过这些测试。 |
+| `BUILDMAX_CACHE_QUALIFY_PROVIDER` | — | `./make cache-qualify` 使用的提供商，该命令会调用真实的付费提供商。不设置则跳过该测试套件。 |
+| `BUILDMAX_CACHE_QUALIFY_MODEL` | — | 该测试套件使用的模型标识符。 |
+| `BUILDMAX_CACHE_QUALIFY_API_KEY` | — | 该测试套件使用的凭据。 |
+| `BUILDMAX_CACHE_QUALIFY_BASE_URL` | — | 该测试套件的端点覆盖。 |
+| `BUILDMAX_CACHE_QUALIFY_SLOW` | — | 包含需要等待保留期过期的验证场景。仅接受真值；这些场景会耗费数分钟的实际时间。 |
 
-### 凭证覆盖
+### 凭据覆盖
 
-Every field below overrides the matching `server.yaml` entry. They exist so a
-deployment can inject credentials from a Kubernetes Secret, a Docker secret, or
-a CI variable instead of writing them to disk. An unset variable leaves the file
-value alone.
+以下每个字段都会覆盖 `server.yaml` 中对应的条目。它们的存在是为了让部署可以从 Kubernetes Secret、Docker secret 或 CI 变量注入凭据，而不必把凭据写入磁盘。未设置的变量不会影响文件中的值。
 
-| 变量 | Overrides |
+| 变量 | 覆盖对象 |
 |---|---|
 | `BUILDMAX_DATABASE_PASSWORD` | `database.password` |
 | `BUILDMAX_STORAGE_MINIO_ACCESS_KEY` | `storage.minio.access_key` |
 | `BUILDMAX_STORAGE_MINIO_SECRET_KEY` | `storage.minio.secret_key` |
 | `BUILDMAX_CONVERSATION_MODEL_API_KEY` | `conversation.model.api_key` |
 
-The split to aim for: **`server.yaml` carries shape and non-secret values; the
-environment carries credentials.** That is exactly how
-`deployment/buildmax-deploy.yaml` is arranged — a ConfigMap for the file, a
-Secret for these variables.
+理想的划分方式是：**`server.yaml` 携带形状和非敏感的值；环境变量携带凭据。** `deployment/buildmax-deploy.yaml` 正是按这种方式组织的——用 ConfigMap 承载文件内容，用 Secret 承载这些变量。
 
-### Worker 接收的内容
+### Worker 会收到什么
 
-A task-run worker is given only the variables it reads, whether it runs as a
-local process or a Kubernetes Job:
+一次 task-run worker（无论以本地进程还是 Kubernetes Job 的形式运行）只会拿到它需要读取的变量：
 
-| 变量 | Worker 需要它的原因 |
+| 变量 | Worker 为什么需要它 |
 |---|---|
-| `BUILDMAX_HOME` | Run-scoped data directory |
-| `BUILDMAX_SERVER_URL` | Reaches the server that owns the task run |
-| `BUILDMAX_STORAGE_MINIO_ACCESS_KEY` / `_SECRET_KEY` | Reads and writes run state and artifacts |
-| `BUILDMAX_CONVERSATION_MODEL_API_KEY` | Calls a provider directly — **withheld** when `worker.llm.transport` is `buildmax` |
-| `BUILDMAX_SANDBOX_ENABLED`, `BUILDMAX_SANDBOX_BACKEND_INSTALLED`, `BUILDMAX_TRACE_DISABLED` | Runtime toggles |
+| `BUILDMAX_HOME` | 本次运行范围内的数据目录 |
+| `BUILDMAX_SERVER_URL` | 访问拥有该 task run 的 server |
+| `BUILDMAX_STORAGE_MINIO_ACCESS_KEY` / `_SECRET_KEY` | 读写运行状态和 artifact |
+| `BUILDMAX_CONVERSATION_MODEL_API_KEY` | 直接调用提供商——当 `worker.llm.transport` 为 `buildmax` 时会被**扣留** |
+| `BUILDMAX_SANDBOX_ENABLED`、`BUILDMAX_SANDBOX_BACKEND_INSTALLED`、`BUILDMAX_TRACE_DISABLED` | 运行时开关 |
 
-`BUILDMAX_RUN_TOKEN` reaches a worker by a different route. It is not inherited
-from the server — the filter above strips it, so a stale value cannot be picked
-up — and is added to the process or pod at dispatch, naming the one run it
-authorizes. It is what a worker presents on every `/api/worker/*` route, and the
-only credential those routes accept, so a run can only read and write its own
-record. A run dispatched without one fails at startup; see
-[design/worker-run-token.md](../../design/worker-run-token.md).
+`BUILDMAX_RUN_TOKEN` 通过另一条路径传给 worker。它不是从 server 继承而来的——上面的过滤逻辑会把它剥离，因此不会带上一个过期的旧值——而是在分发时添加到进程或 pod 中，并指明它所授权的那一次运行。它是 worker 在每个 `/api/worker/*` 路由上出示的凭据，也是这些路由唯一接受的凭据，因此一次运行只能读写它自己的记录。分发时若没有该令牌，运行会在启动时失败；见 [design/worker-run-token.md](../design/Worker运行令牌.md)。
 
-A worker clears `BUILDMAX_RUN_TOKEN` from its own environment once it has read
-it, keeping the value in memory only. The sandbox would strip secret-shaped
-variables from a child process, but it is off by default, so a model-chosen
-`printenv` would otherwise print it.
+Worker 在读取到 `BUILDMAX_RUN_TOKEN` 后会将其从自身环境中清除，只在内存中保留该值。沙箱本应从子进程中剥离形如密钥的变量，但沙箱默认关闭，因此模型选择执行的 `printenv` 原本会把它打印出来。
 
-`BUILDMAX_JWT_SECRET` and `BUILDMAX_DATABASE_PASSWORD` are deliberately
-withheld. A worker never reads them — it reaches the server over HTTP with its
-run token and never touches the database — and it executes model-chosen
-shell commands, so holding the signing secret would let one mint a token for
-any user, and holding the database password would give it every space's data.
-An unrecognized `BUILDMAX_` variable is withheld too, so a variable added to
-the server without a decision about workers stays on the server.
+`BUILDMAX_JWT_SECRET` 和 `BUILDMAX_DATABASE_PASSWORD` 被刻意扣留。Worker 从不读取它们——它通过 HTTP、凭借自己的 run token 访问 server，从不直接接触数据库——而且它会执行模型选择的 shell 命令，因此持有签名密钥就能让它为任意用户铸造 token，持有数据库密码就能让它获得每个 space 的数据。未被识别的 `BUILDMAX_` 变量同样会被扣留，这样一来，添加到 server 端却尚未就是否发给 worker 做出决定的变量，就会留在 server 一侧。
 
-`WorkerNeeds` in `internal/config/env_spec.go` is the source of truth. Marking a
-variable there is what sends it to workers.
+`internal/config/env_spec.go` 中的 `WorkerNeeds` 是权威来源。在那里标记一个变量，就是让它被发送给 worker 的方式。
 
-### Worker Pod 如何受到隔离
+### Worker Pod 是如何被限制的
 
-Every worker Job pod is created with no service-account token, a `Localhost`
-seccomp profile (`deployment/seccomp/worker-bwrap.json`, distributed by a
-`DaemonSet`), an `Unconfined` AppArmor profile, a read-only root filesystem
-plus a writable `/tmp`, and every Linux capability dropped except `SYS_ADMIN`.
-None of that is configurable: a worker executes model-chosen shell commands,
-so it is treated as running untrusted code even when the space that submitted
-the task is trusted — the prompt, the repository content, and the tool
-output steering those commands are not. What confines those commands is
-`bwrap`'s own sandbox, built inside this pod using exactly the seccomp,
-AppArmor, and capability grants above; see
-[`deployment/seccomp/README.md`](../../../deployment/seccomp/README.md) for why
-each one is there — each was found by isolating one `Operation not
-permitted` failure at a time against a real cluster.
+每个 worker Job pod 创建时都没有 service account token，使用 `Localhost` seccomp 配置文件（`deployment/seccomp/worker-bwrap.json`，由一个 `DaemonSet` 分发）、`Unconfined` 的 AppArmor 配置文件、只读根文件系统加一个可写的 `/tmp`，并且除 `SYS_ADMIN` 外的所有 Linux capability 都被移除。以上这些都不可配置：worker 执行的是模型选择的 shell 命令，因此即便提交该 task 的 space 是可信的——驱动这些命令的提示、仓库内容和工具输出却并不可信——它仍被当作运行不可信代码来对待。真正约束这些命令的是 `bwrap` 自身的沙箱，它正是凭借上述 seccomp、AppArmor 和 capability 授权在这个 pod 内部构建起来的；至于为什么需要每一项，见 [`deployment/seccomp/README.md`](../../../deployment/seccomp/README.md)——每一项都是针对真实集群上一次 `Operation not permitted` 失败逐一排查出来的。
 
-The pod runs as root (uid 0), not non-root: a capability a container runtime
-adds to a non-root pod (`SYS_ADMIN` here, `SETUID`/`SETGID` in an earlier,
-reverted attempt) lands in that pod's capability *bounding* set only, never
-its *effective* set at exec time, on a real cluster this was verified
-against — `bwrap` needs the capability effective, not merely permitted, to
-build its own sandbox at all. Root does not have this gap. The pod's
-confinement is therefore entirely the capability/seccomp/AppArmor set above
-plus `bwrap`'s own workspace-scoped sandboxing of the worker's Bash calls,
-not the pod's own uid.
+该 pod 以 root（uid 0）身份运行，而非非 root：容器运行时赋予非 root pod 的某个 capability（此处是 `SYS_ADMIN`，在更早、后来被回退的一次尝试中是 `SETUID`/`SETGID`）只会落入该 pod capability 的 *bounding* 集合，而在 exec 时永远不会进入其 *effective* 集合——这一点已在真实集群上验证过——而 `bwrap` 需要该 capability 处于 effective 状态而不仅仅是 permitted，才能构建起自己的沙箱。Root 没有这个缺口。因此该 pod 的限制完全来自上述 capability/seccomp/AppArmor 的组合，加上 `bwrap` 自身对 worker Bash 调用的、限定在工作区范围内的沙箱化处理，而不是来自 pod 自身的 uid。
 
-One setting under `worker.k8s` remains an operator's:
+`worker.k8s` 下有一项设置仍由运维人员掌控：
 
 | 设置 | 默认值 | 用途 |
 |---|---|---|
-| `resources.cpu_request` / `cpu_limit` / `memory_request` / `memory_limit` | none — required | Kubernetes quantity strings such as `500m`, `2`, `512Mi`, or `4Gi`. All four are required under `k8s_job`; BuildMax chooses no numbers for you, because the right ones depend on the work a deployment runs. |
+| `resources.cpu_request` / `cpu_limit` / `memory_request` / `memory_limit` | 无——必填 | Kubernetes 数量字符串，例如 `500m`、`2`、`512Mi` 或 `4Gi`。在 `k8s_job` 下全部为必填项；BuildMax 不会替你选定数字，因为合适的值取决于该部署所运行的工作内容。 |
+| `resources.ephemeral_storage_request` / `ephemeral_storage_limit` | 无——必填 | 限定 worker pod 的本地临时磁盘——包括可写层以及每一个 emptyDir，物化后的工作区、暂存的检查点内容和工具输出都落在这里。该上限同时会作为该 pod 每个 emptyDir 卷的 `sizeLimit`，因此失控的工作区会被干净地驱逐，而不是把节点填满。 |
 
-The server refuses to start when a bound is missing, is not a Kubernetes
-quantity, is zero or negative, or names a limit below its own request. The error
-names the key to edit. This is deliberate: an unbounded worker pod runs
-model-chosen shell commands, so one runaway build starves everything else on the
-node, and a bound that was silently dropped for a typo looks exactly like a bound
-that is in force.
+若某个上限缺失、不是合法的 Kubernetes 数量、为零或负数，或者某个 limit 低于对应的 request，server 会拒绝启动。错误信息会指出需要修改哪个键。这是刻意为之：不受限的 worker pod 会执行模型选择的 shell 命令，一次失控的构建就会拖垮节点上的其他一切；而一个因拼写错误被悄悄丢弃的限制，看起来与真正生效的限制一模一样。
 
-This applies to `run_mode: k8s_job`. Under `local_process` the worker is a child
-process of the server — same host, same uid, same filesystem — so the two are
-one trust domain by construction. The `BUILDMAX_*` filtering above still
-applies, and everything outside that prefix is inherited from the server
-process, so a credential an operator happened to export reaches the worker as
-well. Neither fact is worth fixing on its own: a worker that goes looking reads
-the server's environment and `server.yaml` whatever it was handed. Single-machine
-deployments are supported on those terms. A deployment that needs the server
-separated from the code a model chooses runs `k8s_job`, which is where that
-boundary is built; `local_process` is deliberately not being hardened towards
-one.
+这适用于 `run_mode: k8s_job`。在 `local_process` 下，worker 是 server 的子进程——同一台主机、同一个 uid、同一个文件系统——因此两者从结构上就属于同一个信任域。上面的 `BUILDMAX_*` 过滤逻辑依然适用，但该前缀之外的一切都会从 server 进程继承而来，因此运维人员碰巧导出的某个凭据同样会到达 worker。这两点都不值得单独修复：一个存心去找的 worker，无论拿到什么都能读到 server 的环境变量和 `server.yaml`。单机部署就是在这样的前提下被支持的。需要把 server 与模型选择的代码隔离开的部署，应使用 `k8s_job`，这道边界正是在那里构建的；`local_process` 被刻意不朝着这个方向加固。
 
-That is a separate question from whether a `local_process` worker's own
-Bash commands are confined to the run's workspace. They are: `local_process`
-gets the same `SandboxSurfaceWorker` baseline a `k8s_job` worker does
-whenever its image installs the sandbox backend (`BUILDMAX_SANDBOX_BACKEND_INSTALLED`,
-now `WorkerNeeds` so a `local_process` worker's filtered environment carries
-it too) — a Compose deployment's server container needs the same seccomp
-override as the worker Job pod for `bwrap` to actually build that sandbox;
-see `deployment/compose/compose.yaml`'s `security_opt` and
-[`deployment/seccomp/README.md`](../../../deployment/seccomp/README.md). What
-`local_process` does not get, and `k8s_job` does, is the worker running as a
-*different process* than the server at all.
+这是另一个独立的问题：`local_process` worker 自身的 Bash 命令是否被限制在该次运行的工作区内。答案是肯定的：只要镜像安装了沙箱后端（`BUILDMAX_SANDBOX_BACKEND_INSTALLED`，现已纳入 `WorkerNeeds`，因此 `local_process` worker 被过滤后的环境中也会带上它），`local_process` 就会获得与 `k8s_job` worker 相同的 `SandboxSurfaceWorker` 基线——在 Compose 部署中，server 容器需要与 worker Job pod 相同的 seccomp 覆盖设置，`bwrap` 才能真正构建出该沙箱；见 `deployment/compose/compose.yaml` 中的 `security_opt` 以及 [`deployment/seccomp/README.md`](../../../deployment/seccomp/README.md)。`local_process` 得不到、而 `k8s_job` 能得到的，是 worker 完全作为一个与 server *不同的进程*运行这件事本身。
 
 ### 贡献者本地文件：`.local/`
 
-Everything a contributor configures for their own machine lives in one
-gitignored directory at the repository root. `./make setup local` creates it and
-fills it from the committed templates, then prints what is left to fill in;
-`./make doctor` reports whether it is there. Re-running the command never
-overwrites a file you have edited, and `.local/README.md` describes each file
-where a reader standing in the directory will find it.
+贡献者为自己的机器所做的一切配置，都放在仓库根目录下一个 gitignore 掉的目录里。`./make setup local` 会创建它，并用已提交的模板填充，然后打印出还有哪些内容需要你自己填写；`./make doctor` 会报告它是否存在。重复运行该命令永远不会覆盖你已经编辑过的文件，`.local/README.md` 描述了每个文件，方便站在该目录里的读者查阅。
 
-| File | Read by | Template |
+| 文件 | 读取方 | 模板 |
 |---|---|---|
-| `.local/env` | `./make` and `make.bat`, before running any task | [`.env.example`](../../../.env.example) |
-| `.local/settings.yaml` | `./make models`, `./make kind seed` | [`config-examples/settings.example.yaml`](../../../config-examples/settings.example.yaml) |
-| `.local/buildmax-secret.yaml` | nothing automatic; you `kubectl apply -f` it for a Kubernetes deployment of your own | [`deployment/buildmax-secret.example.yaml`](../../../deployment/buildmax-secret.example.yaml) |
+| `.local/env` | `./make` 和 `make.bat`，在运行任何任务之前 | [`.env.example`](../../../.env.example) |
+| `.local/settings.yaml` | `./make models`、`./make kind seed` | [`config-examples/settings.example.yaml`](../../../config-examples/settings.example.yaml) |
+| `.local/buildmax-secret.yaml` | 没有自动读取方；你自己 `kubectl apply -f` 它，用于你自己的 Kubernetes 部署 | [`deployment/buildmax-secret.example.yaml`](../../../deployment/buildmax-secret.example.yaml) |
 
-One local file deliberately stays outside. `deployment/compose/.env` sits beside
-its `compose.yaml` because Compose reads it from that directory and the
-quickstart runs `docker compose` there directly; it is described at the end of
-this section.
+有一个本地文件被刻意排除在外。`deployment/compose/.env` 与其 `compose.yaml` 放在一起，因为 Compose 会从那个目录读取它，快速上手流程也是直接在那里运行 `docker compose` 的；本节末尾会介绍它。
 
-`./make` and `make.bat` load `.local/env` before running anything, so a local
-`BUILDMAX_*` value applies to every task without exporting it in your shell.
-This is a **development convenience only** — a released binary never reads it;
-it reads the environment it is given.
+`./make` 和 `make.bat` 在运行任何任务之前都会加载 `.local/env`，因此一个本地的 `BUILDMAX_*` 值无需在你的 shell 中导出，就能应用于每个任务。这**仅仅是开发时的便利**——已发布的二进制文件从不读取它，它只读取自己被赋予的环境变量。
 
-The committed [`.env.example`](../../../.env.example) lists the optional personal
-credentials consumed by developer and operator tasks; fill only the entries you
-use. It does not duplicate the supported BuildMax configuration surface in
-`settings.yaml` and `server.yaml`. Put in `.local/env` only what genuinely
-belongs to your machine:
+已提交的 [`.env.example`](../../../.env.example) 列出了开发者和运维人员任务所使用的可选个人凭据；只填写你会用到的条目。它不会重复 `settings.yaml` 和 `server.yaml` 中已支持的 BuildMax 配置面。只把真正属于你这台机器的内容放进 `.local/env`：
 
 ```bash
 # Point the local server and worker at a scratch data directory.
@@ -222,54 +135,46 @@ BUILDMAX_JWT_SECRET=dev-only-secret
 BUILDMAX_DATABASE_PASSWORD=...
 ```
 
-Two variables are read by the task runner itself rather than by BuildMax:
+有两个变量是由任务运行器本身读取的，而不是由 BuildMax 读取：
 
 | 变量 | 默认值 | 用途 |
 |---|---|---|
-| `BUILDMAX_KIND_CLUSTER` | `buildmaxdev` | Which kind cluster `./make kind …` creates and addresses. Every `kubectl` call uses that cluster's explicit context. |
-| `BUILDMAX_IMAGE_PLATFORM` | host platform | Target platform for `./make kind reload` — for example `linux/amd64` on Apple Silicon. |
+| `BUILDMAX_KIND_CLUSTER` | `buildmaxdev` | `./make kind …` 创建并操作哪一个 kind 集群。每次 `kubectl` 调用都会使用该集群的显式 context。 |
+| `BUILDMAX_IMAGE_PLATFORM` | 宿主平台 | `./make kind reload` 的目标平台——例如在 Apple Silicon 上设为 `linux/amd64`。 |
 
-The DigitalOcean qualification command reads these task-runner variables. Its
-full lifecycle and credential scope are in
-[deploy/digitalocean.md](../deploy/digitalocean.md):
+DigitalOcean 验证命令读取以下这些任务运行器变量。其完整生命周期和凭据范围见 [deploy/digitalocean.md](../deploy/digitalocean.md)：
 
 | 变量 | 默认值 | 用途 |
 |---|---|---|
-| `DIGITALOCEAN_TOKEN` | — | Manages the disposable DOKS and MySQL resources and reads the persistent Project and VPC. |
-| `SPACES_ACCESS_KEY_ID` | — | Reads the persistent Spaces bucket and later authenticates BuildMax to it. |
-| `SPACES_SECRET_ACCESS_KEY` | — | Secret half of the bucket-scoped Spaces key. |
-| `BUILDMAX_OCEAN_PROJECT` | `buildmax-beta` | Existing DigitalOcean Project to reuse. |
-| `BUILDMAX_OCEAN_VPC` | `buildmax-beta` | Existing VPC to reuse. |
-| `BUILDMAX_OCEAN_BUCKET` | `buildmax-beta` | Existing Spaces bucket to reuse. |
-| `BUILDMAX_OCEAN_REGION` | `sgp1` | Shared region for the existing and disposable resources. |
-| `BUILDMAX_OCEAN_DATABASE_VERSION` | `8.4` | Pinned DigitalOcean Managed MySQL version. |
-| `BUILDMAX_OCEAN_STATE_DIR` | `~/.buildmax/qualification/ocean` | Owner-only directory outside Git holding state, plans, providers, and kubeconfig. |
-| `BUILDMAX_OCEAN_HOSTNAME` | — | Full hostname served by `./make ocean deploy`. |
-| `BUILDMAX_OCEAN_ALLOWED_CIDRS` | — | Comma-separated client networks permitted through the HTTPS edge; required for deploy. |
-| `BUILDMAX_OCEAN_IMAGE` | pinned `v0.2.0-alpha.4` digest | Immutable server and worker image override. Mutable tags are rejected. |
-| `BUILDMAX_OCEAN_PORTAL_IMAGE` | pinned `v0.2.0-alpha.4` digest | Immutable Portal image override. Mutable tags are rejected. |
-| `BUILDMAX_OCEAN_EDGE_IMAGE` | pinned Caddy 2.10.2 digest | Immutable HTTPS edge image override. Mutable tags are rejected. |
-| `BUILDMAX_OCEAN_MODEL_NAME` | `GPT-5.6 Luna` | Display name of the model the qualification configures. |
-| `BUILDMAX_OCEAN_MODEL_PROVIDER` | `openai` | Provider label stored on the model entry. |
-| `BUILDMAX_OCEAN_MODEL_API_URL` | `https://openrouter.ai/api/v1` | OpenAI-compatible base URL the model calls. |
-| `BUILDMAX_OCEAN_MODEL_ID` | `openai/gpt-5.6-luna` | Model id sent to the provider. |
-| `BUILDMAX_OCEAN_MODEL_CONTEXT_WINDOW` | `1050000` | Context window in tokens; must be a positive integer. |
-| `BUILDMAX_OCEAN_MODEL_CURRENCY` | `USD` | Currency the prices below are quoted in. |
-| `BUILDMAX_OCEAN_MODEL_INPUT_PRICE` | `0.2` | Input price per million tokens. |
-| `BUILDMAX_OCEAN_MODEL_CACHE_READ_PRICE` | `0.02` | Cache-read price per million tokens. |
-| `BUILDMAX_OCEAN_MODEL_CACHE_WRITE_PRICE` | `0.25` | Cache-write price per million tokens. |
-| `BUILDMAX_OCEAN_MODEL_OUTPUT_PRICE` | `1.2` | Output price per million tokens. |
-| `BUILDMAX_OCEAN_DATABASE_LOCAL_PORT` | `13306` | Local port the tunneled database connection listens on. |
+| `DIGITALOCEAN_TOKEN` | — | 管理临时的 DOKS 和 MySQL 资源，并读取持久化的 Project 和 VPC。 |
+| `SPACES_ACCESS_KEY_ID` | — | 读取持久化的 Spaces bucket，之后用于让 BuildMax 对其进行身份认证。 |
+| `SPACES_SECRET_ACCESS_KEY` | — | 该 bucket 范围密钥的私密部分。 |
+| `BUILDMAX_OCEAN_PROJECT` | `buildmax-beta` | 要复用的既有 DigitalOcean Project。 |
+| `BUILDMAX_OCEAN_VPC` | `buildmax-beta` | 要复用的既有 VPC。 |
+| `BUILDMAX_OCEAN_BUCKET` | `buildmax-beta` | 要复用的既有 Spaces bucket。 |
+| `BUILDMAX_OCEAN_REGION` | `sgp1` | 既有资源和临时资源共用的区域。 |
+| `BUILDMAX_OCEAN_DATABASE_VERSION` | `8.4` | 固定的 DigitalOcean Managed MySQL 版本。 |
+| `BUILDMAX_OCEAN_STATE_DIR` | `~/.buildmax/qualification/ocean` | Git 之外、仅所有者可访问的目录，保存状态、计划、provider 和 kubeconfig。 |
+| `BUILDMAX_OCEAN_HOSTNAME` | — | `./make ocean deploy` 所服务的完整主机名。 |
+| `BUILDMAX_OCEAN_ALLOWED_CIDRS` | — | 允许通过 HTTPS 边缘的客户端网络，逗号分隔；部署时必填。 |
+| `BUILDMAX_OCEAN_IMAGE` | 固定摘要 `v0.2.0-alpha.4` | 不可变的 server 与 worker 镜像覆盖。可变标签会被拒绝。 |
+| `BUILDMAX_OCEAN_PORTAL_IMAGE` | 固定摘要 `v0.2.0-alpha.4` | 不可变的 Portal 镜像覆盖。可变标签会被拒绝。 |
+| `BUILDMAX_OCEAN_EDGE_IMAGE` | 固定的 Caddy 2.10.2 摘要 | 不可变的 HTTPS 边缘镜像覆盖。可变标签会被拒绝。 |
+| `BUILDMAX_OCEAN_MODEL_NAME` | `GPT-5.6 Luna` | 验证流程所配置模型的显示名称。 |
+| `BUILDMAX_OCEAN_MODEL_PROVIDER` | `openai` | 保存在模型条目上的 provider 标签。 |
+| `BUILDMAX_OCEAN_MODEL_API_URL` | `https://openrouter.ai/api/v1` | 该模型调用的 OpenAI 兼容 base URL。 |
+| `BUILDMAX_OCEAN_MODEL_ID` | `openai/gpt-5.6-luna` | 发送给 provider 的模型 id。 |
+| `BUILDMAX_OCEAN_MODEL_CONTEXT_WINDOW` | `1050000` | 上下文窗口，单位为 token；必须是正整数。 |
+| `BUILDMAX_OCEAN_MODEL_CURRENCY` | `USD` | 以下价格所使用的货币单位。 |
+| `BUILDMAX_OCEAN_MODEL_INPUT_PRICE` | `0.2` | 每百万 token 的输入价格。 |
+| `BUILDMAX_OCEAN_MODEL_CACHE_READ_PRICE` | `0.02` | 每百万 token 的缓存读取价格。 |
+| `BUILDMAX_OCEAN_MODEL_CACHE_WRITE_PRICE` | `0.25` | 每百万 token 的缓存写入价格。 |
+| `BUILDMAX_OCEAN_MODEL_OUTPUT_PRICE` | `1.2` | 每百万 token 的输出价格。 |
+| `BUILDMAX_OCEAN_DATABASE_LOCAL_PORT` | `13306` | 隧道数据库连接监听的本地端口。 |
 
-The Compose stack is separate and does not read `.local/env`. It uses
-`deployment/compose/.env`, which `deployment/compose/generate-env.sh` creates
-with generated secrets and the host ports `BUILDMAX_SERVER_PORT` and
-`BUILDMAX_PORTAL_PORT`; `./make compose up` generates it on first run. Those two
-ports are self-contained — `compose.yaml` derives the Portal's API base and the
-server's `BUILDMAX_CORS_ORIGIN` from them. See
-[deploy/compose.md](../deploy/compose.md).
+Compose 编排栈是独立的，不读取 `.local/env`。它使用 `deployment/compose/.env`，该文件由 `deployment/compose/generate-env.sh` 创建，其中包含生成的密钥以及宿主端口 `BUILDMAX_SERVER_PORT` 和 `BUILDMAX_PORTAL_PORT`；`./make compose up` 会在首次运行时生成它。这两个端口是自包含的——`compose.yaml` 会据此推导出 Portal 的 API base 和 server 的 `BUILDMAX_CORS_ORIGIN`。见 [deploy/compose.md](../deploy/compose.md)。
 
-## `settings.yaml`——CLI 和 Desktop
+## `settings.yaml` —— CLI 和 Desktop
 
 ```yaml
 log_level: info                      # debug | info | warn | error | off
@@ -299,71 +204,52 @@ hooks: {}                            # see guide/hooks.md
 sandbox: {}                          # see guide/sandbox.md
 ```
 
-| Key | 默认值 | 说明 |
+| 键 | 默认值 | 说明 |
 |---|---|---|
-| `log_level` | `info` | Logs go to `<BUILDMAX_HOME>/logs/buildmax.log` only, never to the terminal, so the TUI stays clean. |
-| `server_url` | — | Only used as the prompt default for `buildmax login`; `BUILDMAX_SERVER_URL` overrides it. |
-| `models[]` | — | One model the CLI can run while signed out. Select one per run with `--model <id or name>`. |
-| `default_model` | first entry | Which entry a new session starts with, by name or model id. Applies while signed out; a deployment names its own default. |
-| `models[].provider` | `openai_compatible` | The wire protocol the endpoint speaks — see below. |
-| `models[].max_tokens` | `0` | Cap on one response. `0` means the protocol's default; `anthropic` requires the field, so `0` there sends the built-in 8192. |
-| `models[].reasoning` | `off` | How much the model reasons before answering: `off`, `low`, `medium`, or `high` — see below. No effect on `openai_compatible`, which carries none. |
-| `models[].cache_control` | `auto` | Which calls ask the provider to cache the stable prefix of a request, and for how long — see below. |
-| `models[].pricing` | — | What this model charges, so a run can report its cost — see below. |
-| `models[].integration` | — | A qualified OpenAI-compatible gateway. None is qualified, so any value is refused today. |
-| `models[].vision` | `false` | This model accepts image input. Leave it off and an image a tool returns is described in text rather than sent. |
-| `models[].keep_alive` | — | How long a local runtime keeps the model loaded after a call: a duration such as `30m`, `0` to unload at once, `-1` to stay resident. Only `ollama` reads it. |
+| `log_level` | `info` | 日志只写入 `<BUILDMAX_HOME>/logs/buildmax.log`，从不输出到终端，以保持 TUI 界面干净。 |
+| `server_url` | — | 仅用作 `buildmax login` 的提示默认值；`BUILDMAX_SERVER_URL` 会覆盖它。 |
+| `models[]` | — | CLI 在未登录状态下可运行的模型。用 `--model <id or name>` 为某次运行单独选择一个。 |
+| `default_model` | 第一个条目 | 新会话默认使用哪个条目，按名称或模型 id 指定。仅在未登录状态下生效；部署会指定自己的默认值。 |
+| `models[].provider` | `openai_compatible` | 该端点所使用的通信协议——见下文。 |
+| `models[].max_tokens` | `0` | 单次响应的上限。`0` 表示使用协议自身的默认值；`anthropic` 要求必须填写该字段，因此在那里 `0` 会发送内置的 8192。 |
+| `models[].reasoning` | `off` | 模型在回答前进行多少推理：`off`、`low`、`medium` 或 `high`——见下文。对 `openai_compatible` 无影响，该协议不携带任何推理相关字段。 |
+| `models[].cache_control` | `auto` | 哪些调用会请求提供商缓存该请求中稳定的前缀部分，以及缓存多久——见下文。 |
+| `models[].pricing` | — | 该模型的计费方式，使运行结果能够报告花费——见下文。 |
+| `models[].integration` | — | 一个经过认证的 OpenAI 兼容网关。目前没有任何网关通过认证，因此任何取值目前都会被拒绝。 |
+| `models[].vision` | `false` | 该模型是否接受图像输入。保持关闭时，工具返回的图像会以文本描述形式呈现，而不会被发送。 |
+| `models[].keep_alive` | — | 本地运行时在一次调用后保持模型加载状态的时长：可以是像 `30m` 这样的时长、`0` 表示立即卸载、`-1` 表示常驻内存。只有 `ollama` 会读取它。 |
 
-### Model providers
+### 模型提供商
 
-`provider` names the **wire protocol** an endpoint speaks, not a vendor. Which
-value to use follows from the endpoint's API, not from who made the model:
-Claude served through OpenRouter is `openai_compatible`, and Claude served from
-`api.anthropic.com` is `anthropic`.
+`provider` 命名的是端点所使用的**通信协议**，而不是厂商。该用哪个值取决于端点的 API，而不是模型出自谁手：通过 OpenRouter 提供的 Claude 是 `openai_compatible`，而由 `api.anthropic.com` 提供的 Claude 是 `anthropic`。
 
-| Value | API | Typical endpoint |
+| 取值 | API | 典型端点 |
 |---|---|---|
-| `openai_compatible` | OpenAI Chat Completions | OpenRouter, LiteLLM, vLLM, LM Studio, and other compatible gateways. The default, and what every entry written before this option existed keeps using. |
-| `openai` | OpenAI Responses | OpenAI's own `api.openai.com`. Runs stateless: BuildMax sends the whole conversation on each call and stores nothing server-side. |
+| `openai_compatible` | OpenAI Chat Completions | OpenRouter、LiteLLM、vLLM、LM Studio 及其他兼容网关。这是默认值，也是该选项出现之前写下的每个条目仍在沿用的值。 |
+| `openai` | OpenAI Responses | OpenAI 自己的 `api.openai.com`。以无状态方式运行：BuildMax 每次调用都会发送整段对话，服务端不保存任何内容。 |
 | `anthropic` | Anthropic Messages | `api.anthropic.com` |
-| `ollama` | Ollama's own `/api/chat` | A local Ollama daemon, by default `http://localhost:11434`. Needs no `api_key`. See [local models](#local-models-with-ollama). |
+| `ollama` | Ollama 自己的 `/api/chat` | 本地的 Ollama 守护进程，默认地址为 `http://localhost:11434`。不需要 `api_key`。见[使用 Ollama 的本地模型](#使用-ollama-的本地模型)。 |
 
-Text, tool calling, streaming, and token usage work the same on all four. So do
-reasoning, prompt caching, and image input, each described below — what differs
-is only how much a given protocol can do.
+文本、工具调用、流式输出和 token 用量统计，在这四者上表现一致。推理、提示缓存和图像输入也是如此，下文会分别介绍——不同之处只在于每种协议各自能做到多少。
 
-### Reasoning
+### 推理
 
-`reasoning` sets how much the model reasons before answering, and carries that
-reasoning forward, so a run spanning several tool calls keeps the thread instead
-of starting over on each one. The levels are `off` (the default), `low`,
-`medium`, and `high`.
+`reasoning` 设定模型在回答前进行多少推理，并把这段推理延续下去，因此一次跨越多个工具调用的运行不会在每一步都从头开始，而是保持思路的连贯。级别分为 `off`（默认）、`low`、`medium` 和 `high`。
 
-| Provider | What a level other than `off` does |
+| 提供商 | 除 `off` 外的级别会做什么 |
 |---|---|
-| `openai_compatible` | Nothing. The protocol has no reasoning state. |
-| `openai` | Sets the reasoning effort, requests encrypted reasoning content, and replays it on later turns. |
-| `anthropic` | Enables adaptive extended thinking at that effort and replays the thinking blocks. |
-| `ollama` | Turns thinking on for a model that supports it. This protocol's switch has no levels, so `low`, `medium`, and `high` all mean on, and it carries no state to replay. |
+| `openai_compatible` | 什么都不做。该协议没有推理状态。 |
+| `openai` | 设置推理强度（reasoning effort），请求加密的推理内容，并在后续轮次中重放它。 |
+| `anthropic` | 以对应强度启用自适应扩展思考（extended thinking），并重放思考块。 |
+| `ollama` | 为支持思考的模型打开思考功能。该协议的开关没有级别区分，因此 `low`、`medium`、`high` 都表示开启，并且不携带任何可重放的状态。 |
 
-It is off by default, because it changes what a call costs and some older models
-reject the request outright. Turning it on for a model that does not support it
-fails the call with the provider's own error rather than silently doing nothing.
-An unrecognized level is refused before any call is made.
+默认关闭，因为它会改变一次调用的花费，而且一些较旧的模型会直接拒绝这样的请求。为不支持它的模型开启会导致调用以提供商自身的错误失败，而不是悄无声息地什么都不做。无法识别的级别会在发出任何调用之前就被拒绝。
 
-The reasoning itself never reaches the transcript. BuildMax stores it as opaque
-state alongside the assistant message and sends it back unread — a signature
-covers the content, so editing it is worse than omitting it. State is tagged
-with the protocol that produced it, so continuing a session under a different
-provider drops what that provider cannot use and keeps everything else. Both the
-CLI session file and Portal conversations persist it, and the managed gateway
-carries it, so a run that resumes after a restart keeps its continuity.
+推理内容本身从不进入对话记录。BuildMax 将其作为不透明状态与 assistant 消息一起存储，并原样发回、不做读取——签名覆盖了内容本身，因此编辑它比省略它更糟。状态会标注产生它的协议，因此在不同 provider 下继续一个会话时，会丢弃该 provider 无法使用的部分，同时保留其余一切。CLI 的会话文件和 Portal 的 conversation 都会持久化它，受管网关也会携带它，因此一次在重启后恢复的运行能够保持其连贯性。
 
-### Prompt caching
+### 提示缓存
 
-`cache_control` asks the provider to cache the part of a request that does not
-change between calls — the tool definitions and system prompt — so the rest of a
-run pays a reduced rate for them.
+`cache_control` 请求提供商缓存请求中在多次调用之间不变的部分——工具定义和系统提示——从而让一次运行接下来的部分能以更低的费率使用它们。
 
 ```yaml
 models:
@@ -375,70 +261,40 @@ models:
       ttl: provider_default  # provider_default (default), 5m, 1h
 ```
 
-`mode` decides **which calls** ask:
+`mode` 决定**哪些调用**会发起缓存请求：
 
-| Mode | Agent turns | One-shot calls (title, compaction, probes) |
+| Mode | Agent 轮次 | 一次性调用（标题、压缩、探测） |
 |---|---|---|
-| `auto` (default) | Ask | Do not ask |
-| `off` | Do not ask | Do not ask |
-| `force` | Ask | Ask |
+| `auto`（默认） | 请求 | 不请求 |
+| `off` | 不请求 | 不请求 |
+| `force` | 请求 | 请求 |
 
-The split is what makes `auto` safe as a default. Writing a cache entry costs
-more than not caching and only pays back if a later call reads it, so a run of
-many calls over one stable prefix is better off and a single short call is worse
-off. An agent turn's prefix goes out again on the next iteration; a generated
-title's never does. `force` is for a caller that knows something the runtime
-cannot see.
+正是这种区分让 `auto` 可以安全地作为默认值。写入一条缓存记录的成本高于不缓存，只有当后续调用真正读取它时才能回本，因此在同一个稳定前缀上多次调用的运行会因此受益，而单次短调用则会因此吃亏。一次 Agent 轮次的前缀会在下一次迭代中再次发出；而一个已生成的标题永远不会。`force` 适用于调用方知道某些运行时无法察觉的信息的场景。
 
-`ttl` selects retention, and only where the provider documents it. Anything
-other than `provider_default` on a provider that does not document it is
-refused at startup rather than sent and ignored.
+`ttl` 用于选择保留时长，且仅在提供商有相应文档说明时才生效。在未记录该项的提供商上使用非 `provider_default` 的值，会在启动时被拒绝，而不是被发送后遭到忽略。
 
-| Provider | What a request carries | Retention |
+| 提供商 | 请求携带的内容 | 保留时长 |
 |---|---|---|
-| `anthropic` | Breakpoints after the tools and system prompt and at the end of the request. Nothing is cached unless the request says where. | `provider_default`, `5m`, `1h` |
-| `openai` | A scoped `prompt_cache_key`. Responses caches on its own, so the key does not turn caching on — it says which bucket the prefix belongs in. | `provider_default`, `24h` |
-| `openai_compatible` | Nothing. Speaking the protocol is not a promise to implement its cache fields, and an untested gateway may reject or ignore them. | `provider_default` only |
-| `ollama` | Nothing. A local runtime reuses its own cache between calls, with no request-side control and no counts to report. | `provider_default` only |
+| `anthropic` | 在工具和系统提示之后、以及请求末尾设置断点。除非请求中指明位置，否则不会缓存任何内容。 | `provider_default`、`5m`、`1h` |
+| `openai` | 一个限定范围的 `prompt_cache_key`。Responses 会自行进行缓存，因此该键并不能开启缓存——它只是说明前缀属于哪个分桶。 | `provider_default`、`24h` |
+| `openai_compatible` | 什么都不携带。使用该协议并不意味着承诺实现其缓存字段，未经测试的网关可能会拒绝或忽略它们。 | 仅 `provider_default` |
+| `ollama` | 什么都不携带。本地运行时会在多次调用之间自行复用其缓存，没有请求侧的控制，也没有计数可供报告。 | 仅 `provider_default` |
 
-Retention vocabulary is per provider, not global: `5m` and `1h` mean something
-to Anthropic and nothing to the Responses API, and `24h` the other way round.
-Asking for one where it is not documented is refused at startup rather than sent
-and ignored.
+保留时长的表述是按提供商各自定义的，而不是全局统一的：`5m` 和 `1h` 对 Anthropic 有意义，对 Responses API 毫无意义；`24h` 则反过来。在未记录该值的地方请求它，会在启动时被拒绝，而不是被发送后遭到忽略。
 
-The `prompt_cache_key` is derived, not configured. It is an opaque digest of the
-credential, the model, the space (managed calls only), and fingerprints of the
-system prompt and tool definitions — the things that all have to match for the
-provider to hit. It carries none of them in readable form, changes when any of
-them changes, and is never written to the ledger, a trace, a log, or the CLI.
-Two spaces granted the same model share a credential, and the space in the key is
-what keeps their prompts out of one another's bucket.
+`prompt_cache_key` 是派生出来的，而不是配置出来的。它是一个不透明的摘要，由凭据、模型、space（仅限受管调用）以及系统提示和工具定义的指纹组成——这些都必须匹配，提供商才能命中缓存。它不以可读形式携带其中任何一项内容，其中任意一项发生变化时它都会跟着变化，并且从不写入账本、trace、日志或 CLI。被授予同一模型的两个 space 会共享同一份凭据，键中的 space 部分正是用来把它们各自的提示分隔在不同分桶中的。
 
-`mode: force` is refused at startup on any provider that takes no cache
-instructions. Serving it as no caching at all would answer a question nobody
-asked. `mode: auto` is accepted everywhere, because most models are like this.
+`mode: force` 在任何不接受缓存指令的提供商上都会在启动时被拒绝。若将其当作“完全不缓存”来处理，就等于回答了一个没人问过的问题。`mode: auto` 在任何地方都可以接受，因为大多数模型就是这种情况。
 
-Cached tokens are reported as `cache_read_tokens` and `cache_write_tokens`,
-which **break the prompt count down rather than adding to it**. A spend report
-that summed all of them alongside `prompt_tokens` would count the same tokens
-twice.
+缓存的 token 会被报告为 `cache_read_tokens` 和 `cache_write_tokens`，它们是对 prompt 计数的**细分**，而不是额外叠加的部分。如果一份花费报告把它们和 `prompt_tokens` 简单相加，就会把同一批 token 重复计算两次。
 
-They are visible wherever a run's tokens are: the CLI prints a `Cache(read/write)`
-line and shows the same figures in the TUI status bar, `--format json` carries
-them under `usage`, the run trace records them, the session file keeps the
-per-session totals, and a managed deployment records them on the `llm_call`
-ledger row for Portal's run-spend view.
+在任何能看到一次运行 token 情况的地方都能看到它们：CLI 打印一行 `Cache(read/write)`，并在 TUI 状态栏中显示相同的数字，`--format json` 把它们放在 `usage` 之下，运行 trace 会记录它们，会话文件保存按会话累计的总量，受管部署会把它们记录在 `llm_call` 账本行上，供 Portal 的运行花费视图使用。
 
-Each of those shows the breakdown only when a provider reported one. Most
-providers report nothing at all, and a permanent `0 / 0` would read as a
-measured miss rather than an absent measurement.
+以上每一处都只会在提供商实际报告了细分数据时才会展示。大多数提供商完全不报告，若始终显示一个 `0 / 0`，会被误读为“测量到零”，而不是“未测量”。
 
-### Model pricing
+### 模型计费
 
-`pricing` is what a model charges, so a run can say what it cost. Without it a
-run reports its cost as `unavailable` rather than as zero — BuildMax does not
-know what any provider charges, and a guess dressed as a number is worse than
-silence.
+`pricing` 是某个模型的收费方式，使一次运行能够说明其花费。没有它时，一次运行会把花费报告为 `unavailable`，而不是零——BuildMax 并不知道任何提供商的实际收费，把猜测数字包装成结果比不给出结果更糟。
 
 ```yaml
 models:
@@ -453,67 +309,42 @@ models:
       output_per_mtok: "15.00"
 ```
 
-Rates are decimal strings quoted per million tokens, written the way providers
-publish them so a configured value can be checked against a price page without
-arithmetic. The four are separate because caching prices them differently: a
-cache read is cheaper than fresh input and a cache write is dearer, which is the
-whole reason caching is a decision rather than a free win.
+费率是按每百万 token 计价的十进制字符串，按提供商公开发布的方式书写，以便配置的值能不经计算就与官方价目表核对。这四项之所以分开，是因为缓存对它们的定价不同：缓存读取比全新输入更便宜，缓存写入则更贵，这正是缓存需要权衡取舍、而非白拿的全部原因。
 
-A price list must be complete enough to be trusted. Rates with no `currency`, or
-a `currency` with no rate, are refused at load — an estimate assembled from half
-a price list looks authoritative and is not. A rate of `"0"` is a real price and
-is accepted.
+价目表必须完整到值得信赖的程度。有费率却没有 `currency`，或有 `currency` 却没有费率，都会在加载时被拒绝——由半份价目表拼凑出的估算看起来权威，实则不然。费率为 `"0"` 是一个真实的价格，会被接受。
 
-Where the cost appears:
+花费出现的位置：
 
-| Surface | What it shows |
+| 位置 | 展示内容 |
 |---|---|
-| CLI | A `Cost(session)` line after a run, with what caching saved when it saved anything |
-| CLI `--format json` | `usage.cost`, in nano-units of the currency |
-| Session file | A running total, accumulated as the session ran |
-| Run trace | Each call's own cost on `llm_end`, and the run's on `run_end` — which turn was expensive, not just the total |
-| Portal run view | Per-run estimated cost and the saving against an uncached baseline |
+| CLI | 一次运行后的 `Cost(session)` 行，若缓存带来了节省，也会显示节省了多少 |
+| CLI `--format json` | `usage.cost`，以该货币的纳单位（nano-units）表示 |
+| 会话文件 | 会话运行过程中累积的总计 |
+| 运行 trace | `llm_end` 上记录每次调用自身的花费，`run_end` 上记录整次运行的花费——不仅是总数，还能看出哪一轮花费高 |
+| Portal 运行视图 | 每次运行的预估花费，以及相对未缓存基线所节省的部分 |
 
-The session total is accumulated turn by turn rather than recomputed on read,
-because the model — and so the rates — can change mid-session. A total derived
-later from whatever is configured then would restate turns already paid for at a
-different price. When part of a session cannot be priced, or a second currency
-appears, the total is labelled partial rather than quietly understating the run.
+会话总计是按轮次逐步累加的，而不是在读取时重新计算，因为模型——以及相应的费率——可能在会话进行中发生变化。若在之后按当时的配置重新推算总计，会用一个不同的价格去重新计算已经付过费的轮次。当会话的某一部分无法计价，或出现第二种货币时，总计会被标记为“部分”（partial），而不是悄悄低估这次运行的花费。
 
-For a managed deployment the operator sets the same four rates per catalog
-model, with `--currency`, `--input-price`, `--cache-read-price`,
-`--cache-write-price`, and `--output-price` on `buildmax-server model add`. The
-rates in force are copied onto each `llm_call` row when the call is accepted, so
-repricing a model does not restate what a space already spent.
+对于受管部署，运维人员通过 `buildmax-server model add` 上的 `--currency`、`--input-price`、`--cache-read-price`、`--cache-write-price` 和 `--output-price`，为每个目录模型设置这四项费率。调用被接受时，当时生效的费率会被复制到对应的 `llm_call` 行上，因此重新为某个模型定价不会改写某个 space 已经花费的记录。
 
-A saving is reported only when caching actually saved. A run that wrote cache
-entries nothing read back paid more than it would have uncached, and that is
-shown as the cost it was, not as a small win.
+只有当缓存确实带来节省时，才会报告节省。一次运行写入了缓存却没有任何调用读取它，实际花费比不缓存时更高，这会被如实展示为它实际花费的数字，而不是被展示成一次小小的收益。
 
-### Image input
+### 图像输入
 
-`vision: true` says the model accepts images. It matters because an MCP server
-can return one — a screenshot, a rendered chart — and what happens next depends
-on whether the model can read it.
+`vision: true` 表示该模型接受图像。这一点很重要，因为 MCP 服务器可能会返回图像——一张截图、一张渲染出的图表——而接下来会发生什么，取决于模型能否读取它。
 
-| `vision` | What the model receives |
+| `vision` | 模型收到的内容 |
 |---|---|
-| `false` (default) | A line of text saying what came back, such as `(image: image/png, 43.2 KB)`. The image is not sent. |
-| `true` | The same text, plus the image itself. |
+| `false`（默认） | 一行说明返回内容的文本，例如 `(image: image/png, 43.2 KB)`。图像本身不会被发送。 |
+| `true` | 同样的文本，加上图像本身。 |
 
-The default is off because a model without image support **rejects** a request
-carrying one rather than ignoring it. Both branches send a usable tool result,
-so turning it on is a capability statement, not a repair.
+默认关闭，是因为不支持图像的模型会**拒绝**携带图像的请求，而不是忽略它。两种情况下都会发送一个可用的工具结果，因此打开它是在声明一种能力，而不是修复一个问题。
 
-Where the image lands depends on the protocol: `anthropic` puts it inside the
-tool result, while the OpenAI protocols and `ollama` cannot and send it as a
-short user turn immediately after. Managed deployments declare this with the
-`image_input` capability on a catalog model.
+图像落在哪里取决于协议：`anthropic` 会把它放进工具结果内部，而 OpenAI 系协议和 `ollama` 做不到这一点，会紧随其后把它作为一条简短的 user 轮次发送。受管部署通过目录模型上的 `image_input` 能力来声明这一点。
 
-### Local models with Ollama
+### 使用 Ollama 的本地模型
 
-`provider: ollama` runs against a local [Ollama](https://ollama.com) daemon: no
-key, no network, no bill. Write the entry with:
+`provider: ollama` 针对本地的 [Ollama](https://ollama.com) 守护进程运行：没有密钥、没有网络请求、没有账单。用下面的方式写入该条目：
 
 ```bash
 buildmax init --ollama          # configure a model the daemon already holds
@@ -521,8 +352,7 @@ buildmax models --local         # list what is installed, and what it can do
 buildmax doctor                 # daemon up? model pulled? can it call tools?
 ```
 
-The entry it writes carries no `api_key` line, because there is no credential
-to hold:
+它写入的条目不带 `api_key` 这一行，因为没有凭据需要保存：
 
 ```yaml
 models:
@@ -533,41 +363,19 @@ models:
     context_window: 32000
 ```
 
-**Use `ollama`, not `openai_compatible`, for a local daemon.** The same daemon
-also serves an OpenAI-compatible endpoint at `/v1`, and that endpoint cannot set
-the context window: the runtime then applies its own default and truncates a
-longer prompt rather than refusing it. What it drops is the *front* of the
-request — the system prompt and the tool definitions — so the model stops
-calling tools and starts describing what it would do. `provider: ollama` sends
-the window on every call, so the number BuildMax trims history against and the
-number the daemon uses are the same one.
+**对本地守护进程要使用 `ollama`，而不是 `openai_compatible`。** 同一个守护进程还在 `/v1` 上提供一个 OpenAI 兼容端点，但该端点无法设置上下文窗口：运行时随后会套用自己的默认值，并截断较长的提示而不是拒绝它。被截掉的是请求的*前部*——系统提示和工具定义——因此模型会停止调用工具，转而开始描述它打算做什么。`provider: ollama` 会在每次调用时都发送该窗口值，因此 BuildMax 用来裁剪历史记录的数字和守护进程实际使用的数字是同一个。
 
-`context_window` is that number. Leave it unset and BuildMax asks the daemon
-what the model was trained for and takes the smaller of that and the built-in
-default, because a full-length window can be more than the machine can allocate.
-Raising it is one edit; `buildmax doctor` prints the model's maximum next to
-what is configured.
+`context_window` 就是这个数字。留空不设置时，BuildMax 会询问守护进程该模型的训练窗口是多少，并取其与内置默认值中较小的一个，因为满长度的窗口可能超出机器所能分配的内存。调大它只需改一处；`buildmax doctor` 会把模型的最大值和当前配置值并排打印出来。
 
-Two things a local model can be wrong about, both reported by `doctor` with the
-command that fixes them: the model is not pulled (`ollama pull <model>`), or it
-cannot call tools at all, which no amount of prompting works around. Pick one
-whose capabilities include `tools` in `buildmax models --local`.
+本地模型可能出错的两件事，都会由 `doctor` 报告并给出对应的修复命令：模型未被拉取（`ollama pull <model>`），或者它完全无法调用工具，这一点无论怎么调整提示都无济于事。请在 `buildmax models --local` 中选择一个能力包含 `tools` 的模型。
 
-Everything else behaves as it does elsewhere: `max_tokens`, `vision`, and
-`reasoning` mean the same, `cache_control` does nothing because a local runtime
-takes no cache instructions, and `keep_alive`
-controls how long the daemon keeps the model in memory between calls — worth
-setting on a machine where reloading a large model costs more than the turn.
+其余一切的行为与别处相同：`max_tokens`、`vision` 和 `reasoning` 含义不变，`cache_control` 不起作用，因为本地运行时不接受缓存指令；`keep_alive` 控制守护进程在两次调用之间将模型保留在内存中的时长——在重新加载一个大模型比一轮对话本身更耗时的机器上，这个值值得设置。
 
-A deployment can serve a local model too: `--provider ollama` on a catalog
-target, or `provider: ollama` under `conversation.model` in `server.yaml`, with
-no credential in either case. See
-[a local model in a deployment](#a-local-model-in-a-deployment).
+一个部署同样可以提供本地模型：在目录目标上使用 `--provider ollama`，或在 `server.yaml` 的 `conversation.model` 下使用 `provider: ollama`，两种情况都不需要凭据。见[部署中的本地模型](#部署中的本地模型)。
 
-### Managed models
+### 受管模型
 
-Signing in switches this machine to a deployment's models, and signing out
-switches back:
+登录会把这台机器切换到某个部署的模型，登出则切回：
 
 ```bash
 buildmax login        # models now come from that deployment
@@ -575,62 +383,32 @@ buildmax models       # what it offers, and that prompts go there
 buildmax logout       # back to the models in settings.yaml
 ```
 
-There is nothing to configure for it. A deployment holds the provider
-credentials and its catalog is fetched on each start, so `settings.yaml`
-describes only the models a signed-out session runs on. Every model a deployment
-offers is available to every user of it — a space is a collaboration boundary,
-not a model authorization boundary.
+这方面没有什么需要配置的。部署持有提供商凭据，其目录在每次启动时被拉取，因此 `settings.yaml` 只描述未登录会话所运行的模型。部署提供的每个模型都对其每个用户可用——space 是协作边界，而不是模型授权边界。
 
-The credential is never written into `settings.yaml`. It comes from
-`buildmax login`, and only the login for the server being called is used — a
-mismatch fails rather than sending the token to whatever host was named.
+凭据从不写入 `settings.yaml`。它来自 `buildmax login`，且只使用针对当前所调用 server 的那次登录——不匹配时会直接失败，而不是把 token 发给某个被指名的主机。
 
-Model selection within a mode is first-match by name or model id, and
-`default_model` names which entry a new session starts with. In managed mode the
-deployment names its own default.
+某个模式内的模型选择是按名称或模型 id 的首次匹配，`default_model` 指定新会话默认使用哪个条目。在受管模式下，由部署指定自己的默认值。
 
-Three things worth knowing before you rely on this:
+在依赖这一点之前，有三件事值得了解：
 
-- **The two modes never mix, and neither covers for the other.** A signed-in
-  session sees only the deployment's models; a signed-out one sees only
-  settings.yaml. A server that is down does not quietly become a local call,
-  because that would redirect governed traffic to a personal provider key — the
-  session refuses to start and says so. `buildmax logout` is the way to local
-  models, and it is a decision rather than a fallback.
-- **The login renews itself, until it does not.** The access token is refreshed
-  automatically before each call that would otherwise use an expired one, so a
-  long-lived session keeps working without another login code. When the refresh
-  token itself expires or its session is revoked, the session stops and asks you
-  to sign in again or sign out.
-- **Workers follow the deployment, and the evaluation harness stays direct.** A
-  task-run worker uses `worker.llm.transport`: `buildmax` gives it a run-scoped
-  credential and no provider key, while `direct` gives it the deployment's
-  configured provider access. Evaluation stays direct so results do not move
-  with a deployment's catalog or quota.
+- **两种模式从不混合，也互不兜底。** 已登录的会话只能看到该部署的模型；未登录的会话只能看到 settings.yaml。当 server 宕机时，不会悄悄退化为本地调用，因为那样会把本应受治理的流量转向个人提供商密钥——该会话会拒绝启动并给出说明。`buildmax logout` 才是通往本地模型的途径，这是一个主动决定，而不是一种兜底行为。
+- **登录会自动续期，直到无法续期为止。** access token 会在每次即将使用一个过期 token 的调用之前自动刷新，因此长期存在的会话无需再次输入登录码就能继续工作。当 refresh token 本身过期，或其会话被撤销时，会话会停止，并要求你重新登录或登出。
+- **Worker 跟随部署，而评估框架始终保持直连。** 一次 task-run worker 使用 `worker.llm.transport`：`buildmax` 会给它一个仅限本次运行的凭据、不给任何提供商密钥，而 `direct` 会给它部署已配置好的提供商访问权限。评估流程始终保持直连，这样评估结果就不会随部署的目录或配额而变化。
 
-Prompts, tool schemas, and tool results pass through the server in managed mode.
-That is the point of it, and it is a real change in where your data goes — which
-is why `buildmax models`, the model pickers, and the TUI footer all name the
-mode.
-| `hooks` | empty | Lifecycle hooks. Reference: [manual/hooks.md](../../../manual/hooks.md). |
-| `sandbox` | disabled | Bash sandboxing. Reference: [manual/sandbox.md](../../../manual/sandbox.md). |
-| `tools.permissions` | empty | Per-tool approval rules. See below. |
-| `agent.max_parallel_tools` | `4` | How many read-only tool calls from one model message may run at once. Range 1-16; 1 disables it. |
-| `agent.max_iterations` | `200` | How many times one prompt may call the model before the run stops. Range 1-5000. |
-| `agent.turn_digest.recap` | `true` | Print a dim summary of what each turn did, under the reply. |
-| `agent.turn_digest.suggest` | `true` | Offer the likely answer as ghost text when a turn ends by asking you something. |
+在受管模式下，提示、工具 schema 和工具结果都会经过 server。这正是它的设计意图，也确实改变了你的数据流向——这也是为什么 `buildmax models`、模型选择器和 TUI 页脚都会标明当前所处的模式。
+| `hooks` | 空 | 生命周期 hook。参考文档：[manual/hooks.md](../../../manual/hooks.md)。 |
+| `sandbox` | 关闭 | Bash 沙箱化。参考文档：[manual/sandbox.md](../../../manual/sandbox.md)。 |
+| `tools.permissions` | 空 | 按工具的审批规则。见下文。 |
+| `agent.max_parallel_tools` | `4` | 一条模型消息中的只读工具调用最多可以同时运行多少个。范围 1-16；设为 1 表示关闭该功能。 |
+| `agent.max_iterations` | `200` | 一次运行停止之前，一次提示最多可以调用模型多少次。范围 1-5000。 |
+| `agent.turn_digest.recap` | `true` | 在回复下方打印一行暗淡的摘要，说明该轮做了什么。 |
+| `agent.turn_digest.suggest` | `true` | 当一轮以向你提问结束时，把可能的答案以幽灵文字的形式提供出来。 |
 
 ### `tools.permissions`
 
-BuildMax asks before a tool call that changes something, on surfaces where
-somebody can answer — the CLI TUI and Desktop. Out of the box `Write`, `Edit`,
-`Task`, and non-read-only MCP calls prompt; read-only tools do not, and `Bash`
-follows its own risk classifier rather than the category default. A `Task`
-delegated to a read-only agent type such as `explore` counts as read-only and
-does not prompt — it can only reach tools that would not have prompted on
-their own.
+BuildMax 会在会更改某些内容的工具调用之前发起询问，前提是所在界面上有人能够回答——即 CLI TUI 和 Desktop。开箱即用的情况下，`Write`、`Edit`、`Task` 以及非只读的 MCP 调用会弹出询问；只读工具不会，而 `Bash` 遵循它自己的风险分类器，而不是所属类别的默认行为。委派给只读 agent 类型（例如 `explore`）的 `Task` 被视为只读，不会弹出询问——它只能触及那些原本自己单独调用时也不会弹出询问的工具。
 
-Set a rule to change that:
+设置一条规则来改变这一行为：
 
 ```yaml
 tools:
@@ -642,80 +420,53 @@ tools:
     "CallMcpTool:jira/delete_issue": deny
 ```
 
-| Field | Meaning |
+| 字段 | 含义 |
 |---|---|
-| key | A tool name, or a tool plus the target it dispatches to, with an optional trailing `*`. Case-insensitive. |
-| value | `allow`, `ask`, or `deny`. An unrecognised value is ignored, and `buildmax tools status` lists it. |
+| key | 一个工具名，或者工具加上它所分发到的目标，可带一个末尾的 `*`。大小写不敏感。 |
+| value | `allow`、`ask` 或 `deny`。无法识别的取值会被忽略，`buildmax tools status` 会将其列出。 |
 
-The most specific rule wins: an exact target, then the longest matching
-pattern, then the bare tool name.
+最匹配的规则优先：先是精确匹配的目标，然后是最长匹配的模式，最后是裸工具名。
 
-Two limits worth knowing:
+有两个限制值得了解：
 
-- **`allow` turns off the category prompt, not the safety checks.** Reading a
-  sensitive path and running a risky shell command still prompt. Only `deny`
-  outranks those.
-- **`ask` means a human must look**, so on a surface with no human — print
-  mode, a worker, a Portal conversation — the call is refused rather than run.
+- **`allow` 只是关闭了该类别的询问，而不是关闭安全检查。** 读取敏感路径和运行高风险 shell 命令仍然会询问。只有 `deny` 的优先级高于这些检查。
+- **`ask` 意味着必须有人来查看**，因此在没有人的界面上——print 模式、worker、Portal conversation——该调用会被直接拒绝，而不是被执行。
 
-Answering a prompt with `a` allows that tool for the rest of the session
-without writing a rule. Session grants are held in memory and are gone when the
-process exits.
+回答一次询问时选择 `a`，会在本次会话剩余时间里允许该工具，而不需要写一条规则。会话级授权保存在内存中，进程退出后即消失。
 
-Run `buildmax tools status` to see every tool's classification, its resolved
-action, and which layer decided it. Design:
-[design/tool-permissions.md](../../design/tool-permissions.md).
+运行 `buildmax tools status` 可以查看每个工具的分类、其最终生效的动作，以及是哪一层做出的决定。设计文档：[design/tool-permissions.md](../design/工具权限.md)。
 
 ### `agent.max_parallel_tools`
 
-When the model asks for several tool calls in one message, BuildMax can run
-them at the same time:
+当模型在一条消息中请求多个工具调用时，BuildMax 可以同时运行它们：
 
 ```yaml
 agent:
   max_parallel_tools: 4     # 1 disables it; range 1-16
 ```
 
-Only calls the tool itself declares read-only ever overlap — `Read`, `Glob`,
-`Grep`, `Skill`, `WebFetch`, and a `Task` delegated to a read-only agent type
-such as `explore`. Writes, shell commands, a `Task` that can write, and MCP
-calls always run alone, and calls are never reordered, so a batch means the
-same thing at any setting: the message history a run produces is identical
-whatever the limit. `buildmax tools status` shows which tools are read-only.
+只有工具自身声明为只读的调用才会并发——`Read`、`Glob`、`Grep`、`Skill`、`WebFetch`，以及委派给只读 agent 类型（例如 `explore`）的 `Task`。写操作、shell 命令、可写的 `Task`，以及 MCP 调用始终单独运行，且调用永远不会被重新排序，因此无论该设置为何，一批调用的含义都是一样的：一次运行产生的消息历史在任何限制值下都完全相同。`buildmax tools status` 会显示哪些工具是只读的。
 
-The limit applies inside a sub-agent too, so a delegated exploration schedules
-its own reads rather than running them one at a time.
+该限制在子 agent 内部同样生效，因此一次委派出去的探索会自行调度自己的读取操作，而不是逐个串行执行。
 
-Raise it for read-heavy work over slow storage or many `WebFetch` calls. Lower
-it to 1 to make a run reproduce exactly one call at a time. Design:
-[design/parallel-tool-execution.md](../../design/parallel-tool-execution.md).
+在读密集、存储较慢或有大量 `WebFetch` 调用的场景下可以调高它。调到 1 可以让一次运行严格复现为一次只执行一个调用。设计文档：[design/parallel-tool-execution.md](../design/并行工具执行.md)。
 
 ### `agent.max_iterations`
 
-One prompt runs the model, executes the tools it asked for, and calls the model
-again with the results, until the model answers instead of calling a tool. This
-caps how many times that may go round:
+一次提示会运行模型、执行它请求的工具，再把结果交回模型，如此往复，直到模型给出回答而不是再调用工具为止。该设置限定这个过程最多可以循环多少次：
 
 ```yaml
 agent:
   max_iterations: 200       # range 1-5000
 ```
 
-A run that reaches the cap stops with `agent: max iterations exceeded` and exits
-`7` — its own code, so a caller can tell an exhausted budget from a provider
-that failed. Work already done stays done: the last iteration ran in full, so
-its file edits and commands are on disk.
+达到上限的运行会以 `agent: max iterations exceeded` 停止，并以退出码 `7` 退出——这是它自己专属的代码，方便调用方分辨是预算耗尽还是提供商出错。已经完成的工作会保留：最后一次迭代是完整跑完的，因此它所做的文件编辑和执行的命令都已经落盘。
 
-Raise it for a long unattended task — an overnight job or a benchmark run — where
-nobody is there to say "keep going". Lower it to bound what a single prompt can
-spend against your credential. `buildmax --max-iterations N` sets it for one run
-and outranks this file. Sub-agents keep their own, smaller cap, and neither
-setting raises it.
+对于长时间无人值守的任务——例如一次通宵作业或一次基准测试——可以调高它，此时没有人在旁边说“继续”。调低它可以限定单次提示能消耗掉你凭据的额度上限。`buildmax --max-iterations N` 为单次运行设置该值，并且优先级高于该文件中的设置。子 agent 拥有自己更小的上限，任何一侧的设置都不会提高另一侧的上限。
 
 ### `agent.turn_digest`
 
-When a turn ends, the CLI TUI and Desktop can spend one small extra model call
-to describe it:
+一轮结束时，CLI TUI 和 Desktop 可以额外花一次小规模的模型调用来描述这一轮做了什么：
 
 ```yaml
 agent:
@@ -724,21 +475,13 @@ agent:
     suggest: true           # predicted answer offered as ghost text; tab accepts
 ```
 
-In the TUI the recap appears in the scrollback as a dim `❯❯` line; in Desktop it
-closes the thread as a dim aside. The suggestion appears inside the input box,
-greyed out, and only while the input is empty: press `tab` to accept it and
-`enter` to send, or just start typing to ignore it.
+在 TUI 中，回顾摘要会以暗淡的 `❯❯` 行出现在滚动记录中；在 Desktop 中，它会作为一段暗淡的旁注出现在该对话串的末尾。建议内容出现在输入框内部，呈灰色，且仅在输入框为空时显示：按 `tab` 接受它并按 `enter` 发送，或者直接开始输入以忽略它。
 
-Neither is part of the conversation. The model never sees a recap or a
-suggestion on a later turn — they are written for you and thrown away.
+这两者都不属于对话内容的一部分。模型在之后的轮次中永远看不到某次回顾摘要或某个建议——它们是写给你看的，用完即弃。
 
-The call is skipped on turns that could not produce anything: a turn that ran
-no tools and answered briefly gets no recap, and a turn that ended without
-asking you anything gets no suggestion. What it does spend counts towards the
-session's usage — `/info` in the TUI, the status bar in Desktop. Set either key to `false` to switch that half off, or both
-to make the turn end with no extra call at all.
+在无法产生任何内容的轮次上，该调用会被跳过：没有运行任何工具且回答简短的轮次不会生成回顾摘要，以没有向你提问结束的轮次也不会生成建议。它所花费的部分会计入该会话的用量——TUI 中的 `/info`，Desktop 中的状态栏。将任意一个键设为 `false` 即可单独关闭对应的一半功能，两者都设为 `false` 则该轮结束时完全不会产生额外调用。
 
-## `server.yaml`——服务器和 Worker
+## `server.yaml` —— Server 和 Worker
 
 ```yaml
 log_level: info
@@ -820,163 +563,63 @@ storage:
     prefix: workspaces
 ```
 
-Required for a working server: `jwt_secret` (or `BUILDMAX_JWT_SECRET`) and
-`database`. Everything else has a usable default for local development. The
-worker needs no credential of its own — `jwt_secret` is what signs the run token
-the server hands it at dispatch.
+一个可运行的 server 必须具备：`jwt_secret`（或 `BUILDMAX_JWT_SECRET`）和 `database`。其余一切都有适用于本地开发的可用默认值。Worker 本身不需要任何凭据——`jwt_secret` 正是用来签发 server 在分发时交给它的 run token 的。
 
-The two token lifetimes are not interchangeable. An access token is signed and
-never stored, so nothing can retire one early — `access_token_ttl` is the window
-in which a leaked one still works. A refresh token is a database row, so
-`refresh_token_ttl` is how long a session can be renewed, not how long it is
-beyond reach. See [deploy/authentication.md](../deploy/authentication.md).
+这两个 token 的有效期并不可以互换。Access token 是签名后从不落盘的，因此没有办法提前作废某一个——`access_token_ttl` 就是一个泄露的 token 仍然有效的时间窗口。Refresh token 是数据库中的一行记录，因此 `refresh_token_ttl` 是一次会话可以被续期多久，而不是它超出可控范围之外还能存在多久。见 [deploy/authentication.md](../deploy/authentication.md)。
 
-`shutdown_grace` is the whole budget for stopping the server in order, and
-defaults to **25s**. On SIGINT or SIGTERM the server stops reporting ready so a
-load balancer takes it out, ends the streams watching a run so the Portal
-resubscribes elsewhere, drains the requests it already accepted, and then stops
-its background loops. The phases are derived from this number rather than
-configured one by one.
+`shutdown_grace` 是有序停止 server 的整体预算，默认是 **25s**。收到 SIGINT 或 SIGTERM 时，server 会先停止报告就绪状态，以便负载均衡器将其摘除，然后结束正在监视某次运行的流，让 Portal 转而在别处重新订阅，再排空已经接受的请求，最后停止其后台循环。各个阶段的时长都是从这一个数字推导出来的，而不是逐项单独配置的。
 
-Keep it below whatever kills the process if the stop takes too long —
-`terminationGracePeriodSeconds` on Kubernetes, `TimeoutStopSec` under systemd —
-including any `preStop` hook. The reference manifests in
-[`deployment/`](../../../deployment/) set both together. Design:
-[design/graceful-shutdown.md](../../design/graceful-shutdown.md).
+请把它设置得比任何“超时就直接杀掉进程”的机制更短——Kubernetes 上的 `terminationGracePeriodSeconds`、systemd 下的 `TimeoutStopSec`——也包括任何 `preStop` hook。[`deployment/`](../../../deployment/) 下的参考清单文件把两者放在一起设置。设计文档：[design/graceful-shutdown.md](../design/优雅关闭.md)。
 
-People sign in with an email address and a password. `allow_signup` defaults to
-**false**, so nobody registers themselves; create accounts from the server and
-hand over a login code, which the person redeems and then replaces with a
-password of their own — see
-[deploy/authentication.md](../deploy/authentication.md):
+人们使用电子邮件地址和密码登录。`allow_signup` 默认是 **false**，因此没有人可以自行注册；账户由 server 端创建后，把登录码交给对方，对方兑换该登录码后再设置自己的密码——见 [deploy/authentication.md](../deploy/authentication.md)：
 
 ```bash
 buildmax-server user create alice@example.com
 buildmax-server user login-code alice@example.com
 ```
 
-The same code is how someone who forgot their password gets back in. Login
-attempts are not rate limited; see the warning in that document before exposing
-a server to an untrusted network.
+同样的登录码也是忘记密码的人重新登录的方式。登录尝试没有限流；在把 server 暴露到不受信任的网络之前，请先阅读该文档中的警告。
 
-The worker reads the same `server.yaml` and needs at minimum `worker.server_url`
-(or `BUILDMAX_SERVER_URL`), `workspaces_dir`, and the `storage` block — it talks
-to blob storage directly rather than proxying through the server.
+Worker 读取同一份 `server.yaml`，至少需要 `worker.server_url`（或 `BUILDMAX_SERVER_URL`）、`workspaces_dir` 以及 `storage` 配置块——它直接与对象存储通信，而不是通过 server 代理。
 
-The server exposes two HTTP listeners. The public one on `port` serves Portal,
-the user API, webhooks, health, and OpenAPI. The worker control API
-(`/api/worker/*`) is served only on the `worker_api` listener, which binds
-`127.0.0.1:5679` by default so an accidental deployment opens no new cluster
-port; a Kubernetes deployment binds it to `:5679` and fronts it with its own
-internal Service. `worker.server_url` must point at that worker listener, not
-the public port — the public listener answers `404` for a worker route even
-with a valid run token. The two listeners must use different ports, and the
-server refuses to start if they collide or if only half a TLS keypair is set.
+Server 对外暴露两个 HTTP 监听端口。`port` 上的公开端口服务于 Portal、用户 API、webhook、健康检查和 OpenAPI。Worker 控制 API（`/api/worker/*`）只在 `worker_api` 监听端口上提供服务，该端口默认绑定在 `127.0.0.1:5679`，这样一次意外的部署也不会开放任何新的集群端口；Kubernetes 部署会将其绑定到 `:5679`，并用自己的内部 Service 加以封装。`worker.server_url` 必须指向这个 worker 监听端口，而不是公开端口——即便携带有效的 run token，公开端口对 worker 路由也只会返回 `404`。两个监听端口必须使用不同的端口号，若两者冲突，或者 TLS 密钥对只设置了一半，server 会拒绝启动。
 
-Set `worker_api.tls.cert_file` and `key_file` to serve the worker listener over
-TLS; its certificate must carry the internal Service DNS name a worker verifies.
-A worker builds one HTTP client from `worker.server_ca_file` (or the system
-roots when empty) and verifies the server against it on every call — there is no
-insecure-skip mode, so a wrong hostname or a certificate outside that CA is
-rejected. Plain HTTP stays available for `local_process`, Compose, and kind
-development; a `k8s_job` whose `server_url` is `http://` is refused at startup
-unless `worker.allow_insecure_http` is set, because `.cluster.local` and
-loopback are routing facts, not evidence a network is confidential. 设置
-`worker_api.tls.client_ca_file` (and the worker's `client_cert_file` /
-`client_key_file`) turns on optional native mTLS in addition to the run token.
+设置 `worker_api.tls.cert_file` 和 `key_file` 可以让 worker 监听端口以 TLS 提供服务；其证书必须携带 worker 用来校验的内部 Service DNS 名称。Worker 会用 `worker.server_ca_file`（留空时使用系统根证书）构建出一个 HTTP 客户端，并在每次调用时据此校验 server 身份——没有“跳过校验”这种不安全模式，因此错误的主机名或不在该 CA 范围内的证书都会被拒绝。明文 HTTP 对 `local_process`、Compose 和 kind 开发环境依然可用；若某个 `k8s_job` 的 `server_url` 是 `http://`，除非设置了 `worker.allow_insecure_http`，否则会在启动时被拒绝，因为 `.cluster.local` 和回环地址只是路由层面的事实，并不能证明网络是保密的。设置 `worker_api.tls.client_ca_file`（以及 worker 端的 `client_cert_file` / `client_key_file`）会在 run token 之外额外开启可选的原生 mTLS。
 
-On Kubernetes the reference manifests front the two listeners with two Services
-— `buildmax-api` (public, behind the Ingress) and `buildmax-worker-api` (an
-internal `ClusterIP` on 5679) — and a `NetworkPolicy` that admits only pods
-labelled `app.kubernetes.io/name: buildmax-worker` to the worker port. The
-worker-api CA is delivered to worker pods by `worker.k8s.ca_config_map`, a
-ConfigMap mounted read-only at `worker.server_ca_file`. The Ingress points only
-at `buildmax-api`, so the worker API is never internet-reachable. See
-[design/worker-api-network-boundary.md](../../design/worker-api-network-boundary.md).
+在 Kubernetes 上，参考清单文件用两个 Service 分别对外暴露这两个监听端口——`buildmax-api`（公开，位于 Ingress 之后）和 `buildmax-worker-api`（内部 `ClusterIP`，端口 5679）——并配有一条 `NetworkPolicy`，只允许打有 `app.kubernetes.io/name: buildmax-worker` 标签的 pod 访问 worker 端口。Worker API 的 CA 证书通过 `worker.k8s.ca_config_map` 下发给 worker pod，即挂载为只读、路径为 `worker.server_ca_file` 的一个 ConfigMap。Ingress 只指向 `buildmax-api`，因此 worker API 永远不会暴露到公网。见 [design/worker-api-network-boundary.md](../design/Worker API网络边界.md)。
 
-`storage.max_artifact_mb` caps one artifact upload. It defaults to **0**, which
-uses the built-in 100 MB limit. It is a per-file limit rather than a space
-storage allowance: the allowance is `max_storage_bytes` on the space's quota
-tier, and the two answer different questions — a thousand small files pass this
-cap and can still fill an allowance. A tier that leaves `max_storage_bytes` at
-**0**, which the seeded tiers do, imposes no allowance at all; set it to make
-BuildMax refuse an upload that would take a space past it, the same 429 a run
-or token limit answers with.
+`storage.max_artifact_mb` 限定单个 artifact 上传的大小上限。默认值为 **0**，此时使用内置的 100 MB 限制。它是按单个文件设定的限制，而不是 space 的存储配额：配额由 space 配额档位上的 `max_storage_bytes` 决定，二者回答的是不同的问题——一千个小文件可以逐一通过这个上限检查，却仍然可能填满配额。某个档位若把 `max_storage_bytes` 留在 **0**（已 seed 的档位就是如此），就等于没有任何配额限制；把它设为某个值，可以让 BuildMax 拒绝会使某个 space 超出该配额的上传，返回与运行数或 token 数限制相同的 429 错误。
 
-`storage.artifact_purge_after_days` delays reclaiming a deleted artifact's
-bytes. It defaults to **0**, which reclaims them on the next hourly retention
-sweep: deleting an artifact takes effect at the authorization boundary
-immediately, so holding the object afterwards is cost and exposure rather than
-safety. Set a number of days only to give your object store's own tooling a
-window to recover from — BuildMax itself offers no undelete, and a reclaimed
-artifact cannot be restored under its old opaque reference.
+`storage.artifact_purge_after_days` 延迟回收一个已删除 artifact 所占用的字节。默认值为 **0**，即在下一次每小时的保留清扫中回收：删除一个 artifact 会立即在授权边界上生效，之后继续保留该对象只是成本和风险，而不是安全保障。只有当你需要给自己对象存储自带的工具留出一个恢复窗口时，才设置具体天数——BuildMax 本身不提供撤销删除的功能，被回收的 artifact 也无法在其原来那个不透明的引用下被恢复。
 
-The same sweep is the only reader of an artifact's expiry. An artifact created
-with one is tombstoned when it passes, recorded as `artifact.expired` naming
-the artifact, and its bytes then wait out the grace period like any other
-deletion. Each sweep that reclaimed anything writes one `artifact.purged` event
-with the count and the bytes. Nothing else in BuildMax removes artifact content
-except the rollback of an upload that failed.
+同一个清扫任务也是唯一读取 artifact 过期时间的地方。带有过期时间的 artifact 到期后会被打上删除标记（tombstone），记为一条 `artifact.expired` 事件并指明该 artifact，其字节随后会像任何其他删除一样进入宽限期等待。每一次实际回收了内容的清扫，都会写入一条 `artifact.purged` 事件，记录数量和字节数。除了对失败上传的回滚之外，BuildMax 中没有其他任何地方会移除 artifact 内容。
 
-`audit.retention_days` expires events in the governance trail. It defaults to
-**0**, which keeps everything: a deployment that has not chosen a retention
-policy has not decided to discard evidence. 设置 it starts an hourly sweep
-that removes events older than the window, and each sweep that removed anything
-writes an `audit.pruned` event naming the range and the count — so a trail that
-begins partway through says that policy shortened it rather than leaving a
-reader to wonder. Nothing else in BuildMax deletes an audit event, and there is
-no way to delete a particular one.
+`audit.retention_days` 使审计轨迹中的事件过期。默认值为 **0**，即保留全部记录：尚未选定保留策略的部署，就等于尚未决定要丢弃证据。设置该值后会启动一次每小时的清扫，移除超出窗口期的旧事件，每一次实际移除了内容的清扫都会写入一条 `audit.pruned` 事件，记录被移除的范围和数量——这样一来，一份从中途开始的记录就能说明是策略缩短了它，而不是让读者去猜测。除此之外，BuildMax 中没有其他任何地方会删除 audit 事件，也没有办法单独删除某一条。
 
-A space owner can download their space's trail from space settings, and a System
-Administrator can download the deployment-wide one, filtered, from `#/admin`.
-Both come as CSV or JSONL, and both are recorded in the trail as
-`audit.exported` — reading the whole record is itself an action on it.
+Space 所有者可以从 space 设置中下载该 space 自己的审计轨迹，而 System Administrator 可以从 `#/admin` 下载整个部署范围内的审计轨迹并加以筛选。两者都可以导出为 CSV 或 JSONL，且这两种操作本身都会被记录在审计轨迹中，记为 `audit.exported`——阅读整份记录本身也是对它的一次操作。
 
-### Pointing At Dependencies You Already Run
+### 对接你已经在运行的依赖
 
-A private deployment usually has a database and an object store already. Three
-settings decide whether BuildMax reaches them the way that environment expects.
+一次私有部署通常已经有现成的数据库和对象存储。三项设置决定了 BuildMax 是否会按照该环境所期望的方式去访问它们。
 
-**`database.tls`** is the go-sql-driver TLS mode. Unset means `preferred`: TLS
-whenever the server offers it, without verifying the certificate. That upgrades
-an in-cluster connection for free and behaves exactly as a plaintext connection
-against a server with no TLS at all.
+**`database.tls`** 是 go-sql-driver 的 TLS 模式。不设置时默认为 `preferred`：只要 server 提供 TLS 就使用它，但不校验证书。这样可以免费升级集群内部的连接，而在完全没有 TLS 的 server 上则表现得如同一个明文连接。
 
-Point at a managed database — RDS, Aurora, Cloud SQL — and set it to `true`,
-which requires TLS and verifies the certificate against the system roots.
-`skip-verify` requires TLS and accepts any certificate; `false` never uses it.
+若对接的是托管数据库——RDS、Aurora、Cloud SQL——请将其设为 `true`，这会强制要求 TLS 并对照系统根证书校验证书。`skip-verify` 强制要求 TLS，但接受任意证书；`false` 则从不使用 TLS。
 
-**`storage.minio.endpoint`** decides which kind of store BuildMax is talking to.
-Set it for something you run or a vendor's S3-compatible service. Leave it
-empty for AWS S3, so the SDK resolves the regional endpoint itself.
+**`storage.minio.endpoint`** 决定 BuildMax 对接的是哪一种存储。若使用自建或某个厂商的 S3 兼容服务，请设置它。若使用 AWS S3，请留空，让 SDK 自行解析区域端点。
 
-That also decides bucket addressing, because the two cases need opposite
-answers: a compatible store needs bucket-in-path, and AWS S3 has not supported
-that form for buckets created since 2020. `storage.minio.path_style` overrides
-the derivation, which is only needed for a compatible store that uses
-virtual-host addressing.
+它同时决定 bucket 的寻址方式，因为这两种场景需要相反的答案：兼容存储需要 bucket-in-path 的形式，而 AWS S3 从 2020 年之后创建的 bucket 已经不再支持这种形式。`storage.minio.path_style` 可以覆盖这一自动推断，这只在某个采用虚拟主机寻址方式的兼容存储上才需要用到。
 
-**`storage.minio.access_key` / `secret_key`** may both be left empty. The client
-then falls through to the AWS SDK's default credential chain, which is how a
-pod reaches a bucket through IRSA, workload identity, or an instance profile —
-no long-lived key for the deployment to store, ship to workers, or rotate. Set
-them for a store that has no such mechanism, such as MinIO.
+**`storage.minio.access_key` / `secret_key`** 可以都留空。此时客户端会回退使用 AWS SDK 的默认凭据链，这正是 pod 通过 IRSA、workload identity 或实例 profile 访问 bucket 的方式——不需要为该部署保存、下发给 worker 或轮换任何长期有效的密钥。只有面对没有这类机制的存储（例如 MinIO）时，才需要设置它们。
 
-### Managed models — the `llm_model` table and `llm` policy
+### 受管模型 —— `llm_model` 表和 `llm` 策略
 
-The managed LLM gateway designed in
-[design/llm-gateway.md](../../design/llm-gateway.md) has two halves, kept apart on
-purpose:
+[design/llm-gateway.md](../design/LLM网关.md) 中设计的受管 LLM 网关分为两个部分，且被刻意分隔开：
 
-- **The catalog** is the `llm_model` database table: which models exist, where
-  each is reached, and with what credential. It is not in `server.yaml` because
-  it holds provider keys and changes while the server runs.
-- **The `llm` block** below says which of them a caller gets when it names none.
-  It is not an authorization list: every enabled model is available to every
-  user of the deployment.
+- **目录（catalog）** 是数据库中的 `llm_model` 表：有哪些模型存在、各自在哪里访问、使用什么凭据。它不放在 `server.yaml` 中，因为它保存提供商密钥，并且在 server 运行期间会发生变化。
+- **`llm` 配置块** 如下所述，决定调用方在未指定模型时会得到目录中的哪一个。它不是一份授权列表：该部署启用的每个模型对其每个用户都可用。
 
-Edit the catalog with `buildmax-server model`, on the machine that already holds
-the database credentials:
+在已经持有数据库凭据的机器上，用 `buildmax-server model` 编辑目录：
 
 ```bash
 buildmax-server model add --name Fast \
@@ -994,50 +637,26 @@ buildmax-server model list
 buildmax-server model disable --id lm_xxxxxxxxxxxxxxxxxxxx
 ```
 
-`--provider` is the wire protocol the upstream speaks — the same three values
-`settings.yaml` uses, described under
-[Model providers](#model-providers). It defaults to `openai_compatible`, so a
-catalog written before this option existed keeps working unchanged.
-`--max-tokens` caps one response; leaving it unset means the protocol's default,
-which for `anthropic` is the built-in 8192. `--reasoning`, `--prompt-cache`, and
-`--vision` are the catalog equivalents of the `settings.yaml` keys described
-under [Reasoning](#reasoning), [Prompt caching](#prompt-caching), and
-[Image input](#image-input). Changing either on a running server
-takes effect on the next call: the router rebuilds a client whose target's
-connection details changed.
+`--provider` 是上游所使用的通信协议——与 `settings.yaml` 使用的是同样的三个取值，参见[模型提供商](#模型提供商)一节。默认值为 `openai_compatible`，因此该选项出现之前写下的目录仍能照常工作。`--max-tokens` 限定单次响应的上限；留空表示使用协议自身的默认值，对 `anthropic` 而言就是内置的 8192。`--reasoning`、`--prompt-cache` 和 `--vision` 分别对应 `settings.yaml` 中在[推理](#推理)、[提示缓存](#提示缓存)和[图像输入](#图像输入)几节中描述过的那些键在目录层面的等价物。在正在运行的 server 上修改任意一项，都会在下一次调用时生效：router 会为目标连接细节发生了变化的模型重新构建客户端。
 
-| Key | Meaning |
+| 键 | 含义 |
 |---|---|
-| `llm.default_model` | The `--name` a caller gets when it names none. Empty uses the first enabled model in the catalog, so a single-model deployment needs nothing here. |
-| `conversation.model_target` | Runs Tier 1 on a catalog model instead of `conversation.model` — the server picks its own model rather than being granted one. Accepts either the `llm_model` ID or the `--name` it was added with; the name is what an operator can write down before the row's runtime ID exists. `BUILDMAX_CONVERSATION_MODEL_TARGET` overrides it. |
+| `llm.default_model` | 调用方未指定模型时得到的 `--name`。留空时使用目录中第一个启用的模型，因此单模型部署这里什么都不用填。 |
+| `conversation.model_target` | 让 Tier 1 使用目录中的某个模型运行，而不是 `conversation.model`——由 server 自己挑选模型，而不是被授予某一个。可以填 `llm_model` 的 ID，也可以填添加时用的 `--name`；名称的好处是运维人员可以在该行的运行时 ID 存在之前就先记下它。`BUILDMAX_CONVERSATION_MODEL_TARGET` 会覆盖它。 |
 
-A server with no `llm` block serves the catalog with its first enabled model as
-the default. `conversation.model` stays the bootstrap path — a fresh deployment
-answers conversations, and offers that model by name, before its catalog has a
-single row.
+没有 `llm` 配置块的 server，会以目录中第一个启用的模型作为默认模型提供服务。`conversation.model` 仍然是引导阶段的路径——一个全新的部署，在其目录还一行记录都没有之前，就已经能够响应 conversation，并以名称的方式提供该模型。
 
-A `default_model` naming a model that does not exist **stops the server at
-startup**. It parses cleanly and would otherwise fail every session at its first
-call, which reads as a model outage rather than a typo. An empty catalog is not
-an error: rows are added while the server runs.
+`default_model` 指定一个不存在的模型会导致 **server 在启动时停止**。它本可以顺利解析通过，却会让每个会话的第一次调用都失败，这看起来像模型服务中断，而不是拼写错误。空目录不算错误：行是在 server 运行期间被逐渐添加进去的。
 
-Managed calls need a database for two reasons: the catalog lives there, and
-every call is recorded in the `llm_call` ledger. Without a store the routes
-answer `503` rather than serving inference nobody can account for.
+受管调用需要数据库，原因有两个：目录存放在那里，并且每次调用都会被记录到 `llm_call` 账本中。没有存储时，这些路由会返回 `503`，而不是提供一次无法计入账本的推理。
 
-Credentials are stored in the `llm_model` table and read by exactly one query,
-the one that builds a provider client. They are never returned by a model
-listing, an API response, or an error. Note what that implies for operations:
-database backups and read replicas carry provider keys, so treat them the way
-you treat the database password.
+凭据保存在 `llm_model` 表中，只被一处查询读取，即用来构建提供商客户端的那处查询。它们从不会出现在模型列表、API 响应或错误信息中。请留意这一点在运维层面的含义：数据库备份和只读副本都会携带提供商密钥，因此应当像对待数据库密码一样对待它们。
 
-### A local model in a deployment
+### 部署中的本地模型
 
-A deployment can point at an Ollama daemon the same way the CLI does, with one
-difference that decides everything else: **the daemon has to be reachable from
-the server, and inside a container `localhost` is the container.**
+一个部署可以像 CLI 那样对接一个 Ollama 守护进程，但有一处不同会决定其余一切：**该守护进程必须能从 server 端访问到，而在容器内部，`localhost` 指的是容器自身。**
 
-Either place accepts it, and neither takes a credential:
+两个位置都可以配置它，且都不需要凭据：
 
 ```bash
 # a catalog target spaces can be granted
@@ -1054,61 +673,43 @@ conversation:
     context_window: 32000
 ```
 
-`--api-key` is not required for this provider and nothing is stored for it. A
-key given anyway is ignored.
+该提供商不需要 `--api-key`，也不会为它保存任何内容。即便传入了某个 key 也会被忽略。
 
-**Reaching a daemon on the host machine.** For a local Kubernetes cluster,
-running the daemon on the host and pointing the deployment at it is usually
-better than running it in a pod: a pod cannot use the host's GPU, so inference
-falls back to the CPU of whatever VM the cluster runs in.
+**访问宿主机上的守护进程。** 对于本地 Kubernetes 集群，把守护进程运行在宿主机上、再让部署指向它，通常比在 pod 内运行它更好：pod 无法使用宿主机的 GPU，因此推理会退回到集群所在虚拟机的 CPU 上执行。
 
-| Host | Address that reaches it from a pod | Also needed |
+| 宿主 | 从 pod 访问它的地址 | 还需要什么 |
 |---|---|---|
-| Docker Desktop (macOS, Windows) | `http://host.docker.internal:11434` | nothing — the gateway forwards to the host's loopback |
-| Linux, cluster in Docker (kind, k3d) | the bridge gateway, `http://172.x.0.1:11434` — `docker network inspect <net>` prints it | `OLLAMA_HOST=0.0.0.0`, or the daemon listens on loopback only |
-| A real cluster | the daemon's own Service or an address that routes to it | — |
+| Docker Desktop（macOS、Windows） | `http://host.docker.internal:11434` | 不需要——网关会自动转发到宿主机的回环地址 |
+| Linux，集群跑在 Docker 中（kind、k3d） | 网桥网关地址，`http://172.x.0.1:11434`——`docker network inspect <net>` 会打印出来 | `OLLAMA_HOST=0.0.0.0`，否则守护进程只监听回环地址 |
+| 真实集群 | 守护进程自己的 Service，或某个能路由到它的地址 | —— |
 
-Two properties worth stating rather than discovering:
+有两个特性值得明确说明，而不是留给使用者自己发现：
 
-- **The endpoint is operator-supplied and is never taken from a client
-  request.** A target pointing at a loopback or link-local address means the
-  *server's* network, which is a deployment decision. Only a system
-  administrator can add one.
-- **Managed calls are still metered.** A local target has no cost per token, but
-  it lands in the `llm_call` ledger like any other, which is what makes it a
-  usable way to exercise the gateway, quota, and audit paths without paying for
-  them.
+- **该端点由运维人员提供，绝不会取自客户端请求。** 一个指向回环地址或链路本地地址的目标，指的是 *server 自身*的网络，这是一项部署决策。只有 System Administrator 才能添加这样的目标。
+- **受管调用依然会被计量。** 一个本地目标不产生每 token 的费用，但它同样会被记录到 `llm_call` 账本中，这正是它可以在不产生实际费用的情况下，用来验证网关、配额和 audit 相关路径的原因。
 
-### Managed models for task runs — the `worker.llm` block
+### 用于 task run 的受管模型 —— `worker.llm` 配置块
 
-Task runs default to calling a provider themselves. Point them at the gateway
-instead, and the worker stops needing an upstream key:
+Task run 默认自行调用某个提供商。改为指向网关，可以让 worker 不再需要上游密钥：
 
-| Key | Meaning |
+| 键 | 含义 |
 |---|---|
-| `worker.llm.transport` | `direct` (default) or `buildmax`. Under `buildmax`, `BUILDMAX_CONVERSATION_MODEL_API_KEY` is withheld from the worker. `BUILDMAX_WORKER_LLM_TRANSPORT` overrides it, so one image flips between the two without rewriting the mounted file. |
-| `worker.llm.model` | Which catalog model a run calls, by `--name`. Empty uses `llm.default_model`. |
-| `worker.llm.context_window`, `worker.llm.call_timeout` | Describe the model to the run; the protocol does not report them per call. |
-| `worker.run_token_ttl` | How long a run's credential stays valid. 默认值s to 24h. Every run gets one, managed or not. |
-| `worker.run_timeout` | How long a run may stay `SCHEDULED` or `RUNNING` before the server records it as abandoned. 默认值s to 6h. It is the backstop, not the usual detection path: a `RUNNING` run whose worker stops reporting is failed within minutes, and a worker that is asked to stop reports its own outcome. What is left for this timeout is a run that never reached `RUNNING`, or one that never reported at all. |
+| `worker.llm.transport` | `direct`（默认）或 `buildmax`。在 `buildmax` 下，`BUILDMAX_CONVERSATION_MODEL_API_KEY` 会被扣留、不发给 worker。`BUILDMAX_WORKER_LLM_TRANSPORT` 会覆盖它，因此同一个镜像无需重新编写挂载的文件就能在两者之间切换。 |
+| `worker.llm.model` | 某次运行按 `--name` 调用目录中的哪个模型。留空则使用 `llm.default_model`。 |
+| `worker.llm.context_window`、`worker.llm.call_timeout` | 向该次运行描述该模型；协议本身不会在每次调用时报告它们。 |
+| `worker.run_token_ttl` | 一次运行凭据的有效期。默认 24h。无论是否受管，每次运行都会拿到一个。 |
+| `worker.run_timeout` | 一次运行可以停留在 `SCHEDULED` 或 `RUNNING` 状态多久，超过后 server 会将其记为已放弃（abandoned）。默认 6h。这是兜底机制，而不是通常的检测路径：一个处于 `RUNNING` 状态、其 worker 已停止汇报的运行会在几分钟内被判定为失败，而被要求停止的 worker 会自行汇报其结果。这个超时机制留给的是那种从未进入 `RUNNING` 状态、或者从未做过任何汇报的运行。 |
 
-The server states the transport and model; a worker never chooses its own model,
-and is told nothing else about it — endpoint, upstream identifier, and
-credential all stay server-side. Each run is dispatched with its own credential
-in `BUILDMAX_RUN_TOKEN`, which authorizes that run and nothing else.
+Server 决定传输方式和模型；worker 从不自行选择模型，除此之外也不会被告知关于它的任何信息——端点、上游标识符和凭据都留在 server 一侧。每次运行都会被分发一个专属于它自己的凭据，放在 `BUILDMAX_RUN_TOKEN` 中，该凭据只授权这一次运行，不授权任何其他事情。
 
-`./make compose smoke managed` runs the whole path against a mock upstream and
-needs no provider key.
+`./make compose smoke managed` 会针对一个 mock 上游跑通整条路径，且不需要任何提供商密钥。
 
-Two things to know before enabling it:
+在启用它之前，有两件事需要了解：
 
-- `worker.llm.model` naming a model the catalog does not have **stops the server
-  at startup**, the same way `llm.default_model` does. That configuration parses
-  cleanly and would otherwise fail every run at its first model call.
-- The run token is not renewable. `run_token_ttl` must outlast your longest
-  run; a run that outlives it loses its remaining model calls.
+- `worker.llm.model` 指定一个目录中没有的模型，会导致 **server 在启动时停止**，与 `llm.default_model` 的处理方式相同。这样的配置本可以顺利解析通过，却会让每次运行的第一次模型调用都失败。
+- Run token 不可续期。`run_token_ttl` 必须长于你最长的一次运行；超出该时长的运行会失去其剩余的模型调用能力。
 
-## Data Directory Layout
+## 数据目录结构
 
 ```text
 <BUILDMAX_HOME>/
@@ -1124,22 +725,16 @@ Two things to know before enabling it:
 └── logs/               Rotating buildmax.log
 ```
 
-`./make test` sets `BUILDMAX_HOME=./testing-sandbox`, so tests never touch a real
-data directory.
+`./make test` 会设置 `BUILDMAX_HOME=./testing-sandbox`，因此测试永远不会触碰真实的数据目录。
 
-## Precedence
+## 优先级
 
-For any value that appears in more than one place:
+对于在多处出现的同一个值：
 
 ```text
 environment variable  >  policy.yaml  >  settings.yaml / server.yaml  >  built-in default
 ```
 
-Sandbox is the security-sensitive exception: `policy.yaml` > per-run CLI >
-`BUILDMAX_SANDBOX_ENABLED` > `settings.yaml` > surface default. A run may enable
-the sandbox and select its approval mode, but it cannot disable sandboxing or
-override operator policy.
+沙箱是安全相关的例外情况：`policy.yaml` > 单次运行的 CLI 选项 > `BUILDMAX_SANDBOX_ENABLED` > `settings.yaml` > 界面默认值。一次运行可以开启沙箱并选择它的审批模式，但不能关闭沙箱，也不能覆盖运维人员策略。
 
-The sandbox block is the only one with a workspace-level layer; hooks are the
-only block that merges additively (global hooks and workspace hooks both run)
-rather than overriding.
+沙箱这一配置块是唯一带有工作区级别这一层的；hook 是唯一以叠加方式合并（全局 hook 和工作区 hook 都会运行）而不是相互覆盖的配置块。
