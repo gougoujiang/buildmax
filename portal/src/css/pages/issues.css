@@ -20,6 +20,12 @@
   margin-bottom: 0.75rem;
 }
 
+.issues-page__toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .issues-page__section-title {
   margin: 0;
   font-size: 1rem;
@@ -230,6 +236,25 @@
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--color-text);
+}
+
+/* Opens the artifact, styled flat like .artifact-row__name so the card still
+   reads as a title rather than a control. */
+.issue-outputs__card-link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-weight: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.issue-outputs__card-link:hover,
+.issue-outputs__card-link:focus-visible {
+  text-decoration: underline;
 }
 
 .issue-outputs__preview {

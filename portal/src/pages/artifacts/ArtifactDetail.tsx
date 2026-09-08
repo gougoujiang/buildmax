@@ -9,6 +9,7 @@ import { useApp } from "../../contexts/AppContext"
 import { useSpace } from "../../contexts/SpaceContext"
 import { CopyButton } from "../../components/CopyButton"
 import {
+  ArtifactOrigin,
   ArtifactPreview,
   ArtifactShareDialog,
   artifactContentUrl,
@@ -37,7 +38,7 @@ interface ArtifactDetailProps {
 export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
   const { token, user } = useAuth()
   const { setEntityLabel } = useApp()
-  const { currentUserRole } = useSpace()
+  const { currentSpaceId, currentUserRole } = useSpace()
   const [artifact, setArtifact] = useState<ApiArtifact | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -221,7 +222,9 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
           </div>
           <div>
             <dt>Origin</dt>
-            <dd>{sourceLabel(artifact)}</dd>
+            <dd>
+              <ArtifactOrigin artifact={artifact} spaceId={currentSpaceId} token={token} />
+            </dd>
           </div>
           <div>
             <dt>Created</dt>

@@ -20,6 +20,7 @@ export {
   sourceLabel,
 } from "./display"
 export { confirmArtifactDeletion } from "./confirmDelete"
+export { ArtifactOrigin } from "./ArtifactOrigin"
 export { ArtifactPreview } from "./ArtifactPreview"
 export { ArtifactContentView } from "./ArtifactContentView"
 export { ArtifactShareDialog } from "./ArtifactShareDialog"

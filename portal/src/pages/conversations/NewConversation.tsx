@@ -6,7 +6,6 @@ import { cn } from "../../lib/cn"
 import { createConversation } from "../../features/conversations"
 import { useApp } from "../../contexts/AppContext"
 import { useSpace } from "../../contexts/SpaceContext"
-import { FilesPanel } from "../../components/FilesPanel"
 import type { Conversation } from "../../lib/types"
 
 type NewConversationTab = "conversations" | "files"
@@ -144,10 +143,22 @@ export function NewConversation({
           role="tabpanel"
           aria-labelledby="new-chat-tab-files"
           hidden={activeTab !== "files"}
-          className="page-new-chat__tabpanel page-new-chat__tabpanel--files"
+          className="page-new-chat__tabpanel"
         >
           {activeTab === "files" && (
-            <FilesPanel className="page-new-chat__files-panel" />
+            <div className="page-new-chat__files-link">
+              <p className="page-new-chat__files-copy">
+                This space&apos;s working files live in Workspace Files, so an agent
+                started here can already read anything uploaded there.
+              </p>
+              <button
+                type="button"
+                className="page-activity__action-btn"
+                onClick={() => navigate({ name: "explore" })}
+              >
+                Open Workspace Files
+              </button>
+            </div>
           )}
         </div>
       </div>

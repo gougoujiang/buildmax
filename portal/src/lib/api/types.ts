@@ -312,6 +312,28 @@ export interface ApiRunProvenance {
   source_message?: ApiRunSourceMessage | null
   agent?: ApiRunAgent | null
   space_instructions?: ApiRunSpaceInstructions | null
+  /** The releases this run actually resolved, fixed at dispatch. */
+  plugin_pins?: ApiRunPluginPin[]
+  /** What this run published, looked up by its own id, not owned by it. */
+  artifacts?: ApiRunArtifact[]
+}
+
+/** One release a run was given. Not what the agent currently names — see
+ * docs/design/portal-data-and-plugin-surfaces.md. */
+export interface ApiRunPluginPin {
+  plugin_name: string
+  version: string
+  digest: string
+}
+
+/** An artifact this run published, enough to recognise and open it. */
+export interface ApiRunArtifact {
+  id: string
+  title?: string
+  filename: string
+  media_type?: string
+  size_bytes?: number
+  created_at: string
 }
 
 /** The Space-wide instruction layer a run received. */

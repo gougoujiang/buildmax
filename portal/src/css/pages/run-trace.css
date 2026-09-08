@@ -162,6 +162,25 @@
   color: var(--color-warning);
 }
 
+/* Opens Space Plugins or an artifact, styled flat like .run-trace__tool-name
+   so it reads as a fact in the list rather than a call to action. */
+.run-trace__link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.run-trace__link:hover,
+.run-trace__link:focus-visible {
+  text-decoration: underline;
+}
+
 .run-trace__truncated {
   margin: 0.4rem 0 0;
   font-size: 0.8rem;

@@ -89,41 +89,24 @@
   color: var(--color-text);
 }
 
-.page-new-chat__tabpanel--files {
-  padding: 0;
-  max-height: 65vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
 .page-new-chat__chats {
   padding: 0.25rem 0;
   color: var(--color-text);
 }
 
-.page-new-chat__files-panel {
-  flex: 1;
-  min-height: 0;
+/* A contextual link, not a second copy of the Files browser -- see
+   docs/design/portal-data-and-plugin-surfaces.md. */
+.page-new-chat__files-link {
   display: flex;
   flex-direction: column;
-  background: var(--color-bg-elevated);
-  border-radius: 6px;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.5rem 0 1rem;
 }
 
-.page-new-chat__files-panel .page-explore__upload-bar {
-  flex-shrink: 0;
+.page-new-chat__files-copy {
   margin: 0;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--color-border-subtle);
-}
-
-.page-new-chat__files-panel .page-explore__panels {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  border: none;
-  border-radius: 0;
+  color: var(--color-text-muted);
 }
 
 .page-home__new-project {

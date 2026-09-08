@@ -1,1 +1,0 @@
-export { PluginCatalog } from "./PluginCatalog"

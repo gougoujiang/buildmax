@@ -9,10 +9,13 @@ import (
 	"time"
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
+	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/mock"
+	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -20,14 +23,16 @@ import (
 const provenanceSecret = "test-run-provenance-secret"
 
 type provenanceFixture struct {
-	handler  *Handler
-	mux      *http.ServeMux
-	messages *mock.MockConversationMessageStore
+	handler   *Handler
+	mux       *http.ServeMux
+	messages  *mock.MockConversationMessageStore
+	artifacts *mock.MockArtifactStore
 }
 
 func newProvenanceFixture(t *testing.T, run coretask.Run, task coretask.Task) provenanceFixture {
 	t.Helper()
 	messages := &mock.MockConversationMessageStore{}
+	artifacts := &mock.MockArtifactStore{}
 	h := New(Config{
 		JWTSecret: provenanceSecret,
 		Spaces: &mock.MockSpaceStore{
@@ -37,13 +42,14 @@ func newProvenanceFixture(t *testing.T, run coretask.Run, task coretask.Task) pr
 		Conversations: &mock.MockConversationStore{
 			Conversations: []coreconv.Conversation{{ID: "conv1", UserID: "u1", SpaceID: "tm_1", Channel: "portal", CreatedBy: "u1"}},
 		},
-		Tasks:    &mock.MockTaskStore{List: []coretask.Task{task}},
-		TaskRuns: &mock.MockTaskRunStore{Runs: []coretask.Run{run}, TaskList: []coretask.Task{task}},
-		Messages: messages,
+		Tasks:     &mock.MockTaskStore{List: []coretask.Task{task}},
+		TaskRuns:  &mock.MockTaskRunStore{Runs: []coretask.Run{run}, TaskList: []coretask.Task{task}},
+		Messages:  messages,
+		Artifacts: &artifactsvc.Service{Artifacts: artifacts, Storage: mock.NewMockArtifactStorage()},
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
-	return provenanceFixture{handler: h, mux: mux, messages: messages}
+	return provenanceFixture{handler: h, mux: mux, messages: messages, artifacts: artifacts}
 }
 
 func (f provenanceFixture) get(t *testing.T, taskRunID string) (int, RunProvenanceResponse) {
@@ -269,5 +275,71 @@ func TestRunProvenanceOmitsTheAgentWhenThereIsNone(t *testing.T) {
 	_, out := f.get(t, "tr_1")
 	if out.Agent != nil {
 		t.Errorf("agent = %+v, want none", out.Agent)
+	}
+}
+
+// The releases a run actually resolved are what a Portal reader needs to
+// answer "why did this run have this capability" -- not what the agent
+// currently names, which can have moved on since. See
+// docs/design/portal-data-and-plugin-surfaces.md.
+func TestRunProvenanceNamesTheResolvedPlugins(t *testing.T) {
+	run := coretask.Run{
+		ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED", CreatedAt: time.Unix(1000, 0).UTC(),
+		PluginPins: []coreplugin.Pin{{PluginName: "code-review", Version: "1.2.0", Digest: "sha256:abc"}},
+	}
+	f := newProvenanceFixture(t, run, provenanceTask())
+
+	_, out := f.get(t, "tr_1")
+	if len(out.PluginPins) != 1 || out.PluginPins[0].PluginName != "code-review" || out.PluginPins[0].Version != "1.2.0" {
+		t.Errorf("plugin_pins = %+v, want the run's resolved pin", out.PluginPins)
+	}
+}
+
+// A run that resolved no plugins reports none, not an empty list standing in
+// for "we don't know".
+func TestRunProvenanceOmitsPluginPinsWhenNoneResolved(t *testing.T) {
+	run := coretask.Run{ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED", CreatedAt: time.Unix(1000, 0).UTC()}
+	f := newProvenanceFixture(t, run, provenanceTask())
+
+	_, out := f.get(t, "tr_1")
+	if len(out.PluginPins) != 0 {
+		t.Errorf("plugin_pins = %+v, want none", out.PluginPins)
+	}
+}
+
+// What this run published is looked up by its own id through the artifact
+// service, the same way an issue's output list is, rather than a Portal-only
+// record of what a run produced.
+func TestRunProvenanceListsWhatTheRunPublished(t *testing.T) {
+	run := coretask.Run{ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED", CreatedAt: time.Unix(1000, 0).UTC()}
+	f := newProvenanceFixture(t, run, provenanceTask())
+	if _, err := f.artifacts.CreateArtifact(t.Context(), coreartifact.CreateInput{
+		SpaceID: "tm_1", ArtifactID: "tsyt7at6cjfr33d73mta", Filename: "report.pdf",
+		MediaType: "application/pdf", SizeBytes: 2048,
+		SourceType: coreartifact.SourceTaskRun, SourceID: "tr_1",
+		CreatedByType: coreartifact.CreatorAgent, Title: "Quarterly report",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	_, out := f.get(t, "tr_1")
+	if len(out.Artifacts) != 1 {
+		t.Fatalf("artifacts = %+v, want the one published", out.Artifacts)
+	}
+	got := out.Artifacts[0]
+	if got.ID != "tsyt7at6cjfr33d73mta" || got.Title != "Quarterly report" || got.Filename != "report.pdf" {
+		t.Errorf("artifact = %+v", got)
+	}
+}
+
+// A run that published nothing reports no artifacts, not an empty list
+// standing in for "we don't know".
+func TestRunProvenanceOmitsArtifactsWhenNonePublished(t *testing.T) {
+	run := coretask.Run{ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED", CreatedAt: time.Unix(1000, 0).UTC()}
+	f := newProvenanceFixture(t, run, provenanceTask())
+
+	_, out := f.get(t, "tr_1")
+	if len(out.Artifacts) != 0 {
+		t.Errorf("artifacts = %+v, want none", out.Artifacts)
 	}
 }

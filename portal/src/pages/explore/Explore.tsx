@@ -5,7 +5,9 @@ export function Explore() {
     <div className="page-explore">
       <h1 className="page-explore__title">Workspace Files</h1>
       <p className="page-explore__subtitle">
-        Browse your files. Select a folder in the tree, then open a file to view its content.
+        This space&apos;s working files — mutable inputs and in-progress state that agent
+        runs read and write. Once work is done, publish a durable, unchanging copy as an
+        Artifact instead.
       </p>
       <FilesPanel />
     </div>

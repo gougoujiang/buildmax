@@ -1,6 +1,7 @@
 import type { IssueOutput } from "../../lib/types"
 import { artifactContentUrl } from "../artifacts"
 import { downloadAuthenticated } from "../../lib/download"
+import { navigate } from "../../router"
 
 interface OutputCardProps {
   output: IssueOutput
@@ -28,7 +29,15 @@ export function OutputCard({
     <article className="issue-outputs__card">
       <header className="issue-outputs__card-head">
         <div>
-          <h3 className="issue-outputs__card-title">{output.title}</h3>
+          <h3 className="issue-outputs__card-title">
+            <button
+              type="button"
+              className="issue-outputs__card-link"
+              onClick={() => navigate({ name: "artifact", artifactId: output.artifactId })}
+            >
+              {output.title}
+            </button>
+          </h3>
           <div className="page-activity__meta">
             {output.filename ? (
               <>
@@ -42,9 +51,6 @@ export function OutputCard({
           </div>
         </div>
       </header>
-      <p className="page-activity__meta">
-        <code>{output.artifactId}</code>
-      </p>
       <footer className="issue-outputs__card-actions">
         <button
           type="button"

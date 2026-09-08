@@ -76,6 +76,7 @@ export function FilesExplorer({ className }: FilesExplorerProps) {
             folderName={explorer.folderName}
             children={explorer.children}
             selectedFileId={explorer.selectedFileId}
+            isRoot={explorer.selectedFolderId === "."}
             onSelectFolder={explorer.selectListFolder}
             onSelectFile={explorer.selectFile}
           />

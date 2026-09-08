@@ -5,6 +5,7 @@ interface FileListProps {
   folderName: string
   children: ExploreNode[]
   selectedFileId: string | null
+  isRoot: boolean
   onSelectFolder: (folderId: string) => void
   onSelectFile: (node: ExploreNode) => void
 }
@@ -13,6 +14,7 @@ export function FileList({
   folderName,
   children,
   selectedFileId,
+  isRoot,
   onSelectFolder,
   onSelectFile,
 }: FileListProps) {
@@ -21,7 +23,11 @@ export function FileList({
       <h2 className="page-explore__content-heading">{folderName}</h2>
       <ul className="page-explore__list" role="list">
         {children.length === 0 ? (
-          <li className="page-explore__empty">(empty)</li>
+          <li className="page-explore__empty">
+            {isRoot
+              ? "Nothing uploaded yet. Upload files or a folder above, or have an agent write here during a run."
+              : "(empty)"}
+          </li>
         ) : (
           children.map((node) => (
             <li key={node.id} className="page-explore__item">
