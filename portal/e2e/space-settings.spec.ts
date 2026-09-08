@@ -39,7 +39,7 @@ test("the space overview reports the deployment's quota tier and what it counted
   // Reachable by URL, not only by clicking through the tabs: a section an
   // operator cannot link to is one they cannot send to a colleague.
   await page.goto("/#/space")
-  await expect(page.getByRole("heading", { name: "Space", exact: true }).first()).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Space settings", exact: true }).first()).toBeVisible()
 
   // Compared against what the deployment answered rather than a hard-coded
   // tier. The claim is that Portal reports this server, and pinning the value

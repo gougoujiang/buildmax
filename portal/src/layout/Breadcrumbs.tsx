@@ -14,7 +14,7 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
   if (route.name === "conversations") {
     crumbs = [{ label: "Conversations", route: { name: "conversations" } }]
   } else if (route.name === "explore") {
-    crumbs = [{ label: "Files", route: { name: "explore" } }]
+    crumbs = [{ label: "Workspace Files", route: { name: "explore" } }]
   } else if (route.name === "agents") {
     crumbs = [{ label: "Agents", route: { name: "agents" } }]
   } else if (route.name === "agent") {
@@ -59,7 +59,7 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
       }
     })()
     crumbs = [
-      { label: "Space", route: { name: "space", section: "overview" } },
+      { label: "Space settings", route: { name: "space", section: "overview" } },
       { label: sectionLabel, route },
     ]
   } else if (route.name === "admin") {
@@ -118,18 +118,18 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
     // A task's parents (agent / issue / conversation) are not in the route, so
     // the detail page publishes the trail; fall back until it loads.
     crumbs = breadcrumbTrails[route.taskId] ?? [
-      { label: "Home", route: { name: "home" } },
+      { label: "Chat", route: { name: "home" } },
       { label: "Task", route },
     ]
   } else if (route.name === "conversation") {
     const conv = conversations.find((c) => c.id === route.conversationId)
     const convLabel = conv?.title?.trim() || conv?.timeLabel || "Conversation"
     crumbs = [
-      { label: "Home", route: { name: "home" } },
+      { label: "Chat", route: { name: "home" } },
       { label: convLabel, route },
     ]
   } else {
-    crumbs = [{ label: "Home", route: { name: "home" } }]
+    crumbs = [{ label: "Chat", route: { name: "home" } }]
   }
 
   return (

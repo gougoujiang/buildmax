@@ -1,7 +1,10 @@
 # Portal 数据与 Plugin 界面
 
 > **翻译说明：** 本文是[英文原文](../../design/portal-data-and-plugin-surfaces.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
-> **受众：** Portal、Plugin 与 Artifact 贡献者 · **状态：** 计划中
+> **受众：** Portal、Plugin 与 Artifact 贡献者 · **状态：** 计划中 —— 第 1 阶段
+> 的一部分已作为 Portal 导航记录自身第 1 阶段的连带结果上线（Explore 更名为
+> Workspace Files，并移入侧边栏 Data 分组）；移除重复的 Account plugin 入口
+> 以及第 2-4 阶段仍未完成
 
 本文定义 Workspace Files、Artifacts、Marketplace、Space Plugins 与 Agent plugin
 选择的名称和边界。这是一项可以独立交付的 R3 信息架构改进，不改变路线图优先级或
@@ -26,8 +29,9 @@ Space、Agent 还是本地安装。Portal 对每个概念只使用一个名称�
 
 ## 证据与约束
 
-- Workspace file 浏览目前出现在 Chat 内部，并隐藏于名为“Explore”的路由后，而
-  breadcrumb 又将其称为 Files。混合名称让持久 Space 资源看起来像编辑器附件功能。
+- Workspace Files 现在在侧边栏 Data 分组中拥有自己的入口，页面标题与
+  breadcrumb 均已统一，不再表现为 Chat 编辑器附件功能。路由本身
+  （`#/explore`）尚未迁移。Account 下仍保留一个重复的 plugin 入口。
 - Artifact 是 Space 所拥有、发布后不可变的结果，有独立的分享和预览生命周期。将它
   与可变 workspace file 合并，会抹掉重要的信任和生命周期差异。
 - Marketplace 是部署级 release catalog，Space Plugins 控制后台 run 的激活，Agent

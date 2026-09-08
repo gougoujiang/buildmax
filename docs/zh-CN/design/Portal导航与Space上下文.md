@@ -1,7 +1,10 @@
 # Portal 导航与 Space 上下文
 
 > **翻译说明：** 本文是[英文原文](../../design/portal-navigation-and-space-context.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
-> **受众：** Portal 贡献者与产品设计者 · **状态：** 计划中
+> **受众：** Portal 贡献者与产品设计者 · **状态：** 进行中 —— 第 1 阶段（导航
+> 用语：Home 更名为 Chat，侧边栏按 Work/Reuse/Data/Manage 分组，暴露 Workspace
+> Files，将部署管理从 Space 范围中分离）已上线；规范化的 Space 前缀路由模型、
+> 集中式 Space 切换、解析状态以及面包屑/响应式打磨仍在计划中。
 
 本文定义 Portal 导航如何表达作用域，以及 URL 如何确保 Space 所拥有的资源始终位于
 正确的 Space 中。这是一项可以独立交付的 R3 运维者路径改进，不改变路线图优先级。

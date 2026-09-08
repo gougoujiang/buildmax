@@ -83,7 +83,7 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
     <div className="settings-page">
       <div className="page-activity__head">
         <div>
-          <h1 className="page-activity__title">Space</h1>
+          <h1 className="page-activity__title">Space settings</h1>
           <p className="page-activity__subtitle">
             Current space information, quota visibility, and member management.
           </p>

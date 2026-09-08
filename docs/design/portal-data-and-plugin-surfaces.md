@@ -2,6 +2,10 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Portal数据与插件界面.md)
 > **Audience:** Portal, plugin, and artifact contributors · **Status:** planned
+> — part of slice 1 landed as a side effect of the Portal navigation record's
+> own slice 1 (Explore renamed to Workspace Files and moved into the sidebar's
+> Data group); the duplicate Account plugin destination and slices 2-4 remain
+> undone
 
 This record defines the names and boundaries for Workspace Files, Artifacts,
 Marketplace, Space Plugins, and Agent plugin selection. It is an independently
@@ -29,9 +33,10 @@ concept.
 
 ## Evidence and constraints
 
-- Workspace file browsing currently appears inside Chat and behind an “Explore”
-  route whose breadcrumb calls it Files. The mixed labels make a durable Space
-  resource look like a composer attachment feature.
+- Workspace Files now has its own sidebar entry, in the Data group, with a
+  matching page title and breadcrumb, so it no longer reads as a Chat
+  composer attachment feature. The route itself (`#/explore`) has not moved.
+  Account still exposes a separate, duplicate plugin destination.
 - Artifacts are Space-owned, immutable published outputs with their own sharing
   and preview lifecycle. Merging them with mutable workspace files would erase
   meaningful trust and lifecycle differences.
