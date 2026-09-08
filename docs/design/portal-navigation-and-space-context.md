@@ -1,7 +1,12 @@
 # Portal Navigation and Space Context
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Portal导航与Space上下文.md)
-> **Audience:** Portal contributors and product designers · **Status:** planned
+> **Audience:** Portal contributors and product designers · **Status:** in
+> progress — slice 1 (navigation language: Home renamed to Chat, sidebar
+> grouped into Work/Reuse/Data/Manage, Workspace Files exposed, deployment
+> Administration separated from Space scope) has shipped; the canonical
+> Space-prefixed route model, centralized Space switching, resolution states,
+> and breadcrumb/responsive polish are still planned.
 
 This record defines how Portal navigation communicates scope and how URLs keep
 Space-owned resources in the correct Space. It is an independently deliverable

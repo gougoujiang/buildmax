@@ -165,12 +165,12 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
       ]
     } else if (task.conversation_id) {
       trail = [
-        { label: "Home", route: { name: "home" } },
+        { label: "Chat", route: { name: "home" } },
         { label: "Conversation", route: { name: "conversation", conversationId: task.conversation_id } },
         leaf,
       ]
     } else {
-      trail = [{ label: "Home", route: { name: "home" } }, leaf]
+      trail = [{ label: "Chat", route: { name: "home" } }, leaf]
     }
     setBreadcrumbTrail(taskId, trail)
   }, [task, taskId, entityLabels, setBreadcrumbTrail])

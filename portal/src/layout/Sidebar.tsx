@@ -14,6 +14,7 @@ import IssueIcon from "../icons/issue.svg?react"
 import WorkflowIcon from "../icons/workflow.svg?react"
 import AgentsIcon from "../icons/agents.svg?react"
 import ArtifactIcon from "../icons/artifact.svg?react"
+import FilesIcon from "../icons/files.svg?react"
 import ShieldIcon from "../icons/shield.svg?react"
 import { CreateSpaceDialog } from "../components/CreateSpaceDialog"
 import { useSpace } from "../contexts/SpaceContext"
@@ -49,6 +50,14 @@ function isWorkflowsActive(route: Route): boolean {
 
 function isArtifactsActive(route: Route): boolean {
   return route.name === "artifacts" || route.name === "artifact"
+}
+
+function isFilesActive(route: Route): boolean {
+  return route.name === "explore"
+}
+
+function isSpaceSettingsActive(route: Route): boolean {
+  return route.name === "space"
 }
 
 function isAdminActive(route: Route): boolean {
@@ -173,13 +182,16 @@ export function Sidebar({
               {(currentSpace?.name ?? "S").slice(0, 1).toUpperCase()}
             </div>
           )}
+        </div>
+        <div className="sidebar__group">
+          <span className="sidebar__group-label">Work</span>
           <button
             type="button"
             className={cn("sidebar__nav-item", route.name === "home" && "sidebar__nav-item--active")}
             onClick={() => navigate({ name: "home" })}
           >
             <NewChatIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">Home</span>
+            <span className="sidebar__nav-item-text">Chat</span>
           </button>
           <button
             type="button"
@@ -189,14 +201,9 @@ export function Sidebar({
             <IssueIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">Issues</span>
           </button>
-          <button
-            type="button"
-            className={cn("sidebar__nav-item", isWorkflowsActive(route) && "sidebar__nav-item--active")}
-            onClick={() => navigate({ name: "workflows" })}
-          >
-            <WorkflowIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">Workflows</span>
-          </button>
+        </div>
+        <div className="sidebar__group">
+          <span className="sidebar__group-label">Reuse</span>
           <button
             type="button"
             className={cn("sidebar__nav-item", isAgentsActive(route) && "sidebar__nav-item--active")}
@@ -207,13 +214,49 @@ export function Sidebar({
           </button>
           <button
             type="button"
+            className={cn("sidebar__nav-item", isWorkflowsActive(route) && "sidebar__nav-item--active")}
+            onClick={() => navigate({ name: "workflows" })}
+          >
+            <WorkflowIcon className="sidebar__nav-icon" aria-hidden />
+            <span className="sidebar__nav-item-text">Workflows</span>
+          </button>
+        </div>
+        <div className="sidebar__group">
+          <span className="sidebar__group-label">Data</span>
+          <button
+            type="button"
+            className={cn("sidebar__nav-item", isFilesActive(route) && "sidebar__nav-item--active")}
+            onClick={() => navigate({ name: "explore" })}
+          >
+            <FilesIcon className="sidebar__nav-icon" aria-hidden />
+            <span className="sidebar__nav-item-text">Workspace Files</span>
+          </button>
+          <button
+            type="button"
             className={cn("sidebar__nav-item", isArtifactsActive(route) && "sidebar__nav-item--active")}
             onClick={() => navigate({ name: "artifacts" })}
           >
             <ArtifactIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">Artifacts</span>
           </button>
-          {isSystemAdmin && (
+        </div>
+        <div className="sidebar__group">
+          <span className="sidebar__group-label">Manage</span>
+          <button
+            type="button"
+            className={cn("sidebar__nav-item", isSpaceSettingsActive(route) && "sidebar__nav-item--active")}
+            onClick={() => navigate({ name: "space", section: "overview" })}
+          >
+            <SettingsIcon className="sidebar__nav-icon" aria-hidden />
+            <span className="sidebar__nav-item-text">Space settings</span>
+          </button>
+        </div>
+        {isSystemAdmin && (
+          // Deployment administration is a global-scope destination, not a Space
+          // one: it stays a first-level nav item (per prior decision below) but
+          // sits in its own section, outside the Space-grouped nav above, so it
+          // never reads as if the selected Space changed its authority.
+          <div className="sidebar__group sidebar__group--global">
             <button
               type="button"
               className={cn("sidebar__nav-item", isAdminActive(route) && "sidebar__nav-item--active")}
@@ -222,8 +265,8 @@ export function Sidebar({
               <ShieldIcon className="sidebar__nav-icon" aria-hidden />
               <span className="sidebar__nav-item-text">Administration</span>
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </nav>
       <div className="sidebar__footer" aria-label="User" ref={userMenuRef}>
         <button
@@ -274,26 +317,6 @@ export function Sidebar({
               </span>
               Account
             </button>
-            <button
-              type="button"
-              className="sidebar__user-menu-item"
-              role="menuitem"
-              onClick={() => {
-                setUserMenuOpen(false)
-                navigate({ name: "space", section: "overview" })
-              }}
-            >
-              <span className="sidebar__user-menu-item-icon" aria-hidden>
-                <SettingsIcon />
-              </span>
-              Space
-            </button>
-            {/*
-              Administration is a first-level sidebar destination for a confirmed
-              holder, not a user-menu item: it is a separate authority over the
-              deployment, and the server confirms the grant before the nav entry
-              is shown at all.
-            */}
             <button
               type="button"
               className="sidebar__user-menu-item"
