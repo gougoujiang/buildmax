@@ -8,16 +8,15 @@ import {
 } from "../../lib/api/mappers"
 import { getWorkflow, getWorkflowRunDetail } from "../../features/workflows"
 import { navigate } from "../../router"
-import { useSpace } from "../../contexts/SpaceContext"
 import { useApp } from "../../contexts/AppContext"
 
 interface WorkflowRunDetailProps {
   token: string | null
+  spaceId: string
   workflowRunId: string
 }
 
-export function WorkflowRunDetail({ token, workflowRunId }: WorkflowRunDetailProps) {
-  const { currentSpaceId } = useSpace()
+export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRunDetailProps) {
   const { setEntityLabel } = useApp()
   const [workflow, setWorkflow] = useState<Workflow | null>(null)
   const [run, setRun] = useState<WorkflowRun | null>(null)
@@ -28,7 +27,7 @@ export function WorkflowRunDetail({ token, workflowRunId }: WorkflowRunDetailPro
   const [lastRefreshedAt, setLastRefreshedAt] = useState<number | null>(null)
 
   const load = useCallback(async (background = false) => {
-    if (!token || !currentSpaceId) {
+    if (!token || !spaceId) {
       setWorkflow(null)
       setRun(null)
       setSteps([])
@@ -43,11 +42,11 @@ export function WorkflowRunDetail({ token, workflowRunId }: WorkflowRunDetailPro
       setError(null)
     }
     try {
-      const detail = await getWorkflowRunDetail(currentSpaceId, workflowRunId, token)
+      const detail = await getWorkflowRunDetail(spaceId, workflowRunId, token)
       const mappedRun = apiWorkflowRunToWorkflowRun(detail.run)
       setRun(mappedRun)
       setSteps(detail.steps.map(apiWorkflowStepRunToWorkflowStepRun))
-      const workflowApi = await getWorkflow(currentSpaceId, detail.run.workflow_id, token)
+      const workflowApi = await getWorkflow(spaceId, detail.run.workflow_id, token)
       setWorkflow(apiWorkflowToWorkflow(workflowApi))
       setLastRefreshedAt(Date.now())
     } catch (err) {
@@ -61,7 +60,7 @@ export function WorkflowRunDetail({ token, workflowRunId }: WorkflowRunDetailPro
         setLoading(false)
       }
     }
-  }, [token, currentSpaceId, workflowRunId])
+  }, [token, spaceId, workflowRunId])
 
   useEffect(() => {
     void load()
@@ -111,7 +110,7 @@ export function WorkflowRunDetail({ token, workflowRunId }: WorkflowRunDetailPro
             <button
               type="button"
               className="page-activity__action-btn"
-              onClick={() => navigate({ name: "workflow", workflowId: workflow.id })}
+              onClick={() => navigate({ name: "workflow", spaceId, workflowId: workflow.id })}
             >
               Back to Workflow
             </button>
@@ -190,7 +189,7 @@ export function WorkflowRunDetail({ token, workflowRunId }: WorkflowRunDetailPro
                           <button
                             type="button"
                             className="page-activity__action-btn"
-							onClick={() => navigate({ name: "task", taskId: step.taskId! })}
+							onClick={() => navigate({ name: "task", spaceId, taskId: step.taskId! })}
                           >
 							Open Task
                           </button>

@@ -55,7 +55,7 @@ test("running an Agent directly reaches a Task with no Conversation, and Continu
   })
   reportLeftovers(current.spaceId, [`agent ${agent.id}`])
 
-  await page.goto("/#/agents")
+  await page.goto(`/#/spaces/${current.spaceId}/agents`)
   await expect(page.getByRole("heading", { name: "Agents", exact: true })).toBeVisible()
 
   // The Run button is a typed request, not a detour through a Conversation: it
@@ -69,8 +69,8 @@ test("running an Agent directly reaches a Task with no Conversation, and Continu
 
   // Submitting navigates straight to the Task page. No intermediate
   // Conversation page is ever reached.
-  await page.waitForURL(/#\/task\//, { timeout: 15_000 })
-  const taskId = decodeURIComponent(page.url().split("/task/")[1] ?? "")
+  await page.waitForURL(/#\/spaces\/[^/]+\/tasks\//, { timeout: 15_000 })
+  const taskId = decodeURIComponent(page.url().split("/tasks/")[1] ?? "")
   expect(taskId).not.toBe("")
   reportLeftovers(current.spaceId, [`task ${taskId}`])
 
@@ -123,4 +123,34 @@ test("running an Agent directly reaches a Task with no Conversation, and Continu
 
   await waitForTaskSucceeded(page, current, taskId)
   await expect(history.locator(".bm-chat-thread__row--assistant").last()).toContainText(REPLY)
+})
+
+// docs/design/portal-navigation-and-space-context.md requires every Space
+// route to carry its own Space id and to survive a reload -- and until now
+// Agent and Task detail had no direct-entry coverage at all, only Issue and
+// Workflow did.
+test("Agent and Task detail are reachable by URL and survive a reload", async ({ page }) => {
+  const current = await session(page)
+  const agentName = tagged("Direct entry probe agent")
+  const agent = await postJSON<{ id: string }>(page, `${current.space}/agents`, current, {
+    name: agentName,
+    description: "Created by the Portal browser tests.",
+    instructions: `Reply with exactly: ${REPLY}`,
+  })
+  const task = await postJSON<{ id: string }>(page, `${current.space}/agents/${agent.id}/tasks`, current, {
+    input: "Direct entry probe",
+  })
+  reportLeftovers(current.spaceId, [`agent ${agent.id}`, `task ${task.id}`])
+
+  // Not `exact`: the freshly created task is still queued, and the heading
+  // appends a "running" indicator with no separating space while one is.
+  await page.goto(`/#/spaces/${current.spaceId}/agents/${agent.id}`)
+  await expect(page.getByRole("heading", { name: agentName })).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole("heading", { name: agentName })).toBeVisible()
+
+  await page.goto(`/#/spaces/${current.spaceId}/tasks/${task.id}`)
+  await expect(page.getByLabel("Breadcrumb").getByText(agentName, { exact: true })).toBeVisible()
+  await page.reload()
+  await expect(page.getByLabel("Breadcrumb").getByText(agentName, { exact: true })).toBeVisible()
 })

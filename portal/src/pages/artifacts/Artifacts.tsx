@@ -27,9 +27,13 @@ const PAGE_SIZE = 50
  * produced, so it is browsed alongside issues and runs, not alongside the
  * knobs that configure the space.
  */
-export function Artifacts() {
+interface ArtifactsProps {
+  spaceId: string
+}
+
+export function Artifacts({ spaceId }: ArtifactsProps) {
   const { token, user } = useAuth()
-  const { currentSpaceId, currentUserRole } = useSpace()
+  const { currentUserRole } = useSpace()
   const [items, setItems] = useState<ApiArtifact[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -40,10 +44,10 @@ export function Artifacts() {
 
   const load = useCallback(
     (offset: number) => {
-      if (!currentSpaceId || !token) return
+      if (!spaceId || !token) return
       setLoading(true)
       setError(null)
-      listArtifacts(currentSpaceId, token, { limit: PAGE_SIZE, offset })
+      listArtifacts(spaceId, token, { limit: PAGE_SIZE, offset })
         .then((res) => {
           setItems((prev) => (offset === 0 ? res.items : [...prev, ...res.items]))
           setTotal(res.total)
@@ -51,7 +55,7 @@ export function Artifacts() {
         .catch((err) => setError(getErrorMessage(err, "Failed to load artifacts")))
         .finally(() => setLoading(false))
     },
-    [currentSpaceId, token]
+    [spaceId, token]
   )
 
   useEffect(() => {
@@ -62,11 +66,11 @@ export function Artifacts() {
     const file = event.target.files?.[0]
     // Cleared straight away so choosing the same file twice still fires.
     event.target.value = ""
-    if (!file || !currentSpaceId || !token) return
+    if (!file || !spaceId || !token) return
     setUploading(true)
     setError(null)
     try {
-      await uploadArtifact(currentSpaceId, token, file)
+      await uploadArtifact(spaceId, token, file)
       load(0)
     } catch (err) {
       setError(getErrorMessage(err, "Upload failed"))
@@ -121,7 +125,7 @@ export function Artifacts() {
             type="button"
             className="page-activity__action-btn"
             onClick={() => fileInput.current?.click()}
-            disabled={uploading || !currentSpaceId}
+            disabled={uploading || !spaceId}
           >
             {uploading ? "Uploading…" : "Upload a file"}
           </button>

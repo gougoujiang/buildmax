@@ -27,21 +27,28 @@ export interface Conversation {
 
 // --- Route types ---
 
+// Every Space-owned route carries the Space's public id: the URL is
+// authoritative for Space context, never a previously-selected Space held in
+// local state. `artifact` is the one ID-resolved exception (see
+// docs/design/portal-navigation-and-space-context.md) -- Portal looks it up
+// by id alone and then reconciles the shell to the artifact's own Space.
 export type Route =
-  | { name: "home" }
   | { name: "login" }
-  | { name: "conversation"; conversationId: string }
-  | { name: "task"; taskId: string }
-  | { name: "conversations" }
-  | { name: "explore" }
-  | { name: "agents" }
-  | { name: "agent"; agentId: string }
+  // Folds the former home/conversations/conversation routes: the composer
+  // and its list live at the collection form, one open conversation at the
+  // detail form.
+  | { name: "chat"; spaceId: string; conversationId?: string }
+  | { name: "task"; spaceId: string; taskId: string }
+  | { name: "explore"; spaceId: string }
+  | { name: "agents"; spaceId: string }
+  | { name: "agent"; spaceId: string; agentId: string }
   | {
       name: "account"
       section?: "general" | "usage" | "webhook" | "invitations"
     }
   | {
       name: "space"
+      spaceId: string
       section?: "overview" | "members" | "plugins" | "security" | "secrets" | "audit" | "memberNew"
     }
   | {
@@ -51,15 +58,18 @@ export type Route =
       // be linked. Only meaningful for the accounts section.
       userId?: string
     }
-  | { name: "workflows" }
-  | { name: "workflow"; workflowId: string }
-  | { name: "workflowRun"; workflowRunId: string }
-  | { name: "issues" }
-  | { name: "issue"; issueId: string }
-  | { name: "artifacts" }
+  | { name: "workflows"; spaceId: string }
+  | { name: "workflow"; spaceId: string; workflowId: string }
+  | { name: "workflowRun"; spaceId: string; workflowRunId: string }
+  | { name: "issues"; spaceId: string }
+  | { name: "issue"; spaceId: string; issueId: string }
+  | { name: "artifacts"; spaceId: string }
   | { name: "artifact"; artifactId: string }
   | { name: "marketplace" }
   | { name: "help"; slug?: string }
+
+/** Every `Route["name"]` that carries a `spaceId` -- i.e. every Space-owned route. */
+export type SpaceScopedRouteName = Extract<Route, { spaceId: string }>["name"]
 
 /** One breadcrumb segment: a label and the route it links to. */
 export interface BreadcrumbCrumb {

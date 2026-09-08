@@ -1,6 +1,5 @@
 import { cn } from "../../../lib/cn"
 import { useAuth } from "../../../contexts/AuthContext"
-import { useSpace } from "../../../contexts/SpaceContext"
 import { useMediaQuery } from "../../../hooks/useMediaQuery"
 import { FileList } from "./FileList"
 import { FileTree } from "./FileTree"
@@ -8,13 +7,13 @@ import { FileViewer } from "./FileViewer"
 import { useFilesExplorer } from "../hooks/useFilesExplorer"
 
 interface FilesExplorerProps {
+  spaceId: string
   className?: string
 }
 
-export function FilesExplorer({ className }: FilesExplorerProps) {
+export function FilesExplorer({ spaceId, className }: FilesExplorerProps) {
   const { token } = useAuth()
-  const { currentSpaceId } = useSpace()
-  const explorer = useFilesExplorer({ spaceId: currentSpaceId, token })
+  const explorer = useFilesExplorer({ spaceId, token })
   // Narrow layouts show one column at a time (folder contents, or the
   // selected file) instead of a side tree — see
   // docs/design/portal-responsive-and-accessible-interaction.md.

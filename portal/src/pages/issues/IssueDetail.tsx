@@ -32,6 +32,7 @@ import { useApp } from "../../contexts/AppContext"
 
 interface IssueDetailProps {
   token: string | null
+  spaceId: string
   issueId: string
   userId?: string
 }
@@ -74,8 +75,8 @@ function latestRun(flow: IssueFlow | null): IssueFlowRun | null {
   return flow?.runs[0] ?? null
 }
 
-export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
-  const { currentSpaceId, currentUserRole } = useSpace()
+export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProps) {
+  const { currentUserRole } = useSpace()
   const { setEntityLabel } = useApp()
   const [tab, setTab] = useState<IssueTab>("overview")
   const [flow, setFlow] = useState<IssueFlow | null>(null)
@@ -111,7 +112,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   const canAssignWorkflow = currentUserRole === "owner" || currentUserRole === "admin"
 
   const load = useCallback(async () => {
-    if (!token || !currentSpaceId) {
+    if (!token || !spaceId) {
       setFlow(null)
       setAgents([])
       setWorkflows([])
@@ -123,10 +124,10 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
     setLoadError(null)
     try {
       const [flowApi, agentsApi, membersApi, workflowsApi] = await Promise.all([
-        getIssueFlow(currentSpaceId, issueId, token),
-        getAgents(currentSpaceId, token),
-        getSpaceMembers(currentSpaceId, token),
-        getWorkflows(currentSpaceId, token),
+        getIssueFlow(spaceId, issueId, token),
+        getAgents(spaceId, token),
+        getSpaceMembers(spaceId, token),
+        getWorkflows(spaceId, token),
       ])
       const mapped = mapIssueFlow(flowApi)
       setFlow(mapped)
@@ -147,7 +148,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
     } finally {
       setLoading(false)
     }
-  }, [token, currentSpaceId, issueId])
+  }, [token, spaceId, issueId])
 
   useEffect(() => {
     void load()
@@ -216,7 +217,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   }
 
   function handleSave() {
-    if (!token || !currentSpaceId || !flow) return
+    if (!token || !spaceId || !flow) return
     const [executorKind, executorID] = executorValue ? executorValue.split(":") : ["", ""]
     if (executorKind === "workflow" && !canAssignWorkflow) {
       setSaveError("Workflow assignment is limited to space owners and admins")
@@ -226,7 +227,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
     setSaveError(null)
     setSaveMessage(null)
     updateIssue(
-      currentSpaceId,
+      spaceId,
       flow.issue.id,
       {
         version: flow.issue.version,
@@ -262,12 +263,12 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   }
 
   function handleAddSubIssue() {
-    if (!token || !currentSpaceId || !flow) return
+    if (!token || !spaceId || !flow) return
     const trimmed = subIssueTitle.trim()
     if (!trimmed || addingSubIssue) return
     setAddingSubIssue(true)
     setSubIssueError(null)
-    createIssue(currentSpaceId, { title: trimmed, parent_issue_id: flow.issue.id }, token)
+    createIssue(spaceId, { title: trimmed, parent_issue_id: flow.issue.id }, token)
       .then(() => {
         setSubIssueTitle("")
         return load()
@@ -277,50 +278,50 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   }
 
   function handleRunWorkflow() {
-    if (!token || !currentSpaceId || !flow) return
+    if (!token || !spaceId || !flow) return
     setRunningWorkflow(true)
     setRunError(null)
-    runIssueWorkflow(currentSpaceId, flow.issue.id, token)
+    runIssueWorkflow(spaceId, flow.issue.id, token)
       .then((detail) => {
         void load()
         // A successful schedule links straight to what it started, not back to
         // this form -- that link is the confirmation Run succeeded.
-        navigate({ name: "workflowRun", workflowRunId: detail.run.id })
+        navigate({ name: "workflowRun", spaceId, workflowRunId: detail.run.id })
       })
       .catch((err) => setRunError(getErrorMessage(err, "Failed to run workflow")))
       .finally(() => setRunningWorkflow(false))
   }
 
   function handleCancelTask(taskId: string) {
-    if (!token || !currentSpaceId || cancelingTaskId) return
+    if (!token || !spaceId || cancelingTaskId) return
     setCancelingTaskId(taskId)
     setRunError(null)
-    cancelTask(currentSpaceId, taskId, token)
+    cancelTask(spaceId, taskId, token)
       .then(() => load())
       .catch((err) => setRunError(getErrorMessage(err, "Failed to stop this run")))
       .finally(() => setCancelingTaskId(null))
   }
 
   function handleRetryTask(taskId: string) {
-    if (!token || !currentSpaceId || retryingTaskId) return
+    if (!token || !spaceId || retryingTaskId) return
     setRetryingTaskId(taskId)
     setRunError(null)
-    retryTask(currentSpaceId, taskId, token)
+    retryTask(spaceId, taskId, token)
       .then(() => load())
       .catch((err) => setRunError(getErrorMessage(err, "Failed to retry this run")))
       .finally(() => setRetryingTaskId(null))
   }
 
   function handleRunAgent() {
-    if (!token || !currentSpaceId || !flow) return
+    if (!token || !spaceId || !flow) return
     setRunningAgent(true)
     setRunError(null)
-    runIssueAgent(currentSpaceId, flow.issue.id, token)
+    runIssueAgent(spaceId, flow.issue.id, token)
       .then((created) => {
         void load()
         // Same contract as Run Workflow: land on the run this started, not on
         // a form that just quietly reloaded.
-        navigate({ name: "task", taskId: created.id })
+        navigate({ name: "task", spaceId, taskId: created.id })
       })
       .catch((err) => setRunError(getErrorMessage(err, "Failed to run agent")))
       .finally(() => setRunningAgent(false))
@@ -350,7 +351,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
           </p>
         </div>
         <div className="page-activity__actions">
-          <button type="button" className="page-activity__action-btn" onClick={() => navigate({ name: "issues" })}>
+          <button type="button" className="page-activity__action-btn" onClick={() => navigate({ name: "issues", spaceId })}>
             Back to Issues
           </button>
           <button type="button" className="page-activity__action-btn" disabled={loading} onClick={() => void load()}>
@@ -532,7 +533,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
                     <button
                       type="button"
                       className="page-activity__action-btn"
-                      onClick={() => navigate({ name: "issue", issueId: flow.parent!.id })}
+                      onClick={() => navigate({ name: "issue", spaceId, issueId: flow.parent!.id })}
                     >
                       ← {flow.parent.title}
                     </button>
@@ -551,7 +552,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
                             <button
                               type="button"
                               className="page-activity__action-btn"
-                              onClick={() => navigate({ name: "issue", issueId: child.id })}
+                              onClick={() => navigate({ name: "issue", spaceId, issueId: child.id })}
                             >
                               {child.title}
                             </button>
@@ -607,7 +608,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
                       <button
                         type="button"
                         className="page-activity__action-btn"
-                        onClick={() => navigate({ name: "workflowRun", workflowRunId: currentRun.run.id })}
+                        onClick={() => navigate({ name: "workflowRun", spaceId, workflowRunId: currentRun.run.id })}
                       >
                         Open Run Detail
                       </button>
@@ -615,7 +616,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
                         <button
                           type="button"
                           className="page-activity__action-btn"
-                          onClick={() => navigate({ name: "task", taskId: currentRunLatestTaskId })}
+                          onClick={() => navigate({ name: "task", spaceId, taskId: currentRunLatestTaskId })}
                         >
                           Open Task
                         </button>
@@ -635,7 +636,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
                       <button
                         type="button"
                         className="page-activity__action-btn"
-                        onClick={() => navigate({ name: "task", taskId: latestAgentTask.id })}
+                        onClick={() => navigate({ name: "task", spaceId, taskId: latestAgentTask.id })}
                       >
                         Open Task
                       </button>
@@ -685,14 +686,14 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
                     <button
                       type="button"
                       className="page-activity__action-btn"
-                      onClick={() => navigate({ name: "explore" })}
+                      onClick={() => navigate({ name: "explore", spaceId })}
                     >
                       Workspace Files
                     </button>
                   </div>
                 </div>
                 <IssueDiscussion
-                  spaceId={currentSpaceId}
+                  spaceId={spaceId}
                   issueId={flow.issue.id}
                   token={token}
                   userId={userId ?? null}
@@ -720,8 +721,8 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
                 <OutputsList
                   outputs={flow.outputs}
                   token={token}
-                  onOpenConversation={(conversationId) => navigate({ name: "conversation", conversationId })}
-                  onOpenRun={(workflowRunId) => navigate({ name: "workflowRun", workflowRunId })}
+                  onOpenConversation={(conversationId) => navigate({ name: "chat", spaceId, conversationId })}
+                  onOpenRun={(workflowRunId) => navigate({ name: "workflowRun", spaceId, workflowRunId })}
                   onOpenTrace={(taskRunId) => setTraceRunId(taskRunId)}
                 />
               </section>
@@ -747,7 +748,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
                         <button
                           type="button"
                           className="workflow-page__run-row"
-                          onClick={() => navigate({ name: "workflowRun", workflowRunId: item.run.id })}
+                          onClick={() => navigate({ name: "workflowRun", spaceId, workflowRunId: item.run.id })}
                         >
                           <span>
                             <strong>{item.run.id}</strong>
@@ -777,7 +778,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
                         <button
                           type="button"
                           className="workflow-page__run-row"
-                          onClick={() => navigate({ name: "task", taskId: task.id })}
+                          onClick={() => navigate({ name: "task", spaceId, taskId: task.id })}
                         >
                           <span>
                             <strong>{task.title}</strong>
@@ -819,7 +820,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
       )}
       <RunTraceModal
         open={traceRunId != null}
-        spaceId={currentSpaceId}
+        spaceId={spaceId}
         token={token}
         taskRunId={traceRunId}
         onClose={() => setTraceRunId(null)}

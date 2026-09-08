@@ -5,7 +5,6 @@ import { Avatar, BaseModal, ChatComposer, ChatThread, type ChatThreadItem } from
 import { AgentAvatar, UserAvatar } from "../../components/UserAvatar"
 import { useApp } from "../../contexts/AppContext"
 import { useAuth } from "../../contexts/AuthContext"
-import { useSpace } from "../../contexts/SpaceContext"
 import { cancelTask, continueTask, getTask, getTaskRuns, retryTask, streamTaskOutput } from "../../features/tasks"
 import { getAgent } from "../../features/agents"
 import { RunTraceModal, runInputLabel } from "../../features/runs"
@@ -17,6 +16,7 @@ import { getErrorMessage } from "../../lib/errorMessage"
 
 interface TaskDetailProps {
   token: string | null
+  spaceId: string
   taskId: string
 }
 
@@ -49,8 +49,7 @@ function TypingDots() {
   )
 }
 
-export function TaskDetail({ token, taskId }: TaskDetailProps) {
-  const { currentSpaceId } = useSpace()
+export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
   const { user } = useAuth()
   const { entityLabels, setEntityLabel, setBreadcrumbTrail } = useApp()
   const historyRef = useRef<HTMLElement | null>(null)
@@ -68,11 +67,11 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
   const [streamingText, setStreamingText] = useState("")
 
   const load = useCallback(async () => {
-    if (!token || !currentSpaceId) return
+    if (!token || !spaceId) return
     try {
       const [nextTask, nextRuns] = await Promise.all([
-        getTask(currentSpaceId, taskId, token),
-        getTaskRuns(currentSpaceId, taskId, token),
+        getTask(spaceId, taskId, token),
+        getTaskRuns(spaceId, taskId, token),
       ])
       setTask(nextTask)
       setRuns(nextRuns)
@@ -82,7 +81,7 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
     } finally {
       setLoading(false)
     }
-  }, [currentSpaceId, taskId, token])
+  }, [spaceId, taskId, token])
 
   useEffect(() => {
     setLoading(true)
@@ -102,11 +101,11 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
   // page reloads for the terminal record and the poll carries on. The stream is
   // best-effort liveness, never the source of truth.
   useEffect(() => {
-    if (!token || !currentSpaceId || !running) return
+    if (!token || !spaceId || !running) return
     const ac = new AbortController()
     setStreamingText("")
     void streamTaskOutput(
-      currentSpaceId,
+      spaceId,
       taskId,
       token,
       {
@@ -124,7 +123,7 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
       { signal: ac.signal }
     )
     return () => ac.abort()
-  }, [token, currentSpaceId, taskId, running, load])
+  }, [token, spaceId, taskId, running, load])
 
   useEffect(() => {
     historyRef.current?.scrollTo({ top: historyRef.current.scrollHeight, behavior: "smooth" })
@@ -133,14 +132,14 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
   // Resolve the agent's name for the header link and details panel, and share it
   // so this task's breadcrumb reads the name too.
   useEffect(() => {
-    if (!token || !currentSpaceId || !task?.agent_id) {
+    if (!token || !spaceId || !task?.agent_id) {
       setAgentName(null)
       return
     }
-    getAgent(currentSpaceId, task.agent_id, token)
+    getAgent(spaceId, task.agent_id, token)
       .then((a) => setAgentName(a.name))
       .catch(() => setAgentName(null))
-  }, [token, currentSpaceId, task?.agent_id])
+  }, [token, spaceId, task?.agent_id])
 
   useEffect(() => {
     if (task?.agent_id && agentName) setEntityLabel(task.agent_id, agentName)
@@ -155,37 +154,37 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
   // because that genuinely is where it came from.
   useEffect(() => {
     if (!task) return
-    const leaf: BreadcrumbCrumb = { label: task.title || "Task", route: { name: "task", taskId } }
+    const leaf: BreadcrumbCrumb = { label: task.title || "Task", route: { name: "task", spaceId, taskId } }
     let trail: BreadcrumbCrumb[]
     if (task.issue_id) {
       trail = [
-        { label: "Issues", route: { name: "issues" } },
-        { label: entityLabels[task.issue_id] ?? "Issue", route: { name: "issue", issueId: task.issue_id } },
+        { label: "Issues", route: { name: "issues", spaceId } },
+        { label: entityLabels[task.issue_id] ?? "Issue", route: { name: "issue", spaceId, issueId: task.issue_id } },
         leaf,
       ]
     } else if (task.conversation_id) {
       trail = [
-        { label: "Chat", route: { name: "home" } },
-        { label: "Conversation", route: { name: "conversation", conversationId: task.conversation_id } },
+        { label: "Chat", route: { name: "chat", spaceId } },
+        { label: "Conversation", route: { name: "chat", spaceId, conversationId: task.conversation_id } },
         leaf,
       ]
     } else if (task.workflow_run_id) {
       trail = [
-        { label: "Workflows", route: { name: "workflows" } },
-        { label: "Workflow run", route: { name: "workflowRun", workflowRunId: task.workflow_run_id } },
+        { label: "Workflows", route: { name: "workflows", spaceId } },
+        { label: "Workflow run", route: { name: "workflowRun", spaceId, workflowRunId: task.workflow_run_id } },
         leaf,
       ]
     } else if (task.agent_id) {
       trail = [
-        { label: "Agents", route: { name: "agents" } },
-        { label: entityLabels[task.agent_id] ?? "Agent", route: { name: "agent", agentId: task.agent_id } },
+        { label: "Agents", route: { name: "agents", spaceId } },
+        { label: entityLabels[task.agent_id] ?? "Agent", route: { name: "agent", spaceId, agentId: task.agent_id } },
         leaf,
       ]
     } else {
-      trail = [{ label: "Chat", route: { name: "home" } }, leaf]
+      trail = [{ label: "Chat", route: { name: "chat", spaceId } }, leaf]
     }
     setBreadcrumbTrail(taskId, trail)
-  }, [task, taskId, entityLabels, setBreadcrumbTrail])
+  }, [task, taskId, spaceId, entityLabels, setBreadcrumbTrail])
 
   // The task rendered as a conversation: each run is one user turn (its input)
   // and one agent turn (its output). Run-level technical detail lives in the
@@ -242,13 +241,13 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
 
   async function handleContinue() {
     const message = input.trim()
-    if (!message || !token || !currentSpaceId || sending || running) return
+    if (!message || !token || !spaceId || sending || running) return
     setSending(true)
     setError(null)
     try {
       // Generated fresh per attempt: this call's own retry-on-401 reuses it, so
       // a token refresh cannot turn one Continue into two runs.
-      const run = await continueTask(currentSpaceId, taskId, message, token, crypto.randomUUID())
+      const run = await continueTask(spaceId, taskId, message, token, crypto.randomUUID())
       setRuns((current) => [...current, run])
       setInput("")
     } catch (err) {
@@ -259,20 +258,20 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
   }
 
   function handleStop() {
-    if (!token || !currentSpaceId || stopping || !running) return
+    if (!token || !spaceId || stopping || !running) return
     setStopping(true)
     setError(null)
-    cancelTask(currentSpaceId, taskId, token)
+    cancelTask(spaceId, taskId, token)
       .then(() => load())
       .catch((err) => setError(getErrorMessage(err, "Failed to stop this run")))
       .finally(() => setStopping(false))
   }
 
   function handleRetry() {
-    if (!token || !currentSpaceId || retrying || running) return
+    if (!token || !spaceId || retrying || running) return
     setRetrying(true)
     setError(null)
-    retryTask(currentSpaceId, taskId, token)
+    retryTask(spaceId, taskId, token)
       .then(() => load())
       .catch((err) => setError(getErrorMessage(err, "Failed to retry this run")))
       .finally(() => setRetrying(false))
@@ -312,7 +311,7 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
             <button
               type="button"
               className="page-activity__action-btn"
-              onClick={() => navigate({ name: "agent", agentId: task.agent_id! })}
+              onClick={() => navigate({ name: "agent", spaceId, agentId: task.agent_id! })}
             >
               Open agent
             </button>
@@ -335,7 +334,7 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
                 <button
                   type="button"
                   className="task-details__link"
-                  onClick={() => navigate({ name: "agent", agentId: task.agent_id! })}
+                  onClick={() => navigate({ name: "agent", spaceId, agentId: task.agent_id! })}
                 >
                   {agentName ?? "Agent"}
                 </button>
@@ -364,7 +363,7 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
                   <button
                     type="button"
                     className="task-details__link"
-                    onClick={() => navigate({ name: "issue", issueId: task.issue_id! })}
+                    onClick={() => navigate({ name: "issue", spaceId, issueId: task.issue_id! })}
                   >
                     Open issue
                   </button>
@@ -378,7 +377,7 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
                   <button
                     type="button"
                     className="task-details__link"
-                    onClick={() => navigate({ name: "conversation", conversationId: task.conversation_id! })}
+                    onClick={() => navigate({ name: "chat", spaceId, conversationId: task.conversation_id! })}
                   >
                     Open conversation
                   </button>
@@ -428,7 +427,7 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
 
       <RunTraceModal
         open={traceRunId != null}
-        spaceId={currentSpaceId}
+        spaceId={spaceId}
         token={token}
         taskRunId={traceRunId}
         onClose={() => setTraceRunId(null)}

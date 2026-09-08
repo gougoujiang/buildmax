@@ -17,10 +17,10 @@ test.use({ storageState: MEMBER_STATE })
 test("an account without a grant is sent away from the admin area", async ({ page }) => {
   await page.goto("/#/admin")
 
-  // Sent home rather than shown a forbidden screen: there is nothing there to
-  // tell them about. The heading is the whole area's marker.
+  // Sent to Chat rather than shown a forbidden screen: there is nothing there
+  // to tell them about. The heading is the whole area's marker.
   await expect(page.getByRole("heading", { name: "Administration" })).toHaveCount(0)
-  await expect(page).toHaveURL(/#\/?$|#\/home/)
+  await expect(page).toHaveURL(/#\/spaces\/[^/]+\/chat$/)
 
   // And the first-level sidebar entry is not there either: the server confirms
   // the grant before the nav item is rendered at all.

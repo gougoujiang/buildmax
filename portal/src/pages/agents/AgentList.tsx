@@ -19,10 +19,11 @@ import { useSpace } from "../../contexts/SpaceContext"
 
 interface AgentListProps {
   token: string | null
+  spaceId: string
 }
 
-export function AgentList({ token }: AgentListProps) {
-  const { currentSpaceId, currentUserRole } = useSpace()
+export function AgentList({ token, spaceId }: AgentListProps) {
+  const { currentUserRole } = useSpace()
   const [agents, setAgents] = useState<Agent[]>([])
   const [secrets, setSecrets] = useState<ApiSecret[]>([])
   const [availablePlugins, setAvailablePlugins] = useState<string[]>([])
@@ -37,42 +38,42 @@ export function AgentList({ token }: AgentListProps) {
   const canManageAgents = currentUserRole === "owner" || currentUserRole === "admin"
 
   const fetchAgents = useCallback(() => {
-    if (!token || !currentSpaceId) {
+    if (!token || !spaceId) {
       setAgents([])
       setLoading(false)
       return
     }
     setLoading(true)
-    getAgents(currentSpaceId, token)
+    getAgents(spaceId, token)
       .then((list) => {
         setAgents(list.map(apiAgentToAgent))
       })
       .finally(() => setLoading(false))
-  }, [token, currentSpaceId])
+  }, [token, spaceId])
 
   // The space's secrets, to populate the create dialog's consumption editor and
   // flag broken grants on the cards and overview. Owner-or-admin may list them;
   // a failure leaves the editor with no options rather than blocking the page.
   useEffect(() => {
-    if (!token || !currentSpaceId || !canManageAgents) {
+    if (!token || !spaceId || !canManageAgents) {
       setSecrets([])
       return
     }
-    listSecrets(token, currentSpaceId)
+    listSecrets(token, spaceId)
       .then((res) => setSecrets(res.secrets ?? []))
       .catch(() => setSecrets([]))
-  }, [token, currentSpaceId, canManageAgents])
+  }, [token, spaceId, canManageAgents])
 
   // The plugin names an agent in this space may name, for the create dialog's
   // plugins picker. A deployment without a Marketplace, or a failed request,
   // leaves it empty and the picker shows its empty state.
   useEffect(() => {
-    if (!token || !currentSpaceId || !canManageAgents) {
+    if (!token || !spaceId || !canManageAgents) {
       setAvailablePlugins([])
       return
     }
     Promise.all([
-      listActivations(token, currentSpaceId).catch(() => null),
+      listActivations(token, spaceId).catch(() => null),
       listPlugins(token).catch(() => null),
     ])
       .then(([activations, catalog]) =>
@@ -84,7 +85,7 @@ export function AgentList({ token }: AgentListProps) {
     listAgentModels(token)
       .then(setAvailableModels)
       .catch(() => setAvailableModels([]))
-  }, [token, currentSpaceId, canManageAgents])
+  }, [token, spaceId, canManageAgents])
 
   useEffect(() => {
     fetchAgents()
@@ -95,14 +96,14 @@ export function AgentList({ token }: AgentListProps) {
   // each is independent and a failure leaves that agent with no runs rather than
   // breaking the page. Tasks are stored newest-first for the "last run" label.
   useEffect(() => {
-    if (!token || !currentSpaceId || agents.length === 0) {
+    if (!token || !spaceId || agents.length === 0) {
       setTasksByAgent({})
       return
     }
     let cancelled = false
     Promise.all(
       agents.map((a) =>
-        listAgentTasks(currentSpaceId, a.id, token)
+        listAgentTasks(spaceId, a.id, token)
           .then((res) => [a.id, [...res.tasks].sort((x, y) => y.created_at.localeCompare(x.created_at))] as const)
           .catch(() => [a.id, [] as ApiTask[]] as const),
       ),
@@ -112,7 +113,7 @@ export function AgentList({ token }: AgentListProps) {
     return () => {
       cancelled = true
     }
-  }, [token, currentSpaceId, agents])
+  }, [token, spaceId, agents])
 
   const allTasks = useMemo(
     () => agents.flatMap((a) => (tasksByAgent[a.id] ?? []).map((task) => ({ task, agent: a }))),
@@ -156,15 +157,15 @@ export function AgentList({ token }: AgentListProps) {
     sandbox_filesystem_tier?: string
     secret_consumption?: import("../../lib/api/types").ApiSecretConsumption
   }) {
-    if (!token || !currentSpaceId) return
+    if (!token || !spaceId) return
     setError(null)
     setCreating(true)
-    createAgent(currentSpaceId, values, token)
+    createAgent(spaceId, values, token)
       .then((created) => {
         const mapped = apiAgentToAgent(created)
         setAgents((prev) => [...prev, mapped])
         setModalOpen(false)
-        navigate({ name: "agent", agentId: mapped.id })
+        navigate({ name: "agent", spaceId, agentId: mapped.id })
       })
       .catch((err) => setError(getErrorMessage(err, "Failed to create agent")))
       .finally(() => setCreating(false))
@@ -176,13 +177,13 @@ export function AgentList({ token }: AgentListProps) {
   }
 
   function handleStartTaskFromAgent(editedInput: string) {
-    if (!token || !currentSpaceId || !newTaskAgent) return
+    if (!token || !spaceId || !newTaskAgent) return
     setError(null)
     setStartingTaskAgentId(newTaskAgent.id)
-    createAgentTask(currentSpaceId, newTaskAgent.id, editedInput, token)
+    createAgentTask(spaceId, newTaskAgent.id, editedInput, token)
       .then((created) => {
         setNewTaskAgent(null)
-        navigate({ name: "task", taskId: created.id })
+        navigate({ name: "task", spaceId, taskId: created.id })
       })
       .catch((err) => {
         setError(getErrorMessage(err, "Failed to run agent"))
@@ -266,11 +267,11 @@ export function AgentList({ token }: AgentListProps) {
                     role="button"
                     tabIndex={0}
                     aria-label={`Open agent ${a.name}`}
-                    onClick={() => navigate({ name: "agent", agentId: a.id })}
+                    onClick={() => navigate({ name: "agent", spaceId, agentId: a.id })}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault()
-                        navigate({ name: "agent", agentId: a.id })
+                        navigate({ name: "agent", spaceId, agentId: a.id })
                       }
                     }}
                   >
@@ -334,7 +335,7 @@ export function AgentList({ token }: AgentListProps) {
                       key={task.id}
                       type="button"
                       className="agent-activity__row"
-                      onClick={() => navigate({ name: "task", taskId: task.id })}
+                      onClick={() => navigate({ name: "task", spaceId, taskId: task.id })}
                     >
                       <div className="agent-activity__body">
                         <span className="agent-activity__row-title">{ui.title}</span>

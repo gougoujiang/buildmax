@@ -1,5 +1,4 @@
 import { useAuth } from "../../contexts/AuthContext"
-import { useSpace } from "../../contexts/SpaceContext"
 import {
   ConversationDetailView,
   useConversationDetail,
@@ -9,25 +8,26 @@ import { RunTraceModal } from "../../features/runs"
 import { navigate } from "../../router"
 
 interface ConversationDetailProps {
+  spaceId: string
   conversationId: string
   onRefetch?: () => void
   initialMessage?: string
 }
 
 export function ConversationDetail({
+  spaceId,
   conversationId,
   onRefetch,
   initialMessage,
 }: ConversationDetailProps) {
   const { token, user } = useAuth()
-  const { currentSpaceId } = useSpace()
   const taskCards = useConversationTasks({
-    spaceId: currentSpaceId,
+    spaceId,
     conversationId,
     token,
   })
   const conversationDetail = useConversationDetail({
-    spaceId: currentSpaceId,
+    spaceId,
     conversationId,
     token,
     initialMessage,
@@ -43,7 +43,7 @@ export function ConversationDetail({
         messagesLoading={conversationDetail.messagesLoading}
         messagesError={conversationDetail.messagesError}
         taskCards={taskCards}
-        onOpenIssue={(issueId) => navigate({ name: "issue", issueId })}
+        onOpenIssue={(issueId) => navigate({ name: "issue", spaceId, issueId })}
         input={conversationDetail.input}
         setInput={conversationDetail.setInput}
         sending={conversationDetail.sending}
@@ -56,7 +56,7 @@ export function ConversationDetail({
       />
       <RunTraceModal
         open={taskCards.traceRunId != null}
-        spaceId={currentSpaceId}
+        spaceId={spaceId}
         token={token}
         taskRunId={taskCards.traceRunId}
         onClose={taskCards.closeTrace}

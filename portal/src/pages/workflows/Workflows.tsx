@@ -16,10 +16,11 @@ import { useSpace } from "../../contexts/SpaceContext"
 
 interface WorkflowsProps {
   token: string | null
+  spaceId: string
 }
 
-export function Workflows({ token }: WorkflowsProps) {
-  const { currentSpaceId, currentUserRole } = useSpace()
+export function Workflows({ token, spaceId }: WorkflowsProps) {
+  const { currentUserRole } = useSpace()
   const [agents, setAgents] = useState<Agent[]>([])
   const [workflows, setWorkflows] = useState<Workflow[]>([])
   const [loading, setLoading] = useState(true)
@@ -29,7 +30,7 @@ export function Workflows({ token }: WorkflowsProps) {
   const canManageWorkflows = currentUserRole === "owner" || currentUserRole === "admin"
 
   const fetchWorkflows = useCallback(() => {
-    if (!token || !currentSpaceId) {
+    if (!token || !spaceId) {
       setAgents([])
       setWorkflows([])
       setLoading(false)
@@ -38,8 +39,8 @@ export function Workflows({ token }: WorkflowsProps) {
     setLoading(true)
     setError(null)
     return Promise.all([
-      getWorkflows(currentSpaceId, token),
-      getAgents(currentSpaceId, token),
+      getWorkflows(spaceId, token),
+      getAgents(spaceId, token),
     ])
       .then(([workflowRes, agentRes]) => {
         setWorkflows(workflowRes.workflows.map(apiWorkflowToWorkflow))
@@ -47,7 +48,7 @@ export function Workflows({ token }: WorkflowsProps) {
       })
       .catch((err) => setError(getErrorMessage(err, "Failed to load workflows")))
       .finally(() => setLoading(false))
-  }, [token, currentSpaceId])
+  }, [token, spaceId])
 
   useEffect(() => {
     void fetchWorkflows()
@@ -60,10 +61,10 @@ export function Workflows({ token }: WorkflowsProps) {
   }, [workflows.length])
 
   function handleCreate(values: { name: string; description: string; definition: string }) {
-    if (!token || !currentSpaceId) return
+    if (!token || !spaceId) return
     setSaving(true)
     setError(null)
-    createWorkflow(currentSpaceId, values, token)
+    createWorkflow(spaceId, values, token)
       .then((created) => {
         setCreateOpen(false)
         setWorkflows((prev) => [...prev, apiWorkflowToWorkflow(created)])
@@ -125,7 +126,7 @@ export function Workflows({ token }: WorkflowsProps) {
                 <button
                   type="button"
                   className="issues-page__row"
-                  onClick={() => navigate({ name: "workflow", workflowId: workflow.id })}
+                  onClick={() => navigate({ name: "workflow", spaceId, workflowId: workflow.id })}
                 >
                   <span className="issues-page__row-main">
                     <span className="issues-page__row-title">{workflow.name}</span>

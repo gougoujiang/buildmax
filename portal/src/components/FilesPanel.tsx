@@ -1,9 +1,10 @@
 import { FilesExplorer } from "../features/files"
 
 interface FilesPanelProps {
+  spaceId: string
   className?: string
 }
 
-export function FilesPanel({ className }: FilesPanelProps) {
-  return <FilesExplorer className={className} />
+export function FilesPanel({ spaceId, className }: FilesPanelProps) {
+  return <FilesExplorer spaceId={spaceId} className={className} />
 }
