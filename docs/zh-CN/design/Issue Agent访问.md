@@ -2,7 +2,6 @@
 
 > **翻译说明：** 本文是[英文原文](../../design/issue-agent-access.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
-
 ## 目录
 
 - [状态](#状态)
@@ -17,38 +16,39 @@
 - [9. 范围之外](#9-范围之外)
 - [10. 实施步骤](#10-实施步骤)
 - [11. 开放问题](#11-开放问题)
-- [11。 开放的问题](#11-开放的问题)
 
 ## 状态
 
-- roadmap_priority：`unscheduled` — 本记录决定了已实施的 Issue 模型刻意留出的 Agent 修改权限问题；该工作尚未列入 [ROADMAP.md](../ROADMAP.md)
-- status：`implemented` — §10 已在两个执行平面交付：从 Issue 启动的 Worker 运行，以及通过 `buildmax issue start` 启动的本地 CLI 会话。`GetIssue` 中的 Artifact 引用仍被推迟，原因见 §5.1
+- roadmap_priority：`unscheduled` —— 本记录要解决的，是已实现的 Issue 模型刻意留下的“Agent 可否修改”问题；它没有出现在 [../ROADMAP.md](../ROADMAP.md) 中
+- status：`implemented` —— §10 已经在两个执行平面上交付：从 Issue 启动的 Worker 运行，以及通过 `buildmax issue start` 启动的本地 CLI 会话。`GetIssue` 中的 Artifact 引用被推迟，原因见 §5.1
 - follows：[tool-permissions.md](./工具权限.md)、[unified-artifacts.md](./统一工件.md)
 - relates：[surface-positioning.md](./界面定位.md)、[portal-execution-model.md](./Portal执行模型.md)
-- precedes：[local-issue-work-bridge.md](../proposals/local-issue-work-bridge.md)。该提案询问 Agent 可以通过工具执行哪些上下文修改；本记录给出答案。桥接方案的本地部分使用这里的工具，而不另行定义 Issue 访问方式
+- precedes：[../proposals/local-issue-work-bridge.md](../proposals/local-issue-work-bridge.md) —— 该提案提出了“Agent 可以通过工具做出哪些上下文相关的修改”这一问题；本记录给出答案。桥接方案的本地部分直接使用这里定义的工具，而不再另行定义自己的 Issue 访问方式
 - touches：`internal/tool`、`internal/agentapp`、`internal/agentapp/taskrun`、`internal/service/issue`、`internal/server/handlers/work`、`internal/interface/client`
 - created_at：`2026-08-29`
+
 ## 1. 决策
 
-处理某个 Issue 的 Agent 通过两个共享运行时工具访问该 Issue；工具在构造时就被限定到唯一一个 Issue：
+处理某个 Issue 的 Agent 通过两个共享运行时工具触达该 Issue，这两个工具在构造时就被限定到唯一一个 Issue：
 
 | 工具 | `Access` | 作用 |
 |---|---|---|
-| `GetIssue` | `AccessReadOnly` | 在有界范围内返回关联的 Issue、其子 Issue 和最新评论 |
-| `ReportToIssue` | `AccessWrite` | 向关联的 Issue 发布一条有长度限制的评论，并可选引用已经发布的 Artifact |
+| `GetIssue` | `AccessReadOnly` | 返回关联的 Issue、它的子 Issue，以及最近的评论，均有界限 |
+| `ReportToIssue` | `AccessWrite` | 在关联的 Issue 上发布一条有长度限制的评论，可选择指出已经发布的 Artifact |
 
-以下五条规则使这项能力具有足够的安全性：
+四条规则让这项能力具备了值得拥有的安全性：
 
-1. **两个工具都不接收 Issue 标识符。** 作用域是构造器参数，模型无法指定第二个 Issue。见 §5.3。
-2. **状态、负责人和层级永远不能通过工具修改。** Agent 只说明发生了什么；只有人可以决定工作处于什么状态。见 §6。
-3. **Issue 文本以工具结果形式进入上下文，绝不作为提示词层级。** 见 §7。
-4. **没有关联 Issue 的界面根本不注册这些工具。** 这遵循 `UploadArtifact` 的规则，而不是注册一个只会回答“不可用”的工具。见 §8。
-5. **本地 Agent 的报告以声明形式存储。** 作者类型是 `local_agent`，并记录代为转发它的用户，绝不标记为 `agent`。见 §6.1。
+1. **两个工具都不接收 Issue 标识符。** 作用域是构造器参数，因此模型无法指定第二个 Issue。见 §5.3。
+2. **状态、负责人和层级关系永远不可通过工具写入。** Agent 只陈述发生了什么；只有人可以判定工作处于什么状态。见 §6。
+3. **Issue 文本只以工具结果的形式出现，绝不进入提示词层级。** 见 §7。
+4. **没有关联 Issue 的界面根本不注册这两个工具**——这遵循的是 `UploadArtifact` 的规则，而不是注册一个专门用来回答“不可用”的工具。见 §8。
+5. **本地 Agent 的报告以“声明”的形式存储。** 作者身份是 `local_agent`，记录的是转述它的那个人，绝不是 `agent`。见 §6.1。
 
-`ReportToIssue` 以信息流向命名。`ReportIssue` 对模型而言更像“提交缺陷”，而工具名称属于提示词界面，不只是代码符号。
+`ReportToIssue` 的命名取自它的信息流向。`ReportIssue` 在模型看来更像是在“提交一个缺陷”，而工具名称本身就是提示词界面的一部分,不只是一个代码符号。
+
 ## 2. 本设计弥补的缺口
 
-分配到 Issue 的 Agent 通过 `buildIssueAgentRunInput`（`internal/server/handlers/work/issues.go:121`）启动；该函数把 Issue 压平成：
+被指派到某个 Issue 的 Agent，是通过 `buildIssueAgentRunInput`（`internal/server/handlers/work/issues.go:121`）启动的，这个函数把 Issue 压平成：
 
 ```text
 Work on this issue.
@@ -59,28 +59,30 @@ Description:
 <description>
 ```
 
-这就是 Agent 获得的全部信息。它看不到自己的子 Issue、评论线程、此前运行的产出，也不知道已经存在哪些 Artifact。运行结束后，`RunReporter`（`internal/service/issue/run_report.go`）会从外部、在 Worker 已经得到响应之后，写一条关于这次运行的评论。
+这就是它所知道的全部。它看不到自己的子 Issue、评论线程、上一次运行产生的结果，也不知道已经存在哪些 Artifact。等它运行结束，`RunReporter`（`internal/service/issue/run_report.go`）会在 Worker 已经得到答复之后,从外部写下一条关于这次运行的评论。
 
-因此，Agent 与自身工单的关系只是：输入一段一次性的扁平文本，输出则由其他组件代写一份事后说明。Agent 从未真正参与它正在处理的讨论线程。
+所以 Agent 与自己那份工单的关系是：进来的是一段一次性压平的文本，出去的是别人代写的一份“讣告”。它从未真正参与过自己正在处理的那条讨论线程。
 
-这是已交付的 **Worker 平面**上的缺口。它不是由本地 Issue 桥接引起的，也不需要等待该桥接方案。现在作出决策还能同时确定桥接方案的接口形状，因此应先解决这里。
+这是**Worker 平面**上的一个缺口，而这个平面本身已经交付。它不是由本地 Issue 桥接引入的,也不需要等那个桥接方案。现在就把它定下来,还能顺带确定桥接方案本身的形状，这正是要先解决它的原因。
+
 ## 3. 当前基础
 
-本记录基于以下已经存在于仓库中的事实：
+本记录建立在以下事实之上，它们都已经存在于代码库中：
 
-- **已有两种工具模式。** 共享运行时工具位于 `internal/tool`，由 `internal/agentapp/assembly.go:buildBaseTools` 组装。Tier 1 的编排工具（`StartTask`、`ListTasks`、`GetTask`、`ContinueTask`）位于 `internal/service/conversation/tool_*.go`，并由 `buildConversationTools` 按轮构建。
-- **构造时限定作用域是既有模式。** `getTaskTool` 保存 `scopeID`，只接收 `task_id`；Conversation 的身份不由模型传入。
-- **按条件注册是既有模式。** 只有存在 `ArtifactPublisher` 时才注册 `UploadArtifact`，否则工具完全不存在，见 [unified-artifacts.md](./统一工件.md) §7.1。`Worktree` 和 `Job` 工具也按界面条件注册，并且都不向子 Agent 暴露（`internal/tool/names.go`）。
-- **端口接口让 `internal/tool` 无需感知凭证。** `ArtifactPublisher` 的存在，使该包无需知道文件是通过用户会话还是运行令牌下发到服务器。
-- **`Access` 已实施。** `llm.Access` 与 `AccessDeclarer`（`internal/core/llm/tool.go`）将调用分类为只读或写入；零值为 `AccessWrite`。见 [tool-permissions.md](./工具权限.md) §5.1。
-- **评论已经记录作者类型。** `internal/core/issue` 中存在 `CommentAuthorUser`、`CommentAuthorAgent` 和 `CommentAuthorSystem`。
-- **系统不会自动转换 Issue 状态。** 除 `internal/core/issue` 外，状态常量只出现在验证器 `internal/service/issue/service.go:168` 中。当前产品里的每一次状态转换都由用户发起。
-- **每个终态运行只允许发布一条评论。** `runSummaryLimit` 为 2000 字节，因为线程只需要记录“运行已经结束”，而不是保存运行输出；输出属于 Task 的结果与 Artifact。
+- **两种工具模式已经存在。** 共享运行时工具位于 `internal/tool`，由 `internal/agentapp/assembly.go:buildBaseTools` 组装。Tier 1 的编排工具（`StartTask`、`ListTasks`、`GetTask`、`ContinueTask`）位于 `internal/service/conversation/tool_*.go`，由 `buildConversationTools` 按每一轮构建。
+- **在构造时限定作用域是已确立的模式。** `getTaskTool` 持有 `scopeID`，只接收 `task_id`；Conversation 的身份不是模型可以传入的东西。
+- **按条件注册是已确立的模式。** `UploadArtifact` 只在存在 `ArtifactPublisher` 时才会注册，否则完全不存在——见 [unified-artifacts.md](./统一工件.md) §7.1。`Worktree` 和 `Job` 工具同样按所在界面有条件地注册，并且两者都不向子 Agent 开放（`internal/tool/names.go`）。
+- **一个端口让 `internal/tool` 无需感知凭证。** `ArtifactPublisher` 的存在，使得该包永远不需要知道文件是经由某人的会话，还是经由一个运行令牌到达服务器的。
+- **`Access` 已经实现。** `llm.Access` 和 `AccessDeclarer`（`internal/core/llm/tool.go`）把一次调用分类为只读或写入；零值是 `AccessWrite`。见 [tool-permissions.md](./工具权限.md) §5.1。
+- **评论已经携带作者身份。** `internal/core/issue` 中已经存在 `CommentAuthorUser`、`CommentAuthorAgent` 和 `CommentAuthorSystem`。
+- **没有任何东西会自动转变 Issue 的状态。** 状态常量除了出现在 `internal/core/issue` 内部之外，只出现在验证器（`internal/service/issue/service.go:168`）中。今天产品里的每一次状态转变都是人的操作。
+- **每次终态运行只有一条评论的预算。** `runSummaryLimit` 是 2000 字节，记录下的理由是：这条线程要承载的是“一次运行结束了”这样一句陈述，而不是这次运行的输出——输出属于该 Task 的结果和 Artifact。
+
 ## 4. 采用的工具模式
 
-运行时间工具在`internal/tool`，在一个港口后面。
+采用的是 `internal/tool` 中的共享运行时工具，位于一个端口背后，而不是像 Tier 1 那样的服务本地工具。
 
-执行飞机需要相同的功能 从Issue开始的员工运行，一个与Issue相关的本地会议，最终一个 Tier 1 转，它们拥有三个不同的凭证：运行代币，一个人的会议和服务器自己的服务呼叫.一个服务本地工具必须写三次，否则将拖动`internal/tool`了解它拥有的凭证.`ArtifactPublisher`已经解决了这个问题，解决方案是一个端口：
+有三个执行平面需要同一种能力——一次从 Issue 启动的 Worker 运行、一个关联到 Issue 的本地会话，以及将来 Tier 1 的一轮对话——而它们持有三种不同的凭证：一个运行令牌、某个人的会话，以及服务器自身发起的服务调用。服务本地工具要么得写三遍，要么会把 `internal/tool` 拖入“必须知道自己持有哪种凭证”的境地。`ArtifactPublisher` 已经解决过完全相同的问题，解法是一个端口：
 
 ```go
 // IssueClient reads and reports on the one Issue a run is working.
@@ -95,171 +97,118 @@ type IssueClient interface {
 }
 ```
 
-上面的形状是说明性的。 决定的是，边界是`internal/tool`中的一个端口，实现在`internal/interface/client` (登录的本地界面)，员工客户端 (运行代币)，以及服务器自己的运行时间组件 (直接服务调用)。
+以上只是示意性的形状。真正定下来的是：边界是 `internal/tool` 中的一个端口，其实现分别位于 `internal/interface/client`（已登录的本地界面）、Worker 客户端（运行令牌），以及服务器自身的运行时组装代码（直接的服务调用）。
 
 ## 5. 两个工具
 
 ### 5.1 `GetIssue`
 
-返回范围范围的Issue的边界视图：
+返回作用域内那个 Issue 的一个有界视图：
 
-- 标题，描述，地位，被分配者类型；
-- 足以知道分开了什么，而不是一个
-复制板；
-- 最新评论，每个评论都标记其作者类型；以及
-- 已与Issue相关的Artifacts的引用，作为身份，从来没有作为
-它们的位置：
+- 标题、描述、状态、负责人类型；
+- 它的子 Issue，以标题加状态的形式给出——足够知道拆分出了什么，而不是一整块可递归展开的看板；
+- 最近的若干条评论，每一条都标注了作者类型；以及
+- 已经关联到该 Issue 的 Artifact 引用，以身份的形式给出，绝不是对象存储中的路径。
 
-Artifact引用是**不实现**。 Issue的唯一集成是`aggregateIssueOutputs`，这是Portal工作处理器的方法而不是服务，因此Worker路线不能读取它，而不进口该处理器或移动集成一个不属于这个集成的所有权变化.工具无需它们，并没有说任何暗示它看到它们的东西.将集成移动到相应标识符是迁移到提出;11节保持问题。 `internal/service/issue`
+Artifact 引用**尚未实现**。目前唯一对一个 Issue 的产出做汇总的是 `aggregateIssueOutputs`，它是 Portal 工作处理器上的一个方法，而不是一个服务，所以 Worker 路由若要读取它，要么得导入那个处理器，要么得把这个汇总逻辑挪走——而这样的所有权变更不属于本记录要处理的范围。这个工具就先不带这部分能力上线，也不会说任何暗示自己看到了这些内容的话。把汇总逻辑迁移到 `internal/service/issue` 是应当提出的迁移方案，§11 保留了这个问题。
 
-它声明`AccessReadOnly`，因此不需要批准，并且可能重叠其[实现的平行工具.md](./并行工具执行.md)下的邻居。
+它声明为 `AccessReadOnly`，因此不需要审批，并且在 [parallel-tool-execution.md](./并行工具执行.md) 的规则下可以与相邻调用重叠执行。
 
-限制是决定的一部分，而不是调节细节.长期运行的Issue上的线程可以超过任何合理的背景预算，而花费窗口阅读讨论的Agent对工作有所剩余.该工具返回了一个最近的窗口并表示它省略了多少，而不是通过空间的历史页面化模型。
+“有界限”是决策本身的一部分，而不是一个可以事后调优的细节。一个长期存在的 Issue 上的讨论线程，长度可以超过任何合理的上下文预算，而一个把窗口都花在阅读讨论上的 Agent，留给实际工作的空间就会变少。这个工具返回的是一个最近的窗口，并说明自己省略了多少，而不是让模型翻页式地读完一个 Space 的全部历史。
 
 ### 5.2 `ReportToIssue`
 
-文章中发表了一项评论，将范围为Issue的`CommentAuthorAgent`，由 `runSummaryLimit`的逻辑限制，该逻辑已经规范了`RunReporter`：线程包含了关于作品的声明，而不是作品的输出。
+以 `CommentAuthorAgent` 的身份在作用域内的 Issue 上发布一条评论，其长度受 `runSummaryLimit` 约束——这与已经规范着 `RunReporter` 的那套逻辑是同一套：线程里承载的是关于这项工作的一句陈述，而不是工作本身的输出。
 
-它可能会命名Artifacts已经通过`UploadArtifact`发布的运行，由Artifact身份.它不能携带文件的内容，差异，或制作机器上的路径.当这些Artifacts出现在Issue的结果面板时，这是第11节的第一个开放问题，而不是该工具决定的东西。
+它可以通过 Artifact 身份来指出运行已经通过 `UploadArtifact` 发布出去的 Artifact。它不能携带文件内容、diff，或者产出该文件的那台机器上的路径。这些 Artifact 最终会出现在 Issue 结果面板的什么位置，是 §11 的第一个开放问题，而不是这个工具要决定的事情。
 
-### 5.3 范围是一个构建性的论点
+### 5.3 作用域是一个构造器参数
 
-两种工具都用了它们可能触摸的Issue构建.没有`issue_id`参数，后面添加一个是重新打开该记录的决定，而不是扩展。
+两个工具都是用它们各自可以触及的那个 Issue 构造出来的。没有 `issue_id` 参数；日后要加上这样一个参数，是重新打开本记录做决定，而不是一次简单的扩展。
 
-原因是，替代品以权限无法捕获的方式失败.如果模型可以命名一个Issue，那么评论线程中的每一个提示注射有效载荷和评论可能来自任何在空间上的任何人，或者来自外部连接器，获得一个工作动词： *阅读问题X，将其内容发布到发布Y*.一个提示批准并没有帮助，因为批准的人看到一个语法普通的呼叫.删除参数删除了类。
+原因在于：换一种做法，会以权限系统无法捕捉的方式失败。如果模型可以指名一个 Issue，那么评论线程里的每一条提示词注入载荷——而评论可能来自 Space 上的任何人，将来也可能来自外部连接器——都获得了一个可用的动词：*读取 Issue X，把它的内容发到 Issue Y*。审批提示帮不上忙，因为审批的人看到的是一次语法上再正常不过的调用。去掉这个参数，就消灭了这整一类风险。
 
-同样的规则使授权变得简单:`internal/tool`没有做出访问决定.端口拥有一个凭证和一个范围，服务器在每个通话上检查空间授权，就像其它路线一样。
+同样的规则也让授权变得简单：`internal/tool` 不做任何访问决定。端口持有一个凭证和一个作用域，服务器在每一次调用上都检查 Space 授权，和其他任何路由一样。
 
 ### 5.4 报告预算
 
-运行得到一个小的，固定的 `ReportToIssue`调用三，因此网络故障后的纠正和一次重试都适合.在预算之后，工具拒绝使用预算命名错误，这是[会议](../contribute/conventions.md)下一个有意义的工具结果。
+一次运行只获得少量、固定数量的 `ReportToIssue` 调用——三次，这样既能容纳一次订正，也能容纳网络故障后的一次重试。超出预算后，工具会以一个说明预算是多少的错误拒绝调用，这本身就是[约定](../contribute/conventions.md)所要求的、对 LLM 有意义的工具结果。
 
-预算而不是一个很好的描述，因为失败模式不是假设的：一个没有预算的Agent写入一个耐用的人类线程，将其作为一个块， `RunReporter` Issue
+之所以用预算而不是靠描述里“请节制使用”这样的措辞，是因为失败模式并非假设：一个拥有不受限写权限、可以写入一条持久人类线程的 Agent，会把它当成草稿纸使用，而代价则由每一个阅读这个 Issue 的人来承担。`RunReporter` 已经从结构上保证了只写一条评论；这里则是它在交互场景下的对应物。
 
 ## 6. Agent 永远不能声明的状态
 
-任何工具都不能用`status`,`assignee_kind`,`assignee_id`和`parent_issue_id`来编写.创建一个孩子Issue也不是工具。
+`status`、`assignee_kind`、`assignee_id` 和 `parent_issue_id` 不可被任何工具写入。创建一个子 Issue 也不是一个工具。
 
-这样保存了产品已经持有的不变量 代码库中的任何东西都会自动移动Issue的状态 (§3) ，而不是发明一个.推理是不对称的成本:`done`是空间读取的计划，它的意思是*一个人接受了这一点*.如果模型可以写，这个词会停止携带，损失是空间协调失.让模型写下来，可以通过一个点击来保存一个。
+这保留的是产品中已经存在的一个不变量——代码库里没有任何东西会自行推动 Issue 的状态变化（§3）——而不是凭空发明一个新规则。背后的理由是成本不对称：`done` 是一个 Space 用来规划的读数，它的含义是*有人接受了这项工作*。如果模型可以写这个字段，这个词就不再承载那层含义，而损失是整个 Space 协同的失效。让模型来写它所能省下的，只是原本反正也要读结果的那个人多点一次鼠标而已。
 
-桥梁提案则提出了另一方面相同的规则：状态是Space声明，而不是报告某个过程正在做的事情。
+桥接提案从另一个角度陈述了同一条规则：状态是 Space 做出的陈述，而不是对某个进程正在做什么的报告。
 
-据报道，一个认为工作完成的Agent， Issue
+一个认为工作已经完成的 Agent,会在自己的报告里这样说。真正推动 Issue 状态变化的是人。
 
-### 据当地Agent的报道，
+### 6.1 本地 Agent 的报告是一种声明，并且如实标明这一点
 
-Worker运行报告被存储为`agent`：写的运行代币是Agent的自己的凭证，任务和运行名称是部署的记录.本地会议没有这些.它举行了一个 *人* 会议，它运行在一个部署没有安排的机器上，没有承认任何配额，并没有记录任何痕迹。
+Worker 运行的报告存储为 `agent`：写下它的那个运行令牌就是 Agent 自己的凭证，它所指向的 Task 和 Run 都是这次部署持有的记录。本地会话完全没有这些东西。它持有的是*一个人*的会话，运行在一台部署方从未调度过、没有为其核准过任何配额、也没有留下任何轨迹的机器上。
 
-存储两者都在`agent`下，会让Portal读者相信部署证明了他们从未见过的东西.所以一个本地报告被存储为`local_agent`，由传递者编写.服务器验证的唯一身份和负责人.它没有命名任务和没有运行，因为没有.Portal显示它如报道而不是说。
+如果把两者都存成 `agent`，会让 Portal 的读者误以为这次部署为一件它其实从未见过的事情背了书。所以本地报告存储为 `local_agent`，作者是转述它的那个人——这是服务器唯一验证过的身份，也是应当承担责任的那个身份。它不指向任何 Task,也不指向任何 Run，因为二者都不存在。Portal 会把它展示为“据报告”,而不是“据称”。
 
-空间评论路线只接受`author_kind`作为缺席或`local_agent`。 一个人的会议不能写`agent`或`system`：这些是部署自己的声音，由运行代币和服务器编写。
+Space 的评论路由只接受 `author_kind` 为空或为 `local_agent`。一个人的会话不能写入 `agent` 或 `system`：这两者是部署自身的声音，分别由运行令牌和服务器写入。
 
-现在，记录是这样决定的，而不是第11条关于当地作者的先前问题。 它不使局部报告成为证据。 它使得索赔作为索赔可读，这是客户报告最诚实地可以做的。
+这就是本记录现在针对 §11 早先那个关于本地作者身份问题给出的答案，取代了那个悬而未决的问题。它并不会让本地报告变成证据。它做的是让这项声明如实地呈现为一项声明——这是客户端报告所能诚实做到的极限。
 
 ## 7. 不可信输入与提示词层级
 
-描述和评论是第三方文本。 空间上的任何人都可以编写它们，未来的输入连接器可以从外部跟踪器中输入它们.它们与`WebFetch`输出相同的信任类。 Issue
+一个 Issue 的描述和评论都是第三方文本。Space 上的任何人都可以写这些内容,未来的某个入站连接器也可能把外部工单系统里的内容带进来。它们与 `WebFetch` 的输出属于同一个信任等级。
 
-两种结合性的后果：
+由此产生两条约束，都是硬性的：
 
-- **它们作为工具结果来。 * *它们从来没有被合并到系统提示中。
-这是一个安全规则和一个缓存规则： `AGENTS.md`
-系统提示器从一个稳定的边界指示层，
-包含对Space的可选指示，以便他们能够 Portal
-置可缓存的前置.一个可变的Issue快照在一个层中会
-打破每一个编辑的前，就像它会把评论洗掉
-命令。
-- **`GetIssue`标签每一个评论，其作者类型.**
-模型不能区分一个太空同伴的评论与其自己的校长的评论
-没有任何理由对待他们。
+- **它们只以工具结果的形式出现。** 它们绝不会被合并进系统提示词层级。这既是一条安全规则，也是一条缓存规则：`AGENTS.md` 把系统提示词固定为若干个在一次运行内保持稳定的有界指令层——包括 Portal Worker 上可选的 Space 指令——从而使其可以成为可缓存的前缀。一份可变的 Issue 快照如果放进某一层，会在每一次编辑时打破这个前缀，其破坏性不亚于把一条评论洗白成一条指令。
+- **`GetIssue` 会为每一条评论标注其作者类型。** 这些类型本来就已经存在。如果模型无法分辨一条来自 Space 同伴的评论和一条来自自己主理人的指令,它就没有依据以不同方式对待二者。
 
-开始运行仍然将Issue平坦化成今天的运行初始消息 (§2).这是输入，并且它仍然是输入；这个记录不会将其移动到一个层。
+启动一次运行时，今天仍然会把 Issue 压平进这次运行的初始消息（§2）。那是输入,而且它会继续保持为输入；本记录不会把它挪进某一层。
 
 ## 8. 可用性
 
-服务功能无法服务的端口是零的，然后工具不在工具列表中， 没有在每个通话失败的状态登记。
+在某项能力无法被服务时，对应的端口为 nil，工具随之从工具列表中缺席——而不是以一种“注册了但每次调用都会失败”的状态存在。
 
-| 界面 | `GetIssue` | `ReportToIssue` | 为什么？ |
+| 界面 | `GetIssue` | `ReportToIssue` | 原因 |
 |---|---|---|---|
-| 采用Worker从Issue开始运行 | 没有 | 没有 | 任务带有Issue ID；运行令牌授权 |
-| 没有Worker运行，没有Issue | 缺席 | 缺席 | 没有任何范围 |
-| 通过 `buildmax issue start` 启动的本地 CLI/TUI 会话 | 有 | 有 | 需要登录；报告为 `local_agent`，§6.1 |
-| 会议时间： Desktop | 没有 | 没有 | 没有Desktop界面提供它 |
-| 没有连接的本地会议或未登录 | 缺席 | 缺席 | 地方工作不变 |
-| 级别1的对话 | 延迟 | 延迟 | §11 |
-| 子 | 缺席 | 缺席 | 下面见 |
+| 从 Issue 启动的 Worker 运行 | 有 | 有 | Task 携带 Issue ID；运行令牌负责授权 |
+| 没有 Issue 的 Worker 运行 | 缺席 | 缺席 | 不存在作用域 |
+| 通过 `buildmax issue start` 启动的本地 CLI/TUI 会话 | 有 | 有 | 需要登录；报告以 `local_agent` 身份记录，见 §6.1 |
+| Desktop 会话 | 尚无 | 尚无 | 能力已经存在；只是还没有 Desktop 界面提供它 |
+| 未关联或未登录的本地会话 | 缺席 | 缺席 | 普通的本地工作方式不受影响 |
+| Tier 1 对话 | 延后 | 延后 | 见 §11 |
+| 子 Agent | 缺席 | 缺席 | 见下文 |
 
-子没有得到任何一个，反映了`Worktree`和`Job`工具.一个子分享其父母的工作空间根，并向父母报告；让他们中的几个写入一个持久的人类线程使得线程的归因不可读，而父母可以传递任何已经读的文本。
+子 Agent 两者都得不到，这与 `Worktree` 和 `Job` 工具的处理方式一致。一个子 Agent 与其父级共享同一个工作区根目录，并向父级汇报；如果让若干个子 Agent 同时写入同一条持久的人类线程，这条线程的归属就会变得无法辨认，而父级本可以把自己已经读到的上下文原样传递下去。
 
 ## 9. 范围之外
 
-- 任何Issue突变，除了评论状态，分配，补偿，
-儿童创建，删除或存档。
-- 针对非被定范围的Issue，包括一个兄弟姐妹或
-儿童的父母。
-- 列出一个空间的Issues从工具。 分配工作收件箱是一个界面
-根据当地Issue桥梁提案决定的个人特征，而不是模型
-能否。
-- 暂停，第11条
-- 读或写Tasks和TaskRuns。
-Worker不会自己组织。
-- 博的乐观货币合同。 Issue
-影响Portal的，它本身值得修复，并且已：更新
-现在携带了`version`它是从中建造的，并且被拒绝使用409
-评论仅仅是附加
-它们都没有写出一个版本的字段。
+- 除评论之外的任何 Issue 修改——状态、指派、更改父子关系、创建子 Issue、删除或归档。
+- 访问被限定范围之外的 Issue，包括某个兄弟 Issue，或某个被限定的子 Issue 的父级。
+- 从工具中列出一个 Space 的全部 Issue。“已分配工作收件箱”是面向人的一个界面特性，由本地 Issue 桥接提案决定，而不是模型的能力。
+- 在 Tier 1 对话中注册这两个工具。延后处理，见 §11。
+- 读取或写入 Task 与 TaskRun。Tier 1 已经有自己的 Task 工具；一个 Worker 不会自己编排自己。
+- Issue 的乐观并发控制契约。这是一个此前就存在、影响 Portal 的缺陷，本身值得单独修复，而且已经修复了：一次更新现在会携带它所基于的 `version`，如果这期间 Issue 已经发生变化，就会被以 409 拒绝。这两个工具不依赖这个机制——评论是仅追加的——而且两者都不写入任何带版本号的字段。
 
 ## 10. 实施步骤
 
-1. 加入`ToolNameGetIssue`和`ToolNameReportToIssue`
-附有条件注册说明的`internal/tool/names.go`
-需要的工具。
-2. 定义`IssueClient`端口和`internal/tool`中的两个工具，以
-已公布的`Access`和在制造商中所保留的范围。
-3. 线选 `IssueClient` 通过 `agentapp.AppConfig`，无意义
-无处，正如`ArtifactPublisher`的线程。
-后**后**后的`BuildAgentTypes`，不含`buildBaseTools`： `buildToolRegistry`
-接下来，该电话是保持`Worktree`和工作的机制
-子的工具，这是第8条所需要的。 `buildBaseTools`
-任何代表登记册都由此构建，因此放置在其中的工具将达到
-现在，一个。
-4. Worker客户端的Worker飞机的端口，
-运行任务IssueID，并将其注册在`internal/agentapp/taskrun`。
-5. 添加服务器侧读取和评论路线，
-现有空间Issue路线，可授权运行代币对
-他们。
-6. 实现登录本地中`internal/interface/client`的端口
-界面，并使用 `buildmax issue start <id>` 将一个会话的范围限定到某个 Issue。
-报告通过空间评论路线进行`local_agent` (6.1节)。
+1. 在 `internal/tool/names.go` 中加入 `ToolNameGetIssue` 和 `ToolNameReportToIssue`，并附上其他条件注册工具都携带的那条说明。
+2. 在 `internal/tool` 中定义 `IssueClient` 端口以及这两个工具，声明各自的 `Access`，并把作用域保存在构造器里。
+3. 通过 `agentapp.AppConfig` 传入一个可选的 `IssueClient`，nil 表示不存在，与 `ArtifactPublisher` 的传递方式完全一致。在 `buildToolRegistry` 中于 `BuildAgentTypes` **之后**注册这两个工具，而不是放进 `buildBaseTools`：在那次调用之后追加，正是让 `Worktree` 和 Job 工具不出现在子 Agent 里的机制，也正是 §8 所需要的。每一个委派注册表都是从 `buildBaseTools`构建出来的，所以放进那里的任何工具都会传导到子 Agent 那一层。
+4. 在 Worker 客户端里实现 Worker 平面的端口,以该次运行的 Task 所关联的 Issue ID 为作用域，并在 `internal/agentapp/taskrun` 中注册它。
+5. 添加端口所需的服务器端读取和评论路由，或者在运行令牌能够被授权访问的前提下,复用现有的 Space Issue 路由。
+6. 在 `internal/interface/client` 中为已登录的本地界面实现该端口，并用 `buildmax issue start <id>` 把一个会话的作用域限定到某个 Issue 上。报告经由 Space 评论路由,以 `local_agent` 身份写入（见 §6.1）。
 
-步骤15是Worker平面工作，站着独自；步骤6是当地的Issue桥的第一块， Desktop
+六项全部完成。第 1 到 5 步是 Worker 平面上独立成立的工作；第 6 步是本地 Issue 桥接方案的第一块拼图，而它没有做的那些事——记住这个关联、在 Desktop 中提供一个收件箱、返回状态——仍然属于那个提案要解决的问题。
 
 ## 11. 开放问题
 
-1. **无运会的结果在哪里出现在，谁拥有
-总结?** `issue_outputs.go`总结了Issue的任务输出
-作为一个Portal处理方法而不是服务
-没有Artifact引用的`GetIssue`船 (§5.1)。
-运行，所以它发布的Artifact没有排列可以挂在。
-集成学习一个来自会议的来源，或者桥梁创造了一个
-必须在第6步之前回答，而不是之前
-步骤1
-2. **第1级是否注册这些工具?**一个Portal对话是单独的
-给用户发音，并且已经拥有任务工具.给它Issue访问是
-作为一个独立的决定，它具有自身的范围问题：
-交谈范围不限于一个Issue。
-3. 报告的预算是正确的吗？
-修改和重新尝试。 实际的运行决定。
-4. **评论线程中的多少是正确的窗口?** 限制决定；
-没有限制。
-5. **一个被视为Issue的孩子是否需要见到父母?**阅读上方是一个
-工作的范围更广泛，
-描述通常是实际要求所在的地方。
-6. **`local_agent`是否需要自己的会议才能成为证据?** §6.1
-地方报告如何记录，而不是可信度。
-报告是传递者承担责任的索赔；使其成为证据
-需要地方会议拥有自己的证书，
-长久的Agent-会议问题，而不是这个问题。
-7. **本地会话如何持久地选择其 Issue？** `buildmax issue start` 范围一
-桥梁的`IssueLink`侧车是耐用的
-设计的建议是这样的。
+1. **一个无运行会话产生的结果最终出现在哪里，这个汇总由谁拥有？** `issue_outputs.go` 把一个 Issue 的产出从各次 Task 运行中汇总出来，这是 Portal 处理器上的一个方法，而不是一个服务——这也是 `GetIssue` 上线时不带 Artifact 引用的原因（§5.1）。一个本地会话不产生任何 Run，因此它发布的 Artifact 没有任何行记录可以挂靠。要么让输出汇总学会识别一个源自会话的来源，要么由桥接方案为本地工作创建一条记录。这个问题必须在第 6 步之前得到回答，而不是在第 1 步之前。
+2. **Tier 1 是否会注册这两个工具？** 一个 Portal 对话是面向用户的唯一声音，并且已经持有 Task 工具。给它 Issue 访问能力是站得住脚的,但这是一个独立的决定，且有自己的作用域问题：一个对话并不限定于单个 Issue。
+3. **三次是不是正确的报告预算？** 这只是一个猜测，出于想让一次订正加一次重试都能放得下这个考虑。真正的答案要由实际运行情况来决定。
+4. **评论线程应该保留多大的窗口？** “要有界限”已经确定;边界具体是多少还没有。
+5. **一个被限定作用域的子 Issue，是否需要看到它的父 Issue？** 向上读取比“摆在眼前的这份工单”要更宽的作用域，而父 Issue 的描述往往才是真正需求所在的地方。
+6. **`local_agent` 要不要拥有自己的会话，才能成为证据？** §6.1 决定的是本地报告如何被记录,而不是它可以被信任到什么程度。一份报告是转述者要为之负责的一项声明；要让它成为证据，需要本地会话持有属于自己的凭证，那是持久 Agent 会话要解决的问题，不是这里的问题。
+7. **本地会话如何持久地选定自己的 Issue？** `buildmax issue start` 只为一次运行限定作用域，之后什么都不记得。桥接方案里的 `IssueLink` 附属结构才是持久化的形式，而这属于那个提案要设计的内容。

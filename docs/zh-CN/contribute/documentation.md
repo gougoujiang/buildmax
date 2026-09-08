@@ -129,7 +129,6 @@ git show <commit>^:docs/path/to/file.md
 | 测试 | 失败条件 |
 |---|---|
 | `TestDocsLinksResolve` | 相对 Markdown 链接指向不存在的文件 |
-| `TestDesignTranslationsMirrorEnglish` | 中文设计镜像缺失、孤立、链接不正确，或落后于英文源文档 |
 | `TestEnvVarsDocumented` | `config.EnvVars()` 新增的变量未出现在 [reference/configuration.md](../reference/configuration.md) |
 | `TestToolNamesDocumented` | 工具名称常量未出现在 [manual/tools.md](../../../manual/tools.md) |
 | `TestArchitectureToolInventoryCoversEveryToolNameConstant` | `internal/tool/names.go` 声明的工具未出现在贡献者[工具清单](architecture/tools.md) |
