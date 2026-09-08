@@ -59,13 +59,42 @@
 
 `info` 输出集群、Portal URL 及其健康状态、MinIO 凭证，并签发单次使用登录码。默认账户是 `deployment-smoke@buildmax.local`，也可通过 `./make kind info alice@example.com` 指定。`login` 省略面向人的横幅，改为输出 `{"email","code","portal_url"}` JSON；账户不存在时会先创建。`drive-portal` skill（`.buildmax/skills/drive-portal/`）使用它登录无头浏览器，无需人工复制验证码。
 
-`fixtures` 向运行中的部署填充**业务数据**，`seed` 填充**模型目录**，两者不重叠。刚运行 `kind up` 后部署几乎为空，Portal 列表和详情视图无内容可测；`fixtures` 创建一组小型、具有代表性且确定的数据：
+`fixtures` 填充**业务数据**，`seed` 填充**模型目录**。运行
+`./make kind fixtures`，再通过 `./make kind login alice@buildmax.local` 登录。
+主要场景位于 **BuildMax QA**，长列表场景位于 **BuildMax QA Pagination**。
 
-- 两个账户 `alice@buildmax.local` 和 `bob@buildmax.local`，各自带有创建时获得的个人 Space；
-- Alice 拥有一个 Agent（`Docs Writer`）、驱动它的 Workflow（`Release Notes`），以及分布在 `todo`、`in_progress` 和 `done` 状态的四个 Issue，其中一个有评论线程；
-- Bob 拥有两个 Issue，提供带有独立数据的第二个 Space，用于边界和列表测试。
+| 功能 | 测试数据 |
+|---|---|
+| 账户与隔离 | Alice、Bob 保留有数据的个人 Space；Carol、Dave 的个人 Space 为空 |
+| 协作 | Alice 为 owner，Bob 为 admin，Carol 为 member，Dave 有待接受邀请；邮箱后缀均为 `@buildmax.local` |
+| Issue | 三种状态；未分配、人、Agent、Workflow 分配；父 Issue 与进度不同的两个子 Issue；Markdown、中文、空描述及评论 |
+| Agent / Workflow | 个人 Docs Writer/Release Notes；共享 QA Writer/QA Reviewer；两步骤 Workflow 的 draft、published、archived 状态与生命周期修订记录 |
+| 文件 | `fixtures/` 下五个文件，包含嵌套 Markdown、CSV、JSON、中文文件名和空文本 |
+| Artifact | 合成文本、HTML 沙箱预览、二进制下载 |
+| Space 设置 | 非空 Agent instructions、active/disabled 的虚构 Secret；API 操作自然产生审计事件 |
+| 分页 | 独立 Space 中有 105 个 Issue，每种状态 35 个，并有 25 条评论的线程 |
+| 执行（`--runs`） | Conversation 对话、含 Continue/Retry 的 Task、Issue Agent 结果、两步骤 Workflow 结果、worker trace 与 workspace checkpoint |
 
-该操作是幂等的：每个实体按测试数据的标题或名称匹配，已存在则跳过，因此重跑不会新增内容。结合 `login`，它构成自动化测试驱动 Portal 前的准备步骤：填充一次数据，然后以 `alice@buildmax.local` 登录，对有内容的视图断言。
+```bash
+./make kind fixtures --runs
+```
+
+`--runs` 会执行 Kubernetes worker，仅接受参考部署的免费 mock 配置。
+检测到模型选择覆盖或自定义 server 配置时会拒绝，不会自动切换模型。
+之前使用过 `kind use-model` 时，先执行 `./make kind mock`。不会调用付费模型。
+失败或取消的执行会报错，不会伪造成功；修复原因并重试相应 Task 后可再次初始化。
+
+重跑按名称/标题、Artifact 文件名、文件路径和 Conversation 首条消息复用资源。
+列表读取全部分页，评论逐条按正文补齐，支持中断恢复。
+保留已有 Issue 状态、描述、文件内容、Agent 定义和成员角色；校准测试 Issue 的
+分配、Workflow 生命周期状态、Secret 状态，仅在 Space instructions 为空时填入。
+不要重命名希望复用的测试资源。该命令不是并发事务，应一次运行一个实例。
+不支持服务端幂等键的创建请求若丢失响应，下次运行通过稳定的测试资源标识查找恢复。
+
+测试数据不等于所有功能均已验证：不初始化需要目录来源的 plugin/托管模型授权，
+不发送 webhook，不伪造 running/failed/canceled 状态。worker 边界和取消检查使用
+`kind smoke`，托管网关使用 `kind smoke managed`，浏览器流程使用 `e2e kind`。
+Artifact 分享应从已有测试 Artifact 手动或通过测试创建，初始化不生成公开链接。
 
 `status` 不修改状态。它输出选定集群和 Context，通过入口探测 <http://localhost:8080/healthz>，并列出节点以及 `ingress-nginx`、`db`、`storage` 和 `buildmax` 中的 Deployment、Job 和 Pod。在阅读更长的 `kind logs` 输出前，可用它区分集群不存在还是不健康。
 

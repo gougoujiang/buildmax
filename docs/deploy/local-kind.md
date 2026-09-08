@@ -90,24 +90,52 @@ JSON instead, creating the account first if it does not exist yet; the
 `drive-portal` skill (`.buildmax/skills/drive-portal/`) uses it to sign in a
 headless browser without anyone copying a code by hand.
 
-`fixtures` fills the running deployment with **business data**, where `seed`
-fills the **model catalog** — the two do not overlap. A fresh `kind up` leaves
-the deployment nearly empty, so its Portal list and detail views have nothing to
-exercise; `fixtures` creates a small, representative, deterministic set:
+`fixtures` fills the running deployment with **business data**; `seed` fills the
+**model catalog**. Start with `./make kind fixtures`, then sign in using
+`./make kind login alice@buildmax.local`. Select **BuildMax QA** for the main
+scenarios and **BuildMax QA Pagination** for long lists.
 
-- two accounts, `alice@buildmax.local` and `bob@buildmax.local`, each with the
-  personal space they get on creation;
-- for Alice, an agent (`Docs Writer`), a workflow that drives it
-  (`Release Notes`), and four issues spread across `todo`, `in_progress`, and
-  `done`, one of them carrying a comment thread;
-- for Bob, two issues of his own, so a second space with its own data is present
-  for boundary and list testing.
+| Area | Fixture coverage |
+|---|---|
+| Accounts and isolation | Alice and Bob retain their populated personal Spaces; Carol and Dave have empty personal Spaces |
+| Collaboration | Alice owns BuildMax QA, Bob is admin, Carol is member, Dave has a pending invitation; all emails end in `@buildmax.local` |
+| Issues | All three statuses; unassigned, person, Agent, and Workflow assignment; parent with two children and mixed progress; Markdown, Unicode, empty descriptions, comment threads |
+| Agents and Workflows | Personal Docs Writer/Release Notes; shared QA Writer/QA Reviewer; two-step draft, published, and archived Workflows, with lifecycle revision history |
+| Files | Five files under `fixtures/`: nested Markdown, CSV, JSON, Unicode filename, and empty text |
+| Artifacts | Synthetic text, HTML sandbox preview, and binary download fixtures |
+| Space settings | Nonempty Agent instructions and active/disabled Secrets containing explicitly fake values; API changes also populate audit events |
+| Pagination | Separate Space with 105 Issues (35 per status), including a 25-comment thread |
+| Execution (`--runs`) | Conversation transcript, a Task with Continue and Retry, Issue Agent result, two-step Workflow result, worker traces and workspace checkpoints |
 
-It is idempotent: every entity is matched by its fixture title or name and
-skipped when already present, so rerunning it adds nothing. Combined with
-`login`, it is the setup step for driving the Portal from an automated test —
-seed the data once, then sign in as `alice@buildmax.local` and assert against
-populated views.
+```bash
+./make kind fixtures --runs
+```
+
+`--runs` executes Kubernetes workers and requires the reference free mock
+configuration. It refuses model-selection overrides and customized server
+configuration; it does not switch a deployment's model. If you previously used
+`kind use-model`, run `./make kind mock` first. It does not call a paid provider.
+A failed or canceled execution is reported rather than replaced with a fake
+success. Fix the underlying failure and retry that Task before seeding again.
+
+Reruns match resource names/titles, artifact filenames, file paths, and the
+fixture conversation's first message. Lists are paginated fully and missing
+comments are matched individually by body, so an interrupted comment seed can
+resume. Existing Issue statuses, descriptions, file contents, Agent definitions,
+and member roles are preserved. Fixture Issue assignments, Workflow lifecycle
+states, and Secret states are reconciled; empty Space instructions are filled.
+Do not rename fixture resources if you want them reused. These are named test
+data in a development cluster, not a concurrent seed transaction: run one
+fixture command at a time. A lost response to a create without a server
+idempotency key is recovered by looking up its stable fixture identity on rerun.
+
+This is populated test data, not proof of every product feature. It does not
+seed plugins or managed-model grants (those need an explicit catalog), send
+webhooks, or manufacture running/failed/canceled records. Use `kind smoke` for
+worker failure-boundary and cancellation checks, `kind smoke managed` for the
+managed gateway, and `e2e kind` for browser journeys. Artifact public sharing
+remains an action to test from the seeded artifact rather than creating public
+links during initialization.
 
 `status` changes nothing. It prints the selected cluster and context, probes
 <http://localhost:8080/healthz> through the ingress, and lists nodes plus the
