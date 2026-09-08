@@ -1,10 +1,11 @@
 # Portal 数据与 Plugin 界面
 
 > **翻译说明：** 本文是[英文原文](../../design/portal-data-and-plugin-surfaces.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
-> **受众：** Portal、Plugin 与 Artifact 贡献者 · **状态：** 计划中 —— 第 1 阶段
-> 已完成（Explore 更名为 Workspace Files，并移入侧边栏 Data 分组，作为 Portal
-> 导航记录自身第 1 阶段的连带结果上线；重复的 Account plugin 入口已移除）；
-> 第 2-4 阶段仍未完成
+> **受众：** Portal、Plugin 与 Artifact 贡献者 · **状态：** 计划中 —— 第 1-2
+> 阶段已完成（Explore 更名为 Workspace Files，并移入侧边栏 Data 分组，作为
+> Portal 导航记录自身第 1 阶段的连带结果上线；重复的 Account plugin 入口已
+> 移除；Files、Artifacts、Marketplace、Space Plugins、Agent Plugins 均已说明
+> 各自的作用域）；第 3-4 阶段仍未完成
 
 本文定义 Workspace Files、Artifacts、Marketplace、Space Plugins 与 Agent plugin
 选择的名称和边界。这是一项可以独立交付的 R3 信息架构改进，不改变路线图优先级或

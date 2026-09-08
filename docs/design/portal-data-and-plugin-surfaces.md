@@ -2,10 +2,11 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Portal数据与插件界面.md)
 > **Audience:** Portal, plugin, and artifact contributors · **Status:** planned
-> — slice 1 is done (Explore renamed to Workspace Files and moved into the
+> — slices 1-2 are done (Explore renamed to Workspace Files and moved into the
 > sidebar's Data group as a side effect of the Portal navigation record's own
-> slice 1; the duplicate Account plugin destination is removed); slices 2-4
-> remain undone
+> slice 1; the duplicate Account plugin destination is removed; each of Files,
+> Artifacts, Marketplace, Space Plugins, and Agent Plugins states its scope);
+> slices 3-4 remain undone
 
 This record defines the names and boundaries for Workspace Files, Artifacts,
 Marketplace, Space Plugins, and Agent plugin selection. It is an independently
