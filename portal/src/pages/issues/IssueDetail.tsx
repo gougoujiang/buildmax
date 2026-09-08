@@ -28,6 +28,7 @@ import { RunTraceModal } from "../../features/runs"
 import { getSpaceMembers } from "../../features/spaces/api"
 import { getWorkflows, runIssueWorkflow } from "../../features/workflows"
 import { useSpace } from "../../contexts/SpaceContext"
+import { useApp } from "../../contexts/AppContext"
 
 interface IssueDetailProps {
   token: string | null
@@ -70,6 +71,7 @@ function latestRun(flow: IssueFlow | null): IssueFlowRun | null {
 
 export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   const { currentSpaceId, currentUserRole } = useSpace()
+  const { setEntityLabel } = useApp()
   const [flow, setFlow] = useState<IssueFlow | null>(null)
   const [traceRunId, setTraceRunId] = useState<string | null>(null)
   const [agents, setAgents] = useState<Agent[]>([])
@@ -134,6 +136,12 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   useEffect(() => {
     void load()
   }, [load])
+
+  // Publish the loaded title so the breadcrumb reads "Issues / <title>"
+  // instead of the opaque id, and updates in place after a rename.
+  useEffect(() => {
+    if (flow) setEntityLabel(flow.issue.id, flow.issue.title)
+  }, [flow, setEntityLabel])
 
   const currentRun = latestRun(flow)
   const currentRunLatestTaskId =

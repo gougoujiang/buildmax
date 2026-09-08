@@ -43,11 +43,10 @@ test("a workflow is listed, and its detail view opens by URL", async ({ page }) 
   // colleague.
   await page.goto(`/#/workflow/${workflow.id}`)
   await expect(page.getByRole("heading", { name: "Workflow Detail" })).toBeVisible()
-  // The id is on the page twice, and both places are worth asserting rather
-  // than working around: the breadcrumb says where the reader is, and the
-  // Definition panel says which workflow it is showing. A single unscoped
-  // match would resolve to both and fail on whichever rendered first.
-  await expect(page.getByLabel("Breadcrumb").getByText(workflow.id, { exact: true })).toBeVisible()
+  // The breadcrumb is the reader's orientation cue, so once the workflow has
+  // loaded it names the workflow rather than its opaque id. The Definition
+  // panel is where the id itself belongs, as secondary metadata.
+  await expect(page.getByLabel("Breadcrumb").getByText(name, { exact: true })).toBeVisible()
   const definition = page.locator(".issues-page__panel").filter({
     has: page.getByRole("heading", { name: "Definition" }),
   })

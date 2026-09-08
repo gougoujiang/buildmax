@@ -91,19 +91,19 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
   } else if (route.name === "workflow") {
     crumbs = [
       { label: "Workflows", route: { name: "workflows" } },
-      { label: route.workflowId, route },
+      { label: entityLabels[route.workflowId] ?? "Workflow", route },
     ]
   } else if (route.name === "workflowRun") {
     crumbs = [
       { label: "Workflows", route: { name: "workflows" } },
-      { label: route.workflowRunId, route },
+      { label: entityLabels[route.workflowRunId] ?? "Workflow Run", route },
     ]
   } else if (route.name === "issues") {
     crumbs = [{ label: "Issues", route: { name: "issues" } }]
   } else if (route.name === "issue") {
     crumbs = [
       { label: "Issues", route: { name: "issues" } },
-      { label: route.issueId, route },
+      { label: entityLabels[route.issueId] ?? "Issue", route },
     ]
   } else if (route.name === "artifacts") {
     crumbs = [{ label: "Artifacts", route: { name: "artifacts" } }]
