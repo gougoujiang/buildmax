@@ -60,7 +60,7 @@ HTTP API 提供自描述文档：`GET /openapi.json`，可在 `/swagger/` 浏览
 |---|---|
 | [current-state.md](current-state.md) | 基于代码的实现情况与就绪程度评估 |
 | [ROADMAP.md](ROADMAP.md) | 当前优先级与实施顺序 |
-| [design/](design/设计文档索引.md) · [简体中文](design/设计文档索引.md) | 产品方向、当前计划与子系统规范 |
+| [design/](design/设计文档索引.md) | 按 domain 浏览、以生命周期标记的设计理由 |
 | [../SECURITY.md](../../SECURITY.md) | 漏洞披露与运维人员责任 |
 
 ## 探索未来方向

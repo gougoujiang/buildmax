@@ -24,7 +24,7 @@ an English page, update its `zh/` counterpart in the same pull request.
 | `deploy/` | Someone running it for a space | Topology, authentication, local cluster |
 | `reference/` | Someone looking something up | Configuration, webhook — tables, not prose |
 | `contribute/` | Someone changing the code | Layout, architecture, these conventions |
-| `design/` | Someone asking "why is it like this" | Semantic design records indexed by lifecycle |
+| `design/` | Someone asking "why is it like this" | Semantic design records browsed by domain and marked by lifecycle |
 | `proposals/` | Someone evaluating a possible future direction | Exploratory cross-cutting papers that are not committed work |
 
 The test for where a document belongs is **who is stuck without it**, not what
@@ -40,6 +40,7 @@ A proposal must:
 
 - state its status as `proposal — under discussion`;
 - record when discussion opened as `Opened: YYYY-MM-DD`;
+- choose the primary domain where a contributor would look for the question;
 - link the current roadmap plans and design records it may affect;
 - distinguish goals, non-goals, options, open questions, and the evidence
   needed to make a decision;
@@ -57,6 +58,8 @@ Keep a proposal while the decision is genuinely open. Once accepted, put the
 committed priority in `ROADMAP.md`, move durable rationale into `design/`, and
 create implementation issues as appropriate. Then delete the proposal. Delete
 rejected or superseded proposals too; git history preserves the discussion.
+Only open proposals appear in the live index; accepted rationale belongs in a
+design record, and the retired proposal remains available through Git history.
 
 ## Design Documents
 
@@ -68,13 +71,35 @@ comments and other documents can cite it without inheriting planning metadata:
 // Mirrors the design in docs/design/sandbox-boundaries.md.
 ```
 
-`design/README.md` separates three kinds of entry:
+`design/README.md` groups records by the primary domain where a contributor
+would look for them:
 
-- **Product direction** — durable decisions spanning roadmap phases.
-- **Active roadmap plans** — planned or partly implemented work under a
+- **Product and Execution Model**;
+- **Agent Runtime and Models**;
+- **Local Experience**;
+- **Space Platform**;
+- **Trust and Security**;
+- **Operations and Deployment**;
+- **Verification**.
+
+The primary domain is a discovery aid, not a statement of exclusive ownership.
+A record that crosses boundaries still appears in exactly one domain table and
+explains its related domains in its own text. Add a domain only when contributors
+have a distinct, durable entry point that the existing domains cannot express;
+do not create a directory merely to classify a record.
+
+Each record also has one lifecycle:
+
+- **Direction** — durable decisions spanning roadmap phases.
+- **Active plan** — planned or partly implemented work under a
   `ROADMAP.md` priority. These expire when the work lands or changes direction.
-- **Subsystem specifications** — durable records of how an implemented or
+- **Specification** — durable records of how an implemented or
   partly implemented subsystem is designed. These stay current.
+
+Keep roadmap priority and detailed implementation status in `ROADMAP.md` and
+the individual record. The index carries only the lifecycle and a concise scope
+description, so it remains useful as navigation instead of becoming a second
+roadmap.
 
 A design document is **rationale, not user documentation**. When a design ships
 a user-configurable feature, the user-facing half belongs in the `manual/` manual

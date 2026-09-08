@@ -7,82 +7,118 @@
 Why BuildMax is built the way it is. These are **rationale, not user
 documentation** — when a design ships something configurable, the user-facing
 half lives in the [manual](../../manual) or [../reference/](../reference/), and the
-design record keeps the trade-offs and the open gaps.
+design record keeps the trade-offs and open gaps.
 
-Documents use stable, semantic filenames. The index supplies their lifecycle
-and reading order; filenames do not encode chronology or roadmap priority.
+Documents use stable, semantic filenames. Browse by the problem you are working
+on; each record has one primary domain for discovery and a lifecycle that says
+how to read it. A primary domain is a navigation choice, not an exclusive
+ownership boundary. Cross-domain relationships belong in the record itself.
 
-## Product Direction
+## Browse By Domain
 
-Durable product decisions that guide more than one roadmap phase.
-
-| Document | Scope |
-|---|---|
-| [Product vision](product-vision.md) | Long-range product model, ownership boundaries, and rules for future bets |
-| [Surface positioning](surface-positioning.md) | How Agent Core, CLI, Desktop, and Portal relate |
-| [Agent execution and Task threads](agent-execution-and-task-threads.md) | Agent definitions execute directly through Space-owned Task/TaskRun threads; Conversation is an optional foreground origin, not an execution parent |
-| [Orchestration and continuity decisions](orchestration-and-continuity-decisions.md) | Decision record over the recent proposals: Task workspace checkpoints is the single continuity record, the ownership boundary is renamed to Space, structured output joins the roadmap, and the delegation/Assistant question is deferred |
-| [Task workspace checkpoints](task-workspace-checkpoints.md) | Largely implemented: immutable base/result/partial checkpoints, restore, storage limits, retention and orphan sweeps, and read-only Portal state. Failed-checkpoint status and Continue gating remain open; Task-scoped Plugin environments are separate unbuilt work. |
-
-## Active Roadmap Plans
-
-Work tracked by [ROADMAP.md](../ROADMAP.md). Plans can be partly implemented;
-their status must say what is shipped and what remains. When a plan is complete,
-move durable decisions into a subsystem specification or the architecture
-reference, then delete the plan.
-
-| Document | Priority | Current state |
+| Domain | Start here | Covers |
 |---|---|---|
-| [Agent Core trust harness](trust-harness.md) | P0.5 | Worker surface selection, process limits, and command/HTTP hook containment shipped, as did Agent sandbox tiers and Space defaults. MCP containment, general worker egress, trace follow-ups, and run-detail visibility remain open. |
-| [Worker API network boundary](worker-api-network-boundary.md) | R0 | Shipped: separate public/worker listeners, TLS, internal Service, route lifecycle authorization, worker-port NetworkPolicy, and kind boundary evidence. General worker egress remains open. |
-| [gVisor worker runtime](gvisor-worker-runtime.md) | R0 | Planned behind qualification: an operator-selected, fail-closed RuntimeClass places the whole worker Pod behind gVisor while retaining `bwrap` for command policy; exact nested-sandbox compatibility and performance are the first gate |
-| [Agent-scoped sandbox policy](agent-sandbox-policy.md) | P0.5 follow-on | Backend and Portal implemented: Agent revision tiers, Space defaults, claim-time pinning, and worker sandbox selection, with production-pod and organic smoke evidence. Resolved tiers in Portal run details and general cluster egress remain open. |
-| [Context durability](context-durability.md) | P0.5 | Implemented: accumulating compaction, durable session notes, the pre-compaction checkpoint, and the additional system prompt. The §6 and §11 follow-ups are open |
-| [Local Projects and Project Memory](local-project-memory.md) | P0.5 local follow-on | Phases 1 and 2 shipped: shared CLI/Desktop Project identity, bounded cross-session Project Memory, `MemoryRead` and `MemoryWrite` on enabled local primary runs, and the memory half of `buildmax info` and the TUI `/info` panel. Desktop lists and reads memories and nothing more; its editor, per-memory delete, and enable toggle are unbuilt, as is the §17 session review command. Phase 3 not started. Portal, space, and user memory remain outside this record |
-| [Local session storage](local-session-storage.md) | unscheduled | Implemented: atomic session bundles, linked journal history, rewind, and physical-copy fork. Server synchronization is outside this record |
-| [Session usage stats](session-usage-stats.md) | P1 follow-on | Per-session `buildmax info` and the session tab of the TUI `/info` panel shipped, with the subagent and compaction metering fixes they required. Cross-session aggregation and the Desktop surface are designed and not built |
-| [Local background jobs](local-background-jobs.md) | P0.5 | Stages 1–3 shipped: background `Bash`/`Task` jobs, `Monitor`, typed delivery with parked wake-up on both surfaces, durable job logs. Durability beyond the process — spool, supervisor, scheduling — is decided against, not pending |
-| [Evaluation and qualification](evaluation-system.md) | P0.6 | Local and worker slices shipped: the contract, both black-box adapters, deterministic/command/trace graders, preflight, repetition, paired comparison, and three tasks. The legacy harness is retired. The Terminal-Bench 2.1 adapter and importer are built and pinned, and have run the oracle smoke and a one-task canary; no wider run exists, so there is no external score yet. The canary subset is pinned and selectable but has not been run; that run, conversation and deployment adapters, model-grader calibration, the holdout, and the Inspect spike are open |
-| [Issue agent access](issue-agent-access.md) | unscheduled | Shipped on both planes: `GetIssue` and `ReportToIssue`, scoped by construction, behind run-token routes for a worker and `buildmax issue start` locally. Status, assignment, and hierarchy stay out of the model's hands, and a local report is stored as `local_agent` — a claim, never the `agent` a scheduled run writes. Artifact references in `GetIssue` are deferred on an ownership question |
-| [Server coordination](server-coordination.md) | R1 | Accepted; in implementation. A shared Redis coordination backend (`coordination.mode`) makes the stream hub, connection-event fan-out, and conversation turn serialization multi-replica correct; `local` (single replica) stays the default and shipped behavior, `redis` fails closed when unreachable |
-| [Enterprise deployment](enterprise-deployment.md) | P3 | M1, M2, M4, and M5 shipped; M3 mostly done. Operating evidence and configuration checks remain. |
-| [Graceful shutdown](graceful-shutdown.md) | P3 follow-on | Implemented: the shutdown ladder and its budget, the draining state, watcher-stream drain and its Portal half, turn quiescing, managed terminal callbacks, HTTP timeouts, the manifests, a worker that reports what it produced when asked to stop, a bounded scheduler stop, and the recorded liveness signal that closes a run whose worker was killed without warning. Re-dispatching an interrupted run belongs to run retry; durable workflow advance stays open |
-| [Managed LLM gateway](llm-gateway.md) | P3 | Shipped for CLI/TUI/Desktop and task runs; strict quota open. Sections 1, 4.2, 7, 10, and 12 are revised by [client modes](client-modes.md), summarised in its status block |
-| [Prompt cache control](prompt-cache-control.md) | P3 follow-on | Phases 1–3 shipped and phase 4's mechanism with them: cache policy, the Anthropic and OpenAI native paths, usage and cost telemetry. The qualification suite has been run and both native paths qualified; compatible profiles stay empty by decision. The per-entry capability claim and the section 6 diagnostics are open |
-| [Local Ollama provider](local-ollama-provider.md) | P1 follow-on | Complete: the adapter, local inventory, the CLI surface, and credential-free managed targets |
-| [Space governance](space-governance.md) | P4 | Roles, quota, workflow lifecycle, the audit trail, its retention and export, and quota alerting shipped; the second slice of actions and audit-to-run correlation open |
-| [System administration](system-administration.md) | P4 | Implemented: grants with concurrent uniqueness and last-effective-holder protection, authenticated admin CLI/API, seven-section Portal administration, pagination, redacted configuration, and model creation. Transactional authority audit and admin CLI session parity and quota assignment remain open. |
-| [Space Secrets and run delivery](space-secrets.md) | R0 credential debt, R3 space surface | Phase 1 complete: a Space owns a group of named items in one encrypted row (unversioned), an Agent revision configures its env consumption, an owner manages secrets and an owner or admin configures agent consumption in Portal, a run receives the values through a no-store worker route and the `env_scrub` allow-list, the materialization is recorded, and the values are redacted from trace, tool results, and stream. Records that a run can read what it was granted, so the boundary is Space ownership, per-Agent consumption, credential lifetime, and audit rather than confidentiality against the model. Phases 2–5 (file delivery, short-lived exchange, external providers, workload identity) follow. Answers Phase D3 of [plugin-space-distribution.md](plugin-space-distribution.md) |
-| [Plugin distribution and private marketplace](plugin-marketplace.md) | post-Beta, P4 follow-on | Phases A–C shipped: plugins load, the Marketplace publishes and installs, Portal and Desktop manage it. Phase D is tracked by the next record; its instruction-only D1 slice is shipped |
-| [Space and worker plugin distribution](plugin-space-distribution.md) | post-Beta, after the Marketplace | D1 shipped, including Portal activation and Agent plugin selection. Task-scoped autonomous acquisition and D2 executable content remain unbuilt. D3 is owned by Space Secrets: environment delivery is complete; file delivery and later phases remain open. |
-| [Entity identity and relational keys](entity-identity.md) | Beta gate | Implemented: opaque public handles, numeric relational keys, and the store boundary between them. §8 decided database foreign keys: none, until a real deletion feature adds them, and the §17 amendment moving storage off `BINARY(12)` to the canonical text form is in the schema |
-| [Workspace root and worktrees](workspace-root-and-worktrees.md) | step 5 product bet | Complete, phases 1-5: the root is session state every tool reads per call, an agent creates, enters, leaves, and removes its own worktrees under the containment, permission, and occupancy rules, derived configuration follows a move, three hook events announce it, and a delegate can have a tree of its own. Whether listing alone keeps worktrees from accumulating is the open question |
-| [Tool permissions](tool-permissions.md) | unscheduled | Implemented; operator control over autonomous surfaces (§7) and the §10 open questions remain, one of which records a defect in shipped sandbox policy rather than in this design |
-| [Parallel tool execution](parallel-tool-execution.md) | unscheduled | Implemented for read-only tools and read-only `Task` agent types; presentation and trace questions open (§11) |
-| [Local end-to-end verification](end-to-end-testing.md) | unscheduled | Local harness, CLI, Desktop bridge/UI, CI policy, and deployment cancellation smoke shipped. Broader deployment failure recovery, some Portal journeys, and native-window/packaged-app smoke remain open. |
-| [Verification program](verification-program.md) | R0–R4 | Partly implemented: PR MySQL gate, contention and artifact retention tests, local E2E, and deployment smoke including cancellation. Remaining persistence cases, broader failure injection, the risk matrix, and external release rehearsal remain open. |
-| [Workflow runtime](workflow-runtime.md) | R5 | Direction accepted: a Space-scoped, revision-pinned durable adaptive graph over Task/TaskRun. Current code remains a linear callback-driven precursor; durability, dataflow, graph execution, typed decisions, and waits are phased and unshipped |
-| [Structured output](structured-output.md) | R5 prerequisite | Proposed: a provider-neutral structured-output contract in the shared runtime — a JSON Schema subset on the request, a validated value on the completion, per-provider mapping with honest capability reporting. Additive to text output; unblocks Workflow typed routes/planners and a richer Task result. Not started |
-| [Unified artifacts](unified-artifacts.md) | P2 follow-on | Implemented: durable space artifacts with stable opaque references, upload/preview/download, tombstoned deletion, and `UploadArtifact` on every surface with a server. Registering a run's output directory is decided against; external sharing is reopened by the record below; the phase 4 follow-ons stay open |
-| [Artifact public sharing and preview](artifact-public-sharing-and-preview.md) | P2 follow-on | Implemented (phases 1–2): reopens unified-artifacts phase 3 with a revocable stored share token for anonymous public links, `UploadArtifact(share=true)`, the `public_base_url` the server renders links from, and rich Portal preview (Markdown plus opaque-origin sandboxed HTML) shared by the authenticated detail page and the public page. Share-expiry audit awaits a share retention sweep; a couple of Phase 3 follow-ons stay open |
-| [Portal execution model](portal-execution-model.md) | P2 follow-on | Historical rationale: the mandatory Tier 1 hierarchy, Conversation-owned Tasks, and Tier 1 result-delivery mechanism are superseded by Agent execution and Task threads. Use that record for current behavior and remaining verification. |
+| [Product and Execution Model](#product-and-execution-model) | [Product vision](product-vision.md) | Product boundaries, surfaces, Agent execution, and continuity decisions |
+| [Agent Runtime and Models](#agent-runtime-and-models) | [Agent execution and Task threads](agent-execution-and-task-threads.md) | Context, models, tools, hooks, traces, and shared runtime behavior |
+| [Local Experience](#local-experience) | [Local Projects and Project Memory](local-project-memory.md) | CLI, TUI, Desktop, sessions, workspaces, and local models |
+| [Space Platform](#space-platform) | [Space governance](space-governance.md) | Space-owned work, collaboration, workflows, plugins, and artifacts |
+| [Trust and Security](#trust-and-security) | [Agent Core trust harness](trust-harness.md) | Sandboxes, credentials, permissions, and worker boundaries |
+| [Operations and Deployment](#operations-and-deployment) | [Enterprise deployment](enterprise-deployment.md) | Server coordination, private deployment, and process lifecycle |
+| [Verification](#verification) | [Verification program](verification-program.md) | Evaluation, end-to-end evidence, and release confidence |
 
-## Subsystem Specifications
+The lifecycle column has three values:
 
-Durable records for implemented or partly implemented subsystems. Keep these
-aligned with code and link user-facing behavior to `guide/` or `reference/`.
+- **Direction** — a durable decision spanning more than one roadmap phase.
+- **Active plan** — planned or partly implemented work tracked by
+  [ROADMAP.md](../ROADMAP.md). The record states what has shipped and what
+  remains.
+- **Specification** — durable rationale for an implemented or partly
+  implemented subsystem, kept aligned with the code.
 
-| Document | Current state | User docs |
+Roadmap priority and detailed implementation status remain in `ROADMAP.md` and
+the individual record rather than being duplicated here.
+
+## Product and Execution Model
+
+| Document | Lifecycle | Covers |
 |---|---|---|
-| [Client modes: local and managed](client-modes.md) | Implemented: the mode is whether a login is stored, models come from one source, the alias layer and per-space model policy are gone, and the call ledger is user-scoped | [manual/models-and-modes.md](../../manual/models-and-modes.md) |
-| [LLM provider adapters](llm-provider-adapters.md) | Three wire protocols, reasoning, prompt caching, and image input are implemented | [manual/models-and-modes.md](../../manual/models-and-modes.md) |
-| [Worker run token](worker-run-token.md) | The run-scoped credential is the only credential accepted by worker routes; the shared worker token is removed | [reference/configuration.md](../reference/configuration.md) |
-| [Space membership lifecycle](space-membership-lifecycle.md) | Invitation, role change, ownership transfer, access recovery, and their Portal surfaces are implemented | — |
-| [Timestamp representation](timestamp-representation.md) | Persisted instants use `time.Time`, `DATETIME(6)`, and RFC 3339 with UTC-pinned database connections | — |
-| [Hook system](hook-system.md) | 16 events and 4 transports implemented; the optional inspector and frontmatter integrations stay deferred | [manual/hooks.md](../../manual/hooks.md) |
-| [Sandbox boundaries](sandbox-boundaries.md) | Local phases A–E implemented, process limits and the command/http hook boundary included; phase F's worker surface selection, production-pod verification, and downgrade marking shipped, its example-config docs and the `sandbox overrides` command open | [manual/sandbox.md](../../manual/sandbox.md) |
-| [Durable run trace](durable-run-trace.md) | Phase 1 implemented; richer events and retention open | [manual/sessions-and-traces.md](../../manual/sessions-and-traces.md) |
-| [Queued messages](queued-messages.md) | Queueing on all three surfaces, mid-run injection on CLI/TUI and Desktop; persistence and Portal injection decided against | [manual/cli.md](../../manual/cli.md) |
+| [Product vision](product-vision.md) | Direction | Long-range product model, ownership boundaries, and rules for future bets |
+| [Surface positioning](surface-positioning.md) | Direction | How Agent Core, CLI, Desktop, and Portal relate |
+| [Agent execution and Task threads](agent-execution-and-task-threads.md) | Direction | Task and TaskRun as the durable Agent execution plane, independent of Conversation |
+| [Orchestration and continuity decisions](orchestration-and-continuity-decisions.md) | Direction | Decisions connecting Task continuity, Space ownership, structured output, and orchestration |
+| [Portal execution model](portal-execution-model.md) | Active plan | Historical rationale superseded in part by Agent execution and Task threads |
+
+## Agent Runtime and Models
+
+| Document | Lifecycle | Covers |
+|---|---|---|
+| [Context durability](context-durability.md) | Active plan | Compaction, durable notes, checkpoints, and additional prompts |
+| [Managed LLM gateway](llm-gateway.md) | Active plan | Managed inference, model resolution, usage, and quota boundaries |
+| [Prompt cache control](prompt-cache-control.md) | Active plan | Provider-native prompt caching and its telemetry |
+| [Parallel tool execution](parallel-tool-execution.md) | Active plan | Safe concurrency for read-only tools and subagents |
+| [Structured output](structured-output.md) | Active plan | Provider-neutral schema-constrained model results |
+| [Client modes: local and managed](client-modes.md) | Specification | Login-derived mode selection, model inventory, and usage attribution |
+| [LLM provider adapters](llm-provider-adapters.md) | Specification | Canonical messages and provider protocol differences |
+| [Hook system](hook-system.md) | Specification | Runtime events, transports, failure behavior, and trust boundaries |
+| [Queued messages](queued-messages.md) | Specification | Queueing and mid-run message injection across interactive surfaces |
+| [Durable run trace](durable-run-trace.md) | Specification | Bounded, redacted JSONL evidence for every run |
+
+## Local Experience
+
+| Document | Lifecycle | Covers |
+|---|---|---|
+| [Local Projects and Project Memory](local-project-memory.md) | Active plan | Shared local Project identity and bounded cross-session memory |
+| [Local session storage](local-session-storage.md) | Active plan | Atomic session bundles, linked history, rewind, and fork |
+| [Session usage stats](session-usage-stats.md) | Active plan | Per-session and future cross-session usage reporting |
+| [Local background jobs](local-background-jobs.md) | Active plan | Process-scoped command, subagent, and monitor jobs |
+| [Local Ollama provider](local-ollama-provider.md) | Active plan | Credential-free local model discovery and inference |
+| [Workspace root and worktrees](workspace-root-and-worktrees.md) | Active plan | Mutable workspace roots and Agent-managed Git worktrees |
+
+## Space Platform
+
+| Document | Lifecycle | Covers |
+|---|---|---|
+| [Task workspace checkpoints](task-workspace-checkpoints.md) | Direction | Durable workspace continuity for Task and TaskRun execution |
+| [Issue agent access](issue-agent-access.md) | Active plan | Scoped Issue context and reporting for local and worker runs |
+| [Space governance](space-governance.md) | Active plan | Roles, quota, workflow lifecycle, audit, and retention |
+| [System administration](system-administration.md) | Active plan | Deployment-wide authority and operator surfaces |
+| [Plugin distribution and private marketplace](plugin-marketplace.md) | Active plan | Publishing, installing, and managing plugins |
+| [Space and worker plugin distribution](plugin-space-distribution.md) | Active plan | Space activation, Agent selection, and worker delivery |
+| [Entity identity and relational keys](entity-identity.md) | Active plan | Public identifiers, relational keys, and store boundaries |
+| [Workflow runtime](workflow-runtime.md) | Active plan | Durable adaptive graphs over Task and TaskRun |
+| [Unified artifacts](unified-artifacts.md) | Active plan | Space-owned artifact storage and Agent upload |
+| [Artifact public sharing and preview](artifact-public-sharing-and-preview.md) | Active plan | Revocable public links and safe rich previews |
+| [Space membership lifecycle](space-membership-lifecycle.md) | Specification | Invitation, role change, ownership transfer, and recovery |
+| [Timestamp representation](timestamp-representation.md) | Specification | Canonical persisted and API timestamp representation |
+
+## Trust and Security
+
+| Document | Lifecycle | Covers |
+|---|---|---|
+| [Agent Core trust harness](trust-harness.md) | Active plan | Containment, observability, and evidence across Agent execution surfaces |
+| [Worker API network boundary](worker-api-network-boundary.md) | Active plan | Separation and authorization of public and worker traffic |
+| [gVisor worker runtime](gvisor-worker-runtime.md) | Active plan | Fail-closed worker Pod isolation behind an optional RuntimeClass |
+| [Agent-scoped sandbox policy](agent-sandbox-policy.md) | Active plan | Agent revisions, Space defaults, and claim-time sandbox selection |
+| [Space Secrets and run delivery](space-secrets.md) | Active plan | Space-owned credentials and run-scoped materialization |
+| [Tool permissions](tool-permissions.md) | Active plan | Runtime tool allow, deny, and approval policy |
+| [Sandbox boundaries](sandbox-boundaries.md) | Specification | Local and worker command containment boundaries |
+| [Worker run token](worker-run-token.md) | Specification | The run-scoped credential accepted by worker routes |
+
+## Operations and Deployment
+
+| Document | Lifecycle | Covers |
+|---|---|---|
+| [Server coordination](server-coordination.md) | Active plan | Multi-replica stream fan-out and turn serialization through Redis |
+| [Enterprise deployment](enterprise-deployment.md) | Active plan | Supported private deployment shape and operating gaps |
+| [Graceful shutdown](graceful-shutdown.md) | Active plan | Draining, quiescing, worker interruption, and bounded shutdown |
+
+## Verification
+
+| Document | Lifecycle | Covers |
+|---|---|---|
+| [Evaluation and qualification](evaluation-system.md) | Active plan | Black-box adapters, graders, suites, and external benchmarks |
+| [Local end-to-end verification](end-to-end-testing.md) | Active plan | Deterministic local, Desktop, Portal, and deployment journeys |
+| [Verification program](verification-program.md) | Active plan | Risk-based evidence from pull request checks through release rehearsal |
 
 ## Where The Designs Land
 
@@ -103,9 +139,11 @@ Full tree: [contribute/repo-layout.md](../contribute/repo-layout.md).
 
 1. Choose a short semantic filename such as `execution-policy.md`.
 2. State the problem, options considered, chosen approach, status, and phases.
-3. Add it to exactly one section above.
-4. If it ships something a user configures, write the user-facing half in
-   `guide/` or `reference/` and link it from the table.
+3. Choose the primary domain where a contributor would look for it, and add it
+   to exactly one domain table above.
+4. Mark its lifecycle as Direction, Active plan, or Specification.
+5. If it ships something a user configures, write the user-facing half in the
+   `manual/` or `reference/` and link it from the record.
 
 When it stops describing the current direction, **delete it** and remove its
 row. Git history keeps it; see
