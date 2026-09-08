@@ -493,7 +493,15 @@ function OriginSection({
  * same question as what the agent currently names. See
  * docs/design/portal-data-and-plugin-surfaces.md.
  */
-function PluginsSection({ pins, onClose }: { pins: ApiRunProvenance["plugin_pins"]; onClose: () => void }) {
+function PluginsSection({
+  pins,
+  spaceId,
+  onClose,
+}: {
+  pins: ApiRunProvenance["plugin_pins"]
+  spaceId: string | null
+  onClose: () => void
+}) {
   if (!pins || pins.length === 0) return null
   return (
     <section className="run-trace__section">
@@ -512,7 +520,7 @@ function PluginsSection({ pins, onClose }: { pins: ApiRunProvenance["plugin_pins
         className="run-trace__link"
         onClick={() => {
           onClose()
-          navigate({ name: "space", section: "plugins" })
+          if (spaceId) navigate({ name: "space", spaceId, section: "plugins" })
         }}
       >
         Open Space Plugins
@@ -640,7 +648,7 @@ export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunT
             {/* First and unconditional: a run that wrote no trace still came
                 from somewhere, and that is the question a reader opens with. */}
             <OriginSection provenance={provenance} error={provenanceError} />
-            <PluginsSection pins={provenance?.plugin_pins} onClose={onClose} />
+            <PluginsSection pins={provenance?.plugin_pins} spaceId={spaceId} onClose={onClose} />
             {error ? (
               <p className="modal__error" role="alert">{error}</p>
             ) : trace ? (

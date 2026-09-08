@@ -1,4 +1,5 @@
 import { navigate } from "../router"
+import { useSpace } from "../contexts/SpaceContext"
 
 /**
  * Editor for the catalog plugins an agent loads for its background runs. It is
@@ -17,6 +18,7 @@ interface PluginSelectionEditorProps {
 }
 
 export function PluginSelectionEditor({ value, onChange, available }: PluginSelectionEditorProps) {
+  const { currentSpaceId } = useSpace()
   // Union of what the space offers and what the agent already names, sorted, so
   // a stale name stays visible instead of vanishing from the list.
   const names = [...new Set([...available, ...value])].sort()
@@ -38,7 +40,7 @@ export function PluginSelectionEditor({ value, onChange, available }: PluginSele
         <button
           type="button"
           className="agent-plugins__link"
-          onClick={() => navigate({ name: "space", section: "plugins" })}
+          onClick={() => currentSpaceId && navigate({ name: "space", spaceId: currentSpaceId, section: "plugins" })}
         >
           Space Plugins
         </button>
