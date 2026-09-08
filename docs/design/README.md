@@ -79,6 +79,11 @@ the individual record rather than being duplicated here.
 | Document | Lifecycle | Covers |
 |---|---|---|
 | [Task workspace checkpoints](task-workspace-checkpoints.md) | Direction | Durable workspace continuity for Task and TaskRun execution |
+| [Portal navigation and Space context](portal-navigation-and-space-context.md) | Active plan | Canonical Space routes, scoped navigation, switching, and orientation |
+| [Portal work and execution experience](portal-work-and-execution-experience.md) | Active plan | Issue-centered work, explicit execution, and trustworthy provenance |
+| [Portal state and permission feedback](portal-state-and-permission-feedback.md) | Active plan | Loading, empty, error, stale, and authorization presentation |
+| [Portal data and plugin surfaces](portal-data-and-plugin-surfaces.md) | Active plan | Workspace Files, Artifacts, Marketplace, and scoped plugin actions |
+| [Portal responsive and accessible interaction](portal-responsive-and-accessible-interaction.md) | Active plan | Narrow layouts, keyboard behavior, dialogs, and viewport evidence |
 | [Issue agent access](issue-agent-access.md) | Active plan | Scoped Issue context and reporting for local and worker runs |
 | [Space governance](space-governance.md) | Active plan | Roles, quota, workflow lifecycle, audit, and retention |
 | [System administration](system-administration.md) | Active plan | Deployment-wide authority and operator surfaces |
