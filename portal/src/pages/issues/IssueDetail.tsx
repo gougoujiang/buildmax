@@ -549,11 +549,20 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
           <section className="issues-page__panel issue-detail-page__wide">
             <div className="issues-page__toolbar">
               <h2 className="issues-page__section-title">Discussion</h2>
-              <span className="page-activity__meta">
-                {comments.length === 0
-                  ? "No comments"
-                  : `${comments.length} comment${comments.length === 1 ? "" : "s"}`}
-              </span>
+              <div className="issues-page__toolbar-actions">
+                <span className="page-activity__meta">
+                  {comments.length === 0
+                    ? "No comments"
+                    : `${comments.length} comment${comments.length === 1 ? "" : "s"}`}
+                </span>
+                <button
+                  type="button"
+                  className="page-activity__action-btn"
+                  onClick={() => navigate({ name: "explore" })}
+                >
+                  Workspace Files
+                </button>
+              </div>
             </div>
             <IssueDiscussion
               spaceId={currentSpaceId}

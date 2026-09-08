@@ -4,6 +4,8 @@ import type { ApiPlugin, ApiPluginRelease } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { getPlugin, listPlugins } from "../../features/plugins/api"
 import { newestInstallable } from "../../features/plugins/releaseSelection"
+import { useSpace } from "../../contexts/SpaceContext"
+import { navigate } from "../../router"
 
 /**
  * Marketplace is the deployment-wide plugin catalog, reached from the header
@@ -16,6 +18,7 @@ import { newestInstallable } from "../../features/plugins/releaseSelection"
  * deployment-scoped and small, so fetching all of them up front is cheap.
  */
 export function Marketplace({ token }: { token: string | null }) {
+  const { currentSpace, currentUserRole } = useSpace()
   const [plugins, setPlugins] = useState<ApiPlugin[]>([])
   const [releases, setReleases] = useState<Record<string, ApiPluginRelease | null>>({})
   const [loading, setLoading] = useState(true)
@@ -141,6 +144,8 @@ export function Marketplace({ token }: { token: string | null }) {
         <PluginDetailModal
           plugin={selectedPlugin}
           release={releases[selectedPlugin.name] ?? null}
+          spaceName={currentSpace?.name ?? null}
+          canManageSpace={currentUserRole === "owner" || currentUserRole === "admin"}
           onClose={() => setSelected(null)}
         />
       ) : null}
@@ -196,10 +201,14 @@ function PluginCard({
 function PluginDetailModal({
   plugin,
   release,
+  spaceName,
+  canManageSpace,
   onClose,
 }: {
   plugin: ApiPlugin
   release: ApiPluginRelease | null
+  spaceName: string | null
+  canManageSpace: boolean
   onClose: () => void
 }) {
   const title = plugin.display_name || plugin.name
@@ -254,6 +263,23 @@ function PluginDetailModal({
             ) : null}
 
             <InstallCommand name={plugin.name} />
+
+            {spaceName && canManageSpace ? (
+              <section className="mkt-detail__section">
+                <h3 className="mkt-detail__section-title">Space activation</h3>
+                <p className="mkt-detail__hint">
+                  Publishing here does not activate it anywhere. To let {spaceName}&apos;s
+                  background runs use it, activate it in Space Plugins.
+                </p>
+                <button
+                  type="button"
+                  className="mkt-install__copy"
+                  onClick={() => navigate({ name: "space", section: "plugins" })}
+                >
+                  Open Space Plugins
+                </button>
+              </section>
+            ) : null}
           </>
         ) : (
           <p className="mkt-detail__meta">

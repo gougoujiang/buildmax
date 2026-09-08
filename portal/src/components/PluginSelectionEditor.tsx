@@ -1,3 +1,5 @@
+import { navigate } from "../router"
+
 /**
  * Editor for the catalog plugins an agent loads for its background runs. It is
  * a checklist, not a text field, so the agent can only name plugins the space
@@ -32,8 +34,15 @@ export function PluginSelectionEditor({ value, onChange, available }: PluginSele
   if (names.length === 0) {
     return (
       <p className="modal__hint">
-        No plugins are available to this space yet. A space owner can activate plugins, or open the
-        catalog, under Space settings.
+        No plugins are available to this space yet. A space owner can activate plugins in{" "}
+        <button
+          type="button"
+          className="agent-plugins__link"
+          onClick={() => navigate({ name: "space", section: "plugins" })}
+        >
+          Space Plugins
+        </button>
+        .
       </p>
     )
   }
