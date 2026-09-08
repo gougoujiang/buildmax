@@ -479,7 +479,7 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "kind",
-			usage:   "kind <up|reload [service]|seed|fixtures|use-model <name>|mock|smoke [managed]|info [email]|login [email]|forward|status|logs [service]|down>",
+			usage:   "kind <up|reload [service]|seed|fixtures [--runs]|use-model <name>|mock|smoke [managed]|info [email]|login [email]|forward|status|logs [service]|down>",
 			summary: "Manage the local Kubernetes reference deployment.",
 			details: []string{
 				"Needs Docker and kubectl, and creates a kind cluster — set BUILDMAX_KIND_CLUSTER\n" +
@@ -507,19 +507,20 @@ func helpTopics() []helpTopic {
 					"seeded model through the managed gateway — it spends real provider quota, so\n" +
 					"`mock` switches back to the free in-cluster mock. Both take effect by setting\n" +
 					"environment on the server and restarting it; the committed config is untouched.",
-				"`fixtures` fills the running deployment with business data — `seed` fills the\n" +
-					"model catalog; the two do not overlap. It creates a couple of accounts, each\n" +
-					"with its personal space, and for the first (alice@buildmax.local) an agent, a\n" +
-					"workflow that drives it, and issues across every status with a comment thread.\n" +
-					"It is idempotent: every entity is matched by title or name and skipped when\n" +
-					"present, so automated Portal testing can start from populated views. Sign in\n" +
-					"with `login alice@buildmax.local`.",
+				"`fixtures` seeds four accounts, personal and shared QA spaces, membership\n" +
+					"roles and an invitation, assigned and nested issues, comments, workflows,\n" +
+					"files, artifacts, and synthetic secrets. A separate space exercises pagination.\n" +
+					"Reruns reuse named resources and fill missing data. `fixtures --runs` also\n" +
+					"creates a conversation, Task Continue/Retry history, and Issue Agent/Workflow\n" +
+					"results. Execution requires the reference free mock configuration; it refuses\n" +
+					"model overrides. Sign in with `login alice@buildmax.local`. See local-kind.md\n" +
+					"for the coverage matrix and fields reconciled on reruns.",
 			},
 			args: []helpRow{
 				{"up", "Create the cluster and apply the reference deployment"},
 				{"reload [service]", "Build and load the images, then restart the deployments; server or portal for just one"},
 				{"seed", "Put the models in " + localSettingsPath + " into the cluster's catalog"},
-				{"fixtures", "Seed idempotent test data: accounts, an agent, a workflow, and issues"},
+				{"fixtures [--runs]", "Seed QA data; --runs adds execution history using the free mock"},
 				{"use-model <name>", "Point conversations and task runs at a seeded catalog model"},
 				{"mock", "Switch conversations and task runs back to the free in-cluster mock"},
 				{"smoke [managed]", "Run the deployment smoke against the cluster"},

@@ -13,14 +13,13 @@ import (
 // types: tools/mk cannot import internal/server, and only the shape crossing the
 // API matters here.
 type fxIssue struct {
-	ID      string `json:"id"`
-	Title   string `json:"title"`
-	Status  string `json:"status"`
-	Version uint64 `json:"version"`
-}
-
-type fxIssueList struct {
-	Issues []fxIssue `json:"issues"`
+	ID            string `json:"id"`
+	Title         string `json:"title"`
+	Status        string `json:"status"`
+	Version       uint64 `json:"version"`
+	ParentIssueID string `json:"parent_issue_id"`
+	AssigneeKind  string `json:"assignee_kind"`
+	AssigneeID    string `json:"assignee_id"`
 }
 
 type fxAgent struct {
@@ -38,20 +37,18 @@ type fxWorkflowList struct {
 }
 
 type fixtureIssue struct {
-	title       string
-	description string
-	status      string
-	comments    []string
+	title        string
+	description  string
+	status       string
+	comments     []string
+	parentTitle  string
+	assigneeKind string
+	assigneeID   string
 }
 
-// kindFixtures seeds a small, deterministic, idempotent set of test data into a
-// running kind cluster: a couple of accounts (each with its personal space), and
-// for the first one an agent, a workflow that drives it, and issues spread
-// across every status with a comment thread. It exists so automated Portal
-// testing starts from populated list and detail views instead of the near-empty
-// deployment `kind up` leaves behind. Rerunning changes nothing: every entity is
-// matched by its fixture title or name and skipped when already present.
-func kindFixtures() error {
+// kindFixtures fills the running deployment through public APIs. Stable fixture
+// names let interrupted runs resume without replacing unrelated test data.
+func kindFixtures(withRuns bool) error {
 	if err := requireCommands("kubectl"); err != nil {
 		return err
 	}
@@ -64,7 +61,13 @@ func kindFixtures() error {
 		return fmt.Errorf("kind cluster %q does not exist; run %s kind up", cluster, mk())
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	if withRuns {
+		if err := requireFixtureMock(); err != nil {
+			return err
+		}
+	}
 	target := kindSmokeTarget()
 	client := &http.Client{Timeout: 30 * time.Second}
 	if err := waitForHTTP(ctx, client, target.apiBase+"/healthz", 60*time.Second); err != nil {
@@ -76,7 +79,7 @@ func kindFixtures() error {
 	// Accounts come first, through the operator CLI, because a personal space is
 	// created with the user and every other fixture hangs off it. "already has
 	// an account" is the idempotent success here, not a failure.
-	for _, email := range []string{"alice@buildmax.local", "bob@buildmax.local"} {
+	for _, email := range []string{"alice@buildmax.local", "bob@buildmax.local", "carol@buildmax.local", "dave@buildmax.local"} {
 		out, err := target.admin("user", "create", email)
 		switch {
 		case err == nil:
@@ -101,13 +104,17 @@ func kindFixtures() error {
 		return fmt.Errorf("seed bob@buildmax.local: %w", err)
 	}
 
+	if err := seedTeamFixtures(ctx, client, target, withRuns); err != nil {
+		return fmt.Errorf("seed team fixtures: %w", err)
+	}
+
 	fmt.Printf("\nFixtures ready. Sign in with %s kind login <email> — try alice@buildmax.local.\n", mk())
 	return nil
 }
 
 func seedAliceFixtures(ctx context.Context, client *http.Client, target smokeTarget) error {
 	const email = "alice@buildmax.local"
-	token, spaceID, err := smokeSignIn(ctx, client, target, email)
+	token, spaceID, err := fixtureSignIn(ctx, client, target, email)
 	if err != nil {
 		return err
 	}
@@ -134,7 +141,7 @@ func seedAliceFixtures(ctx context.Context, client *http.Client, target smokeTar
 }
 
 func seedIssues(ctx context.Context, client *http.Client, target smokeTarget, email string, specs []fixtureIssue) error {
-	token, spaceID, err := smokeSignIn(ctx, client, target, email)
+	token, spaceID, err := fixtureSignIn(ctx, client, target, email)
 	if err != nil {
 		return err
 	}
@@ -143,12 +150,12 @@ func seedIssues(ctx context.Context, client *http.Client, target smokeTarget, em
 
 func ensureIssues(ctx context.Context, client *http.Client, target smokeTarget, spaceID, token, who string, specs []fixtureIssue) error {
 	base := target.apiBase + "/api/spaces/" + url.PathEscape(spaceID) + "/issues"
-	var existing fxIssueList
-	if err := requestJSON(ctx, client, http.MethodGet, base, token, nil, &existing, http.StatusOK); err != nil {
+	existing, err := fixturePage[fxIssue](ctx, client, base, token, "issues")
+	if err != nil {
 		return err
 	}
-	byTitle := make(map[string]fxIssue, len(existing.Issues))
-	for _, is := range existing.Issues {
+	byTitle := make(map[string]fxIssue, len(existing))
+	for _, is := range existing {
 		byTitle[is.Title] = is
 	}
 
@@ -158,6 +165,13 @@ func ensureIssues(ctx context.Context, client *http.Client, target smokeTarget, 
 			fmt.Printf("  [%s] issue %q: exists\n", who, spec.title)
 		} else {
 			body := map[string]any{"title": spec.title, "description": spec.description}
+			if spec.parentTitle != "" {
+				parent, found := byTitle[spec.parentTitle]
+				if !found {
+					return fmt.Errorf("fixture parent %q must precede %q", spec.parentTitle, spec.title)
+				}
+				body["parent_issue_id"] = parent.ID
+			}
 			if err := requestJSON(ctx, client, http.MethodPost, base, token, body, &issue, http.StatusCreated); err != nil {
 				return err
 			}
@@ -167,14 +181,21 @@ func ensureIssues(ctx context.Context, client *http.Client, target smokeTarget, 
 		// A create always lands in "todo", so the status move is what puts an
 		// issue in the other columns. It is a read-modify-write: the PATCH must
 		// echo the version the issue currently carries.
-		if spec.status != "" && spec.status != issue.Status {
-			patch := map[string]any{"version": issue.Version, "status": spec.status}
+		patch := map[string]any{"version": issue.Version}
+		if !ok && spec.status != "" && spec.status != issue.Status {
+			patch["status"] = spec.status
+		}
+		if spec.assigneeKind != "" && (issue.AssigneeKind != spec.assigneeKind || issue.AssigneeID != spec.assigneeID) {
+			patch["assignee_kind"], patch["assignee_id"] = spec.assigneeKind, spec.assigneeID
+		}
+		if len(patch) > 1 {
 			if err := requestJSON(ctx, client, http.MethodPatch, base+"/"+url.PathEscape(issue.ID), token, patch, &issue, http.StatusOK); err != nil {
 				return err
 			}
-			fmt.Printf("    status -> %s\n", spec.status)
+			fmt.Printf("    status %s; assignment %s\n", issue.Status, issue.AssigneeKind)
 		}
 
+		byTitle[spec.title] = issue
 		if len(spec.comments) > 0 {
 			if err := ensureComments(ctx, client, target, spaceID, token, issue.ID, spec.comments); err != nil {
 				return err
@@ -184,31 +205,29 @@ func ensureIssues(ctx context.Context, client *http.Client, target smokeTarget, 
 	return nil
 }
 
-// ensureComments adds the thread only when the issue has none. A comment carries
-// no natural key to match on, so "already has any comment" is the idempotency
-// signal — enough to keep reruns from stacking duplicate threads.
+// Match each body independently so partial threads and unrelated comments do
+// not prevent missing fixture comments from being added.
 func ensureComments(ctx context.Context, client *http.Client, target smokeTarget, spaceID, token, issueID string, bodies []string) error {
 	base := target.apiBase + "/api/spaces/" + url.PathEscape(spaceID) + "/issues/" + url.PathEscape(issueID) + "/comments"
-	var existing struct {
-		Comments []struct {
-			ID string `json:"id"`
-		} `json:"comments"`
-	}
-	if err := requestJSON(ctx, client, http.MethodGet, base, token, nil, &existing, http.StatusOK); err != nil {
+	existing, err := fixturePage[struct {
+		Body string `json:"body"`
+	}](ctx, client, base, token, "comments")
+	if err != nil {
 		return err
 	}
-	if len(existing.Comments) > 0 {
-		return nil
+	seen := map[string]bool{}
+	for _, c := range existing {
+		seen[c.Body] = true
 	}
 	for _, body := range bodies {
-		var created struct {
-			ID string `json:"id"`
+		if seen[body] {
+			continue
 		}
-		if err := requestJSON(ctx, client, http.MethodPost, base, token, map[string]any{"body": body}, &created, http.StatusCreated); err != nil {
+		if err := requestJSON(ctx, client, http.MethodPost, base, token, map[string]any{"body": body}, nil, http.StatusCreated); err != nil {
 			return err
 		}
+		seen[body] = true
 	}
-	fmt.Printf("    + %d comment(s)\n", len(bodies))
 	return nil
 }
 
