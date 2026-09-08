@@ -33,7 +33,7 @@ func main() {
 | `buildmax`（根命令：TUI 或打印模式） | `root.go` |
 | `init` | `init.go`（模板：`templates/settings.yaml.tmpl`） |
 | `version` | `version.go` |
-| `login`、`logout`、`whoami` | `login.go` |
+| `login`、`logout`、`me` | `login.go` |
 | `sandbox status\|deps\|mode\|enable\|disable` | `sandbox.go` |
 
 `NewRootCommand()` 在根命令上注册十一个标志；面向用户的表格见 [manual/cli.md](../../../../manual/cli.md)。

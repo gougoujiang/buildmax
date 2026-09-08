@@ -45,7 +45,7 @@ cp config-examples/mcp.example.json      ~/.buildmax/mcp.json      # MCP servers
 | `BUILDMAX_SANDBOX_ENABLED` | — | 覆盖用户级 `sandbox.enabled`，优先级低于按次运行的 CLI 选项和运维人员策略。接受 `1/true/yes/on` 或 `0/false/no/off`。 |
 | `BUILDMAX_SANDBOX_BACKEND_INSTALLED` | — | 不是运维人员设置项。通过 `Dockerfile.buildmax`/`Dockerfile.release` 中的 `ENV` 设置，出现在由这两个镜像构建出的每个容器中；标记该镜像已安装沙箱所需的操作系统层后端（`bwrap`+`socat`），`config.WorkerSandboxSurface` 正是据此判断是否启用 worker 的严格沙箱基线。 |
 | `BUILDMAX_TRACE_DISABLED` | — | 为真值时禁用持久化运行 trace。Trace 默认开启。 |
-| `BUILDMAX_CREDENTIAL_STORE` | — | 设为 `file` 可将 CLI 或 Desktop 登录的 access token 和 refresh token 保存在 `auth.json` 中，而不是保存在操作系统凭据存储（Keychain、Credential Manager、Secret Service）中。`buildmax login`、`buildmax whoami` 和 `buildmax doctor` 会报告某次登录实际使用了哪一种。 |
+| `BUILDMAX_CREDENTIAL_STORE` | — | 设为 `file` 可将 CLI 或 Desktop 登录的 access token 和 refresh token 保存在 `auth.json` 中，而不是保存在操作系统凭据存储（Keychain、Credential Manager、Secret Service）中。`buildmax login`、`buildmax me` 和 `buildmax doctor` 会报告某次登录实际使用了哪一种。 |
 | `BUILDMAX_RUN_TOKEN` | — | 某次 task run 用于访问所有 `/api/worker/*` 路由的凭据。由调度器按每次运行铸造，并放入 worker 进程或 Job pod 中——不是运维人员要设置的值。 |
 | `BUILDMAX_RUN_INTERRUPT_GRACE` | — | 被要求停止的 worker 用来汇报其运行产出所能花费的时长。由调度器根据 `shutdown_grace` 按每次分发设置，因此两个时间窗口是嵌套的——不是运维人员要设置的值。 |
 | `BUILDMAX_TEST_DSN` | — | 用于 store 集成测试的 MySQL DSN。不设置则跳过这些测试。 |
