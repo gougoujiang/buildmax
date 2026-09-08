@@ -19,6 +19,7 @@ import {
 } from "../../features/workflows"
 import { RevisionHistory } from "../../components/RevisionHistory"
 import { useSpace } from "../../contexts/SpaceContext"
+import { useApp } from "../../contexts/AppContext"
 
 interface WorkflowStepDraft {
   step_id: string
@@ -73,6 +74,7 @@ function buildDefaultStep(agentId = "", index = 0): WorkflowStepDraft {
 
 export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
   const { currentSpaceId, currentUserRole } = useSpace()
+  const { setEntityLabel } = useApp()
   const [agents, setAgents] = useState<Agent[]>([])
   const [workflow, setWorkflow] = useState<Workflow | null>(null)
   const [runs, setRuns] = useState<WorkflowRun[]>([])
@@ -147,6 +149,12 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
   useEffect(() => {
     void load()
   }, [load])
+
+  // Publish the loaded name so the breadcrumb reads "Workflows / <name>"
+  // instead of the opaque id, and updates in place after a rename.
+  useEffect(() => {
+    if (workflow) setEntityLabel(workflow.id, workflow.name)
+  }, [workflow, setEntityLabel])
 
   function handleSave() {
     if (!token || !currentSpaceId || !workflow || !canManageWorkflows) return

@@ -9,6 +9,7 @@ import {
 import { getWorkflow, getWorkflowRunDetail } from "../../features/workflows"
 import { navigate } from "../../router"
 import { useSpace } from "../../contexts/SpaceContext"
+import { useApp } from "../../contexts/AppContext"
 
 interface WorkflowRunDetailProps {
   token: string | null
@@ -17,6 +18,7 @@ interface WorkflowRunDetailProps {
 
 export function WorkflowRunDetail({ token, workflowRunId }: WorkflowRunDetailProps) {
   const { currentSpaceId } = useSpace()
+  const { setEntityLabel } = useApp()
   const [workflow, setWorkflow] = useState<Workflow | null>(null)
   const [run, setRun] = useState<WorkflowRun | null>(null)
   const [steps, setSteps] = useState<WorkflowStepRun[]>([])
@@ -64,6 +66,12 @@ export function WorkflowRunDetail({ token, workflowRunId }: WorkflowRunDetailPro
   useEffect(() => {
     void load()
   }, [load])
+
+  // Publish the run's workflow name so the breadcrumb reads
+  // "Workflows / <name>" instead of the opaque run id.
+  useEffect(() => {
+    if (run && workflow) setEntityLabel(run.id, workflow.name)
+  }, [run, workflow, setEntityLabel])
 
   useEffect(() => {
     if (run == null) return
