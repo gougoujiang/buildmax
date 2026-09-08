@@ -9,6 +9,8 @@ import type {
   ApiTraceWorkspace,
 } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
+import { navigate } from "../../router"
+import { formatSize } from "../artifacts"
 import { getTaskRunProvenance, getTaskRunTrace, listTaskRunLLMCalls } from "./api"
 import {
   describeAgent,
@@ -487,8 +489,76 @@ function OriginSection({
 }
 
 /**
+ * The releases this run actually resolved -- fixed at dispatch, and not the
+ * same question as what the agent currently names. See
+ * docs/design/portal-data-and-plugin-surfaces.md.
+ */
+function PluginsSection({ pins, onClose }: { pins: ApiRunProvenance["plugin_pins"]; onClose: () => void }) {
+  if (!pins || pins.length === 0) return null
+  return (
+    <section className="run-trace__section">
+      <h3 className="run-trace__heading">Plugins</h3>
+      <ul className="run-trace__tools">
+        {pins.map((pin) => (
+          <li key={pin.plugin_name} className="run-trace__tool">
+            <span className="run-trace__tool-name">
+              {pin.plugin_name}@{pin.version}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <button
+        type="button"
+        className="run-trace__link"
+        onClick={() => {
+          onClose()
+          navigate({ name: "space", section: "plugins" })
+        }}
+      >
+        Open Space Plugins
+      </button>
+    </section>
+  )
+}
+
+/** What this run published, addressed by the artifact's own id. */
+function ArtifactsSection({
+  artifacts,
+  onClose,
+}: {
+  artifacts: ApiRunProvenance["artifacts"]
+  onClose: () => void
+}) {
+  if (!artifacts || artifacts.length === 0) return null
+  return (
+    <section className="run-trace__section">
+      <h3 className="run-trace__heading">Artifacts published</h3>
+      <ul className="run-trace__tools">
+        {artifacts.map((artifact) => (
+          <li key={artifact.id} className="run-trace__tool">
+            <button
+              type="button"
+              className="run-trace__link"
+              onClick={() => {
+                onClose()
+                navigate({ name: "artifact", artifactId: artifact.id })
+              }}
+            >
+              {artifact.title?.trim() || artifact.filename}
+            </button>
+            {typeof artifact.size_bytes === "number" ? (
+              <span className="run-trace__tool-duration">{formatSize(artifact.size_bytes)}</span>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+/**
  * RunTraceModal answers where a run came from, what it used, touched, spent,
- * why it ended, and what confined it.
+ * produced, why it ended, and what confined it.
  */
 export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunTraceModalProps) {
   const [trace, setTrace] = useState<ApiTaskRunTrace | null>(null)
@@ -570,6 +640,7 @@ export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunT
             {/* First and unconditional: a run that wrote no trace still came
                 from somewhere, and that is the question a reader opens with. */}
             <OriginSection provenance={provenance} error={provenanceError} />
+            <PluginsSection pins={provenance?.plugin_pins} onClose={onClose} />
             {error ? (
               <p className="modal__error" role="alert">{error}</p>
             ) : trace ? (
@@ -579,6 +650,7 @@ export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunT
                 the run records separately from its trace, so it shows whenever the
                 trace does. */}
             {trace ? <WorkspaceSection workspace={trace.workspace} /> : null}
+            <ArtifactsSection artifacts={provenance?.artifacts} onClose={onClose} />
             {/* Shown even when the trace could not be read: what a run spent is
                 accounted server-side and survives a trace that did not. */}
             <SpendSection calls={calls} error={callsError} trace={trace} />

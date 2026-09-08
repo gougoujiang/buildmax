@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -34,6 +35,27 @@ type RunProvenanceResponse struct {
 	SourceMessage     *SourceMessageResponse        `json:"source_message,omitempty"`
 	Agent             *RunAgentResponse             `json:"agent,omitempty"`
 	SpaceInstructions *RunSpaceInstructionsResponse `json:"space_instructions,omitempty"`
+	// PluginPins are the releases this run actually resolved, not what the
+	// agent currently names — see docs/design/portal-data-and-plugin-surfaces.md
+	// and coretask.Run.PluginPins. Empty for a run that resolved none, which
+	// includes every run that predates this column.
+	PluginPins []coreplugin.Pin `json:"plugin_pins,omitempty"`
+	// Artifacts are what this run published, looked up the same way an issue's
+	// output list is: by source ID, through the artifact service, rather than
+	// a Portal-only record of what a run produced. See
+	// docs/design/unified-artifacts.md section 5.2.
+	Artifacts []RunArtifactResponse `json:"artifacts,omitempty"`
+}
+
+// RunArtifactResponse is the summary a reader needs to recognise and open an
+// artifact this run published, without repeating the whole Artifact record.
+type RunArtifactResponse struct {
+	ID        string    `json:"id"`
+	Title     string    `json:"title,omitempty"`
+	Filename  string    `json:"filename"`
+	MediaType string    `json:"media_type,omitempty"`
+	SizeBytes int64     `json:"size_bytes,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type RunSpaceInstructionsResponse struct {
@@ -93,8 +115,41 @@ func (h *Handler) getTaskRunProvenanceHandler(w http.ResponseWriter, r *http.Req
 		SourceMessage:     h.resolveSourceMessage(r, task, run.SourceMessageID),
 		Agent:             h.resolveRunAgent(r, task, run),
 		SpaceInstructions: h.resolveRunSpaceInstructions(r, task, run),
+		PluginPins:        run.PluginPins,
+		Artifacts:         h.resolveRunArtifacts(r, run),
 	}
 	httputil.WriteJSON(w, http.StatusOK, out)
+}
+
+// resolveRunArtifacts lists what this run published.
+//
+// A store that cannot answer, or a run that published nothing, both return no
+// artifacts — provenance must not fail because this one part of it could not
+// be read.
+func (h *Handler) resolveRunArtifacts(r *http.Request, run *coretask.Run) []RunArtifactResponse {
+	if h.cfg.Artifacts == nil || !h.cfg.Artifacts.Available() {
+		return nil
+	}
+	bySource, err := h.cfg.Artifacts.ListBySource(r.Context(), []string{run.ID})
+	if err != nil {
+		return nil
+	}
+	artifacts := bySource[run.ID]
+	if len(artifacts) == 0 {
+		return nil
+	}
+	out := make([]RunArtifactResponse, 0, len(artifacts))
+	for _, a := range artifacts {
+		out = append(out, RunArtifactResponse{
+			ID:        a.ID,
+			Title:     a.Title,
+			Filename:  a.Filename,
+			MediaType: a.MediaType,
+			SizeBytes: a.SizeBytes,
+			CreatedAt: a.CreatedAt,
+		})
+	}
+	return out
 }
 
 func (h *Handler) resolveRunSpaceInstructions(r *http.Request, task *coretask.Task, run *coretask.Run) *RunSpaceInstructionsResponse {
