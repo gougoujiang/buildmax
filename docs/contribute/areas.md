@@ -17,6 +17,8 @@ pace of change faster than it raises test coverage — without deliberate
 effort, reviewers become the bottleneck that tests should be. A pull request
 that adds regression coverage for existing, currently-untested behavior does
 not need a new feature attached to it, and does not need an issue filed first.
+The design index collects the relevant rationale under
+[Verification](../design/README.md#verification).
 
 Useful experience:
 
@@ -37,6 +39,8 @@ filed. `./make test` and `./make e2e <suite>` need no model API key.
 
 The shared runtime is the capability every surface depends on. Work here should
 make CLI, Desktop, Portal conversations, and worker task runs better together.
+Browse its decisions and active plans under
+[Agent Runtime and Models](../design/README.md#agent-runtime-and-models).
 
 Useful experience:
 
@@ -57,6 +61,8 @@ issues that name the runtime.
 CLI/TUI and Desktop are complete local entry points, not trial screens for the
 Portal. They should make one Agent useful in one real workspace without a
 BuildMax Server.
+Browse the related records under
+[Local Experience](../design/README.md#local-experience).
 
 Useful experience:
 
@@ -75,6 +81,8 @@ change. Small usability fixes found while following the
 The Server, Portal, and workers turn the same Agent Core into a private space
 platform: shared work, background execution, managed models, results, and
 governance.
+Browse the related records under [Space Platform](../design/README.md#space-platform)
+and [Operations and Deployment](../design/README.md#operations-and-deployment).
 
 Useful experience:
 
@@ -93,6 +101,8 @@ second Agent implementation.
 An agent reads files, calls remote systems, and executes model-selected code.
 The project needs boundaries that are real, visible, testable, and honest about
 their limits.
+Browse the related records under
+[Trust and Security](../design/README.md#trust-and-security).
 
 Useful experience:
 
