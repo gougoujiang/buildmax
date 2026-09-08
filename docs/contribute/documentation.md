@@ -195,7 +195,6 @@ the build on the ways documentation rots silently:
 | Test | Fails when |
 |---|---|
 | `TestDocsLinksResolve` | A relative markdown link points at a file that does not exist |
-| `TestDesignTranslationsMirrorEnglish` | A Chinese design mirror is missing, orphaned, linked incorrectly, or older than its English source |
 | `TestEnvVarsDocumented` | `config.EnvVars()` gains a variable missing from [reference/configuration.md](../reference/configuration.md) |
 | `TestToolNamesDocumented` | A tool name constant is missing from [manual/tools.md](../../manual/tools.md) |
 | `TestArchitectureToolInventoryCoversEveryToolNameConstant` | A tool declared in `internal/tool/names.go` is missing from the contributor [tool inventory](architecture/tools.md) |
