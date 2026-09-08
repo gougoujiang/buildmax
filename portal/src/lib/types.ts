@@ -38,7 +38,7 @@ export type Route =
   | { name: "agent"; agentId: string }
   | {
       name: "account"
-      section?: "general" | "usage" | "webhook" | "plugins" | "invitations"
+      section?: "general" | "usage" | "webhook" | "invitations"
     }
   | {
       name: "space"

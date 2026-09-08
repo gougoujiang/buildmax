@@ -3,7 +3,7 @@ import { BaseModal, getInitials } from "@buildmax/gui"
 import type { ApiPlugin, ApiPluginRelease } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { getPlugin, listPlugins } from "../../features/plugins/api"
-import { newestInstallable } from "../../features/plugins/PluginCatalog"
+import { newestInstallable } from "../../features/plugins/releaseSelection"
 
 /**
  * Marketplace is the deployment-wide plugin catalog, reached from the header

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { contributionRows, newestInstallable } from "./PluginCatalog"
+import { newestInstallable } from "./releaseSelection"
 import type { ApiPluginRelease } from "../../lib/api/types"
 
 function release(version: string, overrides: Partial<ApiPluginRelease> = {}): ApiPluginRelease {
@@ -40,30 +40,5 @@ describe("newestInstallable", () => {
 
   it("skips a version it cannot order", () => {
     expect(newestInstallable([release("not-a-version"), release("1.0.0")])?.version).toBe("1.0.0")
-  })
-})
-
-describe("contributionRows", () => {
-  it("lists one line per kind", () => {
-    const rows = contributionRows(
-      release("1.0.0", {
-        inspection: {
-          skills: ["review"],
-          subagents: [{ name: "reviewer" }],
-          mcp: [{ id: "github", transport: "stdio" }],
-        },
-      }),
-    )
-    expect(rows).toEqual([
-      "Skills: review",
-      "Subagents: reviewer",
-      "MCP servers: github (stdio)",
-    ])
-  })
-
-  it("names an empty release rather than showing nothing", () => {
-    expect(contributionRows(release("1.0.0"))).toEqual([
-      "Contributes nothing this build recognises",
-    ])
   })
 })

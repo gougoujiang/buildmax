@@ -4,7 +4,7 @@ import type {
   ApiPluginCuration,
   ApiPluginRelease,
 } from "../../lib/api/types"
-import { newestInstallable } from "../plugins/PluginCatalog"
+import { newestInstallable } from "../plugins/releaseSelection"
 
 /**
  * The reading of a space's plugin list that the section renders.

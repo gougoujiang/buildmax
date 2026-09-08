@@ -30,7 +30,7 @@ import IssueIcon from "../../icons/issue.svg?react"
 import ShieldIcon from "../../icons/shield.svg?react"
 import { BaseModal } from "@buildmax/gui"
 
-export type AccountSection = "general" | "usage" | "webhook" | "plugins" | "invitations"
+export type AccountSection = "general" | "usage" | "webhook" | "invitations"
 export type SpaceSection =
   | "overview"
   | "members"
@@ -50,9 +50,6 @@ export const ACCOUNT_NAV: SettingsNavItem<Exclude<AccountSection, never>>[] = [
   { id: "general", label: "General", icon: SettingsIcon },
   { id: "usage", label: "Usage", icon: UsageIcon },
   { id: "webhook", label: "Webhook", icon: ToolboxIcon },
-  // A reference list rather than a product area: what the deployment offers,
-  // and the command that installs it where the agent actually runs.
-  { id: "plugins", label: "Plugins", icon: ToolboxIcon },
   // Not space-scoped: what is pending for this account, across every space it
   // was invited to. See docs/design/space-membership-lifecycle.md §5.1, §9.
   { id: "invitations", label: "Invitations", icon: AgentsIcon },

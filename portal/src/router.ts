@@ -53,7 +53,10 @@ export function parseHash(hash: string): Route {
   if (parts[0] === SEGMENT.account) {
     if (parts[1] === "usage") return { name: "account", section: "usage" }
     if (parts[1] === "webhook") return { name: "account", section: "webhook" }
-    if (parts[1] === "plugins") return { name: "account", section: "plugins" }
+    // Account's plugin catalog was a duplicate of Marketplace at a different
+    // scope; kept as a redirect, not dropped, because the old address is what
+    // any saved link points at. See docs/design/portal-data-and-plugin-surfaces.md.
+    if (parts[1] === "plugins") return { name: "marketplace" }
     if (parts[1] === "invitations") return { name: "account", section: "invitations" }
     return { name: "account", section: "general" }
   }
@@ -146,8 +149,6 @@ export function buildHash(route: Route): string {
           return `#/${SEGMENT.account}/usage`
         case "webhook":
           return `#/${SEGMENT.account}/webhook`
-        case "plugins":
-          return `#/${SEGMENT.account}/plugins`
         case "invitations":
           return `#/${SEGMENT.account}/invitations`
         case "general":
