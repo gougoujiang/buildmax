@@ -1,0 +1,1 @@
+- `buildmax whoami` is now `buildmax me`.

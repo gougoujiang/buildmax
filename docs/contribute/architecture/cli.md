@@ -36,7 +36,7 @@ the TUI and for piped print-mode output.
 | `buildmax` (root: TUI or print mode) | `root.go` |
 | `init` | `init.go` (template: `templates/settings.yaml.tmpl`) |
 | `version` | `version.go` |
-| `login`, `logout`, `whoami` | `login.go` |
+| `login`, `logout`, `me` | `login.go` |
 | `sandbox status\|deps\|mode\|enable\|disable` | `sandbox.go` |
 
 `NewRootCommand()` registers eleven flags on the root command; the user-facing

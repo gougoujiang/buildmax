@@ -61,7 +61,7 @@ func NewRootCommand() *cobra.Command {
 	root.AddCommand(newVersionCommand())
 	root.AddCommand(newLoginCommand())
 	root.AddCommand(newLogoutCommand())
-	root.AddCommand(newWhoamiCommand())
+	root.AddCommand(newMeCommand())
 	root.AddCommand(newSandboxCommand())
 	root.AddCommand(newToolsCommand())
 	root.AddCommand(newIssueCommand())

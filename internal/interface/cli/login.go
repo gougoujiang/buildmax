@@ -31,11 +31,11 @@ func newLogoutCommand() *cobra.Command {
 	}
 }
 
-func newWhoamiCommand() *cobra.Command {
+func newMeCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "whoami",
+		Use:   "me",
 		Short: "Show current login status",
-		RunE:  runWhoami,
+		RunE:  runMe,
 	}
 }
 
@@ -125,7 +125,7 @@ func runLogout(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-func runWhoami(_ *cobra.Command, _ []string) error {
+func runMe(_ *cobra.Command, _ []string) error {
 	info, err := auth.Info()
 	if err != nil {
 		return fmt.Errorf("load auth: %w", err)
