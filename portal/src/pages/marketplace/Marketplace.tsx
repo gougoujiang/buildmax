@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { BaseModal, getInitials } from "@buildmax/gui"
 import type { ApiPlugin, ApiPluginRelease } from "../../lib/api/types"
-import { getErrorMessage } from "../../lib/errorMessage"
 import { getPlugin, listPlugins } from "../../features/plugins/api"
 import { newestInstallable } from "../../features/plugins/releaseSelection"
 import { useSpace } from "../../contexts/SpaceContext"
 import { navigate } from "../../router"
+import { Alert } from "../../components/state/Alert"
+import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
 
 /**
  * Marketplace is the deployment-wide plugin catalog, reached from the header
@@ -17,23 +18,29 @@ import { navigate } from "../../router"
  * fetched alongside to show what a plugin actually contributes — the catalog is
  * deployment-scoped and small, so fetching all of them up front is cheap.
  */
+// Stable identity so `plugins` doesn't churn every render while pluginsData is
+// still null (before the first successful fetch).
+const EMPTY_PLUGINS: ApiPlugin[] = []
+
 export function Marketplace({ token }: { token: string | null }) {
   const { currentSpace, currentUserRole } = useSpace()
-  const [plugins, setPlugins] = useState<ApiPlugin[]>([])
+  // null means "not yet successfully fetched", distinct from [] meaning the
+  // deployment genuinely publishes nothing. See deriveResourceState.
+  const [pluginsData, setPluginsData] = useState<ApiPlugin[] | null>(null)
   const [releases, setReleases] = useState<Record<string, ApiPluginRelease | null>>({})
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<RequestError | null>(null)
   const [query, setQuery] = useState("")
   const [selected, setSelected] = useState<string | null>(null)
 
   const load = useCallback(() => {
     if (!token) return
     setLoading(true)
-    setError(null)
+    setLoadError(null)
     listPlugins(token)
       .then(async (res) => {
         const active = res.plugins.filter((p) => !p.archived_at)
-        setPlugins(active)
+        setPluginsData(active)
         // Enrich each card with its newest installable release, in parallel.
         // A failure on one plugin leaves that card without contributions
         // rather than failing the whole page.
@@ -49,11 +56,19 @@ export function Marketplace({ token }: { token: string | null }) {
         )
         setReleases(Object.fromEntries(entries))
       })
-      .catch((err) => setError(getErrorMessage(err, "Failed to load the plugin catalog")))
+      // pluginsData from a prior successful fetch (if any) is left in place,
+      // so a failed refresh reads as Stale rather than wiping the catalog.
+      .catch((err) => setLoadError(classifyError(err, "Failed to load the plugin catalog")))
       .finally(() => setLoading(false))
   }, [token])
 
   useEffect(load, [load])
+
+  const pluginsState = useMemo(
+    () => deriveResourceState({ loading, data: pluginsData, error: loadError, isEmpty: (data) => data.length === 0 }),
+    [loading, pluginsData, loadError]
+  )
+  const plugins = pluginsData ?? EMPTY_PLUGINS
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -97,19 +112,24 @@ export function Marketplace({ token }: { token: string | null }) {
         </div>
       ) : null}
 
-      {error ? (
-        <p className="marketplace__error" role="alert">
-          {error}
-        </p>
-      ) : null}
+      {(pluginsState.kind === "error" ||
+        pluginsState.kind === "forbidden" ||
+        pluginsState.kind === "notFound" ||
+        pluginsState.kind === "stale") && (
+        <Alert
+          tone={pluginsState.kind === "stale" ? "stale" : pluginsState.kind}
+          message={pluginsState.error.message}
+          retry={{ label: "Retry", onClick: load }}
+        />
+      )}
 
-      {loading ? (
+      {pluginsState.kind === "loading" ? (
         <div className="marketplace__grid" aria-hidden>
           {[0, 1, 2].map((i) => (
             <div key={i} className="mkt-card mkt-card--skeleton" />
           ))}
         </div>
-      ) : plugins.length === 0 ? (
+      ) : pluginsState.kind === "error" || pluginsState.kind === "forbidden" || pluginsState.kind === "notFound" ? null : plugins.length === 0 ? (
         <div className="marketplace__empty">
           <StorefrontGlyph />
           <p className="marketplace__empty-title">Nothing published yet</p>

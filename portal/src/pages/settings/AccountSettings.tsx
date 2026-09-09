@@ -18,8 +18,9 @@ export function AccountSettings({ section }: { section: AccountSection }) {
     usageLoading,
     pageError,
     myInvitations,
-    myInvitationsLoading,
-    myInvitationsError,
+    myInvitationsState,
+    loadMyInvitations,
+    acceptInvitationError,
     acceptingInvitationId,
     handleAcceptInvitation,
   } = useSettingsData()
@@ -76,10 +77,11 @@ export function AccountSettings({ section }: { section: AccountSection }) {
         {section === "webhook" ? <AccountWebhookSection token={token} /> : null}
         {section === "invitations" ? (
           <AccountInvitationsSection
-            loading={myInvitationsLoading}
+            invitationsState={myInvitationsState}
             invitations={myInvitations}
+            onRetry={() => void loadMyInvitations()}
             acceptingInvitationId={acceptingInvitationId}
-            error={myInvitationsError}
+            acceptError={acceptInvitationError}
             onAccept={handleAcceptInvitation}
           />
         ) : null}

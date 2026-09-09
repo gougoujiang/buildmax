@@ -14,6 +14,7 @@ import { SpaceSandboxDefaults } from "../../features/spaceSandbox"
 import { SpaceSecrets } from "../../features/spaceSecrets"
 import { SpaceAgentInstructions } from "../../features/spaceInstructions"
 import { useAuth } from "../../contexts/AuthContext"
+import { isAllowed } from "../../state/permissionState"
 
 export function SpaceSettings({ spaceId, section }: { spaceId: string; section: SpaceSection }) {
   const [inviteOpen, setInviteOpen] = useState(section === "memberNew")
@@ -21,6 +22,8 @@ export function SpaceSettings({ spaceId, section }: { spaceId: string; section: 
     user,
     spaceUsage,
     members,
+    membersState,
+    loadMembers,
     spaceUsageLoading,
     membersLoading,
     pageError,
@@ -29,9 +32,12 @@ export function SpaceSettings({ spaceId, section }: { spaceId: string; section: 
     inviteError,
     savingInvite,
     removingUserId,
+    removeError,
     invitations,
-    invitationsLoading,
+    invitationsState,
+    loadInvitations,
     revokingInvitationId,
+    revokeError,
     changingRoleUserId,
     roleError,
     issuingLoginCodeUserId,
@@ -39,6 +45,8 @@ export function SpaceSettings({ spaceId, section }: { spaceId: string; section: 
     loginCodeError,
     currentUserMember,
     currentUserIsOwner,
+    currentUserIsOwnerState,
+    canManageSpaceState,
     currentUserRole,
     isPersonalSpace,
     currentSpaceName,
@@ -131,9 +139,7 @@ export function SpaceSettings({ spaceId, section }: { spaceId: string; section: 
             <SpaceAgentInstructions
               token={token}
               spaceId={spaceId}
-              canManage={
-                currentUserMember?.role === "owner" || currentUserMember?.role === "admin"
-              }
+              canManage={isAllowed(canManageSpaceState)}
             />
           </>
         ) : null}
@@ -143,18 +149,14 @@ export function SpaceSettings({ spaceId, section }: { spaceId: string; section: 
             spaceId={spaceId}
             // Changing an activation is owner-or-admin, the authority the
             // space's other shared automation already needs. Reading is not.
-            canManage={
-              currentUserMember?.role === "owner" || currentUserMember?.role === "admin"
-            }
+            canManage={isAllowed(canManageSpaceState)}
           />
         ) : null}
         {section === "security" ? (
           <SpaceSandboxDefaults
             token={token}
             spaceId={spaceId}
-            canManage={
-              currentUserMember?.role === "owner" || currentUserMember?.role === "admin"
-            }
+            canManage={isAllowed(canManageSpaceState)}
           />
         ) : null}
         {section === "secrets" ? (
@@ -164,14 +166,14 @@ export function SpaceSettings({ spaceId, section }: { spaceId: string; section: 
             // Secrets are owner-only: value authority stays with the owner
             // until BuildMax has finer space grants. See
             // docs/design/space-secrets.md §10.
-            canManage={currentUserMember?.role === "owner"}
+            ownerState={currentUserIsOwnerState}
           />
         ) : null}
         {section === "audit" ? (
           <SpaceAuditSection
             spaceId={spaceId}
             token={token}
-            currentUserIsOwner={currentUserIsOwner}
+            ownerState={currentUserIsOwnerState}
             currentUserId={user?.id}
           />
         ) : null}
@@ -181,14 +183,18 @@ export function SpaceSettings({ spaceId, section }: { spaceId: string; section: 
             currentSpaceName={currentSpaceName}
             currentUserIsOwner={currentUserIsOwner}
             currentUserRole={currentUserRole}
-            loadingMembers={membersLoading}
+            membersState={membersState}
+            onRetryMembers={() => void loadMembers()}
             members={members}
             userId={user?.id}
             removingUserId={removingUserId}
+            removeError={removeError}
             onRemoveMember={handleRemoveMember}
+            invitationsState={invitationsState}
+            onRetryInvitations={() => void loadInvitations()}
             invitations={invitations}
-            invitationsLoading={invitationsLoading}
             revokingInvitationId={revokingInvitationId}
+            revokeError={revokeError}
             onRevokeInvitation={handleRevokeInvitation}
             changingRoleUserId={changingRoleUserId}
             roleError={roleError}

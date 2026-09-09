@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { getErrorMessage } from "../lib/errorMessage"
+import { classifyError, type RequestErrorKind } from "../state/resourceState"
 
 export interface UseFetchOptions {
   /** When false, no fetch runs and data/error are cleared. Default true. */
@@ -12,6 +13,8 @@ export interface UseFetchResult<T> {
   data: T | null
   loading: boolean
   error: string | null
+  /** classifyError's read of the same failure — forbidden/notFound/error — for callers that branch on it. */
+  errorKind: RequestErrorKind | null
   refetch: () => void
 }
 
@@ -28,6 +31,7 @@ export function useFetch<T>(
   const [data, setData] = useState<T | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [errorKind, setErrorKind] = useState<RequestErrorKind | null>(null)
   const fetchFnRef = useRef(fetchFn)
   fetchFnRef.current = fetchFn
   const errorMessageRef = useRef(errorMessage)
@@ -37,13 +41,17 @@ export function useFetch<T>(
     let cancelled = false
     setLoading(true)
     setError(null)
+    setErrorKind(null)
     fetchFnRef
       .current()
       .then((value) => {
         if (!cancelled) setData(value)
       })
       .catch((err) => {
-        if (!cancelled) setError(errorMessageRef.current(err))
+        if (!cancelled) {
+          setError(errorMessageRef.current(err))
+          setErrorKind(classifyError(err).kind)
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -58,6 +66,7 @@ export function useFetch<T>(
       setData(null)
       setLoading(false)
       setError(null)
+      setErrorKind(null)
       return
     }
     return runFetch()
@@ -69,5 +78,5 @@ export function useFetch<T>(
     runFetch()
   }, [enabled, runFetch])
 
-  return { data, loading, error, refetch }
+  return { data, loading, error, errorKind, refetch }
 }

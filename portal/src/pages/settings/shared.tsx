@@ -20,6 +20,9 @@ import {
 import { setPassword } from "../../features/auth"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { navigate } from "../../router"
+import { Alert } from "../../components/state/Alert"
+import { classifyError, deriveResourceState, type RequestError, type ResourceState } from "../../state/resourceState"
+import { derivePermissionState } from "../../state/permissionState"
 import { UserAvatar } from "../../components/UserAvatar"
 import { WebhookKeysSection } from "../../components/WebhookKeysSection"
 import SettingsIcon from "../../icons/settings.svg?react"
@@ -73,6 +76,11 @@ export const SPACE_NAV: SettingsNavItem<Exclude<SpaceSection, "memberNew">>[] = 
   // silently exists for some people and not others.
   { id: "audit", label: "Audit", icon: UsageIcon },
 ]
+
+// Stable identity so a `?? []` derived list doesn't churn every render while
+// its backing state is still null (before the first successful fetch).
+const EMPTY_MEMBERS: ApiSpaceMember[] = []
+const EMPTY_INVITATIONS: ApiInvitation[] = []
 
 function memberDisplayName(member: ApiSpaceMember, currentUserId?: string): string {
   if (member.user_id === currentUserId) return "Me"
@@ -423,14 +431,18 @@ export function SpaceMembersSection({
   currentSpaceName,
   currentUserIsOwner,
   currentUserRole,
-  loadingMembers,
+  membersState,
+  onRetryMembers,
   members,
   userId,
   removingUserId,
+  removeError,
   onRemoveMember,
+  invitationsState,
+  onRetryInvitations,
   invitations,
-  invitationsLoading,
   revokingInvitationId,
+  revokeError,
   onRevokeInvitation,
   changingRoleUserId,
   roleError,
@@ -445,22 +457,26 @@ export function SpaceMembersSection({
   currentSpaceName: string
   currentUserIsOwner: boolean
   currentUserRole: string | null
-  loadingMembers: boolean
+  membersState: ResourceState<ApiSpaceMember[]>
+  onRetryMembers: () => void
   members: ApiSpaceMember[]
   userId?: string
   removingUserId: string | null
+  removeError: { userId: string; message: string } | null
   onRemoveMember: (memberUserId: string) => Promise<void>
+  invitationsState: ResourceState<ApiInvitation[]>
+  onRetryInvitations: () => void
   invitations: ApiInvitation[]
-  invitationsLoading: boolean
   revokingInvitationId: string | null
+  revokeError: { invitationId: string; message: string } | null
   onRevokeInvitation: (invitationId: string) => Promise<void>
   changingRoleUserId: string | null
-  roleError: string | null
+  roleError: { userId: string; message: string } | null
   onChangeRole: (memberUserId: string, role: string) => Promise<void>
   onTransferOwnership: (memberUserId: string) => Promise<void>
   issuingLoginCodeUserId: string | null
   issuedLoginCode: { userId: string; code: string; expiresAt: string } | null
-  loginCodeError: string | null
+  loginCodeError: { userId: string; message: string } | null
   onIssueLoginCode: (memberUserId: string) => Promise<void>
 }) {
   const canInvite = currentUserIsOwner || currentUserRole === "admin"
@@ -489,22 +505,22 @@ export function SpaceMembersSection({
         </div>
       </div>
 
-      {roleError ? (
-        <p className="settings-section__error" role="alert">
-          {roleError}
-        </p>
-      ) : null}
-      {loginCodeError ? (
-        <p className="settings-section__error" role="alert">
-          {loginCodeError}
-        </p>
-      ) : null}
+      {(membersState.kind === "error" ||
+        membersState.kind === "forbidden" ||
+        membersState.kind === "notFound" ||
+        membersState.kind === "stale") && (
+        <Alert
+          tone={membersState.kind === "stale" ? "stale" : membersState.kind}
+          message={membersState.error.message}
+          retry={{ label: "Retry", onClick: onRetryMembers }}
+        />
+      )}
 
-      {loadingMembers ? (
+      {membersState.kind === "loading" ? (
         <p className="page-activity__empty">Loading members...</p>
-      ) : members.length === 0 ? (
+      ) : membersState.kind === "readyEmpty" ? (
         <p className="page-activity__empty">No members yet.</p>
-      ) : (
+      ) : membersState.kind === "error" || membersState.kind === "forbidden" || membersState.kind === "notFound" ? null : (
         <ul className="space-settings-page__member-list">
           {members.map((member) => {
             const isSelf = member.user_id === userId
@@ -579,6 +595,17 @@ export function SpaceMembersSection({
                     <code className="admin-code__value">{issuedLoginCode.code}</code>
                   </div>
                 ) : null}
+                {roleError?.userId === member.user_id ||
+                loginCodeError?.userId === member.user_id ||
+                removeError?.userId === member.user_id ? (
+                  <p className="settings-section__error" role="alert">
+                    {roleError?.userId === member.user_id
+                      ? roleError.message
+                      : loginCodeError?.userId === member.user_id
+                        ? loginCodeError.message
+                        : removeError?.message}
+                  </p>
+                ) : null}
               </li>
             )
           })}
@@ -588,11 +615,23 @@ export function SpaceMembersSection({
       {canInvite ? (
         <div className="space-settings-page__invitations">
           <h3 className="space-settings-page__subheading">Pending invitations</h3>
-          {invitationsLoading ? (
+          {(invitationsState.kind === "error" ||
+            invitationsState.kind === "forbidden" ||
+            invitationsState.kind === "notFound" ||
+            invitationsState.kind === "stale") && (
+            <Alert
+              tone={invitationsState.kind === "stale" ? "stale" : invitationsState.kind}
+              message={invitationsState.error.message}
+              retry={{ label: "Retry", onClick: onRetryInvitations }}
+            />
+          )}
+          {invitationsState.kind === "loading" ? (
             <p className="page-activity__empty">Loading invitations...</p>
-          ) : invitations.length === 0 ? (
+          ) : invitationsState.kind === "readyEmpty" ? (
             <p className="page-activity__empty">No pending invitations.</p>
-          ) : (
+          ) : invitationsState.kind === "error" ||
+            invitationsState.kind === "forbidden" ||
+            invitationsState.kind === "notFound" ? null : (
             <ul className="space-settings-page__member-list">
               {invitations.map((invitation) => (
                 <li key={invitation.id} className="space-settings-page__member">
@@ -615,6 +654,11 @@ export function SpaceMembersSection({
                       {revokingInvitationId === invitation.id ? "Revoking..." : "Revoke"}
                     </button>
                   </div>
+                  {revokeError?.invitationId === invitation.id ? (
+                    <p className="settings-section__error" role="alert">
+                      {revokeError.message}
+                    </p>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -730,16 +774,18 @@ export function SpaceInviteMemberDialog({
 }
 
 export function AccountInvitationsSection({
-  loading,
+  invitationsState,
   invitations,
+  onRetry,
   acceptingInvitationId,
-  error,
+  acceptError,
   onAccept,
 }: {
-  loading: boolean
+  invitationsState: ResourceState<ApiInvitation[]>
   invitations: ApiInvitation[]
+  onRetry: () => void
   acceptingInvitationId: string | null
-  error: string | null
+  acceptError: string | null
   onAccept: (invitationId: string) => Promise<void>
 }) {
   return (
@@ -753,16 +799,28 @@ export function AccountInvitationsSection({
           </p>
         </div>
       </div>
-      {error ? (
+      {(invitationsState.kind === "error" ||
+        invitationsState.kind === "forbidden" ||
+        invitationsState.kind === "notFound" ||
+        invitationsState.kind === "stale") && (
+        <Alert
+          tone={invitationsState.kind === "stale" ? "stale" : invitationsState.kind}
+          message={invitationsState.error.message}
+          retry={{ label: "Retry", onClick: onRetry }}
+        />
+      )}
+      {acceptError ? (
         <p className="settings-section__error" role="alert">
-          {error}
+          {acceptError}
         </p>
       ) : null}
-      {loading ? (
+      {invitationsState.kind === "loading" ? (
         <p className="page-activity__empty">Loading invitations...</p>
-      ) : invitations.length === 0 ? (
+      ) : invitationsState.kind === "readyEmpty" ? (
         <p className="page-activity__empty">No pending invitations.</p>
-      ) : (
+      ) : invitationsState.kind === "error" ||
+        invitationsState.kind === "forbidden" ||
+        invitationsState.kind === "notFound" ? null : (
         <ul className="space-settings-page__member-list">
           {invitations.map((invitation) => (
             <li key={invitation.id} className="space-settings-page__member">
@@ -811,46 +869,58 @@ export function useSettingsData(spaceId?: string) {
   const currentSpace = spaceId ? spaces.find((s) => s.id === spaceId) ?? null : contextSpace
   const [usage, setUsage] = useState<ApiUsage | null>(null)
   const [spaceUsage, setSpaceUsage] = useState<ApiUsage | null>(null)
-  const [members, setMembers] = useState<ApiSpaceMember[]>([])
+  // null means "not yet successfully fetched", distinct from [] meaning the
+  // space genuinely has no other members. See deriveResourceState.
+  const [membersData, setMembersData] = useState<ApiSpaceMember[] | null>(null)
   const [usageLoading, setUsageLoading] = useState(false)
   const [spaceUsageLoading, setSpaceUsageLoading] = useState(false)
   const [membersLoading, setMembersLoading] = useState(false)
+  const [membersError, setMembersError] = useState<RequestError | null>(null)
   const [pageError, setPageError] = useState<string | null>(null)
   const [email, setEmail] = useState("")
   const [inviteRole, setInviteRole] = useState("member")
   const [inviteError, setInviteError] = useState<string | null>(null)
   const [savingInvite, setSavingInvite] = useState(false)
   const [removingUserId, setRemovingUserId] = useState<string | null>(null)
+  // Remove's own error, tagged with which member it was.
+  const [removeError, setRemoveError] = useState<{ userId: string; message: string } | null>(null)
 
-  const [invitations, setInvitations] = useState<ApiInvitation[]>([])
+  const [invitationsData, setInvitationsData] = useState<ApiInvitation[] | null>(null)
   const [invitationsLoading, setInvitationsLoading] = useState(false)
+  const [invitationsError, setInvitationsError] = useState<RequestError | null>(null)
   const [revokingInvitationId, setRevokingInvitationId] = useState<string | null>(null)
+  // Revoke's own error, tagged with which invitation it was.
+  const [revokeError, setRevokeError] = useState<{ invitationId: string; message: string } | null>(null)
 
   const [changingRoleUserId, setChangingRoleUserId] = useState<string | null>(null)
-  const [roleError, setRoleError] = useState<string | null>(null)
+  const [roleError, setRoleError] = useState<{ userId: string; message: string } | null>(null)
 
   const [issuingLoginCodeUserId, setIssuingLoginCodeUserId] = useState<string | null>(null)
   const [issuedLoginCode, setIssuedLoginCode] = useState<
     { userId: string; code: string; expiresAt: string } | null
   >(null)
-  const [loginCodeError, setLoginCodeError] = useState<string | null>(null)
+  const [loginCodeError, setLoginCodeError] = useState<{ userId: string; message: string } | null>(null)
 
-  const [myInvitations, setMyInvitations] = useState<ApiInvitation[]>([])
+  const [myInvitationsData, setMyInvitationsData] = useState<ApiInvitation[] | null>(null)
   const [myInvitationsLoading, setMyInvitationsLoading] = useState(false)
-  const [myInvitationsError, setMyInvitationsError] = useState<string | null>(null)
+  const [myInvitationsError, setMyInvitationsError] = useState<RequestError | null>(null)
   const [acceptingInvitationId, setAcceptingInvitationId] = useState<string | null>(null)
+  // Distinct from myInvitationsError: the accept-invitation mutation's own error.
+  const [acceptInvitationError, setAcceptInvitationError] = useState<string | null>(null)
 
   const loadMembers = useCallback(async () => {
     if (!token || !currentSpaceId) {
-      setMembers([])
+      setMembersData(null)
       return
     }
     setMembersLoading(true)
-    setPageError(null)
+    setMembersError(null)
     try {
-      setMembers(await getSpaceMembers(currentSpaceId, token))
+      setMembersData(await getSpaceMembers(currentSpaceId, token))
     } catch (err) {
-      setPageError(getErrorMessage(err, "Failed to load space members"))
+      // membersData from a prior successful fetch (if any) is left in place,
+      // so a failed refresh reads as Stale rather than wiping the roster.
+      setMembersError(classifyError(err, "Failed to load space members"))
     } finally {
       setMembersLoading(false)
     }
@@ -898,6 +968,18 @@ export function useSettingsData(spaceId?: string) {
     void loadSpaceUsage()
   }, [loadSpaceUsage])
 
+  const members = membersData ?? EMPTY_MEMBERS
+  const membersState = useMemo(
+    () =>
+      deriveResourceState({
+        loading: membersLoading,
+        data: membersData,
+        error: membersError,
+        isEmpty: (data) => data.length === 0,
+      }),
+    [membersLoading, membersData, membersError]
+  )
+
   const currentUserMember = useMemo(
     () => members.find((member) => member.user_id === user?.id) ?? null,
     [members, user?.id],
@@ -908,19 +990,41 @@ export function useSettingsData(spaceId?: string) {
   const isPersonalSpace = Boolean(currentSpace?.personalForUserId)
   const currentSpaceName = currentSpace?.name ?? "Current Space"
 
+  // Owner-only and owner-or-admin capability states, distinguishing "still
+  // resolving membership" and "the lookup failed" from a confirmed denial --
+  // see docs/design/portal-state-and-permission-feedback.md#permission-model.
+  const currentUserIsOwnerState = useMemo(
+    () => derivePermissionState({ loading: membersLoading, lookupFailed: membersError !== null, allowed: currentUserIsOwner }),
+    [membersLoading, membersError, currentUserIsOwner]
+  )
+  const canManageSpaceState = useMemo(
+    () =>
+      derivePermissionState({
+        loading: membersLoading,
+        lookupFailed: membersError !== null,
+        allowed: currentUserRole === "owner" || currentUserRole === "admin",
+      }),
+    [membersLoading, membersError, currentUserRole]
+  )
+
   // Reading who has been invited is the same authority as sending or
   // revoking an invitation -- owner or admin. A member simply sees none,
   // rather than the page treating a 403 here as a page-level error.
   const loadInvitations = useCallback(async () => {
     if (!token || !currentSpaceId || !canInvite) {
-      setInvitations([])
+      setInvitationsData(null)
+      setInvitationsError(null)
       return
     }
     setInvitationsLoading(true)
+    setInvitationsError(null)
     try {
-      setInvitations(await getSpaceInvitations(currentSpaceId, token))
-    } catch {
-      setInvitations([])
+      setInvitationsData(await getSpaceInvitations(currentSpaceId, token))
+    } catch (err) {
+      // A member without invite authority never reaches this branch (the
+      // guard above returns first). This is a real fetch failure for someone
+      // who can invite, and must not read the same as "none pending".
+      setInvitationsError(classifyError(err, "Failed to load invitations"))
     } finally {
       setInvitationsLoading(false)
     }
@@ -930,17 +1034,29 @@ export function useSettingsData(spaceId?: string) {
     void loadInvitations()
   }, [loadInvitations])
 
+  const invitationsState = useMemo(
+    () =>
+      deriveResourceState({
+        loading: invitationsLoading,
+        data: invitationsData,
+        error: invitationsError,
+        isEmpty: (data) => data.length === 0,
+      }),
+    [invitationsLoading, invitationsData, invitationsError]
+  )
+  const invitations = invitationsData ?? EMPTY_INVITATIONS
+
   const loadMyInvitations = useCallback(async () => {
     if (!token) {
-      setMyInvitations([])
+      setMyInvitationsData(null)
       return
     }
     setMyInvitationsLoading(true)
     setMyInvitationsError(null)
     try {
-      setMyInvitations(await getMyInvitations(token))
+      setMyInvitationsData(await getMyInvitations(token))
     } catch (err) {
-      setMyInvitationsError(getErrorMessage(err, "Failed to load invitations"))
+      setMyInvitationsError(classifyError(err, "Failed to load invitations"))
     } finally {
       setMyInvitationsLoading(false)
     }
@@ -949,6 +1065,18 @@ export function useSettingsData(spaceId?: string) {
   useEffect(() => {
     void loadMyInvitations()
   }, [loadMyInvitations])
+
+  const myInvitationsState = useMemo(
+    () =>
+      deriveResourceState({
+        loading: myInvitationsLoading,
+        data: myInvitationsData,
+        error: myInvitationsError,
+        isEmpty: (data) => data.length === 0,
+      }),
+    [myInvitationsLoading, myInvitationsData, myInvitationsError]
+  )
+  const myInvitations = myInvitationsData ?? EMPTY_INVITATIONS
 
   async function handleInviteMember(): Promise<boolean> {
     if (!token || !currentSpaceId || !email.trim() || savingInvite) return false
@@ -974,12 +1102,12 @@ export function useSettingsData(spaceId?: string) {
   async function handleRevokeInvitation(invitationId: string) {
     if (!token || !currentSpaceId || revokingInvitationId) return
     setRevokingInvitationId(invitationId)
-    setPageError(null)
+    setRevokeError(null)
     try {
       await revokeInvitation(currentSpaceId, invitationId, token)
       await loadInvitations()
     } catch (err) {
-      setPageError(getErrorMessage(err, "Failed to revoke the invitation"))
+      setRevokeError({ invitationId, message: getErrorMessage(err, "Failed to revoke the invitation") })
     } finally {
       setRevokingInvitationId(null)
     }
@@ -988,12 +1116,12 @@ export function useSettingsData(spaceId?: string) {
   async function handleRemoveMember(memberUserId: string) {
     if (!token || !currentSpaceId || removingUserId) return
     setRemovingUserId(memberUserId)
-    setPageError(null)
+    setRemoveError(null)
     try {
       await removeSpaceMember(currentSpaceId, memberUserId, token)
       await loadMembers()
     } catch (err) {
-      setPageError(getErrorMessage(err, "Failed to remove member"))
+      setRemoveError({ userId: memberUserId, message: getErrorMessage(err, "Failed to remove member") })
     } finally {
       setRemovingUserId(null)
     }
@@ -1007,7 +1135,7 @@ export function useSettingsData(spaceId?: string) {
       await setMemberRole(currentSpaceId, memberUserId, { role }, token)
       await loadMembers()
     } catch (err) {
-      setRoleError(getErrorMessage(err, "Failed to change the role"))
+      setRoleError({ userId: memberUserId, message: getErrorMessage(err, "Failed to change the role") })
     } finally {
       setChangingRoleUserId(null)
     }
@@ -1049,7 +1177,7 @@ export function useSettingsData(spaceId?: string) {
       const res = await issueMemberLoginCode(currentSpaceId, memberUserId, token)
       setIssuedLoginCode({ userId: memberUserId, code: res.code, expiresAt: res.expires_at })
     } catch (err) {
-      setLoginCodeError(getErrorMessage(err, "Failed to issue a login code"))
+      setLoginCodeError({ userId: memberUserId, message: getErrorMessage(err, "Failed to issue a login code") })
     } finally {
       setIssuingLoginCodeUserId(null)
     }
@@ -1058,7 +1186,7 @@ export function useSettingsData(spaceId?: string) {
   async function handleAcceptInvitation(invitationId: string) {
     if (!token || acceptingInvitationId) return
     setAcceptingInvitationId(invitationId)
-    setMyInvitationsError(null)
+    setAcceptInvitationError(null)
     try {
       await acceptInvitation(invitationId, token)
       await loadMyInvitations()
@@ -1066,7 +1194,7 @@ export function useSettingsData(spaceId?: string) {
       // current selection where it was.
       await refetchSpaces(currentSpaceId)
     } catch (err) {
-      setMyInvitationsError(getErrorMessage(err, "Failed to accept the invitation"))
+      setAcceptInvitationError(getErrorMessage(err, "Failed to accept the invitation"))
     } finally {
       setAcceptingInvitationId(null)
     }
@@ -1078,6 +1206,8 @@ export function useSettingsData(spaceId?: string) {
     usage,
     spaceUsage,
     members,
+    membersState,
+    loadMembers,
     usageLoading,
     spaceUsageLoading,
     membersLoading,
@@ -1087,20 +1217,29 @@ export function useSettingsData(spaceId?: string) {
     inviteError,
     savingInvite,
     removingUserId,
+    removeError,
     invitations,
+    invitationsState,
+    loadInvitations,
     invitationsLoading,
     revokingInvitationId,
+    revokeError,
     changingRoleUserId,
     roleError,
     issuingLoginCodeUserId,
     issuedLoginCode,
     loginCodeError,
     myInvitations,
+    myInvitationsState,
+    loadMyInvitations,
     myInvitationsLoading,
     myInvitationsError,
+    acceptInvitationError,
     acceptingInvitationId,
     currentUserMember,
     currentUserIsOwner,
+    currentUserIsOwnerState,
+    canManageSpaceState,
     currentUserRole,
     isPersonalSpace,
     currentSpaceName,

@@ -1,7 +1,21 @@
 # Portal 状态与权限反馈
 
 > **翻译说明：** 本文是[英文原文](../../design/portal-state-and-permission-feedback.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
-> **受众：** Portal 与 API 贡献者 · **状态：** 计划中
+> **受众：** Portal 与 API 贡献者 · **状态：** 进行中。共享的资源/权限/mutation
+> 状态词汇与 Alert/EmptyState 展示组件已上线，另有切片 2（Space bootstrap：去掉
+> 虚构的“My Space”，用 spacesState 驱动的 gate 区分 Space 加载失败与账号无 Space，
+> 并提供 Retry)、切片 3（所有集合——Issues、Workflows、Agents、Conversations、
+> Files、Space 成员/邀请/secrets/审计日志，以及 Marketplace、Space Plugins tab
+> 和系统管理 Model 目录——均区分 loading、ready、empty、error、forbidden、
+> not-found 与 stale，并提供 Retry)，以及切片 5 的大部分(创建成功跳转到新建对象；
+> install/activate、membership 操作、版本 Restore、Artifact Download/Delete、
+> 系统管理 Model retire/enable 的失败都关联到具体行；`unknown -> allowed |
+> denied | failed` 权限模型通过 `useSpaceCapability` 支撑 Issues、Workflows、
+> Agents、Space secrets 与审计日志的 owner/admin 判断)。切片 4(详情页
+> not-found/forbidden/error)由
+> [Portal导航与Space上下文.md](Portal导航与Space上下文.md)
+> 里独立的 `ResourceUnavailable` 组件提供，本文不再叠加一套竞争的详情页方案。剩余：
+> Issue 详情页 per-task Retry/Stop 的逐行错误，以及这些状态路径的 Playwright 测试。
 
 本文定义 Portal 如何区分加载、缺失、失败与授权。它可以作为 R3 运维者路径改进逐页
 实施，不改变 domain 行为或路线图优先级。

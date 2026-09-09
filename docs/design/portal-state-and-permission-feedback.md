@@ -1,7 +1,27 @@
 # Portal State and Permission Feedback
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Portal状态与权限反馈.md)
-> **Audience:** Portal and API contributors · **Status:** planned
+> **Audience:** Portal and API contributors · **Status:** in progress. The
+> shared resource/permission/mutation state vocabulary and the Alert/EmptyState
+> presenters have shipped, along with slice 2 (Space bootstrap: no synthetic
+> "My Space", a spacesState-driven gate that distinguishes a failed Space
+> lookup from an empty account, with Retry), slice 3 (every collection —
+> Issues, Workflows, Agents, Conversations, Files, the Space members,
+> invitations, secrets, and audit trail, and the plugin catalog on Marketplace,
+> the Space Plugins tab, and the admin model catalog — distinguishes loading,
+> ready, empty, error, forbidden, not-found, and stale, with Retry), and much
+> of slice 5 (creation links to the created object; install/activate,
+> membership actions, revision Restore, Artifact Download/Delete, and admin
+> model retire/enable associate a failure with the specific row that caused it;
+> the `unknown -> allowed | denied | failed` permission model, via
+> `useSpaceCapability`, backs the owner/admin gates on Issues, Workflows,
+> Agents, Space secrets, and the Space audit trail). Slice 4 (detail-page
+> not-found/forbidden/error) is delivered by the separate `ResourceUnavailable`
+> component from
+> [portal-navigation-and-space-context.md](portal-navigation-and-space-context.md),
+> so this record does not add a competing detail-page treatment. Remaining:
+> per-task Retry/Stop granular errors on Issue detail, and Playwright coverage
+> for these state paths.
 
 This record defines how Portal distinguishes loading, absence, failure, and
 authorization. It can be implemented page by page as an R3 operator-journey

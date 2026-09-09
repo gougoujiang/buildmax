@@ -27,7 +27,9 @@ import { RevisionHistory } from "../../components/RevisionHistory"
 import { RunAgentModal } from "../../components/RunAgentModal"
 import { consumptionHealthCount } from "../../components/SecretConsumptionEditor"
 import { useApp } from "../../contexts/AppContext"
-import { useSpace } from "../../contexts/SpaceContext"
+import { useSpace, useSpaceCapability } from "../../contexts/SpaceContext"
+import { isAllowed } from "../../state/permissionState"
+import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
 
 interface AgentDetailProps {
   token: string | null
@@ -47,14 +49,16 @@ const TABS: { id: Tab; label: string }[] = [
 export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
   const { currentUserRole } = useSpace()
   const { setEntityLabel } = useApp()
-  const canManage = currentUserRole === "owner" || currentUserRole === "admin"
+  const canManage = isAllowed(useSpaceCapability(currentUserRole === "owner" || currentUserRole === "admin"))
 
   const [agent, setAgent] = useState<Agent | null>(null)
   const [secrets, setSecrets] = useState<ApiSecret[]>([])
   const [availablePlugins, setAvailablePlugins] = useState<string[]>([])
   const [availableModels, setAvailableModels] = useState<string[]>([])
   const [tasks, setTasks] = useState<ApiTask[]>([])
-  const [revisions, setRevisions] = useState<AgentRevision[]>([])
+  // null means "not yet successfully fetched", distinct from [] meaning the
+  // agent genuinely has no revisions. See deriveResourceState.
+  const [revisionsData, setRevisionsData] = useState<AgentRevision[] | null>(null)
   const [tab, setTab] = useState<Tab>("overview")
 
   const [loading, setLoading] = useState(true)
@@ -67,8 +71,10 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
   const [starting, setStarting] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
   const [revisionsLoading, setRevisionsLoading] = useState(false)
-  const [revisionsError, setRevisionsError] = useState<string | null>(null)
+  const [revisionsListError, setRevisionsListError] = useState<RequestError | null>(null)
   const [restoringRevision, setRestoringRevision] = useState<number | null>(null)
+  // Restore's own error, tagged with which revision it was.
+  const [restoreRevisionError, setRestoreRevisionError] = useState<{ revision: number; message: string } | null>(null)
 
   const load = useCallback(async () => {
     if (!token || !spaceId) {
@@ -87,7 +93,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
       ])
       setAgent(apiAgentToAgent(agentApi))
       setTasks(tasksApi.tasks)
-      setRevisions(revisionsApi.revisions.map(apiAgentRevisionToAgentRevision))
+      setRevisionsData(revisionsApi.revisions.map(apiAgentRevisionToAgentRevision))
     } catch (err) {
       if (err instanceof ApiRequestError && err.status === 404) {
         setUnavailable("notFound")
@@ -144,12 +150,36 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
   const loadRevisions = useCallback(() => {
     if (!token || !spaceId) return
     setRevisionsLoading(true)
-    setRevisionsError(null)
+    setRevisionsListError(null)
     getAgentRevisions(spaceId, agentId, token)
-      .then((res) => setRevisions(res.revisions.map(apiAgentRevisionToAgentRevision)))
-      .catch((err) => setRevisionsError(getErrorMessage(err, "Failed to load history")))
+      .then((res) => setRevisionsData(res.revisions.map(apiAgentRevisionToAgentRevision)))
+      // revisionsData from a prior successful fetch (if any) is left in place,
+      // so a failed refresh reads as Stale rather than wiping history.
+      .catch((err) => setRevisionsListError(classifyError(err, "Failed to load history")))
       .finally(() => setRevisionsLoading(false))
   }, [token, spaceId, agentId])
+
+  const revisionEntries = useMemo(
+    () =>
+      revisionsData?.map((rev) => ({
+        id: rev.id,
+        revision: rev.revision,
+        createdBy: rev.createdBy,
+        createdLabel: rev.createdLabel,
+        summary: rev.instructions,
+      })) ?? null,
+    [revisionsData]
+  )
+  const revisionsState = useMemo(
+    () =>
+      deriveResourceState({
+        loading: revisionsLoading,
+        data: revisionEntries,
+        error: revisionsListError,
+        isEmpty: (data) => data.length === 0,
+      }),
+    [revisionsLoading, revisionEntries, revisionsListError]
+  )
 
   function handleSave(definition: AgentDefinitionInput) {
     if (!token || !spaceId || !agent) return
@@ -178,14 +208,14 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
 
   function handleRestoreRevision(revision: number) {
     if (!token || !spaceId || !agent) return
-    setRevisionsError(null)
+    setRestoreRevisionError(null)
     setRestoringRevision(revision)
     restoreAgentRevision(spaceId, agent.id, revision, token)
       .then((restored) => {
         setAgent(apiAgentToAgent(restored))
         loadRevisions()
       })
-      .catch((err) => setRevisionsError(getErrorMessage(err, "Failed to restore revision")))
+      .catch((err) => setRestoreRevisionError({ revision, message: getErrorMessage(err, "Failed to restore revision") }))
       .finally(() => setRestoringRevision(null))
   }
 
@@ -395,18 +425,12 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
             <section className="agent-detail__panel">
               <RevisionHistory
                 title="Configuration history"
-                entries={revisions.map((rev) => ({
-                  id: rev.id,
-                  revision: rev.revision,
-                  createdBy: rev.createdBy,
-                  createdLabel: rev.createdLabel,
-                  summary: rev.instructions,
-                }))}
+                state={revisionsState}
+                onRetry={loadRevisions}
                 currentRevision={agent.revision}
-                loading={revisionsLoading}
-                error={revisionsError}
                 canRestore={canManage}
                 restoringRevision={restoringRevision}
+                restoreError={restoreRevisionError}
                 onRestore={handleRestoreRevision}
               />
             </section>

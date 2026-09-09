@@ -15,6 +15,8 @@ import {
   getStoredCurrentSpaceId,
   setStoredCurrentSpaceId,
 } from "../lib/storage/currentSpaceStorage"
+import { classifyError, deriveResourceState, type RequestError, type ResourceState } from "../state/resourceState"
+import { derivePermissionState, type PermissionState } from "../state/permissionState"
 import { useAuth } from "./AuthContext"
 
 export interface SpaceSummary {
@@ -25,16 +27,26 @@ export interface SpaceSummary {
 
 interface SpaceContextValue {
   spaces: SpaceSummary[]
+  /** Resolved state of the spaces list itself — see docs/design/portal-state-and-permission-feedback.md. */
+  spacesState: ResourceState<SpaceSummary[]>
   currentSpaceId: string | null
   currentSpace: SpaceSummary | null
   currentSpaceMembers: ApiSpaceMember[]
   currentUserRole: string | null
+  /** Whether the current Space's membership (and so currentUserRole) is still being resolved. */
+  roleLoading: boolean
+  /** Set when the membership/role lookup itself failed — distinct from a resolved non-member. */
+  roleError: RequestError | null
   loading: boolean
   setCurrentSpaceId: (spaceId: string) => void
   refetchSpaces: (preferredSpaceId?: string | null) => Promise<void>
 }
 
 const SpaceContext = createContext<SpaceContextValue | null>(null)
+
+// Stable identity so `spaces` doesn't churn every render while spacesData is
+// still null (before the first successful fetch).
+const EMPTY_SPACES: SpaceSummary[] = []
 
 function chooseCurrentSpace(spaces: SpaceSummary[]): string | null {
   if (spaces.length === 0) return null
@@ -52,14 +64,20 @@ function normalizeSpaceName(space: { name: string; personal_for_user_id?: string
 
 export function SpaceProvider({ children }: { children: ReactNode }) {
   const { token, user } = useAuth()
-  const [spaces, setSpaces] = useState<SpaceSummary[]>([])
+  // null means "not yet successfully fetched", distinct from [] meaning the
+  // account genuinely has no Spaces. See deriveResourceState.
+  const [spacesData, setSpacesData] = useState<SpaceSummary[] | null>(null)
   const [currentSpaceId, setCurrentSpaceIdState] = useState<string | null>(getStoredCurrentSpaceId)
   const [currentSpaceMembers, setCurrentSpaceMembers] = useState<ApiSpaceMember[]>([])
   const [loading, setLoading] = useState(false)
+  const [spacesError, setSpacesError] = useState<RequestError | null>(null)
+  const [roleLoading, setRoleLoading] = useState(false)
+  const [roleError, setRoleError] = useState<RequestError | null>(null)
 
   const refetchSpaces = useCallback(async (preferredSpaceId?: string | null) => {
     if (!token) {
-      setSpaces([])
+      setSpacesData(null)
+      setSpacesError(null)
       setCurrentSpaceIdState(null)
       setCurrentSpaceMembers([])
       clearStoredCurrentSpaceId()
@@ -67,6 +85,7 @@ export function SpaceProvider({ children }: { children: ReactNode }) {
     }
 
     setLoading(true)
+    setSpacesError(null)
     try {
       const nextSpaces = await getSpaces(token)
       const mapped = nextSpaces.map((space) => ({
@@ -74,13 +93,17 @@ export function SpaceProvider({ children }: { children: ReactNode }) {
         name: normalizeSpaceName(space),
         personalForUserId: space.personal_for_user_id ?? null,
       }))
-      setSpaces(mapped)
+      setSpacesData(mapped)
       const nextCurrentSpaceId =
         preferredSpaceId && mapped.some((space) => space.id === preferredSpaceId)
           ? preferredSpaceId
           : chooseCurrentSpace(mapped)
       setCurrentSpaceIdState(nextCurrentSpaceId)
       setStoredCurrentSpaceId(nextCurrentSpaceId)
+    } catch (err) {
+      // Prior spacesData (if any) is intentionally left in place: a failed
+      // refresh of an already-loaded list is Stale, not Error.
+      setSpacesError(classifyError(err, "Failed to load spaces"))
     } finally {
       setLoading(false)
     }
@@ -93,12 +116,31 @@ export function SpaceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!token || !currentSpaceId) {
       setCurrentSpaceMembers([])
+      setRoleError(null)
+      setRoleLoading(false)
       return
     }
-    void getSpaceMembers(currentSpaceId, token)
-      .then((members) => setCurrentSpaceMembers(members))
-      .catch(() => setCurrentSpaceMembers([]))
+    let cancelled = false
+    setRoleLoading(true)
+    setRoleError(null)
+    getSpaceMembers(currentSpaceId, token)
+      .then((members) => {
+        if (!cancelled) setCurrentSpaceMembers(members)
+      })
+      .catch((err) => {
+        // Members (and so currentUserRole) are left as-is on failure: a lookup
+        // failure must not read the same as "confirmed not a member".
+        if (!cancelled) setRoleError(classifyError(err, "Failed to load membership"))
+      })
+      .finally(() => {
+        if (!cancelled) setRoleLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [token, currentSpaceId])
+
+  const spaces = spacesData ?? EMPTY_SPACES
 
   const setCurrentSpaceId = useCallback(
     (spaceId: string) => {
@@ -119,12 +161,26 @@ export function SpaceProvider({ children }: { children: ReactNode }) {
     [currentSpaceMembers, user?.id],
   )
 
+  const spacesState = useMemo(
+    () =>
+      deriveResourceState({
+        loading,
+        data: spacesData,
+        error: spacesError,
+        isEmpty: (data) => data.length === 0,
+      }),
+    [loading, spacesData, spacesError]
+  )
+
   const value: SpaceContextValue = {
     spaces,
+    spacesState,
     currentSpaceId,
     currentSpace,
     currentSpaceMembers,
     currentUserRole,
+    roleLoading,
+    roleError,
     loading,
     setCurrentSpaceId,
     refetchSpaces,
@@ -141,4 +197,21 @@ export function useSpace(): SpaceContextValue {
   const ctx = useContext(SpaceContext)
   if (!ctx) throw new Error("useSpace must be used within SpaceProvider")
   return ctx
+}
+
+/**
+ * Derives a PermissionState for one capability from the current Space's
+ * shared role-lookup primitives — see
+ * docs/design/portal-state-and-permission-feedback.md#permission-model.
+ * `allowed` is the caller's own check against `currentUserRole` (e.g.
+ * `currentUserRole === "owner" || currentUserRole === "admin"`); this hook
+ * only combines it with whether that role is still loading or failed to
+ * load, so "checking" and "lookup failed" are never read as "denied".
+ */
+export function useSpaceCapability(allowed: boolean): PermissionState {
+  const { roleLoading, roleError } = useSpace()
+  return useMemo(
+    () => derivePermissionState({ loading: roleLoading, lookupFailed: roleError !== null, allowed }),
+    [roleLoading, roleError, allowed]
+  )
 }

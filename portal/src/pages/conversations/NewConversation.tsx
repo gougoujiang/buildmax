@@ -5,6 +5,9 @@ import { getErrorMessage } from "../../lib/errorMessage"
 import { cn } from "../../lib/cn"
 import { createConversation } from "../../features/conversations"
 import { useApp } from "../../contexts/AppContext"
+import { Alert } from "../../components/state/Alert"
+import { EmptyState } from "../../components/state/EmptyState"
+import type { ResourceState } from "../../state/resourceState"
 import type { Conversation } from "../../lib/types"
 
 type NewConversationTab = "conversations" | "files"
@@ -14,6 +17,7 @@ interface NewConversationProps {
   spaceId: string
   onRefetchConversations?: () => void
   conversations: Conversation[]
+  conversationsState: ResourceState<Conversation[]>
 }
 
 export function NewConversation({
@@ -21,6 +25,7 @@ export function NewConversation({
   spaceId,
   onRefetchConversations,
   conversations,
+  conversationsState,
 }: NewConversationProps) {
   const { setPendingConversation } = useApp()
   const [prompt, setPrompt] = useState("")
@@ -108,9 +113,23 @@ export function NewConversation({
         >
           {activeTab === "conversations" && (
             <div className="page-new-chat__chats">
-              {conversations.length === 0 ? (
-                <p className="page-activity__empty">No conversations yet.</p>
-              ) : (
+              {(conversationsState.kind === "error" ||
+                conversationsState.kind === "forbidden" ||
+                conversationsState.kind === "notFound" ||
+                conversationsState.kind === "stale") && (
+                <Alert
+                  tone={conversationsState.kind === "stale" ? "stale" : conversationsState.kind}
+                  message={conversationsState.error.message}
+                  retry={{ label: "Retry", onClick: () => onRefetchConversations?.() }}
+                />
+              )}
+              {conversationsState.kind === "loading" ? (
+                <p className="page-activity__empty">Loading…</p>
+              ) : conversationsState.kind === "readyEmpty" ? (
+                <EmptyState message="No conversations yet. Send a message above to start one." />
+              ) : conversationsState.kind === "error" ||
+                conversationsState.kind === "forbidden" ||
+                conversationsState.kind === "notFound" ? null : (
                 <ul className="page-activity__list">
                   {conversations.map((conv) => (
                     <li key={conv.id} className="page-activity__item">

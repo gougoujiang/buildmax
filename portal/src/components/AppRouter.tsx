@@ -1,5 +1,6 @@
 import { useEffect } from "react"
 import type { Conversation } from "../lib/types"
+import type { ResourceState } from "../state/resourceState"
 import { useApp } from "../contexts/AppContext"
 import { AgentList } from "../pages/agents/AgentList"
 import { AgentDetail } from "../pages/agents/AgentDetail"
@@ -23,12 +24,14 @@ import { NotFoundPage } from "../pages/errors/NotFoundPage"
 
 export interface AppRouterProps {
   conversations: Conversation[]
+  conversationsState: ResourceState<Conversation[]>
   onRefetchConversations: () => Promise<void>
   userId: string
 }
 
 export function AppRouter({
   conversations,
+  conversationsState,
   onRefetchConversations,
   userId,
 }: AppRouterProps) {
@@ -68,6 +71,7 @@ export function AppRouter({
         spaceId={route.spaceId}
         onRefetchConversations={onRefetchConversations}
         conversations={conversations}
+        conversationsState={conversationsState}
       />
     )
   }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { getInitials } from "@buildmax/gui"
 import type {
   ApiAgent,
@@ -18,6 +18,8 @@ import {
   setCuration,
 } from "./api"
 import { buildPluginRow, curationCopy, originCopy, type PluginRow } from "./model"
+import { Alert } from "../../components/state/Alert"
+import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
 
 /**
  * SpacePlugins is what this space's background runs may use.
@@ -36,17 +38,23 @@ export function SpacePlugins({
   spaceId: string | null
   canManage: boolean
 }) {
-  const [rows, setRows] = useState<PluginRow[]>([])
+  // null means "not yet successfully fetched", distinct from [] meaning the
+  // deployment genuinely publishes nothing. See deriveResourceState.
+  const [rowsData, setRowsData] = useState<PluginRow[] | null>(null)
   const [curation, setCurationState] = useState<ApiPluginCuration>("open")
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<RequestError | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [opened, setOpened] = useState<string | null>(null)
+  // A mutation's error, tagged with which control caused it ("curation" or a
+  // plugin name) so it renders next to that control rather than as a
+  // page-level banner nothing points back to.
+  const [actionError, setActionError] = useState<{ key: string; message: string } | null>(null)
 
   const load = useCallback(async () => {
     if (!token || !spaceId) return
     setLoading(true)
-    setError(null)
+    setLoadError(null)
     try {
       const [catalog, activations, agents] = await Promise.all([
         listPlugins(token),
@@ -63,7 +71,7 @@ export function SpacePlugins({
         catalog.plugins.map((p: ApiPlugin) => p.name),
       )
       setCurationState(activations.curation)
-      setRows(
+      setRowsData(
         catalog.plugins
           .filter((entry: ApiPlugin) => !entry.archived_at)
           .map((entry: ApiPlugin) =>
@@ -78,7 +86,9 @@ export function SpacePlugins({
           ),
       )
     } catch (err) {
-      setError(getErrorMessage(err, "Failed to load this space's plugins"))
+      // rowsData from a prior successful fetch (if any) is left in place, so
+      // a failed refresh reads as Stale rather than wiping the list.
+      setLoadError(classifyError(err, "Failed to load this space's plugins"))
     } finally {
       setLoading(false)
     }
@@ -88,15 +98,21 @@ export function SpacePlugins({
     void load()
   }, [load])
 
+  const rowsState = useMemo(
+    () => deriveResourceState({ loading, data: rowsData, error: loadError, isEmpty: (data) => data.length === 0 }),
+    [loading, rowsData, loadError]
+  )
+  const rows = rowsData ?? []
+
   async function run(key: string, action: () => Promise<unknown>) {
     if (!token || !spaceId) return
     setBusy(key)
-    setError(null)
+    setActionError(null)
     try {
       await action()
       await load()
     } catch (err) {
-      setError(getErrorMessage(err, "That did not work"))
+      setActionError({ key, message: getErrorMessage(err, "That did not work") })
     } finally {
       setBusy(null)
     }
@@ -122,28 +138,34 @@ export function SpacePlugins({
         ) : null}
       </div>
 
-      {error ? (
-        <p className="tp__error" role="alert">
-          {error}
-        </p>
-      ) : null}
+      {(rowsState.kind === "error" ||
+        rowsState.kind === "forbidden" ||
+        rowsState.kind === "notFound" ||
+        rowsState.kind === "stale") && (
+        <Alert
+          tone={rowsState.kind === "stale" ? "stale" : rowsState.kind}
+          message={rowsState.error.message}
+          retry={{ label: "Retry", onClick: () => void load() }}
+        />
+      )}
 
       <CurationControl
         curation={curation}
         canManage={canManage}
         busy={busy === "curation"}
+        error={actionError?.key === "curation" ? actionError.message : null}
         onChange={(next) =>
           run("curation", () => setCuration(token as string, spaceId as string, next))
         }
       />
 
-      {loading ? (
+      {rowsState.kind === "loading" ? (
         <div className="tp-list" aria-hidden>
           {[0, 1, 2].map((i) => (
             <div key={i} className="tp-card tp-card--skeleton" />
           ))}
         </div>
-      ) : rows.length === 0 ? (
+      ) : rowsState.kind === "error" || rowsState.kind === "forbidden" || rowsState.kind === "notFound" ? null : rows.length === 0 ? (
         <p className="tp-empty">This deployment has published nothing yet.</p>
       ) : (
         <ul className="tp-list">
@@ -153,6 +175,7 @@ export function SpacePlugins({
               row={row}
               canManage={canManage}
               busy={busy === row.name}
+              error={actionError?.key === row.name ? actionError.message : null}
               expanded={opened === row.name}
               onToggle={() => setOpened(opened === row.name ? null : row.name)}
               onActivate={() =>
@@ -186,11 +209,13 @@ function CurationControl({
   curation,
   canManage,
   busy,
+  error,
   onChange,
 }: {
   curation: ApiPluginCuration
   canManage: boolean
   busy: boolean
+  error: string | null
   onChange: (next: ApiPluginCuration) => void
 }) {
   const other: ApiPluginCuration = curation === "curated" ? "open" : "curated"
@@ -204,6 +229,11 @@ function CurationControl({
           catalog mode
         </span>
         <p className="tp-mode__copy">{curationCopy(curation)}</p>
+        {error ? (
+          <p className="tp__error" role="alert">
+            {error}
+          </p>
+        ) : null}
       </div>
       {canManage ? (
         <button
@@ -223,6 +253,7 @@ function PluginRowView({
   row,
   canManage,
   busy,
+  error,
   expanded,
   onToggle,
   onActivate,
@@ -232,6 +263,7 @@ function PluginRowView({
   row: PluginRow
   canManage: boolean
   busy: boolean
+  error: string | null
   expanded: boolean
   onToggle: () => void
   onActivate: () => void
@@ -302,6 +334,12 @@ function PluginRowView({
           </button>
         ) : null}
       </div>
+
+      {error ? (
+        <p className="tp__error" role="alert">
+          {error}
+        </p>
+      ) : null}
 
       {expanded ? <PluginRowDetail row={row} /> : null}
     </li>

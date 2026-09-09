@@ -12,7 +12,11 @@ import {
   getWorkflows,
 } from "../../features/workflows"
 import { WorkflowModal } from "../../components/WorkflowModal"
-import { useSpace } from "../../contexts/SpaceContext"
+import { useSpace, useSpaceCapability } from "../../contexts/SpaceContext"
+import { Alert } from "../../components/state/Alert"
+import { EmptyState } from "../../components/state/EmptyState"
+import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
+import { isAllowed } from "../../state/permissionState"
 
 interface WorkflowsProps {
   token: string | null
@@ -22,31 +26,39 @@ interface WorkflowsProps {
 export function Workflows({ token, spaceId }: WorkflowsProps) {
   const { currentUserRole } = useSpace()
   const [agents, setAgents] = useState<Agent[]>([])
-  const [workflows, setWorkflows] = useState<Workflow[]>([])
+  // null means "not yet successfully fetched", distinct from [] meaning the
+  // space genuinely has no workflows. See deriveResourceState.
+  const [workflowsData, setWorkflowsData] = useState<Workflow[] | null>(null)
   const [loading, setLoading] = useState(true)
+  const [listError, setListError] = useState<RequestError | null>(null)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Distinct from listError: the create-workflow mutation's own error.
+  const [createError, setCreateError] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
-  const canManageWorkflows = currentUserRole === "owner" || currentUserRole === "admin"
+  const canManageWorkflowsState = useSpaceCapability(currentUserRole === "owner" || currentUserRole === "admin")
+  const canManageWorkflows = isAllowed(canManageWorkflowsState)
 
   const fetchWorkflows = useCallback(() => {
     if (!token || !spaceId) {
       setAgents([])
-      setWorkflows([])
+      setWorkflowsData(null)
       setLoading(false)
+      setListError(null)
       return Promise.resolve()
     }
     setLoading(true)
-    setError(null)
+    setListError(null)
     return Promise.all([
       getWorkflows(spaceId, token),
       getAgents(spaceId, token),
     ])
       .then(([workflowRes, agentRes]) => {
-        setWorkflows(workflowRes.workflows.map(apiWorkflowToWorkflow))
+        setWorkflowsData(workflowRes.workflows.map(apiWorkflowToWorkflow))
         setAgents(agentRes.map(apiAgentToAgent))
       })
-      .catch((err) => setError(getErrorMessage(err, "Failed to load workflows")))
+      // workflowsData from a prior successful fetch (if any) is left in place,
+      // so a failed refresh reads as Stale rather than wiping the list.
+      .catch((err) => setListError(classifyError(err, "Failed to load workflows")))
       .finally(() => setLoading(false))
   }, [token, spaceId])
 
@@ -54,22 +66,29 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
     void fetchWorkflows()
   }, [fetchWorkflows])
 
+  const workflowsState = useMemo(
+    () => deriveResourceState({ loading, data: workflowsData, error: listError, isEmpty: (data) => data.length === 0 }),
+    [loading, workflowsData, listError]
+  )
+
   const workflowCountLabel = useMemo(() => {
-    if (workflows.length === 0) return "0 workflows"
-    if (workflows.length === 1) return "1 workflow"
-    return `${workflows.length} workflows`
-  }, [workflows.length])
+    const count = workflowsData?.length ?? 0
+    if (count === 0) return "0 workflows"
+    if (count === 1) return "1 workflow"
+    return `${count} workflows`
+  }, [workflowsData])
 
   function handleCreate(values: { name: string; description: string; definition: string }) {
     if (!token || !spaceId) return
     setSaving(true)
-    setError(null)
+    setCreateError(null)
     createWorkflow(spaceId, values, token)
       .then((created) => {
         setCreateOpen(false)
-        setWorkflows((prev) => [...prev, apiWorkflowToWorkflow(created)])
+        // Success lands on the created workflow, not back on the list.
+        navigate({ name: "workflow", spaceId, workflowId: created.id })
       })
-      .catch((err) => setError(getErrorMessage(err, "Failed to create workflow")))
+      .catch((err) => setCreateError(getErrorMessage(err, "Failed to create workflow")))
       .finally(() => setSaving(false))
   }
 
@@ -88,7 +107,7 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
               type="button"
               className="page-activity__action-btn"
               onClick={() => {
-                setError(null)
+                setCreateError(null)
                 setCreateOpen(true)
               }}
             >
@@ -98,11 +117,26 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
         </div>
       </div>
 
-      {error ? <p className="page-activity__empty">{error}</p> : null}
-      {!canManageWorkflows ? (
+      {(workflowsState.kind === "error" ||
+        workflowsState.kind === "forbidden" ||
+        workflowsState.kind === "notFound" ||
+        workflowsState.kind === "stale") && (
+        <Alert
+          tone={workflowsState.kind === "stale" ? "stale" : workflowsState.kind}
+          message={workflowsState.error.message}
+          retry={{ label: "Retry", onClick: () => void fetchWorkflows() }}
+        />
+      )}
+      {canManageWorkflowsState === "denied" ? (
         <p className="page-activity__empty">
           You can view workflows here, but only space owners and admins can create or edit them.
         </p>
+      ) : canManageWorkflowsState === "failed" ? (
+        <p className="page-activity__empty">
+          Couldn&apos;t verify your role in this space, so editing stays unavailable. Refresh to try again.
+        </p>
+      ) : canManageWorkflowsState === "unknown" ? (
+        <p className="page-activity__empty">Checking whether you can manage workflows…</p>
       ) : null}
 
       <section className="issues-page__panel">
@@ -111,17 +145,20 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
           <span className="page-activity__meta">{workflowCountLabel}</span>
         </div>
 
-        {loading ? (
+        {workflowsState.kind === "loading" ? (
           <p className="page-activity__empty">Loading…</p>
-        ) : workflows.length === 0 ? (
-          <p className="page-activity__empty">
-            {canManageWorkflows
-              ? "No workflows yet. Create one to define a reusable execution plan for this space."
-              : "No workflows are available in this space yet. Space owners and admins can publish one when a shared process is ready."}
-          </p>
-        ) : (
+        ) : workflowsState.kind === "readyEmpty" ? (
+          <EmptyState
+            message={
+              canManageWorkflows
+                ? "No workflows yet. Create one to define a reusable execution plan for this space."
+                : "No workflows are available in this space yet. Space owners and admins can publish one when a shared process is ready."
+            }
+            action={canManageWorkflows ? { label: "New Workflow", onClick: () => setCreateOpen(true) } : undefined}
+          />
+        ) : workflowsState.kind === "error" || workflowsState.kind === "forbidden" || workflowsState.kind === "notFound" ? null : (
           <ul className="issues-page__list">
-            {workflows.map((workflow) => (
+            {(workflowsData ?? []).map((workflow) => (
               <li key={workflow.id} className="issues-page__list-item">
                 <button
                   type="button"
@@ -149,10 +186,10 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
         open={createOpen}
         agents={agents}
         loading={saving}
-        error={createOpen ? error : null}
+        error={createOpen ? createError : null}
         onClose={() => {
           setCreateOpen(false)
-          setError(null)
+          setCreateError(null)
         }}
         onSubmit={handleCreate}
       />
