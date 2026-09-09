@@ -6,7 +6,10 @@ import { test, expect } from '@playwright/test'
 // settles into local mode — the state a fresh BUILDMAX_HOME with no
 // settings.yaml and nobody signed in always reaches, so this needs no model,
 // no account, and no committed scenario to stay deterministic.
-test('boots into local mode with real Go bindings', async ({ page }) => {
+// @smoke: the one desktop-ui case CI runs on every desktop change. It proves the
+// app boots inside the real Wails bridge — the failure the gate exists to catch;
+// the fuller flows stay in the on-demand `./make e2e desktop-ui` run.
+test('boots into local mode with real Go bindings', { tag: '@smoke' }, async ({ page }) => {
   await page.goto('/')
 
   await expect(page).toHaveTitle('BuildMax')

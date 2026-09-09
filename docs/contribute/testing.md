@@ -17,6 +17,7 @@ loop rather than a pull-request gate — is in
 ./make e2e cli        # just the CLI and TUI suite
 ./make e2e desktop    # just the Desktop bridge suite
 ./make e2e desktop-ui # desktop/frontend through `wails dev`'s browser bridge
+./make e2e desktop-ui core # just the @smoke subset CI gates desktop changes on
 ./make e2e local      # Portal in a browser, against a Compose stack this command owns
 ./make e2e all        # cli, desktop, then local — the release-time matrix
 ./make kind up        # build the local cluster and verify a Kubernetes worker run
@@ -105,10 +106,15 @@ the author is responsible for producing the local-cluster evidence.
 No suite needs a provider API key. Every one of them answers the model from
 `internal/testsupport/mockllm`, which replays a committed scenario.
 
-`./make e2e desktop-ui` is a fixed, scripted check — for poking at
-desktop/frontend's UI ad hoc (click through a flow, screenshot a view, read
-what a bound Go method returns, before you know what to assert), start
-`./make run desktop-dev` and drive it with
+`./make e2e desktop-ui` is a fixed, scripted check. It runs in two tiers: the
+full command runs every case; `./make e2e desktop-ui core` runs only the cases
+tagged `@smoke`, which is what the Desktop UI workflow gates every desktop change
+on (a non-required check, on macOS, since `wails dev` shows a native window). Tag
+a new case `@smoke` only when it is worth running on every desktop PR; leave the
+rest for the full run and the release matrix. For poking at desktop/frontend's UI
+ad hoc (click through a flow, screenshot a view, read what a bound Go method
+returns, before you know what to assert), start `./make run desktop-dev` and
+drive it with
 [`.buildmax/skills/drive-desktop/`](../../.buildmax/skills/drive-desktop/SKILL.md)
 instead.
 
