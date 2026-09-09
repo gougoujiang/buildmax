@@ -1,3 +1,7 @@
+import { Alert } from "./state/Alert"
+import { EmptyState } from "./state/EmptyState"
+import type { ResourceState } from "../state/resourceState"
+
 interface RevisionEntry {
   id: string
   revision: number
@@ -8,12 +12,14 @@ interface RevisionEntry {
 
 interface RevisionHistoryProps {
   title: string
-  entries: RevisionEntry[]
+  state: ResourceState<RevisionEntry[]>
+  onRetry: () => void
   currentRevision: number
-  loading: boolean
-  error: string | null
   canRestore: boolean
   restoringRevision: number | null
+  /** Restore's own error, tagged with which revision it was, so it renders
+   * next to that row instead of a page-level banner nothing points back to. */
+  restoreError: { revision: number; message: string } | null
   onRestore: (revision: number) => void
 }
 
@@ -24,12 +30,12 @@ interface RevisionHistoryProps {
  */
 export function RevisionHistory({
   title,
-  entries,
+  state,
+  onRetry,
   currentRevision,
-  loading,
-  error,
   canRestore,
   restoringRevision,
+  restoreError,
   onRestore,
 }: RevisionHistoryProps) {
   return (
@@ -40,14 +46,23 @@ export function RevisionHistory({
           <span className="page-activity__meta">Current: v{currentRevision}</span>
         ) : null}
       </div>
-      {error ? <p className="modal__error">{error}</p> : null}
-      {loading ? (
+      {(state.kind === "error" ||
+        state.kind === "forbidden" ||
+        state.kind === "notFound" ||
+        state.kind === "stale") && (
+        <Alert
+          tone={state.kind === "stale" ? "stale" : state.kind}
+          message={state.error.message}
+          retry={{ label: "Retry", onClick: onRetry }}
+        />
+      )}
+      {state.kind === "loading" ? (
         <p className="page-activity__empty">Loading history…</p>
-      ) : entries.length === 0 ? (
-        <p className="page-activity__empty">No history recorded yet.</p>
-      ) : (
+      ) : state.kind === "readyEmpty" ? (
+        <EmptyState message="No history recorded yet." />
+      ) : state.kind === "error" || state.kind === "forbidden" || state.kind === "notFound" ? null : (
         <ol className="revision-history__list">
-          {entries.map((entry) => (
+          {state.data.map((entry) => (
             <li key={entry.id} className="revision-history__item">
               <div className="revision-history__item-head">
                 <strong>v{entry.revision}</strong>
@@ -67,6 +82,9 @@ export function RevisionHistory({
               </div>
               {entry.summary ? (
                 <pre className="revision-history__summary">{entry.summary}</pre>
+              ) : null}
+              {restoreError?.revision === entry.revision ? (
+                <p className="modal__error">{restoreError.message}</p>
               ) : null}
             </li>
           ))}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import type { Agent, Workflow, WorkflowRevision, WorkflowRun } from "../../lib/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
@@ -22,7 +22,9 @@ import {
   WorkflowStepsEditor,
 } from "../../features/workflows"
 import { RevisionHistory } from "../../components/RevisionHistory"
-import { useSpace } from "../../contexts/SpaceContext"
+import { useSpace, useSpaceCapability } from "../../contexts/SpaceContext"
+import { isAllowed } from "../../state/permissionState"
+import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
 import { useApp } from "../../contexts/AppContext"
 
 interface WorkflowDetailProps {
@@ -59,11 +61,16 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [unavailable, setUnavailable] = useState<ResourceUnavailableKind | null>(null)
-  const [revisions, setRevisions] = useState<WorkflowRevision[]>([])
+  // null means "not yet successfully fetched", distinct from [] meaning the
+  // workflow genuinely has no revisions. See deriveResourceState.
+  const [revisionsData, setRevisionsData] = useState<WorkflowRevision[] | null>(null)
   const [revisionsLoading, setRevisionsLoading] = useState(false)
-  const [revisionsError, setRevisionsError] = useState<string | null>(null)
+  const [revisionsListError, setRevisionsListError] = useState<RequestError | null>(null)
   const [restoringRevision, setRestoringRevision] = useState<number | null>(null)
-  const canManageWorkflows = currentUserRole === "owner" || currentUserRole === "admin"
+  // Restore's own error, tagged with which revision it was.
+  const [restoreRevisionError, setRestoreRevisionError] = useState<{ revision: number; message: string } | null>(null)
+  const canManageWorkflowsState = useSpaceCapability(currentUserRole === "owner" || currentUserRole === "admin")
+  const canManageWorkflows = isAllowed(canManageWorkflowsState)
 
   const load = useCallback(async () => {
     if (!token || !spaceId) {
@@ -87,7 +94,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
       setWorkflow(mappedWorkflow)
       setRuns(runsApi.runs.map(apiWorkflowRunToWorkflowRun))
       setAgents(agentsApi.map(apiAgentToAgent))
-      setRevisions(revisionsApi.revisions.map(apiWorkflowRevisionToWorkflowRevision))
+      setRevisionsData(revisionsApi.revisions.map(apiWorkflowRevisionToWorkflowRevision))
       setName(mappedWorkflow.name)
       setDescription(mappedWorkflow.description)
       setStatus(mappedWorkflow.status)
@@ -110,12 +117,36 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
   const loadRevisions = useCallback(() => {
     if (!token || !spaceId) return
     setRevisionsLoading(true)
-    setRevisionsError(null)
+    setRevisionsListError(null)
     getWorkflowRevisions(spaceId, workflowId, token)
-      .then((res) => setRevisions(res.revisions.map(apiWorkflowRevisionToWorkflowRevision)))
-      .catch((err) => setRevisionsError(getErrorMessage(err, "Failed to load history")))
+      .then((res) => setRevisionsData(res.revisions.map(apiWorkflowRevisionToWorkflowRevision)))
+      // revisionsData from a prior successful fetch (if any) is left in place,
+      // so a failed refresh reads as Stale rather than wiping history.
+      .catch((err) => setRevisionsListError(classifyError(err, "Failed to load history")))
       .finally(() => setRevisionsLoading(false))
   }, [token, spaceId, workflowId])
+
+  const revisionEntries = useMemo(
+    () =>
+      revisionsData?.map((rev) => ({
+        id: rev.id,
+        revision: rev.revision,
+        createdBy: rev.createdBy,
+        createdLabel: rev.createdLabel,
+        summary: `${rev.name} · ${rev.status}`,
+      })) ?? null,
+    [revisionsData]
+  )
+  const revisionsState = useMemo(
+    () =>
+      deriveResourceState({
+        loading: revisionsLoading,
+        data: revisionEntries,
+        error: revisionsListError,
+        isEmpty: (data) => data.length === 0,
+      }),
+    [revisionsLoading, revisionEntries, revisionsListError]
+  )
 
   useEffect(() => {
     void load()
@@ -152,7 +183,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
 
   function handleRestoreRevision(revision: number) {
     if (!token || !spaceId || !workflow || !canManageWorkflows) return
-    setRevisionsError(null)
+    setRestoreRevisionError(null)
     setRestoringRevision(revision)
     restoreWorkflowRevision(spaceId, workflow.id, revision, token)
       .then((restored) => {
@@ -164,7 +195,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
         hydrateSteps(mapped.definition)
         loadRevisions()
       })
-      .catch((err) => setRevisionsError(getErrorMessage(err, "Failed to restore revision")))
+      .catch((err) => setRestoreRevisionError({ revision, message: getErrorMessage(err, "Failed to restore revision") }))
       .finally(() => setRestoringRevision(null))
   }
 
@@ -259,10 +290,16 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
       </div>
 
       {error ? <p className="page-activity__empty">{error}</p> : null}
-      {!canManageWorkflows ? (
+      {canManageWorkflowsState === "denied" ? (
         <p className="page-activity__empty">
           This workflow is read-only for your role. You can still inspect it here, and you can run it when it is `published`.
         </p>
+      ) : canManageWorkflowsState === "failed" ? (
+        <p className="page-activity__empty">
+          Couldn&apos;t verify your role in this space, so editing stays unavailable. Refresh to try again.
+        </p>
+      ) : canManageWorkflowsState === "unknown" ? (
+        <p className="page-activity__empty">Checking whether you can manage this workflow…</p>
       ) : null}
 
       {workflow && (
@@ -330,18 +367,12 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
           <section className="issues-page__panel">
             <RevisionHistory
               title="History"
-              entries={revisions.map((rev) => ({
-                id: rev.id,
-                revision: rev.revision,
-                createdBy: rev.createdBy,
-                createdLabel: rev.createdLabel,
-                summary: `${rev.name} · ${rev.status}`,
-              }))}
+              state={revisionsState}
+              onRetry={loadRevisions}
               currentRevision={workflow?.revision ?? 0}
-              loading={revisionsLoading}
-              error={revisionsError}
               canRestore={canManageWorkflows}
               restoringRevision={restoringRevision}
+              restoreError={restoreRevisionError}
               onRestore={handleRestoreRevision}
             />
             <p className="page-activity__meta">
