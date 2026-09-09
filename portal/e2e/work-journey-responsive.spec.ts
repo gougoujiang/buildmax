@@ -17,7 +17,7 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
 }
 
 test("the New Chat page has no horizontal overflow and its composer and tabs are reachable", async ({ page }) => {
-  await page.goto("/#/home")
+  await session(page)
 
   await expect(page.getByRole("textbox", { name: "What would you like to do?" })).toBeVisible()
   await expect(page.getByRole("tab", { name: "Recent Conversations" })).toBeVisible()
@@ -33,11 +33,11 @@ test("Issues and Issue Detail reflow to one column with reachable actions", asyn
   })
   reportLeftovers(current.spaceId, [`issue ${issue.id}`])
 
-  await page.goto("/#/issues")
+  await page.goto(`/#/spaces/${current.spaceId}/issues`)
   await expect(page.getByRole("button", { name: "New Issue" })).toBeVisible()
   await expectNoHorizontalOverflow(page)
 
-  await page.goto(`/#/issue/${issue.id}`)
+  await page.goto(`/#/spaces/${current.spaceId}/issues/${issue.id}`)
   await expect(page.getByRole("button", { name: "Back to Issues" })).toBeVisible()
   await expect(page.getByRole("button", { name: "Save" })).toBeVisible()
   // The detail grid already collapses to one column before Narrow width (see
@@ -58,7 +58,7 @@ async function startAgentRun(page: Page, current: Session): Promise<string> {
   })
   reportLeftovers(current.spaceId, [`agent ${agent.id}`])
 
-  await page.goto("/#/agents")
+  await page.goto(`/#/spaces/${current.spaceId}/agents`)
   await page.getByRole("button", { name: `Run ${agentName}` }).click()
   const modal = page.getByRole("dialog", { name: `Run ${agentName}` })
   await expect(modal).toBeVisible()

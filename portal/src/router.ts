@@ -29,27 +29,11 @@ export const SEGMENT = {
   artifact: "artifact",
   marketplace: "marketplace",
   help: "help",
-  // Pre-Space-prefix segments, recognized only to redirect old links into the
-  // canonical shape above. Temporary: bounded to this migration, removed once
-  // docs/design/portal-navigation-and-space-context.md is marked implemented.
-  legacySpace: "space",
-  legacySpaceSettings: "space-settings",
-  legacyHome: "home",
-  legacyConversation: "conversation",
-  legacyConversations: "conversations",
-  legacyExplore: "explore",
-  legacyAgent: "agent",
-  legacyWorkflow: "workflow",
-  legacyWorkflowRun: "workflow-run",
-  legacyIssue: "issue",
-  legacyTask: "task",
 } as const
 
 /**
- * Resolve a Space-scoped path (the segments after `#/spaces/{space_id}/`, or
- * their pre-migration equivalent) into a Route. `rest[0]` is always the
- * canonical plural resource word (`issues`, `agents`, ...); legacy callers
- * translate their own segment into that shape before calling this.
+ * Resolve the segments after `#/spaces/{space_id}/` into a Route. `rest[0]`
+ * is the canonical plural resource word (`issues`, `agents`, ...).
  */
 function parseSpaceScopedRoute(spaceId: string, rest: string[]): Route {
   const [resource, id, sub] = rest
@@ -88,8 +72,8 @@ function parseSpaceScopedRoute(spaceId: string, rest: string[]): Route {
 
 /**
  * Parse window.location.hash into a typed Route. `currentSpaceId` resolves
- * routes that carry no Space id of their own: the bare `#/` entry point, and
- * every pre-migration flat hash (see SEGMENT's legacy* entries).
+ * the bare `#/` entry point, the one route that carries no Space id of its
+ * own.
  */
 export function parseHash(hash: string, currentSpaceId: string): Route {
   const raw = hash.replace(/^#\/?/, "")
@@ -136,65 +120,11 @@ export function parseHash(hash: string, currentSpaceId: string): Route {
     return parseSpaceScopedRoute(parts[1], parts.slice(2))
   }
 
-  // --- Migration-bounded redirects for the pre-Space-prefix hash shapes.
-  // Old links carry no Space id, so they resolve into whichever Space is
-  // currently selected -- a wrong guess surfaces as the normal missing or
-  // forbidden resource state, never stale data borrowed from another Space.
-  if (parts[0] === SEGMENT.legacySpace && parts[1] === "artifacts") {
-    // Artifacts left space settings for their own top-level area. Kept as a
-    // redirect rather than dropped, because the old address is what any saved
-    // link points at, and falling through would land on Overview silently.
-    return parseSpaceScopedRoute(currentSpaceId, ["artifacts"])
-  }
-  if (parts[0] === SEGMENT.legacySpace) {
-    return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.space, ...parts.slice(1)])
-  }
-  if (parts[0] === SEGMENT.legacySpaceSettings) {
-    return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.space])
-  }
-  if (parts[0] === SEGMENT.legacyIssue && parts[1]) {
-    return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.issues, parts[1]])
-  }
-  if (parts[0] === SEGMENT.issues) {
-    return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.issues])
-  }
-  if (parts[0] === SEGMENT.legacyAgent && parts[1]) {
-    return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.agents, parts[1]])
-  }
-  if (parts[0] === SEGMENT.agents) {
-    return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.agents])
-  }
-  if (parts[0] === SEGMENT.legacyWorkflowRun && parts[1]) {
-    return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.workflowRuns, parts[1]])
-  }
-  if (parts[0] === SEGMENT.legacyWorkflow && parts[1]) {
-    return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.workflows, parts[1]])
-  }
-  if (parts[0] === SEGMENT.workflows) {
-    return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.workflows])
-  }
-  if (parts[0] === SEGMENT.legacyTask && parts[1]) {
-    return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.tasks, parts[1]])
-  }
-  if (parts[0] === SEGMENT.legacyExplore) {
-    return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.files])
-  }
-  if (parts[0] === SEGMENT.artifacts) {
-    return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.artifacts])
-  }
-  if (parts[0] === SEGMENT.legacyConversation && parts[1]) {
-    return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.chat, parts[1]])
-  }
-  if (parts[0] === SEGMENT.legacyConversations) {
-    return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.chat])
-  }
-  if (parts[0] === SEGMENT.legacyHome) {
-    return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.chat])
-  }
-
   // Bare `#/` is the one legitimate empty path: the Space's Chat. Anything
   // else here matched no route at all -- a genuinely unknown address, not a
-  // fallback to guess from.
+  // fallback to guess from. The pre-Space-prefix hash shapes this used to
+  // redirect were bounded to the migration and are gone now that
+  // docs/design/portal-navigation-and-space-context.md is fully implemented.
   if (parts.length === 0) {
     return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.chat])
   }
@@ -304,11 +234,10 @@ export function navigate(route: Route): void {
 
 /**
  * React hook: returns the current Route and re-renders on hashchange.
- * `currentSpaceId` resolves the bare `#/` entry point and any legacy hash
- * that carries no Space id of its own -- pass `""` while it is still
- * unresolved (e.g. the account's Spaces have not loaded yet); every
- * Space-scoped Route's `spaceId` will read as `""` until a real one is
- * available.
+ * `currentSpaceId` resolves the bare `#/` entry point, which carries no
+ * Space id of its own -- pass `""` while it is still unresolved (e.g. the
+ * account's Spaces have not loaded yet); every Space-scoped Route's
+ * `spaceId` will read as `""` until a real one is available.
  */
 export function useHashRoute(currentSpaceId: string): Route {
   const [hash, setHash] = useState<string>(() => window.location.hash)

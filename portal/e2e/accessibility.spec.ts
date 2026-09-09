@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright"
 import { expect, test, type Page } from "@playwright/test"
 
+import { session } from "./fixtures"
+
 // A focused accessibility scan for the shell, one dialog, and one tabbed
 // surface, per the acceptance criteria in
 // docs/design/portal-responsive-and-accessible-interaction.md. This is not a
@@ -37,7 +39,7 @@ function describeViolations(violations: { id: string; help: string; nodes: { tar
 test.use({ viewport: { width: 390, height: 844 } })
 
 test("the narrow shell and its open navigation drawer have no WCAG A/AA violations", async ({ page }) => {
-  await page.goto("/#/home")
+  await session(page)
   await page.getByRole("button", { name: "Open navigation" }).click()
   await expect(page.getByRole("dialog", { name: "Navigation" })).toBeVisible()
 
@@ -46,7 +48,7 @@ test("the narrow shell and its open navigation drawer have no WCAG A/AA violatio
 })
 
 test("a plain dialog (Create Space) has no WCAG A/AA violations", async ({ page }) => {
-  await page.goto("/#/home")
+  await session(page)
   // The persistent sidebar is CSS-hidden at this file's narrow viewport; its
   // "+" control is reachable through the drawer instead.
   await page.getByRole("button", { name: "Open navigation" }).click()
@@ -61,7 +63,8 @@ test("a plain dialog (Create Space) has no WCAG A/AA violations", async ({ page 
 })
 
 test("a tabbed surface (the Create Agent dialog's tabs) has no WCAG A/AA violations", async ({ page }) => {
-  await page.goto("/#/agents")
+  const current = await session(page)
+  await page.goto(`/#/spaces/${current.spaceId}/agents`)
   await page.getByRole("button", { name: "Create agent" }).click()
   await expect(page.getByRole("dialog", { name: "New Agent" })).toBeVisible()
   await expect(page.getByRole("tablist")).toBeVisible()

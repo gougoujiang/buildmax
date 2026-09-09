@@ -34,7 +34,7 @@ test("each administration section is linkable and survives a reload", async ({ p
 })
 
 test("an administrator reaches administration from the first-level sidebar", async ({ page }) => {
-  await page.goto("/#/home")
+  await page.goto("/")
   await page.getByRole("button", { name: "Administration" }).click()
   await expect(page.getByRole("heading", { name: "Administration" })).toBeVisible()
 })

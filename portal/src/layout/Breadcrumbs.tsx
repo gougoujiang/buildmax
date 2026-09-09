@@ -164,6 +164,12 @@ export function useBreadcrumbs(route: Route, conversations: Conversation[] = [])
   if (route.name === "chat") {
     return [{ label: "Chat", route }]
   }
+  if (route.name === "help") {
+    return [{ label: "Help", route: { name: "help" } }]
+  }
+  if (route.name === "notFound") {
+    return [{ label: "Page not found", route }]
+  }
   return []
 }
 

@@ -60,7 +60,8 @@ test("the space overview reports the deployment's quota tier and what it counted
 })
 
 test("the space members section names the signed-in account", async ({ page }) => {
-  await page.goto("/#/space/members")
+  const current = await session(page)
+  await page.goto(`/#/spaces/${current.spaceId}/settings/members`)
 
   // Owner-only controls are the point: whether this account may remove members
   // is decided from the membership the deployment returned, and the section is
