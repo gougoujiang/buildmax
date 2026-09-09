@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { getErrorMessage } from "../lib/errorMessage"
+import { classifyError, type RequestError } from "../state/resourceState"
 
 export interface UseAsyncListOptions {
   /** Optional callback when loading state changes (e.g. for parent state). */
   setLoading?: (loading: boolean) => void
-  /** Map caught error to message. Default: getErrorMessage(err, "Request failed"). */
-  errorMessage?: (err: unknown) => string
+  /** Fallback message when the caught error carries none. Default: "Request failed". */
+  fallbackMessage?: string
 }
 
 /**
  * Fetches a list when deps are valid (enabled). Clears when disabled. refetch() re-runs the fetch.
- * Returns data, loading, error so callers can show loading and error states.
+ *
+ * `data` is null until the first successful fetch, then never null again — a
+ * failed refetch leaves the previous list in place rather than wiping it, so
+ * callers can distinguish "not loaded yet" / Stale / Error via
+ * deriveResourceState instead of reading a failure as an empty list.
  */
 export function useAsyncList<T, U>(
   fetchFn: () => Promise<T[]>,
@@ -18,18 +22,16 @@ export function useAsyncList<T, U>(
   deps: unknown[],
   enabled: boolean,
   options?: UseAsyncListOptions
-): { data: U[]; loading: boolean; error: string | null; refetch: () => Promise<void> } {
+): { data: U[] | null; loading: boolean; error: RequestError | null; refetch: () => Promise<void> } {
   const setExternalLoading = options?.setLoading
-  const errorMessage = options?.errorMessage ?? ((e: unknown) => getErrorMessage(e, "Request failed"))
-  const [data, setData] = useState<U[]>([])
+  const fallbackMessage = options?.fallbackMessage ?? "Request failed"
+  const [data, setData] = useState<U[] | null>(null)
   const [loading, setLoadingState] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<RequestError | null>(null)
   const fetchFnRef = useRef(fetchFn)
   const mapRef = useRef(map)
-  const errorMessageRef = useRef(errorMessage)
   fetchFnRef.current = fetchFn
   mapRef.current = map
-  errorMessageRef.current = errorMessage
 
   const runFetch = useCallback((): Promise<void> => {
     setLoadingState(true)
@@ -42,18 +44,18 @@ export function useAsyncList<T, U>(
         setError(null)
       })
       .catch((err) => {
-        setData([])
-        setError(errorMessageRef.current(err))
+        // Prior data (if any) is left in place: a failed refresh is Stale, not Error.
+        setError(classifyError(err, fallbackMessage))
       })
       .finally(() => {
         setLoadingState(false)
         setExternalLoading?.(false)
       })
-  }, [setExternalLoading])
+  }, [setExternalLoading, fallbackMessage])
 
   useEffect(() => {
     if (!enabled) {
-      setData([])
+      setData(null)
       setError(null)
       setLoadingState(false)
       setExternalLoading?.(false)

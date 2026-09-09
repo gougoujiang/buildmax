@@ -1,7 +1,7 @@
 import type { Conversation } from "../lib/types"
-import { getErrorMessage } from "../lib/errorMessage"
 import { apiConversationToConversation } from "../lib/api/mappers"
 import { getConversations } from "../features/conversations"
+import type { RequestError } from "../state/resourceState"
 import { useAsyncList } from "./useAsyncList"
 
 const CONVERSATIONS_LIMIT = 100
@@ -10,7 +10,7 @@ export function useConversations(
   token: string | null,
   currentSpaceId: string | null,
   enabled = true
-): { data: Conversation[]; loading: boolean; error: string | null; refetch: () => Promise<void> } {
+): { data: Conversation[] | null; loading: boolean; error: RequestError | null; refetch: () => Promise<void> } {
   return useAsyncList(
     () =>
       getConversations(currentSpaceId!, token!, { limit: CONVERSATIONS_LIMIT }).then(
@@ -19,6 +19,6 @@ export function useConversations(
     (list) => list.map(apiConversationToConversation),
     [token, currentSpaceId],
     enabled && !!token,
-    { errorMessage: (e) => getErrorMessage(e, "Failed to load conversations") }
+    { fallbackMessage: "Failed to load conversations" }
   )
 }

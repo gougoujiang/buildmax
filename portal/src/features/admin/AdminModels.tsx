@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import type { ApiAdminModel } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { createAdminModel, listAdminModels, setAdminModelEnabled, type AdminCreateModelInput } from "./api"
+import { Alert } from "../../components/state/Alert"
+import { EmptyState } from "../../components/state/EmptyState"
+import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
 
 /**
  * AdminModels shows which models this deployment will call, and adds new ones.
@@ -89,29 +92,44 @@ function buildInput(f: ModelForm): AdminCreateModelInput {
 }
 
 export function AdminModels({ token }: { token: string | null }) {
-  const [models, setModels] = useState<ApiAdminModel[]>([])
+  // null means "not yet successfully fetched", distinct from [] meaning the
+  // catalog genuinely has no models. See deriveResourceState.
+  const [modelsData, setModelsData] = useState<ApiAdminModel[] | null>(null)
   const [defaultModel, setDefaultModel] = useState<string | undefined>()
   const [loading, setLoading] = useState(true)
+  const [listError, setListError] = useState<RequestError | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  // Toggle's own error, tagged with which model it was.
+  const [toggleError, setToggleError] = useState<{ id: string; message: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [form, setForm] = useState<ModelForm>(emptyForm)
   const [creating, setCreating] = useState(false)
+  // The create-model form's own error: a page-level message, since the form
+  // is a singleton with no row to associate it with.
+  const [formError, setFormError] = useState<string | null>(null)
 
   const load = useCallback(() => {
     if (!token) return
     setLoading(true)
-    setError(null)
+    setListError(null)
     listAdminModels(token)
       .then((res) => {
-        setModels(res.models)
+        setModelsData(res.models)
         setDefaultModel(res.default_model)
       })
-      .catch((err) => setError(getErrorMessage(err, "Failed to load the model catalog")))
+      // modelsData from a prior successful fetch (if any) is left in place,
+      // so a failed refresh reads as Stale rather than wiping the catalog.
+      .catch((err) => setListError(classifyError(err, "Failed to load the model catalog")))
       .finally(() => setLoading(false))
   }, [token])
 
   useEffect(load, [load])
+
+  const modelsState = useMemo(
+    () => deriveResourceState({ loading, data: modelsData, error: listError, isEmpty: (data) => data.length === 0 }),
+    [loading, modelsData, listError]
+  )
+  const models = modelsData ?? []
 
   function set<K extends keyof ModelForm>(key: K, value: ModelForm[K]) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -129,10 +147,10 @@ export function AdminModels({ token }: { token: string | null }) {
     )
       return
     setBusyId(entry.id)
-    setError(null)
+    setToggleError(null)
     setAdminModelEnabled(token, entry.id, !entry.enabled)
       .then(load)
-      .catch((err) => setError(getErrorMessage(err, "The change did not complete")))
+      .catch((err) => setToggleError({ id: entry.id, message: getErrorMessage(err, "The change did not complete") }))
       .finally(() => setBusyId(null))
   }
 
@@ -140,7 +158,7 @@ export function AdminModels({ token }: { token: string | null }) {
     e.preventDefault()
     if (!token || creating) return
     setCreating(true)
-    setError(null)
+    setFormError(null)
     setNotice(null)
     createAdminModel(token, buildInput(form))
       .then((created) => {
@@ -150,7 +168,7 @@ export function AdminModels({ token }: { token: string | null }) {
         setNotice(`Added ${created.name}. It is available to signed-in users now.`)
         load()
       })
-      .catch((err) => setError(getErrorMessage(err, "The model was not added")))
+      .catch((err) => setFormError(getErrorMessage(err, "The model was not added")))
       .finally(() => setCreating(false))
   }
 
@@ -167,18 +185,23 @@ export function AdminModels({ token }: { token: string | null }) {
           </div>
         </div>
 
-        {error ? (
-          <p className="settings-section__error" role="alert">
-            {error}
-          </p>
-        ) : null}
+        {(modelsState.kind === "error" ||
+          modelsState.kind === "forbidden" ||
+          modelsState.kind === "notFound" ||
+          modelsState.kind === "stale") && (
+          <Alert
+            tone={modelsState.kind === "stale" ? "stale" : modelsState.kind}
+            message={modelsState.error.message}
+            retry={{ label: "Retry", onClick: load }}
+          />
+        )}
         {notice ? <p className="admin-notice">{notice}</p> : null}
 
-        {loading ? (
+        {modelsState.kind === "loading" ? (
           <p className="admin-empty">Loading…</p>
-        ) : models.length === 0 ? (
-          <p className="admin-empty">The catalog is empty.</p>
-        ) : (
+        ) : modelsState.kind === "readyEmpty" ? (
+          <EmptyState message="The catalog is empty." />
+        ) : modelsState.kind === "error" || modelsState.kind === "forbidden" || modelsState.kind === "notFound" ? null : (
           <ul className="admin-list">
             {models.map((entry) => (
               <li key={entry.id} className="admin-list__row">
@@ -200,6 +223,11 @@ export function AdminModels({ token }: { token: string | null }) {
                 >
                   {entry.enabled ? "Retire" : "Enable"}
                 </button>
+                {toggleError?.id === entry.id ? (
+                  <p className="settings-section__error" role="alert">
+                    {toggleError.message}
+                  </p>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -222,6 +250,12 @@ export function AdminModels({ token }: { token: string | null }) {
             </p>
           </div>
         </div>
+
+        {formError ? (
+          <p className="settings-section__error" role="alert">
+            {formError}
+          </p>
+        ) : null}
 
         <form className="admin-form" onSubmit={submit}>
           <div className="admin-form__grid">

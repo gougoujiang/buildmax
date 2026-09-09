@@ -1,0 +1,55 @@
+/* Shared presenters for the resource/permission state model — see
+   docs/design/portal-state-and-permission-feedback.md and
+   ../components/state/{Alert,EmptyState}.tsx. */
+
+.state-alert {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.85rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-danger, #c53030);
+  background: color-mix(in srgb, var(--color-danger, #c53030) 6%, transparent);
+}
+
+.state-alert--stale {
+  border-color: var(--color-warning, #b7791f);
+  background: color-mix(in srgb, var(--color-warning, #b7791f) 6%, transparent);
+}
+
+.state-alert__title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-danger, #c53030);
+}
+
+.state-alert--stale .state-alert__title {
+  color: var(--color-warning, #b7791f);
+}
+
+.state-alert__message {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+.state-alert__actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.15rem;
+}
+
+.state-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 1.25rem 0;
+}
+
+.state-empty__message {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+}
