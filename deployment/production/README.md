@@ -182,7 +182,8 @@ Stated rather than left to be discovered:
   default-deny on worker *egress*. Worker pods reach the model endpoint, object
   storage, and the server; restricting that is worth doing and is not settled
   here — see [`docs/design/trust-harness.md`](../../docs/design/trust-harness.md)
-  §3.9, which holds the open question and what would settle it.
+  §3.9, which compares portable NetworkPolicy, Cilium FQDN policy, and a
+  dedicated egress proxy, and defines the planned kind qualification evidence.
 - **Backups.** Database and bucket backups are yours. BuildMax has no export or
   import command.
 - **Horizontal scaling of workers.** Worker Jobs are created per task run and
