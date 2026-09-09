@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { getInitials } from "@buildmax/gui"
 import type { ApiSecret } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { createSecret, editSecret, listSecrets, setSecretState } from "./api"
+import { Alert } from "../../components/state/Alert"
+import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
+import { isAllowed, type PermissionState } from "../../state/permissionState"
 
 /**
  * SpaceSecrets manages a space's stored credentials: create one, edit its items,
@@ -32,27 +35,33 @@ function rowsToItems(rows: ItemRow[]): Record<string, string> {
 export function SpaceSecrets({
   token,
   spaceId,
-  canManage,
+  ownerState,
 }: {
   token: string | null
   spaceId: string | null
-  canManage: boolean
+  /** Owner-only capability state — see docs/design/portal-state-and-permission-feedback.md#permission-model. */
+  ownerState: PermissionState
 }) {
-  const [secrets, setSecrets] = useState<ApiSecret[]>([])
+  const canManage = isAllowed(ownerState)
+  // null means "not yet successfully fetched", distinct from [] meaning the
+  // space genuinely has no secrets. See deriveResourceState.
+  const [secretsData, setSecretsData] = useState<ApiSecret[] | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<RequestError | null>(null)
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     if (!token || !spaceId) return
     setLoading(true)
-    setError(null)
+    setLoadError(null)
     try {
       const got = await listSecrets(token, spaceId)
-      setSecrets(got.secrets ?? [])
+      setSecretsData(got.secrets ?? [])
     } catch (err) {
-      setError(getErrorMessage(err, "Failed to load this space's secrets"))
+      // secretsData from a prior successful fetch (if any) is left in place,
+      // so a failed refresh reads as Stale rather than wiping the list.
+      setLoadError(classifyError(err, "Failed to load this space's secrets"))
     } finally {
       setLoading(false)
     }
@@ -62,6 +71,12 @@ export function SpaceSecrets({
     void load()
   }, [load])
 
+  const secretsState = useMemo(
+    () => deriveResourceState({ loading, data: secretsData, error: loadError, isEmpty: (data) => data.length === 0 }),
+    [loading, secretsData, loadError]
+  )
+  const secrets = secretsData ?? []
+
   if (!canManage) {
     return (
       <section className="sec">
@@ -69,7 +84,11 @@ export function SpaceSecrets({
           <div>
             <h2 className="sec__title">Secrets</h2>
             <p className="sec__copy">
-              Only a space owner can view or manage this space&apos;s secrets.
+              {ownerState === "unknown"
+                ? "Checking whether you can manage this space's secrets…"
+                : ownerState === "failed"
+                  ? "Couldn't verify your role in this space, so secrets stay unavailable. Refresh to try again."
+                  : "Only a space owner can view or manage this space's secrets."}
             </p>
           </div>
         </div>
@@ -108,11 +127,16 @@ export function SpaceSecrets({
         </div>
       </div>
 
-      {error ? (
-        <p className="sec__error" role="alert">
-          {error}
-        </p>
-      ) : null}
+      {(secretsState.kind === "error" ||
+        secretsState.kind === "forbidden" ||
+        secretsState.kind === "notFound" ||
+        secretsState.kind === "stale") && (
+        <Alert
+          tone={secretsState.kind === "stale" ? "stale" : secretsState.kind}
+          message={secretsState.error.message}
+          retry={{ label: "Retry", onClick: () => void load() }}
+        />
+      )}
 
       {creating ? (
         <CreateSecretForm
@@ -126,13 +150,13 @@ export function SpaceSecrets({
         />
       ) : null}
 
-      {loading ? (
+      {secretsState.kind === "loading" ? (
         <div className="sec-list" aria-hidden>
           {[0, 1].map((i) => (
             <div key={i} className="sec-card sec-card--skeleton" />
           ))}
         </div>
-      ) : live.length === 0 && !creating && !error ? (
+      ) : secretsState.kind === "error" || secretsState.kind === "forbidden" || secretsState.kind === "notFound" ? null : live.length === 0 && !creating ? (
         <div className="sec-empty">
           <KeyIcon />
           <p className="sec-empty__title">No secrets yet</p>

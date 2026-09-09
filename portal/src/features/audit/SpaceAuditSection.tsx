@@ -1,15 +1,20 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import type { ApiAuditEvent } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { exportAuditEvents, getAuditEvents } from "./api"
 import { actorLabel, describeEvent, formatEventTime } from "./describe"
+import { Alert } from "../../components/state/Alert"
+import { EmptyState } from "../../components/state/EmptyState"
+import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
+import { isAllowed, type PermissionState } from "../../state/permissionState"
 
 const PAGE_SIZE = 50
 
 interface SpaceAuditSectionProps {
   spaceId: string | null
   token: string | null
-  currentUserIsOwner: boolean
+  /** Owner-only capability state — see docs/design/portal-state-and-permission-feedback.md#permission-model. */
+  ownerState: PermissionState
   currentUserId?: string
 }
 
@@ -38,26 +43,33 @@ function AuditRow({ event, currentUserId }: { event: ApiAuditEvent; currentUserI
 export function SpaceAuditSection({
   spaceId,
   token,
-  currentUserIsOwner,
+  ownerState,
   currentUserId,
 }: SpaceAuditSectionProps) {
-  const [events, setEvents] = useState<ApiAuditEvent[]>([])
+  const currentUserIsOwner = isAllowed(ownerState)
+  // null means "not yet successfully fetched", distinct from [] meaning the
+  // trail genuinely has no events. See deriveResourceState.
+  const [eventsData, setEventsData] = useState<ApiAuditEvent[] | null>(null)
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [listError, setListError] = useState<RequestError | null>(null)
   const [exporting, setExporting] = useState(false)
+  // Distinct from listError: the export action's own error.
+  const [exportError, setExportError] = useState<string | null>(null)
 
   const load = useCallback(
     (offset: number) => {
       if (!spaceId || !token) return
       setLoading(true)
-      setError(null)
+      setListError(null)
       getAuditEvents(spaceId, token, { limit: PAGE_SIZE, offset })
         .then((res) => {
-          setEvents((prev) => (offset === 0 ? res.events : [...prev, ...res.events]))
+          setEventsData((prev) => (offset === 0 ? res.events : [...(prev ?? []), ...res.events]))
           setTotal(res.total)
         })
-        .catch((err) => setError(getErrorMessage(err, "Failed to load the audit trail")))
+        // eventsData from a prior successful fetch (if any) is left in place,
+        // so a failed refresh reads as Stale rather than wiping the trail.
+        .catch((err) => setListError(classifyError(err, "Failed to load the audit trail")))
         .finally(() => setLoading(false))
     },
     [spaceId, token]
@@ -68,13 +80,19 @@ export function SpaceAuditSection({
     load(0)
   }, [currentUserIsOwner, load])
 
+  const eventsState = useMemo(
+    () => deriveResourceState({ loading, data: eventsData, error: listError, isEmpty: (data) => data.length === 0 }),
+    [loading, eventsData, listError]
+  )
+  const events = eventsData ?? []
+
   const exportTrail = useCallback(
     (format: "csv" | "jsonl") => {
       if (!spaceId || !token || exporting) return
       setExporting(true)
-      setError(null)
+      setExportError(null)
       exportAuditEvents(spaceId, token, format)
-        .catch((err) => setError(getErrorMessage(err, "Failed to export the audit trail")))
+        .catch((err) => setExportError(getErrorMessage(err, "Failed to export the audit trail")))
         .finally(() => setExporting(false))
     },
     [spaceId, token, exporting]
@@ -85,8 +103,11 @@ export function SpaceAuditSection({
       <section className="settings-section">
         <h2 className="settings-section__title">Audit trail</h2>
         <p className="settings-section__hint">
-          Only a space owner can read the audit trail. It records who was refused a request, which
-          is not something the rest of a space needs to see.
+          {ownerState === "unknown"
+            ? "Checking whether you can read the audit trail…"
+            : ownerState === "failed"
+              ? "Couldn't verify your role in this space, so the audit trail stays unavailable. Refresh to try again."
+              : "Only a space owner can read the audit trail. It records who was refused a request, which is not something the rest of a space needs to see."}
         </p>
       </section>
     )
@@ -125,17 +146,25 @@ export function SpaceAuditSection({
         </span>
       </div>
 
-      {error ? (
+      {(eventsState.kind === "error" ||
+        eventsState.kind === "forbidden" ||
+        eventsState.kind === "notFound" ||
+        eventsState.kind === "stale") && (
+        <Alert
+          tone={eventsState.kind === "stale" ? "stale" : eventsState.kind}
+          message={eventsState.error.message}
+          retry={{ label: "Retry", onClick: () => load(0) }}
+        />
+      )}
+      {exportError ? (
         <p className="settings-section__error" role="alert">
-          {error}
+          {exportError}
         </p>
       ) : null}
 
-      {!error && events.length === 0 && !loading ? (
-        <p className="page-activity__empty">Nothing recorded yet.</p>
-      ) : null}
+      {eventsState.kind === "readyEmpty" ? <EmptyState message="Nothing recorded yet." /> : null}
 
-      {events.length > 0 ? (
+      {eventsState.kind !== "forbidden" && eventsState.kind !== "notFound" && events.length > 0 ? (
         <ul className="audit-list">
           {events.map((event) => (
             <AuditRow key={event.id} event={event} currentUserId={currentUserId} />
@@ -145,7 +174,7 @@ export function SpaceAuditSection({
 
       {loading ? <p className="page-activity__empty">Loading…</p> : null}
 
-      {events.length < total ? (
+      {eventsState.kind !== "forbidden" && eventsState.kind !== "notFound" && events.length < total ? (
         <button
           type="button"
           className="page-activity__action-btn"
