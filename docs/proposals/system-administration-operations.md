@@ -254,8 +254,8 @@ Advantages:
 Costs:
 
 - requires additional transactional audit work; the grant concurrency and initial UI work have shipped;
-- some runtime operations depend on the R1 single- versus multi-instance
-  decision;
+- runtime operations must use the deployment-wide semantics of the now-shipped
+  R1 Redis coordination topology rather than process-local counters;
 - one broad role remains powerful over account lifecycle.
 
 ### Option C: Introduce A Full Administrative RBAC Platform Now
@@ -556,9 +556,11 @@ seeded tiers are insufficient.
 
 ### Phase 5: Runtime Operations
 
-This phase begins only after roadmap R1 decides whether the supported Server
-topology is one replica or introduces shared coordination. A global-looking
-dashboard assembled from one process's memory would be actively misleading.
+Roadmap R1 has now selected and implemented the shared Redis coordination
+topology for the cluster references. This prerequisite is satisfied, but a
+global-looking dashboard assembled from one process's memory would still be
+actively misleading: every value in this phase must come from durable state or
+an explicitly deployment-wide coordinator view.
 
 Scope:
 
@@ -870,7 +872,7 @@ Suggested implementation order:
 3. account pagination and session lifecycle;
 4. model and plugin catalog parity, after credential hardening;
 5. Space quota assignment;
-6. runtime operations after the topology decision;
+6. runtime operations against the delivered coordination topology;
 7. enterprise identity as a separate accepted plan.
 
 Each routine capability from step 3 onward ships its Admin API route, its
@@ -939,8 +941,8 @@ the discussion.
   diagnosis without requiring raw logs or Space content.
 - A threat review of session metadata, transactional authority audit, and any
   proposed operational mutation.
-- A topology decision from roadmap R1 before accepting deployment-wide runtime
-  semantics.
+- Candidate evidence that the proposed runtime aggregates retain
+  deployment-wide meaning across two Servers, Redis interruption, and recovery.
 
 ## 16. Likely Destination If Accepted
 

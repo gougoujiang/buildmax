@@ -46,7 +46,7 @@ the individual record rather than being duplicated here.
 | [Surface positioning](surface-positioning.md) | Direction | How Agent Core, CLI, Desktop, and Portal relate |
 | [Agent execution and Task threads](agent-execution-and-task-threads.md) | Direction | Task and TaskRun as the durable Agent execution plane, independent of Conversation |
 | [Orchestration and continuity decisions](orchestration-and-continuity-decisions.md) | Direction | Decisions connecting Task continuity, Space ownership, structured output, and orchestration |
-| [Portal execution model](portal-execution-model.md) | Active plan | Historical rationale superseded in part by Agent execution and Task threads |
+| [Portal execution model](portal-execution-model.md) | Specification | Outcome-projection rationale; execution ownership is superseded by Agent execution and Task threads |
 
 ## Agent Runtime and Models
 
@@ -113,7 +113,7 @@ the individual record rather than being duplicated here.
 
 | Document | Lifecycle | Covers |
 |---|---|---|
-| [Server coordination](server-coordination.md) | Active plan | Multi-replica stream fan-out and turn serialization through Redis |
+| [Server coordination](server-coordination.md) | Active plan | Shipped Redis fan-out and turn leases; message fencing and candidate qualification remain |
 | [Enterprise deployment](enterprise-deployment.md) | Active plan | Supported private deployment shape and operating gaps |
 | [Graceful shutdown](graceful-shutdown.md) | Active plan | Draining, quiescing, worker interruption, and bounded shutdown |
 

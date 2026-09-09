@@ -1,4 +1,4 @@
-# Agent Core P0.5 Trust Harness
+# Agent Core Trust Harness
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/信任保障.md)
 
@@ -14,17 +14,21 @@
 
 ## Status
 
-- roadmap_priority: `P0.5`
-- status: `in_progress` — hooks are implemented; sandbox worker hardening,
-  trace follow-ups, and the §3.9 worker-boundary authority question remain open
+- roadmap_priority: `R0`
+- status: `in_progress` — hooks, durable traces, the Bash sandbox, process
+  limits, Agent/Space sandbox tiers, worker baseline selection, and worker API
+  ingress isolation are implemented. MCP stdio child-process containment,
+  worker-wide egress enforcement, candidate boundary evidence, and resolved
+  policy presentation remain open
 - follows: P0 Agent Core stability, P1 Local agent experience, and P2 Portal outcome surface — all complete; their plans were retired (see git history)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-05-23`
 
 ## 1. Purpose
 
-P0 made the shared Agent Core stable enough for CLI, Desktop, Portal, and worker
-task runs. P0.5 should make the core more trustworthy and easier to operate.
+The completed P0 work made the shared Agent Core stable enough for CLI, Desktop,
+Portal, and worker task runs. The remaining R0 work should make the core more
+trustworthy and easier to operate.
 
 This document intentionally stays at the product-capability level. It lists the
 key things BuildMax should support next, without prescribing detailed
@@ -32,8 +36,8 @@ implementation shape.
 
 ## 2. Direction
 
-P0.5 should focus on the shared Agent Core first. CLI, Desktop, Portal, and
-worker should expose the same core capabilities in surface-appropriate ways.
+R0 should focus on the shared Agent Core first. CLI, Desktop, Portal, and worker
+should expose the same core capabilities in surface-appropriate ways.
 
 The goal is:
 
@@ -416,10 +420,10 @@ remains open and belongs to this section, not that document.
 
 ## 4. Explicitly Out Of Scope For Now
 
-Do not include these in the current P0.5 scope:
+Do not include these in the current R0 trust-boundary scope:
 
-- checkpoint and rollback
-- full workspace restore
+- user-selectable checkpoint rollback or timeline restore
+- automatic workspace write-back or merging
 - full Portal audit product
 - workflow engine rewrite
 - plugin marketplace
@@ -427,9 +431,10 @@ Do not include these in the current P0.5 scope:
 - container/seccomp implementation in Go
 - broad versioned workspace implementation
 
-Checkpoint and rollback can be revisited if a versioned workspace capability is
-ever taken up — there is no current plan or design record for one — but they
-should not block this P0.5 pass.
+Task workspace checkpointing and restore-before-Continue have since shipped
+under [task-workspace-checkpoints.md](task-workspace-checkpoints.md). Generic
+workspace history, user-selected rollback, merging, and automatic Space-file
+write-back remain separate product questions and do not block R0.
 
 ## 5. Suggested Priority
 
@@ -449,7 +454,7 @@ more extensibility.
 
 ## 6. Acceptance
 
-P0.5 is successful when:
+The R0 trust-boundary work is successful when:
 
 - users can inspect what happened in a run
 - users can understand tool approval and denial decisions

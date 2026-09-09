@@ -17,10 +17,11 @@
 ## Status
 
 - roadmap_priority: `P2 follow-on`
-- status: `superseded` — §5.1's target (Space-owned Task, `conversation_id`
-  optional) has shipped, and the §4.2 result-delivery mechanism it describes
-  has been removed rather than kept transitional. The mandatory Tier 1-to-Tier
-  2 hierarchy and Conversation-owned Task shape are superseded by
+- status: `partially superseded specification` — §5.1's target (Space-owned
+  Task, `conversation_id` optional) has shipped, and the §4.2 result-delivery
+  mechanism it describes has been removed rather than kept transitional. The
+  surviving outcome-projection rationale remains current. The mandatory Tier
+  1-to-Tier 2 hierarchy and Conversation-owned Task shape are superseded by
   [agent execution and Task threads](agent-execution-and-task-threads.md),
   which is authoritative for the current execution model; this record is kept
   for the Tier 1/Tier 2 boundary reasoning in §1-§3

@@ -24,8 +24,11 @@
 - roadmap_priority: `P3`
 - status: `in_progress` — M1 (config contract cleanup), M2 (kind end-to-end
   path), M4 (production reference), and M5 (operator bootstrap) are done; M3
-  (health and readiness) is mostly done. The remaining work is operating
-  evidence and the configuration checks named in §4.3 and §12.
+  (health and readiness) is mostly done. Shared Redis coordination and the
+  two-Server reference topology were added by the later
+  [Server coordination](server-coordination.md) decision. The remaining work
+  is candidate operating evidence and the configuration checks named in §4.3
+  and §12.
 - follows: P2 Portal outcome surface (complete; plan retired)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-05-17`
@@ -136,6 +139,7 @@ the wrong database.
 The architecture it fixes:
 
 - Server Deployment
+- Redis coordination Deployment and Service
 - Portal Deployment
 - Worker Jobs launched by the scheduler
 - external MySQL
@@ -143,6 +147,7 @@ The architecture it fixes:
 - ConfigMap for non-secret `server.yaml`
 - Secret for JWT, LLM API key, DB password, S3 secret
 - Ingress for Portal and API on one origin
+- two Server replicas using `coordination.mode: redis`
 
 What the shape does *not* yet have is operational evidence: no restore
 exercise, no upgrade/rollback exercise across a schema change, no metrics, and
@@ -409,9 +414,11 @@ Acceptance, both met:
 `./make kind up` owns the current local Kubernetes path: it creates or reuses
 the pinned kind cluster, installs its backing MySQL/MinIO/ingress, builds and
 loads the images, applies the deployment and deterministic model configuration,
-then runs the smoke. The smoke signs in, proves a space boundary, creates and
-runs work, reads its artifact, and proves that retry creates a second executed
-run. The managed variant also proves the run-scoped credential and call ledger.
+then runs the smoke. The basic manifest runs two Servers with Redis
+coordination. The smoke signs in, proves a space boundary, creates and runs
+work, reads its artifact, proves that retry creates a second executed run, and
+exercises cancellation. The managed variant also proves the run-scoped
+credential and call ledger.
 
 The old `./make setup && ./make deploy` spelling is gone: `tools/mk` no longer
 answers either name, and `./make kind up` is the only path.
@@ -520,8 +527,10 @@ Manual product validation:
    failed liveness check restarts the container. A shared endpoint would have
    turned every database blip into a restart of a server that was working.
 3. ~~Should Redis remain in setup if the current server path does not require
-   it?~~ **Decided: no.** The reference is single-instance and has no Redis
-   dependency; multi-instance stream distribution remains outside this design.
+   it?~~ **Superseded by the later Server-coordination decision: yes for the
+   basic/kind and production multi-replica references; no for single-Server
+   Compose.** Both cluster manifests now configure Redis and two Server
+   replicas. See [server-coordination.md](server-coordination.md).
 4. ~~Should the recommended production path use Kubernetes Jobs only, or document
    `local_process` as a single-node option?~~ **Decided: Kubernetes Jobs are the
    recommended production path, and `local_process` stays supported as a

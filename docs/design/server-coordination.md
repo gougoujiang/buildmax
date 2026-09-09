@@ -2,9 +2,9 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/服务器协调.md)
 
-> **Audience:** contributors and operators · **Status:** accepted; in
-> implementation. The `local` backend is the shipped behavior; the `redis`
-> backend is the plan this record commits.
+> **Audience:** contributors and operators · **Status:** mechanism implemented;
+> qualification open. Both `local` and `redis` backends ship. The remaining R1
+> work is message-write fencing and candidate deployment evidence.
 
 Related: [Graceful shutdown](graceful-shutdown.md), [Worker API network
 boundary](worker-api-network-boundary.md), [Enterprise
@@ -27,12 +27,18 @@ threads](agent-execution-and-task-threads.md).
 
 ## 1. Status
 
-The production reference manifest runs two `buildmax-server` replicas while three
-pieces of live coordination are held in one process's memory. This record decides
-how a deployment gets correct multi-replica semantics: a shared coordination
-backend, off by default, that every replica reaches so live state is no longer
-process-local. Durable state was never the problem — it already converges through
-MySQL and object storage. Live state is.
+The shared-coordination mechanism described here is implemented. The basic/kind
+and production manifests run two `buildmax-server` replicas with
+`coordination.mode: redis`; Compose remains the single-server `local` path.
+Redis-backed Task streams, connection-event fan-out, renewable Conversation
+turn leases, startup failure when configured Redis is unavailable, and manifest
+topology checks all ship.
+
+The remaining correctness gap is enforcing each lease's fencing token in the
+Conversation message-history write path. The remaining qualification gap is a
+deployed candidate exercise covering cross-replica delivery, concurrent turns,
+reconnects, Redis failure, and recovery. In-process and miniredis tests prove the
+mechanism, not the candidate topology.
 
 ## 2. Problem
 
@@ -198,19 +204,19 @@ coordination:
 
 ## 9. Deployment Topology
 
-- `deployment/production/buildmax.yaml` adds a Redis `Deployment` and `Service`,
-  sets `coordination.mode: redis` and the address in the server `ConfigMap`, and
-  keeps `buildmax-server` at two replicas — now a supported topology rather than
-  a latent defect. The misleading "server keeps no local state that matters"
-  comment is corrected to name the coordination backend the claim now depends on.
+- `deployment/buildmax-deploy.yaml` and
+  `deployment/production/buildmax.yaml` include a Redis `Deployment` and
+  `Service`, set `coordination.mode: redis` and the address in the Server
+  `ConfigMap`, and run `buildmax-server` at two replicas. The basic manifest is
+  what kind exercises; production carries the same coordination shape.
 - Redis itself is a single instance in the first supported topology. Its state is
   reconstructible — streams and locks are live, not durable, and a Redis restart
   costs at most in-flight stream deltas and a brief re-acquire of conversation
   leases — so it needs no persistence volume. This limit is recorded in the
   deployment docs rather than hidden.
-- Compose and kind run a single server and stay on `mode: local`, which is
-  correct for one replica; standing up a Redis there to exercise the `redis`
-  path outside production is a follow-up, not a requirement for either to work.
+- Compose runs one Server with `mode: local`. Kind uses the basic manifest's two
+  Servers and Redis, so the normal cluster smoke exercises the supported
+  multi-replica topology rather than reserving it for production.
 
 ## 10. Testing
 
@@ -222,6 +228,9 @@ coordination:
   three guarantees: an `Append` on one is read by a `Subscribe` on the other; a
   `Broadcast` on one reaches a socket registered on the other; a turn lease held
   by one blocks a turn for the same conversation on the other.
+- `stream_multireplica_test.go` specifically drives a Task delta through one
+  handler and reads it from another, and its local-backend counterpart proves
+  the same delivery does not cross process-local hubs accidentally.
 - A fail-closed test asserts that `mode: redis` with an unreachable address makes
   server construction return an error rather than a working handler.
 - An architecture test asserts the production manifest's `buildmax-server` replica
@@ -235,10 +244,10 @@ coordination:
 - Sharing durable Session state across devices is a separate direction
   ([durable Agent sessions](../proposals/durable-agent-sessions.md)); this record
   covers only live server coordination.
-- Enforcing the conversation fencing token in the message-history write path is a
-  follow-up. The lease delivers mutual exclusion; the token guards only the
-  pathological case of a process paused past its lease TTL, and its write-path
-  check is deferred until that write path is threaded to carry it.
+- Enforcing the Conversation fencing token in the message-history write path is
+  the remaining R1 correctness work. The lease delivers mutual exclusion while
+  it is held; the token rejects a stale process that resumes after its lease TTL
+  and would otherwise append behind the newer holder.
 - Per-space Pub/Sub channels, backpressure metrics on a slow subscriber, and a
   Redis-outage readiness signal that degrades rather than exits are deferred until
   a running multi-replica deployment shows they are needed.
