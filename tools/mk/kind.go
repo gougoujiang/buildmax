@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -126,6 +127,34 @@ func kindContext() string {
 
 func kindKubectl(args ...string) error {
 	return runCmd("kubectl", append([]string{"--context", kindContext()}, args...)...)
+}
+
+// kindDatabasePreflight refuses to run the browser suite against a database that
+// is not healthy right now. The kind MySQL is a single pod on an emptyDir
+// (deployment/kind/mysql.yaml): a restart it survives still drops server
+// readiness mid-run, and a pod that is currently not Ready fails the suite in
+// ways that read as product bugs. Catching it here turns an unexplained mid-run
+// hang -- the audit-view "Loading…" the Agent-autonomous e2e assessment saw --
+// into a precise "the database is unhealthy, reload it" before any test data is
+// created.
+func kindDatabasePreflight() error {
+	const flappingRestarts = 3
+	out, err := captureKindKubectl("get", "pods", "-n", "db", "-l", "app=mysql",
+		"-o", "jsonpath={.items[0].status.containerStatuses[0].ready} {.items[0].status.containerStatuses[0].restartCount}")
+	if err != nil {
+		return fmt.Errorf("check the kind database before testing: %w", err)
+	}
+	fields := strings.Fields(out)
+	if len(fields) < 2 {
+		return errors.New("kind database is not running (no mysql pod in namespace db); run `./make kind reload` first")
+	}
+	if ready := fields[0]; ready != "true" {
+		return fmt.Errorf("kind database is not ready (mysql pod ready=%s); wait for it or run `./make kind reload` before testing", ready)
+	}
+	if n, convErr := strconv.Atoi(fields[1]); convErr == nil && n >= flappingRestarts {
+		return fmt.Errorf("kind database is flapping (mysql restarted %d times); it is too unstable for clean evidence -- run `./make kind reload` before testing", n)
+	}
+	return nil
 }
 
 func captureKindKubectl(args ...string) (string, error) {

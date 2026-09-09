@@ -24,7 +24,10 @@ spec:
     spec:
       containers:
         - name: mysql
-          image: mysql:8.0
+          # Pinned to a patch, not the floating 8.0 tag: a reload that silently
+          # picks up a new minor is a variable in evidence meant to be
+          # reproducible. Bump this deliberately.
+          image: mysql:8.0.40
           env:
             - name: MYSQL_ROOT_PASSWORD
               value: "buildmax"
@@ -39,29 +42,38 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/mysql
+          # Headroom over the previous 512Mi/500m: MySQL 8.0 under the browser
+          # suite's concurrent load was hitting readiness and liveness timeouts
+          # and restarting, which dropped server readiness mid-run.
           resources:
             requests:
-              memory: 256Mi
-              cpu: 100m
-            limits:
               memory: 512Mi
-              cpu: 500m
+              cpu: 250m
+            limits:
+              memory: 1Gi
+              cpu: "1"
           startupProbe:
             exec:
               command: ["mysqladmin", "ping", "-h", "127.0.0.1", "-u", "buildmax", "-pbuildmax", "--silent"]
             periodSeconds: 5
             timeoutSeconds: 5
             failureThreshold: 60
+          # Liveness and readiness tolerate a busy-but-alive database: a single
+          # slow `mysqladmin ping` under load is not a dead server, so a wider
+          # timeout and a failureThreshold keep a transient stall from killing
+          # the pod or flapping the Service off.
           livenessProbe:
             exec:
               command: ["mysqladmin", "ping", "-h", "127.0.0.1", "-u", "buildmax", "-pbuildmax", "--silent"]
             periodSeconds: 10
-            timeoutSeconds: 5
+            timeoutSeconds: 10
+            failureThreshold: 6
           readinessProbe:
             exec:
               command: ["mysqladmin", "ping", "-h", "127.0.0.1", "-u", "buildmax", "-pbuildmax", "--silent"]
-            periodSeconds: 5
-            timeoutSeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
       volumes:
         - name: data
           emptyDir: {}

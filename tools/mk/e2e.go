@@ -66,6 +66,15 @@ func cmdE2E(args []string) error {
 		if err != nil {
 			return err
 		}
+		// kind attaches to a shared, persistent cluster whose single-pod MySQL
+		// can be mid-restart; refuse before making test data rather than fail
+		// the suite in ways that read as product bugs. Compose owns a fresh
+		// database it just started, so it has nothing to preflight.
+		if suite == "kind" {
+			if err := kindDatabasePreflight(); err != nil {
+				return err
+			}
+		}
 		fmt.Printf("[e2e] attaching to the %s deployment at %s (this command did not start it)\n", suite, target.portalURL)
 		return e2ePortal(target, suite)
 	default:
@@ -132,26 +141,30 @@ func e2eFullMatrix() error {
 // leftover of its own — it is always neither, and several runs (different
 // worktrees, different agents, a human's `compose up` alongside them) can own
 // a stack of their own at the same time.
-func e2eOwningCompose() error {
-	if err := ephemeralComposeEnv(); err != nil {
+func e2eOwningCompose() (err error) {
+	if err = ephemeralComposeEnv(); err != nil {
 		return err
 	}
 	fmt.Printf("[e2e] owning a Compose stack (project %s, port %s) for this run: starting it, testing it, and taking it down\n",
 		composeProjectName(), envOr("BUILDMAX_PORTAL_PORT", "8080"))
+	// Registered before `up`, so teardown runs even when startup fails partway:
+	// `compose up` that errors after creating some containers would otherwise
+	// leave a partial stack for the next run to attach to and report on. -v,
+	// unlike a plain `compose down`: a project this run invented has no reason to
+	// keep its volumes for a next run that will invent its own.
+	defer func() {
+		downErr := runCmd("docker", append(composeSmokeArgs(true), "down", "-v")...)
+		if downErr != nil && err == nil {
+			err = fmt.Errorf("take the Compose stack down: %w", downErr)
+		}
+	}()
 	// The smoke overlay, not a plain `up`: the browser tests drive a run to
 	// completion, which needs the deterministic model in front of the server
 	// rather than a provider key this machine may not have.
-	if err := composeUpSmokeStack(false); err != nil {
-		return fmt.Errorf("start the Compose stack: %w", err)
+	if upErr := composeUpSmokeStack(false); upErr != nil {
+		return fmt.Errorf("start the Compose stack: %w", upErr)
 	}
-	testErr := e2ePortal(composeSmokeTarget(false), "local")
-	// -v, unlike `compose down`: a project this run invented has no reason to
-	// keep its volumes around for a next run that will invent its own, and
-	// leaving them is a leak once every run picks a fresh name.
-	if downErr := runCmd("docker", append(composeSmokeArgs(true), "down", "-v")...); downErr != nil && testErr == nil {
-		return fmt.Errorf("take the Compose stack down: %w", downErr)
-	}
-	return testErr
+	return e2ePortal(composeSmokeTarget(false), "local")
 }
 
 // ephemeralComposeEnv picks a Compose project name and three host ports

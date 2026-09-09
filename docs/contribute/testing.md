@@ -218,6 +218,20 @@ before it starts.
   uniquely tagged resources, and prints what it left behind — most of them have
   no delete route, so the line naming them is the cleanup instruction.
 
+`./make e2e kind` first checks that the cluster's MySQL is Ready and not
+flapping, and refuses with a `kind reload` instruction if it is mid-restart, so
+an unhealthy shared database fails fast instead of surfacing as a product bug
+part-way through the suite.
+
+One spec is a deliberate exception to both modes. `resource-states.spec.ts`
+intercepts the deployment's own responses with Playwright's `page.route` to
+drive Portal into failure states — a 5xx, a refresh that fails after a good
+load, a role lookup that errors — that a healthy backend will not produce on
+demand. It tests how Portal *presents* a failing dependency, not the
+deployment, so it neither reads real data nor owns a stack. Fault injection
+stays in that one spec; every other Portal suite reports the real deployment
+truthfully.
+
 ### Running A Second Deployment Alongside The First
 
 `./make kind up` and `./make compose up` keep the fixed name and ports every
