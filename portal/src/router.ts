@@ -34,6 +34,7 @@ export const SEGMENT = {
   // docs/design/portal-navigation-and-space-context.md is marked implemented.
   legacySpace: "space",
   legacySpaceSettings: "space-settings",
+  legacyHome: "home",
   legacyConversation: "conversation",
   legacyConversations: "conversations",
   legacyExplore: "explore",
@@ -186,6 +187,9 @@ export function parseHash(hash: string, currentSpaceId: string): Route {
     return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.chat, parts[1]])
   }
   if (parts[0] === SEGMENT.legacyConversations) {
+    return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.chat])
+  }
+  if (parts[0] === SEGMENT.legacyHome) {
     return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.chat])
   }
 

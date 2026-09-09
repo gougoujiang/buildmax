@@ -64,6 +64,7 @@ describe("hash router", () => {
     ["#/artifacts", { name: "artifacts", spaceId: SPACE }],
     ["#/conversation/c_123", { name: "chat", spaceId: SPACE, conversationId: "c_123" }],
     ["#/conversations", { name: "chat", spaceId: SPACE }],
+    ["#/home", { name: "chat", spaceId: SPACE }],
     ["#/space", { name: "space", spaceId: SPACE, section: "overview" }],
     ["#/space/members", { name: "space", spaceId: SPACE, section: "members" }],
     ["#/space/members/new", { name: "space", spaceId: SPACE, section: "memberNew" }],

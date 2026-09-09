@@ -64,8 +64,8 @@ async function startAgentRun(page: Page, current: Session): Promise<string> {
   await expect(modal).toBeVisible()
   await modal.getByLabel("Task").fill("Narrow layout probe")
   await modal.getByRole("button", { name: "Start" }).click()
-  await page.waitForURL(/#\/task\//, { timeout: 15_000 })
-  return decodeURIComponent(page.url().split("/task/")[1] ?? "")
+  await page.waitForURL(/#\/tasks\//, { timeout: 15_000 })
+  return decodeURIComponent(page.url().split("/tasks/")[1] ?? "")
 }
 
 test("Task Detail reflows: header actions wrap under the title and the composer stays reachable", async ({
