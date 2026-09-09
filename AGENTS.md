@@ -188,6 +188,14 @@ surface; details belong there rather than being copied into this file.
   Use `kind reload` for the edit loop, then the deployment smoke and Portal
   browser suite as the change requires. Compose is a faster inner loop, not a
   substitute when the claim depends on those boundaries.
+- Create a kind cluster on demand, not per task. The resident `buildmaxdev`
+  cluster is a person's for manual testing; a task that needs its own runs
+  `BUILDMAX_KIND_EPHEMERAL=1 ./make kind up` to get an isolated cluster (unique
+  name, free ports) recorded in `.local/`, which every later kind command in the
+  worktree reuses, and `./make kind down` to remove it when finished. Only spin
+  one up when the change actually needs the kind boundary; use Compose or unit
+  tests otherwise, so few clusters run at once. See
+  [`docs/contribute/testing.md`](docs/contribute/testing.md).
 - Real-model smoke tests, cache qualification, and evaluation measure behavior
   and may spend money; they are not deterministic tests or default handoff
   checks. Run them only when the task calls for that evidence.

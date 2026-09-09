@@ -100,20 +100,40 @@ func cmdKind(args []string) error {
 	}
 }
 
+// kindClusterName, kindPortalPort, and kindTLSPort resolve this worktree's kind
+// target with a fixed precedence: an explicit environment variable wins, then
+// the ephemeral cluster recorded in .local/ (see kind_ephemeral.go), then the
+// resident default. So a plain checkout targets buildmaxdev, a task that ran
+// `kind up` under BUILDMAX_KIND_EPHEMERAL=1 transparently targets its own
+// isolated cluster, and an explicit env still overrides both.
 func kindClusterName() string {
-	return envOr("BUILDMAX_KIND_CLUSTER", defaultKindCluster)
+	if v := os.Getenv("BUILDMAX_KIND_CLUSTER"); v != "" {
+		return v
+	}
+	if e, ok := readEphemeralKind(); ok {
+		return e.cluster
+	}
+	return defaultKindCluster
 }
 
-// kindPortalPort and kindTLSPort are the host ports this cluster's ingress
-// publishes. They default to the ports every doc and script assumes, so a
-// second cluster only has to name both this and BUILDMAX_KIND_CLUSTER to
-// exist alongside the first one without a port collision.
 func kindPortalPort() string {
-	return envOr("BUILDMAX_KIND_PORTAL_PORT", defaultKindPortalPort)
+	if v := os.Getenv("BUILDMAX_KIND_PORTAL_PORT"); v != "" {
+		return v
+	}
+	if e, ok := readEphemeralKind(); ok {
+		return e.portalPort
+	}
+	return defaultKindPortalPort
 }
 
 func kindTLSPort() string {
-	return envOr("BUILDMAX_KIND_TLS_PORT", defaultKindTLSPort)
+	if v := os.Getenv("BUILDMAX_KIND_TLS_PORT"); v != "" {
+		return v
+	}
+	if e, ok := readEphemeralKind(); ok {
+		return e.tlsPort
+	}
+	return defaultKindTLSPort
 }
 
 func kindPortalURL() string {
@@ -196,6 +216,21 @@ func captureKindKubectl(args ...string) (string, error) {
 }
 
 func kindUp() error {
+	// A task opts into its own isolated cluster with BUILDMAX_KIND_EPHEMERAL=1.
+	// Allocate a name and free ports once, on the first `up`; every later kind
+	// command in this worktree reads them back from .local/ without the flag.
+	// Without the flag (and without a prior record) this is a no-op and `up`
+	// targets the resident buildmaxdev cluster.
+	if os.Getenv("BUILDMAX_KIND_EPHEMERAL") == "1" {
+		if _, ok := readEphemeralKind(); !ok {
+			e, err := allocateEphemeralKind()
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Ephemeral kind cluster for this task: %s on ports %s/%s (recorded in %s; `%s kind down` removes both)\n",
+				e.cluster, e.portalPort, e.tlsPort, ephemeralKindMarker, mk())
+		}
+	}
 	if err := requireCommands("docker", "kubectl"); err != nil {
 		return err
 	}
@@ -914,6 +949,18 @@ func kindDown() error {
 		return err
 	}
 	cluster := kindClusterName()
+	// Whether or not the cluster still exists, if it was this worktree's
+	// ephemeral one, forget it on the way out so later kind commands here fall
+	// back to the resident default rather than a cluster that is gone.
+	if e, ok := readEphemeralKind(); ok && e.cluster == cluster {
+		defer func() {
+			if clearErr := clearEphemeralKind(); clearErr != nil {
+				fmt.Printf("[kind] warning: could not remove %s: %v\n", ephemeralKindMarker, clearErr)
+				return
+			}
+			fmt.Printf("Removed the ephemeral cluster record %s; kind commands here now target %s again.\n", ephemeralKindMarker, defaultKindCluster)
+		}()
+	}
 	exists, err := kindClusterExists(cluster)
 	if err != nil {
 		return err

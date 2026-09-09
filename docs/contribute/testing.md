@@ -264,6 +264,28 @@ status`/`logs`/`down`, `kind status`/`logs`/`down`, `e2e compose`/`e2e kind`)
 — nothing persists the mapping between a name and its ports, so the
 invocation is what remembers it.
 
+### An Ephemeral Kind Cluster For One Task
+
+Handing every later command the same variables is fine for a person, but a task
+running commands as separate processes cannot keep an environment variable
+between them. For that, let the task own a cluster instead:
+
+```bash
+BUILDMAX_KIND_EPHEMERAL=1 ./make kind up   # unique name, free ports, once
+./make e2e kind                            # reuses it, no variables needed
+./make kind down                           # deletes the cluster and the record
+```
+
+The first `up` picks a name nothing else uses (`buildmax-eph-<hex>`) and two
+free host ports, and records them in `.local/kind-ephemeral.env`. Every later
+`kind` and `e2e kind` in this worktree reads that record, so none of them need
+the flag or the ports. `kind down` deletes the cluster and removes the record,
+after which commands here target the resident `buildmaxdev` again. An explicit
+`BUILDMAX_KIND_CLUSTER` still overrides the record. This is how several tasks
+can each hold their own cluster without colliding, and without disturbing the
+`buildmaxdev` cluster kept for manual use — create one only when the change
+needs the kind boundary, and take it down when done.
+
 `./make e2e local` needs none of this: it already picks a fresh project and
 ports for itself on every run, which is what makes it safe to run alongside
 either of the above without checking what else is up first.
