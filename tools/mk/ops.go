@@ -173,6 +173,11 @@ func cmdKindReload(args []string) error {
 		if err := kindKubectl("rollout", "status", "deployment/"+svc.deployment, "-n", "buildmax", "--timeout=180s"); err != nil {
 			return err
 		}
+		// Re-stamp the source: this rollout is exactly what makes the deployment
+		// match the tree again, which is what `./make e2e kind` checks for.
+		if err := stampKindDeploymentIdentity(svc.deployment); err != nil {
+			return err
+		}
 	}
 	return nil
 }

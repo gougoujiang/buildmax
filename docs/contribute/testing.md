@@ -223,6 +223,17 @@ flapping, and refuses with a `kind reload` instruction if it is mid-restart, so
 an unhealthy shared database fails fast instead of surfacing as a product bug
 part-way through the suite.
 
+It also checks that the deployment matches the working tree. `kind up` and
+`kind reload` stamp the commit they built onto the `buildmax-server` and
+`buildmax-portal` Deployments (`buildmax.dev/source-commit`); before creating
+any test data, `e2e kind` reads it back and refuses — again with a `kind
+reload` instruction — when it does not match the current checkout. The images
+use a mutable `:local` tag, so without this a green result against a stale
+image reads as passing on code it never ran. A dirty tree at the same commit is
+only a warning: a short commit cannot prove the running image carries your
+uncommitted changes, so reload if you have edited code since. The commit is
+also recorded in the run's `run.txt` as `source:`.
+
 One spec is a deliberate exception to both modes. `resource-states.spec.ts`
 intercepts the deployment's own responses with Playwright's `page.route` to
 drive Portal into failure states — a 5xx, a refresh that fails after a good

@@ -74,6 +74,11 @@ func cmdE2E(args []string) error {
 			if err := kindDatabasePreflight(); err != nil {
 				return err
 			}
+			// Before any test data: a green result against a stale :local image is
+			// worse than a red one, because it is read as passing on this checkout.
+			if err := kindSourceIdentityPreflight(); err != nil {
+				return err
+			}
 		}
 		fmt.Printf("[e2e] attaching to the %s deployment at %s (this command did not start it)\n", suite, target.portalURL)
 		return e2ePortal(target, suite)
@@ -362,8 +367,12 @@ func prepareArtifacts(surface, invocation, baseURL string) (string, string, erro
 		return "", "", fmt.Errorf("create %s: %w", dir, err)
 	}
 	runID := time.Now().UTC().Format("20060102-150405")
-	note := fmt.Sprintf("surface: %s\ndeployment: %s\nrun id: %s\nreproduce: %s e2e %s\n",
-		surface, baseURL, runID, mk(), invocation)
+	// source is the working tree this run tested from. For kind it is also the
+	// deployed identity: kindSourceIdentityPreflight has already refused the run
+	// unless the deployment was built from this same commit, so the two are
+	// proven equal by the time this is written.
+	note := fmt.Sprintf("surface: %s\ndeployment: %s\nsource: %s\nrun id: %s\nreproduce: %s e2e %s\n",
+		surface, baseURL, resolveCommitSHA(), runID, mk(), invocation)
 	if err := os.WriteFile(filepath.Join(dir, "run.txt"), []byte(note), 0o644); err != nil {
 		return "", "", fmt.Errorf("write %s: %w", filepath.Join(dir, "run.txt"), err)
 	}
