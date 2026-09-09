@@ -272,8 +272,9 @@ inside, its resource bounds, and what it records. What is not settled is
 **authority**. The boundary is fixed by the deployment's manifests rather than
 chosen: a cluster operator hardens every worker equally or not at all, no space
 can be given a different one, and nothing defines what happens when a requested
-constraint is unavailable. The sandbox is off on every surface today, so the
-question does not yet arise — wiring the worker surface (§3.2) is what raises it.
+constraint is unavailable. The worker sandbox now fails closed when its
+required backend is unavailable, but cluster-level network egress is still not
+part of that enforcement.
 
 One part of this is now closed: how a worker reaches the *Server*. The worker
 control channel is served on its own internal listener over TLS, fronted by an
@@ -285,6 +286,18 @@ registries, or model endpoints.
 The concrete gap that remains is general network egress. A worker pod reaches
 anything the cluster allows, and `deployment/production/README.md` states that
 absence rather than implying a boundary it does not have.
+
+The essential outcome is narrower than a general network-policy product:
+
+> An unattended worker cannot connect directly to an external destination that
+> the operator did not allow, every process in the pod is inside that boundary,
+> and a run does not silently continue when required enforcement is absent.
+
+This matters specifically for a malicious prompt or repository causing a
+model-chosen shell command or MCP child process to exfiltrate data. A proxy used
+only by cooperative HTTP clients does not contain the whole pod; the network
+boundary must also prevent a process from bypassing that proxy with a direct IP
+connection or a different DNS resolver.
 
 Four shapes were considered. Per-user runtime settings are disqualified: they
 cannot give an operator an authoritative worker boundary. Leaving it entirely to
@@ -305,14 +318,93 @@ What remains open, and what each needs:
 | Does an approval gate belong here at all? | Unattended scheduled work is a primary use and nothing gates it today, so the burden is on adding one |
 | How is a profile change versioned and attached to an existing TaskRun record? | Falls out of whichever shape wins |
 
+#### 3.9.1 Enforcement Options
+
+The available mechanisms solve different parts of the problem and must not be
+described as equivalent:
+
+| Mechanism | What it proves | Limit |
+|---|---|---|
+| Kubernetes `NetworkPolicy` | Portable default-deny, exact internal Pod/namespace destinations, ports, and fixed external CIDRs | It has no hostname or DNS-query selector; a changing public service cannot be represented safely as a static CIDR list |
+| Cilium `toFQDNs` | Open-source DNS-aware egress rules, enforced for the whole selected pod, with flow and DNS evidence through Hubble | DNS answers are translated into L3 IP rules; shared CDN IPs and an allowed destination that itself relays traffic make this weaker than strict application-layer hostname authorization |
+| Calico Open Source policy | Portable Calico/Kubernetes policy plus richer ordering and selectors | Domain-based egress is a Calico Enterprise/Cloud capability, so it is not the open-source reference for this requirement |
+| A dedicated egress proxy plus default-deny `NetworkPolicy` | The pod can reach only the proxy, while the proxy validates HTTP targets or HTTPS `CONNECT` hostnames and centralizes audit evidence | It adds an operated dependency and still needs rules for non-HTTP protocols; TLS interception is a separate, substantially larger trust decision |
+
+References: [Kubernetes NetworkPolicy](https://kubernetes.io/docs/concepts/services-networking/network-policies/),
+[Cilium DNS-based policy](https://docs.cilium.io/en/stable/security/policy/layer3/#dns-based),
+[Cilium DNS policy and IP discovery](https://docs.cilium.io/en/stable/security/policy/layer7/#dns-policy-and-ip-discovery),
+and [Calico Enterprise DNS policy](https://docs.tigera.io/calico-enterprise/latest/network-policy/domain-based-policy).
+
+An FQDN allow-list is therefore a useful containment layer, not proof that an
+HTTPS request reached only the named virtual host. The stronger claim requires
+the pod to have no direct world egress and to send supported external protocols
+through a policy-enforcing proxy. Neither mechanism can make an allowed upload,
+Git host, package registry, or model endpoint safe from intentional data sent
+to that allowed destination.
+
+#### 3.9.2 Reference Qualification Direction
+
+The next evidence pass should use Cilium in the local kind cluster. Cilium has
+an official kind installation path, its open-source FQDN policy exercises the
+domain-shaped requirement directly, and Hubble makes accepted and denied flows
+observable. This is a qualification choice for the reference environment, not
+a requirement that every BuildMax deployment adopt Cilium.
+
+The kind lifecycle has to become:
+
+1. create the cluster with kind's default CNI disabled;
+2. install Cilium;
+3. wait for nodes to become Ready; and
+4. deploy ingress and the BuildMax stack.
+
+Waiting for Ready before installing the replacement CNI cannot work because
+nodes intentionally remain NotReady without a CNI. The first worker policy
+prototype should select the stable labels already stamped by the Kubernetes Job
+builder and default-deny egress, then allow only:
+
+- TCP and UDP DNS to the cluster DNS pods, with DNS queries narrowed to the
+  external names the run may use and the exact internal service names it needs;
+- the internal worker API on port 5679;
+- the configured object store;
+- the configured model endpoint; and
+- explicitly approved Git hosts, package registries, and other external
+  destinations, normally on their required port rather than all ports.
+
+Internal destinations should use Pod, namespace, or Service identities rather
+than FQDN-to-public-IP rules. External wildcard entries must be exceptional and
+reviewed: `*.example.com` grants every present and future subdomain, while a
+bare `example.com` does not imply its subdomains.
+
+The prototype is acceptable evidence only if one automated kind run proves all
+of the following against a real Cilium data plane:
+
+- the existing worker task still completes through the worker API, object
+  store, and configured model endpoint;
+- an allowed external hostname and port succeed;
+- a disallowed hostname, a direct public IP, an alternate DNS resolver, and an
+  unlisted port fail;
+- a Bash subprocess and an MCP stdio child process cannot bypass the pod-wide
+  rule;
+- accepted and denied flows are inspectable without exposing credentials; and
+- removing or failing the required enforcement stops the worker run instead of
+  silently restoring unrestricted egress.
+
+The test must also record the shared-IP limitation rather than converting a
+green FQDN test into a claim of strict hostname isolation. After this evidence,
+the project can decide whether the Cilium profile is sufficient for the first
+private Beta or whether the production contract requires the stronger egress
+proxy shape.
+
 Out of scope whichever way it lands: a general policy language, and replacing
 operating-system, Kubernetes, cloud, or network controls — a profile should
 *drive* a NetworkPolicy, not reimplement one.
 
-The cheapest missing input is a threat model covering a malicious prompt and a
-model-chosen shell command, evaluated against the containment that now exists
-rather than against the state before it. It is what would make the egress
-allow-list an evidenced decision instead of a guess.
+The cheapest missing input remains a threat model covering a malicious prompt,
+a model-chosen shell command, an MCP child process, DNS and direct-IP bypasses,
+and abuse of an allowed destination. It must be evaluated against the
+containment that now exists rather than against the state before it. The kind
+qualification above turns that threat model into executable evidence instead
+of a guessed allow-list.
 
 [agent-sandbox-policy.md](./agent-sandbox-policy.md) proposes an answer to the
 first two rows above, narrower than "layered per-space profiles" in general: it

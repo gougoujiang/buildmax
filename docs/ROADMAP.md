@@ -45,8 +45,10 @@ The worker API already has separate listeners, TLS support, and a shipped
 Server-ingress NetworkPolicy; worker-wide egress is a separate gap.
 
 **Next:** define and enforce the MCP child-process boundary; verify the
-shipped worker API network boundary in the candidate environment; decide the
-wider worker egress policy.
+shipped worker API network boundary in the candidate environment; prototype
+the wider worker egress boundary with Cilium FQDN policy in kind, including
+direct-IP and alternate-DNS bypass tests, then decide whether production needs
+the stronger dedicated-egress-proxy shape.
 Make resolved sandbox policy understandable in the operator surfaces.
 
 **Done when:** the supported worker profile enforces its documented process and
