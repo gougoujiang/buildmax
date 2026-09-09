@@ -13,9 +13,19 @@ import { createSpace, postJSON, reportLeftovers, session, tagged } from "./fixtu
  * the UI, not just that the pure function returns the right Route.
  */
 
+/**
+ * The persistent sidebar's own Space switcher, at the default desktop
+ * viewport this spec runs at. The narrow drawer mounts a second, identically
+ * labeled `<select>` in the same DOM (see golden-path-viewports.spec.ts), so
+ * scope to the sidebar landmark rather than matching the label alone.
+ */
+function spaceSwitcher(page: Page) {
+  return page.getByLabel("Sidebar", { exact: true }).getByLabel("Space", { exact: true })
+}
+
 /** Select `spaceId` in the sidebar's Space switcher and wait for the hash to move. */
 async function switchSpace(page: Page, spaceId: string): Promise<void> {
-  await page.locator("#sidebar-space-select").selectOption(spaceId)
+  await spaceSwitcher(page).selectOption(spaceId)
   await page.waitForFunction(
     (id) => window.location.hash.includes(`/spaces/${id}/`),
     spaceId,
@@ -100,8 +110,8 @@ test("switching Space from a global route changes nothing", async ({ page }) => 
   // Global routes carry no Space prefix at all, so there is no hash change to
   // wait for here -- confirm the switcher itself moved, then that the route
   // (and everything on the page) did not.
-  await page.locator("#sidebar-space-select").selectOption(second.id)
-  await expect(page.locator("#sidebar-space-select")).toHaveValue(second.id)
+  await spaceSwitcher(page).selectOption(second.id)
+  await expect(spaceSwitcher(page)).toHaveValue(second.id)
   await expect(page).toHaveURL(/#\/account$/)
   await expect(page.getByRole("heading", { name: "General", exact: true })).toBeVisible()
 })
