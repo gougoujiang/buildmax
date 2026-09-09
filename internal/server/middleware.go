@@ -8,7 +8,9 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	buildmaxlog "github.com/gougoujiang/buildmax/internal/infra/log"
@@ -61,10 +63,46 @@ func requestLoggingMiddleware(h http.Handler) http.Handler {
 			"remote", r.RemoteAddr,
 		}
 		if r.URL.RawQuery != "" {
-			attrs = append(attrs, "query", r.URL.RawQuery)
+			attrs = append(attrs, "query", redactQuery(r.URL.RawQuery))
 		}
 		slog.LogAttrs(ctx, statusLevel(rec.status), "request", slogArgs(attrs)...)
 	})
+}
+
+// sensitiveQueryKeys are the substrings that mark a query parameter as carrying
+// a credential. The WebSocket upgrade puts a JWT in ?token= because a browser
+// cannot set a header on the upgrade (internal/server/handlers/ws.go), and
+// recovery flows carry login codes; logging the raw query would copy either into
+// every request line and any CI artifact that captures the logs.
+var sensitiveQueryKeys = []string{"token", "code", "secret", "password", "passwd", "pwd", "jwt", "key", "auth", "sig", "otp", "credential"}
+
+func isSensitiveQueryKey(key string) bool {
+	k := strings.ToLower(key)
+	for _, s := range sensitiveQueryKeys {
+		if strings.Contains(k, s) {
+			return true
+		}
+	}
+	return false
+}
+
+// redactQuery keeps the query's diagnostic value -- limit, offset, format -- while
+// replacing the value of any credential-bearing key. A query that will not parse
+// is dropped whole rather than logged raw: an unparseable string is exactly
+// where a stray credential would hide.
+func redactQuery(raw string) string {
+	values, err := url.ParseQuery(raw)
+	if err != nil {
+		return "REDACTED"
+	}
+	for key, vs := range values {
+		if isSensitiveQueryKey(key) {
+			for i := range vs {
+				vs[i] = "REDACTED"
+			}
+		}
+	}
+	return values.Encode()
 }
 
 // statusLevel keeps a level threshold meaningful: a refused request is the
