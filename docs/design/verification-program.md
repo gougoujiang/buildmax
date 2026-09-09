@@ -34,14 +34,15 @@ Related records: [Local end-to-end verification](end-to-end-testing.md),
   and contract tests, fast CLI and Desktop E2E suites, Portal Playwright
   coverage, Compose and kind smoke, release evidence, and a black-box
   evaluation framework. §4.1's command surface is shipped as `./make test
-  mysql` and runs on every pull request, and §4.2's contention cases — task
-  claiming, run transition, result-delivery claiming, and cancellation — are
-  written and mutation-checked. Artifact tombstoning and the retention that
-  follows it are written and mutation-checked too. Retry, workflow revision,
-  restart recovery, and cross-space store lookups remain; the N-1 fixture is
-  blocked on the first appended migration and the quota bullet is withdrawn,
-  both explained in §4.2. The unified matrix, expanded failure paths, and
-  complete release rehearsal described here are not implemented
+  mysql` and runs on every pull request. §4.2's contention cases cover Task
+  claiming, run transitions, cancellation, one-active-run admission, and
+  idempotency; Artifact tombstoning and retention, retry lineage, direct Task
+  admission, checkpoint head advancement, and initial Workflow revisions also
+  have real-MySQL coverage. Remaining database work includes Workflow revision
+  advancement under edits/contention, restart recovery, broader cross-Space
+  store cases, and an N-1 fixture using the migrations that now exist. The
+  unified matrix, expanded failure paths, and complete release rehearsal
+  described here are not implemented
 - principle: implementation code, tests, and documentation can share the same
   mistaken assumption when all are generated from one context. Acceptance must
   therefore assert independently observable outcomes across public interfaces,
@@ -119,10 +120,10 @@ cross-package and user-visible.
 | V05 | Spaces are isolated | A member of Space A cannot read, mutate, stream, or download Space B resources even when given valid public IDs. | Pull request with MySQL |
 | V06 | Portal completes a foreground conversation turn | Streaming, durable history, refresh, reconnect, and final presentation agree. | Scheduled deployment |
 | V07 | Multiple turns target one conversation | Turns execute in submission order, the queue is bounded, nothing is lost, and no two turns mutate one conversation concurrently. | Pull request and scheduled multi-process proof |
-| V08 | An Issue produces a background result | Task, TaskRun, worker claim, model/tool execution, artifacts, Issue result projection, and conversation delivery form one explainable chain. | Pull request with MySQL and scheduled deployment |
-| V09 | Result delivery recovers after interruption | A failed delivery retries after restart, reaches one final result message, and never duplicates the underlying TaskRun result. | Scheduled deployment |
+| V08 | An Issue produces a background result | Task, TaskRun, worker claim, model/tool execution, artifacts, and Issue result projection form one explainable chain without requiring a Conversation. | Pull request with MySQL and scheduled deployment |
+| V09 | A direct Task result survives reconnect and restart | TaskRun remains the authoritative result, a refreshed Task page reconstructs its thread, and reconnect or Server restart creates no duplicate run, output, Artifact, or usage record. | Scheduled deployment |
 | V10 | A running task is canceled | The run reaches `CANCELED`, stays terminal, stops further work, retains available evidence, and exposes no unavailable artifact. | Scheduled deployment |
-| V11 | A failed task is retried | Retry creates an explicit new attempt, preserves the old attempt, and does not duplicate outputs, usage, or result delivery. | Pull request with MySQL |
+| V11 | A failed task is retried | Retry creates an explicit new attempt, preserves the old attempt, and does not duplicate outputs, usage, or Artifacts. | Pull request with MySQL |
 | V12 | A workflow revision runs linearly | The run uses the revision captured at start; step output and failure propagation are ordered; cancellation blocks remaining steps. | Pull request with MySQL |
 | V13 | Managed inference serves local and worker clients | No provider credential reaches the client or worker; per-run authorization, usage ledger, and quota are correct. | Scheduled deployment |
 | V14 | Artifacts preserve authorization and integrity | Upload, list, preview, and download succeed for the owning space; cross-space access fails; bytes and metadata agree. | Pull request with MySQL |
@@ -172,17 +173,17 @@ contributor; it must not silently start Docker as a side effect of `./make test`
 
 Covered today: user and space creation, login codes, refresh tokens, public IDs,
 system grants, plugin activation, LLM models and calls, audit search, revision
-queries, task run transitions and claiming, issues, conversations, the space
-invitation and ownership-transfer lifecycle, and — in
+queries, TaskRun transitions and claiming, retry lineage, direct Tasks,
+checkpoint head advancement, Artifact retention, issues, conversations, the
+Space invitation and ownership-transfer lifecycle, and — in
 `internal/infra/db/concurrency_test.go` — four store methods under contention:
 `ClaimTask`, `TransitionTaskRun`, and `RequestTaskRunCancel` each as a
 conditional UPDATE, and `CreateTaskRun`'s one-active-run-per-task and
 idempotency-key guarantees as a locking read on the task row followed by a
 count-then-insert inside one transaction, since neither guarantee is a
-conditional UPDATE on a row that exists yet. A fifth method, result-delivery
-claiming, was covered the same way until the Tier 1 result-delivery mechanism
-it belonged to was removed; see
-[agent execution and Task threads](agent-execution-and-task-threads.md).
+conditional UPDATE on a row that exists yet. The removed Tier 1
+result-delivery queue has no remaining persistence obligation; its former tests
+are historical context rather than a case to recreate.
 
 Each of those four was checked by mutation rather than assumed: removing the
 locking clause or replacing the conditional UPDATE with a read-then-write
@@ -195,15 +196,16 @@ evidence.
 
 Still to write:
 
-- retry producing a new attempt without rewriting the previous attempt;
-- workflow revision capture and ordered step advancement;
-- cross-space lookup rejection at the store, distinct from the role matrix the
-  handler tests already assert;
-- migration fixtures representing the supported N-1 schema. **Blocked, not
-  deferred**: `migrations` in `internal/infra/db/migration.go` is empty after
-  the identity cutover, so there is no prior schema to upgrade from. Write
-  this with the first migration that is appended, not before — a fixture
-  invented now would encode a history no database ever had.
+- Workflow revision advancement under edits and contention, beyond initial
+  revision creation and ordered revision queries;
+- restart recovery cases for durable Task/TaskRun/checkpoint state;
+- broader cross-Space lookup rejection at the store, distinct from the role
+  matrix the handler tests already assert; and
+- migration fixtures representing the supported N-1 schema. The explicit
+  migration list is no longer empty: `system_grant_live_marker` and
+  `llm_model_credential_encryption` provide real upgrade history. The fixture
+  must exercise those migrations from the actual older shape and record the
+  candidate's binary-rollback limit; it is open, not blocked.
 
 One item from this list is withdrawn rather than pending. **Quota reservation
 and charging boundaries** describes a design that does not exist: there is no
@@ -221,7 +223,7 @@ ever built.
 - pull-request CI contains no `BUILDMAX_TEST_DSN not set` skip in the MySQL job;
 - repeated and parallel runs do not depend on test order or shared IDs;
 - two claims cannot win one run;
-- repeated cancel, report, retry, and delivery operations preserve legal state;
+- repeated cancel, report, and retry operations preserve legal state;
 - an N-1 fixture upgrades to the current schema and passes the critical
   journeys;
 - failure output identifies the relevant SQL or state transition without
@@ -267,9 +269,8 @@ A deployment journey never stops at HTTP success. V08, for example, asserts:
 - the expected model and tool transcript;
 - exact artifact bytes and downloadable authorization;
 - Issue `latest_result` and output projection;
-- one durable result-delivery record and one conversation result;
 - trace, audit, and managed-call linkage when the mode supplies them;
-- absence of duplicate TaskRuns, result messages, artifacts, and usage rows.
+- absence of duplicate TaskRuns, outputs, Artifacts, and usage rows.
 
 ### 5.3 Existing Suite Placement
 
@@ -310,7 +311,7 @@ The Compose failure suite pauses or denies database access while:
 
 - a worker claims a run;
 - a service writes a state transition;
-- the result-delivery sweep leases work;
+- the Server records or reads TaskRun state during a restart boundary;
 - the Server drains during shutdown.
 
 Assertions cover `/readyz`, bounded retries, idempotency after reconnection,
@@ -378,8 +379,8 @@ considered for release.
 - external MySQL and S3-compatible storage;
 - TLS at the published endpoint;
 - Kubernetes Job workers;
-- one Server replica until shared stream delivery and distributed conversation
-  serialization are implemented and qualified;
+- two Server replicas with Redis coordination, while explicitly exercising the
+  still-open message-write fencing and Redis failure/recovery limits;
 - no fixed development login or provider credential;
 - direct and managed inference qualified separately;
 - exact image digests, dependency versions, configuration digest, operator,

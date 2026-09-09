@@ -17,12 +17,12 @@
 ## 状态
 
 - roadmap_priority: `P2 follow-on`
-- status: `superseded`——第 5.1 节的目标（Space 拥有 Task，`conversation_id`
+- status: `partially superseded specification`——第 5.1 节的目标（Space 拥有 Task，`conversation_id`
   可选）已经交付，其中描述的第 4.2 节结果交付机制也已被移除，而不是作为过渡
   方案保留。强制性的 Tier 1 到 Tier 2 层级结构，以及 Conversation 拥有 Task
   的形态，已被[Agent 执行与 Task 线程](Agent执行与Task线程.md)取代，该记录
-  对当前执行模型具有权威性；本记录仅保留第 1-3 节中关于 Tier 1/Tier 2 边界
-  的推理
+  对当前执行模型具有权威性；本记录仍规范第 1-3 节中的结果投影边界，并保留
+  Tier 1/Tier 2 划分的设计理由
 - follows: [产品愿景](./产品愿景.md)、[界面定位](./界面定位.md)以及
   [Agent 执行与 Task 线程](./Agent执行与Task线程.md)
 - roadmap: [路线图](../ROADMAP.md)
