@@ -40,6 +40,19 @@ let browser = null
 let page = null
 let consoleLog = []
 
+// Longer than an element genuinely needs to become actionable, short enough
+// that a wrong selector fails fast instead of eating 30s of Playwright's
+// default per call — this REPL is driven interactively, one command at a time.
+const ACTION_TIMEOUT = 8_000
+
+// Playwright's own e.message includes a multi-line call log (retry history,
+// and for strict-mode violations, every matching element) — useful once, not
+// on every failed guess. Keep the first line; it already names the reason.
+function shortError(e) {
+  const msg = String(e.message || e).split('\n')[0]
+  return msg.length > 240 ? msg.slice(0, 240) + '…' : msg
+}
+
 // Tracked from launch, not read on demand: a page that already threw before
 // anyone typed `console` must not lose the error, and Playwright has no way
 // to ask a page for console history after the fact.
@@ -93,7 +106,38 @@ const COMMANDS = {
   async ss(name) {
     if (!page) return console.log('ERROR: launch first')
     const f = path.join(SHOT_DIR, (name || `ss-${Date.now()}`) + '.png')
+    // Portal's shell is three nested fixed-height flex containers — .shell
+    // (height: 100vh; overflow: hidden), .shell__main (flex: 1; overflow:
+    // hidden), .shell__content (flex: 1; overflow-y: auto; see
+    // portal/src/css/layout.css) — so only the innermost one actually
+    // scrolls and a plain fullPage shot clips at its viewport height.
+    // Unclip the whole chain for the shot, then put it back.
+    const SHELL_CLASSES = ['shell', 'shell__main', 'shell__content']
+    const prev = await page.evaluate((classes) => {
+      return classes.map((cls) => {
+        const el = document.querySelector('.' + cls)
+        if (!el) return null
+        const saved = { overflow: el.style.overflow, height: el.style.height, flex: el.style.flex }
+        el.style.overflow = 'visible'
+        el.style.height = 'auto'
+        el.style.flex = 'none'
+        return saved
+      })
+    }, SHELL_CLASSES)
     await page.screenshot({ path: f, fullPage: true })
+    await page.evaluate(
+      ({ classes, saved }) => {
+        classes.forEach((cls, i) => {
+          const s = saved[i]
+          if (!s) return
+          const el = document.querySelector('.' + cls)
+          el.style.overflow = s.overflow
+          el.style.height = s.height
+          el.style.flex = s.flex
+        })
+      },
+      { classes: SHELL_CLASSES, saved: prev }
+    )
     console.log('screenshot:', f)
   },
 
@@ -104,20 +148,47 @@ const COMMANDS = {
   async click(sel) {
     if (!page) return console.log('ERROR: launch first')
     try {
-      await page.locator(sel).click()
+      await page.locator(sel).click({ timeout: ACTION_TIMEOUT })
       console.log('click', sel, '-> OK')
     } catch (e) {
-      console.log('click', sel, '-> ERROR:', e.message)
+      console.log('click', sel, '-> ERROR:', shortError(e))
     }
   },
 
   async 'click-text'(text) {
     if (!page) return console.log('ERROR: launch first')
     try {
-      await page.getByText(text).first().click()
+      await page.getByText(text).first().click({ timeout: ACTION_TIMEOUT })
       console.log('click-text', JSON.stringify(text), '-> OK')
     } catch (e) {
-      console.log('click-text', JSON.stringify(text), '-> ERROR:', e.message)
+      console.log('click-text', JSON.stringify(text), '-> ERROR:', shortError(e))
+    }
+  },
+
+  // click-text cannot reach an icon-only control (theme toggle, Marketplace):
+  // its accessible name lives in aria-label, not in any visible text node.
+  // This is the getByRole(role, { name }) pattern portal/e2e/*.spec.ts already
+  // uses for exactly that reason — `role button Switch to dark mode`.
+  async role(argStr) {
+    if (!page) return console.log('ERROR: launch first')
+    const [roleName, ...nameParts] = argStr.trim().split(/\s+/)
+    const name = nameParts.join(' ')
+    try {
+      await page.getByRole(roleName, { name }).first().click({ timeout: ACTION_TIMEOUT })
+      console.log('role', roleName, JSON.stringify(name), '-> OK')
+    } catch (e) {
+      console.log('role', roleName, JSON.stringify(name), '-> ERROR:', shortError(e))
+    }
+  },
+
+  // Dumps the accessible role/name tree for whatever is on screen right now,
+  // so a selector can be picked without guessing or opening an e2e spec first.
+  async roles() {
+    if (!page) return console.log('ERROR: launch first')
+    try {
+      console.log(await page.locator('body').ariaSnapshot())
+    } catch (e) {
+      console.log('ERROR:', shortError(e))
     }
   },
 
@@ -127,10 +198,10 @@ const COMMANDS = {
   async label(text) {
     if (!page) return console.log('ERROR: launch first')
     try {
-      await page.getByLabel(text).click()
+      await page.getByLabel(text).click({ timeout: ACTION_TIMEOUT })
       console.log('label', JSON.stringify(text), '-> OK')
     } catch (e) {
-      console.log('label', JSON.stringify(text), '-> ERROR:', e.message)
+      console.log('label', JSON.stringify(text), '-> ERROR:', shortError(e))
     }
   },
 
