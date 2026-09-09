@@ -35,3 +35,56 @@ test('toggles the theme from the user menu', async ({ page }) => {
     .poll(() => page.evaluate(() => document.documentElement.getAttribute('data-theme')))
     .not.toBe(initial)
 })
+
+test('the New Project form keeps Create disabled until a folder is chosen', async ({ page }) => {
+  await page.locator('.page-home__primary').click()
+  const modal = page.locator('.modal-panel')
+  await expect(modal).toBeVisible()
+
+  // A name alone is not enough: the folder comes only from the native picker
+  // (OpenFolderDialog), which this suite never opens, so Create stays disabled.
+  // fill, not a keypress: pressing Enter with an empty name opens that picker.
+  const create = modal.locator('.modal-btn--primary')
+  await expect(create).toBeDisabled()
+  await modal.locator('#proj-name').fill('probe project')
+  await expect(create).toBeDisabled()
+
+  // The × closes it, a mouse path the Escape test does not cover.
+  await modal.locator('.modal-close').click()
+  await expect(modal).toBeHidden()
+})
+
+test('the home page shows its empty-state guidance in a fresh sandbox', async ({ page }) => {
+  await expect(page.locator('.page-home__title')).toHaveText('Continue your work')
+  await expect(page.getByRole('heading', { name: 'Recent chats' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Recent projects' })).toBeVisible()
+  // No account, no history: both collections render their empty copy, not rows.
+  await expect(page.getByText('No recent chats yet.')).toBeVisible()
+})
+
+test('collapses and re-expands the sidebar', async ({ page }) => {
+  const shell = page.locator('.shell')
+  await expect(shell).not.toHaveClass(/shell--left-collapsed/)
+
+  await page.locator('.sidebar__projects-collapse').click()
+  await expect(shell).toHaveClass(/shell--left-collapsed/)
+
+  // Collapsed, the only way back is the ☰ toggle the collapse revealed.
+  await page.locator('.shell__sidebar-toggle').click()
+  await expect(shell).not.toHaveClass(/shell--left-collapsed/)
+})
+
+test('opening the server sign-in and cancelling returns to local mode', async ({ page }) => {
+  await page.locator('.sidebar__user-trigger').click()
+  await page.getByText('Sign in to a server', { exact: true }).click()
+
+  const login = page.locator('.login-page')
+  await expect(login).toBeVisible()
+  // Sign in stays disabled with no credentials, and the submit is never clicked
+  // here: it calls the Go Login binding. Cancel is pure in-app state.
+  await expect(login.locator('.login-page__submit')).toBeDisabled()
+
+  await login.locator('.login-page__local').click()
+  await expect(login).toBeHidden()
+  await expect(page.locator('.page-home__title')).toHaveText('Continue your work')
+})

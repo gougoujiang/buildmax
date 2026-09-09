@@ -63,7 +63,7 @@ func allHelpSections() []helpSection {
 			{"check [scope]", "Run checks for go, gui, portal, desktop, docs, all, or ci"},
 			{"fmt", "Format every tracked Go file with gofmt"},
 			{"lint", "Run pinned golangci-lint and govulncheck"},
-			{"e2e <suite>", "Run one end-to-end suite: cli, desktop, desktop-ui, local, compose, kind, or all"},
+			{"e2e <suite>", "Run one end-to-end suite: cli, desktop, desktop-ui, desktop-launch, local, compose, kind, or all"},
 			{"run <target>", "Run a binary or frontend development server locally"},
 			{"clean", "Remove binaries, native app builds, node_modules, and dist"},
 			{"help [command]", "Show this list, or one command's arguments and examples"},
@@ -254,7 +254,7 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "e2e",
-			usage:   "e2e <cli|desktop|desktop-ui|local|compose|kind|all>",
+			usage:   "e2e <cli|desktop|desktop-ui [core]|desktop-launch|local|compose|kind|all>",
 			summary: "Run one end-to-end suite.",
 			details: []string{
 				"The suites are a local feedback loop, not a pull-request gate, and none of\n" +
@@ -278,7 +278,8 @@ func helpTopics() []helpTopic {
 			args: []helpRow{
 				{"cli", "The CLI and TUI suite: built binary, temporary home"},
 				{"desktop", "The Desktop bridge suite: bound methods, events, approvals — no window"},
-				{"desktop-ui", "desktop/frontend driven through `wails dev`'s browser bridge"},
+				{"desktop-ui", "desktop/frontend driven through `wails dev`; add `core` for the @smoke subset CI gates on"},
+				{"desktop-launch", "Launch the packaged app (after `build desktop`) and require it to stay up"},
 				{"local", "Portal browser tests against a Compose stack this command owns"},
 				{"compose", "The same tests against a running Compose stack"},
 				{"kind", "The same tests against a running kind deployment"},

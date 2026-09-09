@@ -59,6 +59,8 @@ func cmdE2E(args []string) error {
 		return e2eCLI()
 	case "desktop":
 		return e2eDesktopBridge()
+	case "desktop-launch":
+		return e2eDesktopLaunch()
 	case "all":
 		return e2eFullMatrix()
 	case "local":
