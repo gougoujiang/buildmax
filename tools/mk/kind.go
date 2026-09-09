@@ -157,6 +157,50 @@ func kindDatabasePreflight() error {
 	return nil
 }
 
+// annotationSourceCommit records which working tree produced the image a
+// Deployment is running. It is set with `kubectl annotate` after a rollout
+// rather than baked into deployment/buildmax-deploy.yaml because that manifest
+// is applied verbatim, with no template seam to substitute a commit into. The
+// kind images use a mutable :local tag, so without this a green e2e result
+// proves nothing about the current checkout; kindSourceIdentityPreflight reads
+// it back and refuses a mismatch.
+const annotationSourceCommit = "buildmax.dev/source-commit"
+
+// stampKindDeploymentIdentity records the current commit on a Deployment right
+// after its image was rebuilt and rolled out, so the deployment can be matched
+// to the source that produced it. resolveCommitSHA already appends -dirty.
+func stampKindDeploymentIdentity(deployment string) error {
+	return kindKubectl("annotate", "deployment/"+deployment, "-n", "buildmax", "--overwrite",
+		annotationSourceCommit+"="+resolveCommitSHA())
+}
+
+// kindSourceIdentityPreflight refuses to run the browser suite against a
+// deployment built from a different tree than the working copy. The four
+// source-skew failures the Agent-autonomous e2e assessment saw were exactly
+// this: assertions from a newer checkout run against images the shared cluster
+// was still serving. A dirty tree at the same commit is only a warning -- it is
+// the normal inner-loop state right after a reload -- because a short commit
+// cannot prove the running image carries the current uncommitted changes.
+func kindSourceIdentityPreflight() error {
+	deployed, err := captureKindKubectl("get", "deployment", "buildmax-server", "-n", "buildmax",
+		"-o", "jsonpath={.metadata.annotations.buildmax\\.dev/source-commit}")
+	if err != nil {
+		return fmt.Errorf("check the deployed source identity before testing: %w", err)
+	}
+	deployed = strings.TrimSpace(deployed)
+	current := resolveCommitSHA()
+	if deployed == "" {
+		return errors.New("the kind deployment carries no source identity (deployed before stamping, or applied by hand); run `./make kind reload` to rebuild and stamp it before testing")
+	}
+	if deployed != current {
+		return fmt.Errorf("the kind deployment was built from %s but the working tree is %s; run `./make kind reload` to rebuild it before testing", deployed, current)
+	}
+	if strings.HasSuffix(current, "-dirty") {
+		fmt.Printf("[e2e] warning: the working tree is dirty (%s); a matching commit does not prove the running image has your uncommitted changes -- run `./make kind reload` if you have edited code since the last reload\n", current)
+	}
+	return nil
+}
+
 func captureKindKubectl(args ...string) (string, error) {
 	return capture("kubectl", append([]string{"--context", kindContext()}, args...)...)
 }
@@ -282,6 +326,13 @@ func kindUp() error {
 	}
 	for _, deployment := range []string{"buildmax-smoke-llm", "buildmax-server", "buildmax-portal"} {
 		if err := kindKubectl("rollout", "status", "deployment/"+deployment, "-n", "buildmax", "--timeout=180s"); err != nil {
+			return err
+		}
+	}
+	// Stamp the source these images were built from onto the app Deployments so
+	// `./make e2e kind` can refuse a stale deployment. The mock is not source.
+	for _, deployment := range []string{"buildmax-server", "buildmax-portal"} {
+		if err := stampKindDeploymentIdentity(deployment); err != nil {
 			return err
 		}
 	}
