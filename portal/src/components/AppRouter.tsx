@@ -19,6 +19,7 @@ import { Marketplace } from "../pages/marketplace/Marketplace"
 import { Help } from "../pages/help/Help"
 import { SpaceSettings } from "../pages/settings/SpaceSettings"
 import { AdminSettings } from "../pages/admin/AdminSettings"
+import { NotFoundPage } from "../pages/errors/NotFoundPage"
 
 export interface AppRouterProps {
   conversations: Conversation[]
@@ -134,5 +135,13 @@ export function AppRouter({
     return <TaskDetail token={token ?? null} spaceId={route.spaceId} taskId={route.taskId} />
   }
 
-  return null
+  if (route.name === "notFound") {
+    return <NotFoundPage />
+  }
+
+  // A safety net, not a route this ever intentionally reaches: parseHash
+  // never emits an unhandled name, so this only fires if a route name is
+  // added to the Route union without a case here -- rendering a visible
+  // not-found is what catches that mistake instead of silently showing Chat.
+  return <NotFoundPage />
 }

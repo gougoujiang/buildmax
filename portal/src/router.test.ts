@@ -116,12 +116,23 @@ describe("hash router", () => {
     expect(buildHash(route)).toBe(hash)
   })
 
-  it("falls back to the current Space's Chat for unknown hashes", () => {
-    expect(parseHash("#/unknown/path", SPACE)).toEqual({ name: "chat", spaceId: SPACE })
+  it("resolves the bare root to the current Space's Chat", () => {
+    expect(parseHash("#/", SPACE)).toEqual({ name: "chat", spaceId: SPACE })
+    expect(parseHash("#", SPACE)).toEqual({ name: "chat", spaceId: SPACE })
   })
 
-  it("falls back to an incomplete Space-scoped path's Chat", () => {
-    expect(parseHash(`#/spaces/${SPACE}/workflow-runs`, SPACE)).toEqual({ name: "chat", spaceId: SPACE })
-    expect(parseHash(`#/spaces/${SPACE}/tasks`, SPACE)).toEqual({ name: "chat", spaceId: SPACE })
+  it("renders not-found for an unrecognized hash, never silently falling through to Chat", () => {
+    expect(parseHash("#/unknown/path", SPACE)).toEqual({ name: "notFound" })
+    expect(parseHash(`#/spaces/${SPACE}/bogus`, SPACE)).toEqual({ name: "notFound" })
+  })
+
+  it("renders not-found for an incomplete Space-scoped path", () => {
+    expect(parseHash(`#/spaces/${SPACE}/workflow-runs`, SPACE)).toEqual({ name: "notFound" })
+    expect(parseHash(`#/spaces/${SPACE}/tasks`, SPACE)).toEqual({ name: "notFound" })
+  })
+
+  it("builds a stable, self-parsing marker for not-found", () => {
+    const hash = buildHash({ name: "notFound" })
+    expect(parseHash(hash, SPACE)).toEqual({ name: "notFound" })
   })
 })

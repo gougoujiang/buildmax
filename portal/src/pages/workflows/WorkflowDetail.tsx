@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react"
 import type { Agent, Workflow, WorkflowRevision, WorkflowRun } from "../../lib/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
+import { ApiRequestError } from "../../lib/api/client"
+import { ResourceUnavailable, type ResourceUnavailableKind } from "../../components/ResourceUnavailable"
 import {
   apiAgentToAgent,
   apiWorkflowRevisionToWorkflowRevision,
@@ -56,6 +58,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
   const [saving, setSaving] = useState(false)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [unavailable, setUnavailable] = useState<ResourceUnavailableKind | null>(null)
   const [revisions, setRevisions] = useState<WorkflowRevision[]>([])
   const [revisionsLoading, setRevisionsLoading] = useState(false)
   const [revisionsError, setRevisionsError] = useState<string | null>(null)
@@ -72,6 +75,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
     }
     setLoading(true)
     setError(null)
+    setUnavailable(null)
     try {
       const [workflowApi, runsApi, agentsApi, revisionsApi] = await Promise.all([
         getWorkflow(spaceId, workflowId, token),
@@ -89,6 +93,14 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
       setStatus(mappedWorkflow.status)
       hydrateSteps(mappedWorkflow.definition)
     } catch (err) {
+      if (err instanceof ApiRequestError && err.status === 404) {
+        setUnavailable("notFound")
+      } else if (err instanceof ApiRequestError && err.status === 403) {
+        setUnavailable("forbidden")
+      } else {
+        setUnavailable("error")
+      }
+      setWorkflow(null)
       setError(getErrorMessage(err, "Failed to load workflow"))
     } finally {
       setLoading(false)
@@ -170,6 +182,27 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
       .finally(() => setRunning(false))
   }
 
+  if (loading) {
+    return (
+      <div className="page-activity">
+        <p className="page-activity__empty">Loading…</p>
+      </div>
+    )
+  }
+
+  if (unavailable) {
+    return (
+      <ResourceUnavailable
+        resourceLabel="Workflow"
+        kind={unavailable}
+        errorMessage={error}
+        onRetry={() => void load()}
+        backLabel="Back to Workflows"
+        onBack={() => navigate({ name: "workflows", spaceId })}
+      />
+    )
+  }
+
   return (
     <div className="page-activity">
       <div className="page-activity__head">
@@ -232,11 +265,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
         </p>
       ) : null}
 
-      {loading ? (
-        <p className="page-activity__empty">Loading…</p>
-      ) : workflow == null ? (
-        <p className="page-activity__empty">Workflow not found.</p>
-      ) : (
+      {workflow && (
         <div className="workflow-detail-page__grid">
           <section className="issues-page__panel">
             <div className="issues-page__toolbar">

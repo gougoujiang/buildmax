@@ -13,6 +13,8 @@ import { navigate } from "../../router"
 import type { ApiTask, ApiTaskRun } from "../../lib/api/types"
 import type { BreadcrumbCrumb } from "../../lib/types"
 import { getErrorMessage } from "../../lib/errorMessage"
+import { ApiRequestError } from "../../lib/api/client"
+import { ResourceUnavailable, type ResourceUnavailableKind } from "../../components/ResourceUnavailable"
 
 interface TaskDetailProps {
   token: string | null
@@ -62,11 +64,12 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
   const [stopping, setStopping] = useState(false)
   const [retrying, setRetrying] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [unavailable, setUnavailable] = useState<ResourceUnavailableKind | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [traceRunId, setTraceRunId] = useState<string | null>(null)
   const [streamingText, setStreamingText] = useState("")
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (background = false) => {
     if (!token || !spaceId) return
     try {
       const [nextTask, nextRuns] = await Promise.all([
@@ -76,8 +79,22 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
       setTask(nextTask)
       setRuns(nextRuns)
       setError(null)
+      setUnavailable(null)
     } catch (err) {
-      setError(getErrorMessage(err, "Failed to load task"))
+      // A poll's failure is transient by nature (the task was readable a
+      // moment ago) -- it must not bounce a reader watching a live run to a
+      // not-found page. Only the initial load classifies the error.
+      if (!background) {
+        if (err instanceof ApiRequestError && err.status === 404) {
+          setUnavailable("notFound")
+        } else if (err instanceof ApiRequestError && err.status === 403) {
+          setUnavailable("forbidden")
+        } else {
+          setUnavailable("error")
+        }
+        setTask(null)
+        setError(getErrorMessage(err, "Failed to load task"))
+      }
     } finally {
       setLoading(false)
     }
@@ -91,7 +108,7 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
   const running = runs.some((run) => activeStatuses.has(run.status))
   useEffect(() => {
     if (!running) return
-    const timer = window.setInterval(() => void load(), 1500)
+    const timer = window.setInterval(() => void load(true), 1500)
     return () => window.clearInterval(timer)
   }, [load, running])
 
@@ -112,11 +129,11 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
         onDelta: (delta) => setStreamingText((text) => text + delta),
         onDone: () => {
           setStreamingText("")
-          void load()
+          void load(true)
         },
         onDraining: () => {
           setStreamingText("")
-          void load()
+          void load(true)
         },
         onError: () => setStreamingText(""),
       },
@@ -262,7 +279,7 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
     setStopping(true)
     setError(null)
     cancelTask(spaceId, taskId, token)
-      .then(() => load())
+      .then(() => load(true))
       .catch((err) => setError(getErrorMessage(err, "Failed to stop this run")))
       .finally(() => setStopping(false))
   }
@@ -272,12 +289,33 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
     setRetrying(true)
     setError(null)
     retryTask(spaceId, taskId, token)
-      .then(() => load())
+      .then(() => load(true))
       .catch((err) => setError(getErrorMessage(err, "Failed to retry this run")))
       .finally(() => setRetrying(false))
   }
 
   const traceRun = task?.last_run_id ?? runs[runs.length - 1]?.id ?? null
+
+  if (loading) {
+    return (
+      <div className="page-activity">
+        <p className="page-activity__empty">Loading…</p>
+      </div>
+    )
+  }
+
+  if (unavailable) {
+    return (
+      <ResourceUnavailable
+        resourceLabel="Task"
+        kind={unavailable}
+        errorMessage={error}
+        onRetry={() => void load()}
+        backLabel="Back to Chat"
+        onBack={() => navigate({ name: "chat", spaceId })}
+      />
+    )
+  }
 
   return (
     <div className="page-chat task-thread">

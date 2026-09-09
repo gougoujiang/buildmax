@@ -67,6 +67,9 @@ export type Route =
   | { name: "artifact"; artifactId: string }
   | { name: "marketplace" }
   | { name: "help"; slug?: string }
+  // An unrecognized hash, or a route name AppRouter has no case for -- never
+  // silently falls through to Chat (docs/design/portal-navigation-and-space-context.md).
+  | { name: "notFound" }
 
 /** Every `Route["name"]` that carries a `spaceId` -- i.e. every Space-owned route. */
 export type SpaceScopedRouteName = Extract<Route, { spaceId: string }>["name"]

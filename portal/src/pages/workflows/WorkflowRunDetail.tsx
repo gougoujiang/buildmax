@@ -9,6 +9,8 @@ import {
 import { getWorkflow, getWorkflowRunDetail } from "../../features/workflows"
 import { navigate } from "../../router"
 import { useApp } from "../../contexts/AppContext"
+import { ApiRequestError } from "../../lib/api/client"
+import { ResourceUnavailable, type ResourceUnavailableKind } from "../../components/ResourceUnavailable"
 
 interface WorkflowRunDetailProps {
   token: string | null
@@ -24,6 +26,7 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [unavailable, setUnavailable] = useState<ResourceUnavailableKind | null>(null)
   const [lastRefreshedAt, setLastRefreshedAt] = useState<number | null>(null)
 
   const load = useCallback(async (background = false) => {
@@ -40,6 +43,7 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
     } else {
       setLoading(true)
       setError(null)
+      setUnavailable(null)
     }
     try {
       const detail = await getWorkflowRunDetail(spaceId, workflowRunId, token)
@@ -50,7 +54,18 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
       setWorkflow(apiWorkflowToWorkflow(workflowApi))
       setLastRefreshedAt(Date.now())
     } catch (err) {
+      // A background poll's failure is transient by nature (the run was
+      // readable a moment ago) -- it must not bounce a reader watching a live
+      // run to a not-found page. Only the initial load classifies the error.
       if (!background) {
+        if (err instanceof ApiRequestError && err.status === 404) {
+          setUnavailable("notFound")
+        } else if (err instanceof ApiRequestError && err.status === 403) {
+          setUnavailable("forbidden")
+        } else {
+          setUnavailable("error")
+        }
+        setRun(null)
         setError(getErrorMessage(err, "Failed to load workflow run"))
       }
     } finally {
@@ -86,6 +101,27 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
     ? new Date(lastRefreshedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
     : null
 
+  if (loading) {
+    return (
+      <div className="page-activity">
+        <p className="page-activity__empty">Loading…</p>
+      </div>
+    )
+  }
+
+  if (unavailable) {
+    return (
+      <ResourceUnavailable
+        resourceLabel="Workflow Run"
+        kind={unavailable}
+        errorMessage={error}
+        onRetry={() => void load()}
+        backLabel="Back to Workflows"
+        onBack={() => navigate({ name: "workflows", spaceId })}
+      />
+    )
+  }
+
   return (
     <div className="page-activity">
       <div className="page-activity__head">
@@ -118,13 +154,7 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
         </div>
       </div>
 
-      {error ? <p className="page-activity__empty">{error}</p> : null}
-
-      {loading ? (
-        <p className="page-activity__empty">Loading…</p>
-      ) : run == null ? (
-        <p className="page-activity__empty">Workflow run not found.</p>
-      ) : (
+      {run && (
         <div className="workflow-run-page__grid">
           <section className="issues-page__panel">
             <div className="issues-page__toolbar">

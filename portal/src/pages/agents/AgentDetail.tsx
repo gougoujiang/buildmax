@@ -3,6 +3,8 @@ import type { Agent, AgentRevision } from "../../lib/types"
 import type { ApiSecret, ApiTask } from "../../lib/api/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
+import { ApiRequestError } from "../../lib/api/client"
+import { ResourceUnavailable, type ResourceUnavailableKind } from "../../components/ResourceUnavailable"
 import { apiAgentToAgent, apiAgentRevisionToAgentRevision, apiTaskToTask } from "../../lib/api/mappers"
 import {
   getAgent,
@@ -57,6 +59,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [unavailable, setUnavailable] = useState<ResourceUnavailableKind | null>(null)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -75,6 +78,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
     }
     setLoading(true)
     setError(null)
+    setUnavailable(null)
     try {
       const [agentApi, tasksApi, revisionsApi] = await Promise.all([
         getAgent(spaceId, agentId, token),
@@ -85,6 +89,14 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
       setTasks(tasksApi.tasks)
       setRevisions(revisionsApi.revisions.map(apiAgentRevisionToAgentRevision))
     } catch (err) {
+      if (err instanceof ApiRequestError && err.status === 404) {
+        setUnavailable("notFound")
+      } else if (err instanceof ApiRequestError && err.status === 403) {
+        setUnavailable("forbidden")
+      } else {
+        setUnavailable("error")
+      }
+      setAgent(null)
       setError(getErrorMessage(err, "Failed to load agent"))
     } finally {
       setLoading(false)
@@ -234,6 +246,27 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
     )
   }
 
+  if (loading) {
+    return (
+      <div className="page-activity">
+        <p className="page-activity__empty">Loading…</p>
+      </div>
+    )
+  }
+
+  if (unavailable) {
+    return (
+      <ResourceUnavailable
+        resourceLabel="Agent"
+        kind={unavailable}
+        errorMessage={error}
+        onRetry={() => void load()}
+        backLabel="Back to Agents"
+        onBack={() => navigate({ name: "agents", spaceId })}
+      />
+    )
+  }
+
   return (
     <div className="page-activity">
       <div className="page-activity__head">
@@ -270,13 +303,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
         </div>
       </div>
 
-      {error ? <p className="page-activity__empty">{error}</p> : null}
-
-      {loading ? (
-        <p className="page-activity__empty">Loading…</p>
-      ) : agent == null ? (
-        !error ? <p className="page-activity__empty">Agent not found.</p> : null
-      ) : (
+      {agent && (
         <>
           <nav className="agent-detail__tabs" aria-label="Agent sections">
             {TABS.map((t) => (
