@@ -137,11 +137,14 @@
   flex: 0 0 auto;
 }
 
+/* Scrolls horizontally within its own row rather than clipping a long path
+   with an ellipsis — a dense trace may do this without the page itself
+   gaining horizontal scroll (see
+   docs/design/portal-responsive-and-accessible-interaction.md). */
 .run-trace__tool-path {
   flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-x: auto;
   white-space: nowrap;
 }
 
@@ -227,11 +230,11 @@
   flex: 0 0 auto;
 }
 
+/* Same scoped horizontal scroll as .run-trace__tool-path above. */
 .run-trace__call-tokens {
   flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-x: auto;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }

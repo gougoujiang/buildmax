@@ -224,6 +224,7 @@
   }
 
   .space-settings-page__member-actions {
+    flex-wrap: wrap;
     justify-content: space-between;
   }
 

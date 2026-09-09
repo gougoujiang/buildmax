@@ -55,14 +55,14 @@
 @keyframes tp-pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 0.85; } }
 @media (prefers-reduced-motion: reduce) { .tp-card--skeleton { animation: none; } }
 
-.tp-card__head { display: flex; align-items: center; gap: 11px; }
+.tp-card__head { display: flex; align-items: center; flex-wrap: wrap; gap: 11px; }
 .tp-card__logo {
   flex-shrink: 0; width: 34px; height: 34px; border-radius: 9px;
   background: var(--color-bg-muted); border: 1px solid var(--color-border-subtle);
   display: flex; align-items: center; justify-content: center;
   font-size: 12px; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase;
 }
-.tp-card__ident { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.tp-card__ident { display: flex; flex-direction: column; min-width: 0; flex: 1; overflow-wrap: anywhere; }
 .tp-card__title { font-weight: 600; font-size: 14px; }
 .tp-card__name {
   font-family: var(--font-mono, ui-monospace, monospace);

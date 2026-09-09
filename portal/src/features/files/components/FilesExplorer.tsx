@@ -1,6 +1,7 @@
 import { cn } from "../../../lib/cn"
 import { useAuth } from "../../../contexts/AuthContext"
 import { useSpace } from "../../../contexts/SpaceContext"
+import { useMediaQuery } from "../../../hooks/useMediaQuery"
 import { FileList } from "./FileList"
 import { FileTree } from "./FileTree"
 import { FileViewer } from "./FileViewer"
@@ -14,6 +15,11 @@ export function FilesExplorer({ className }: FilesExplorerProps) {
   const { token } = useAuth()
   const { currentSpaceId } = useSpace()
   const explorer = useFilesExplorer({ spaceId: currentSpaceId, token })
+  // Narrow layouts show one column at a time (folder contents, or the
+  // selected file) instead of a side tree — see
+  // docs/design/portal-responsive-and-accessible-interaction.md.
+  const narrow = useMediaQuery("(max-width: 767px)")
+  const showList = !narrow || !explorer.selectedFileId
 
   return (
     <div className={className ?? "files-panel"}>
@@ -61,25 +67,34 @@ export function FilesExplorer({ className }: FilesExplorerProps) {
       </div>
 
       <div className="page-explore__panels">
-        <FileTree
-          tree={explorer.tree}
-          treeLoading={explorer.treeLoading}
-          treeError={explorer.treeError}
-          expandedIds={explorer.expandedIds}
-          selectedFolderId={explorer.selectedFolderId}
-          onToggle={explorer.toggleFolder}
-          onSelectFolder={explorer.selectFolder}
-        />
+        {!narrow && (
+          <FileTree
+            tree={explorer.tree}
+            treeLoading={explorer.treeLoading}
+            treeError={explorer.treeError}
+            expandedIds={explorer.expandedIds}
+            selectedFolderId={explorer.selectedFolderId}
+            onToggle={explorer.toggleFolder}
+            onSelectFolder={explorer.selectFolder}
+          />
+        )}
 
         <div className="page-explore__content-panel">
-          <FileList
-            folderName={explorer.folderName}
-            children={explorer.children}
-            selectedFileId={explorer.selectedFileId}
-            isRoot={explorer.selectedFolderId === "."}
-            onSelectFolder={explorer.selectListFolder}
-            onSelectFile={explorer.selectFile}
-          />
+          {narrow && explorer.canGoBack && (
+            <button type="button" className="page-explore__back" onClick={explorer.goBack}>
+              <span aria-hidden="true">‹ </span>Back
+            </button>
+          )}
+          {showList && (
+            <FileList
+              folderName={explorer.folderName}
+              children={explorer.children}
+              selectedFileId={explorer.selectedFileId}
+              isRoot={explorer.selectedFolderId === "."}
+              onSelectFolder={explorer.selectListFolder}
+              onSelectFile={explorer.selectFile}
+            />
+          )}
           <FileViewer
             selectedFileId={explorer.selectedFileId}
             selectedFileName={explorer.selectedFileName}

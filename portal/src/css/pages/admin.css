@@ -317,3 +317,15 @@
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 0.85rem;
 }
+
+/* Reflow to a labeled card: every admin list row (Administrators, Accounts,
+   Spaces, Models, Plugins, and their sub-lists) shares this class, so a dense
+   row — several pills plus multiple actions — stacks into a readable column
+   instead of an ambiguous multi-item wrap (see
+   docs/design/portal-responsive-and-accessible-interaction.md). */
+@media (max-width: 767px) {
+  .admin-list__row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
