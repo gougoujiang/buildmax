@@ -21,6 +21,7 @@ import { useSpace } from "../contexts/SpaceContext"
 import { useApp } from "../contexts/AppContext"
 import { useAdminAccess } from "../features/admin"
 import { spaceSwitchTarget } from "../lib/spaceSwitch"
+import type { ResourceState } from "../state/resourceState"
 
 /** ASCII art for "BuildMax" (matches internal/tui/banner.go). */
 const LOGO_ASCII = `
@@ -64,6 +65,23 @@ function isSpaceSettingsActive(route: Route): boolean {
 
 function isAdminActive(route: Route): boolean {
   return route.name === "admin"
+}
+
+/**
+ * Label for when there is no resolved current Space to name. Never fabricates
+ * a Space name (e.g. the old "My Space" fallback while loading failed) — see
+ * docs/design/portal-state-and-permission-feedback.md.
+ */
+function unresolvedSpaceLabel(spacesState: ResourceState<unknown>): string {
+  switch (spacesState.kind) {
+    case "loading":
+    case "refreshing":
+      return "Loading…"
+    case "readyEmpty":
+      return "No space"
+    default:
+      return "Space unavailable"
+  }
 }
 
 /** The persistent desktop/compact sidebar: a collapsible icon rail, the app's chrome. */
@@ -130,7 +148,7 @@ export function SidebarNavContent({
   collapsed = false,
   onNavigate,
 }: SidebarNavContentProps) {
-  const { spaces, currentSpace, currentSpaceId, loading: spacesLoading, setCurrentSpaceId } = useSpace()
+  const { spaces, spacesState, currentSpace, currentSpaceId, loading: spacesLoading, setCurrentSpaceId } = useSpace()
   const { setPendingConversation } = useApp()
   const { isAdmin: isSystemAdmin } = useAdminAccess()
   const showSpaceSwitcher = spaces.length > 1
@@ -227,13 +245,16 @@ export function SidebarNavContent({
                 </select>
               ) : (
                 <div className="sidebar__space-display" aria-label="Current space">
-                  {currentSpace?.name ?? "My Space"}
+                  {currentSpace?.name ?? unresolvedSpaceLabel(spacesState)}
                 </div>
               )}
             </div>
           ) : (
-            <div className="sidebar__space-badge" title={currentSpace?.name ?? "Current space"}>
-              {(currentSpace?.name ?? "S").slice(0, 1).toUpperCase()}
+            <div
+              className="sidebar__space-badge"
+              title={currentSpace?.name ?? unresolvedSpaceLabel(spacesState)}
+            >
+              {currentSpace ? currentSpace.name.slice(0, 1).toUpperCase() : "…"}
             </div>
           )}
         </div>
