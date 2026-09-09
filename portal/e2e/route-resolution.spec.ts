@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test"
 
-import { session } from "./fixtures"
+import { createSpace, postJSON, reportLeftovers, session, tagged } from "./fixtures"
+import { MEMBER_STATE } from "./global-setup"
 
 /**
  * docs/design/portal-navigation-and-space-context.md requires unknown,
@@ -54,4 +55,36 @@ test("a Space no account is a member of renders forbidden, not a blank page", as
   await page.goto(`/#/spaces/${NO_SUCH_SPACE}/issues/${NO_SUCH_ISSUE}`)
   await expect(page.getByRole("heading", { name: "Issue", exact: true })).toBeVisible()
   await expect(page.getByText(/you don't have access to/i)).toBeVisible()
+})
+
+test("a real Space owned by another account renders forbidden, proving the membership boundary", async ({ page, browser }) => {
+  // The synthetic-id test above cannot tell a working guard from an id that
+  // exists nowhere: both resolve against an empty member list. This drives the
+  // other branch of internal/server/access/space.go's SpaceAction -- a Space
+  // whose member list holds *other* accounts but not the caller -- which only a
+  // second real account against a real, populated foreign Space can reach. It
+  // is the case where kind's real multi-user authorization earns its keep over
+  // a synthetic 403 any backend would return.
+  const admin = await session(page)
+  const foreign = await createSpace(page, admin, tagged("Foreign space probe"))
+  const issue = await postJSON<{ id: string }>(page, `${admin.apiBase}/api/spaces/${foreign.id}/issues`, admin, {
+    title: tagged("Foreign issue"),
+  })
+  reportLeftovers(foreign.id, [`space ${foreign.id}`, `issue ${issue.id}`])
+
+  // A second context signed in as the member account: the default `page` holds
+  // the admin session, and only a browser that is genuinely not in the Space
+  // can show what its owner's neighbour meets. `browser.newContext` does not
+  // inherit the project's baseURL, so take the Portal origin from the admin
+  // page rather than restating the deployment's URL here.
+  const portalBase = new URL(page.url()).origin
+  const memberContext = await browser.newContext({ storageState: MEMBER_STATE, baseURL: portalBase })
+  try {
+    const memberPage = await memberContext.newPage()
+    await memberPage.goto(`/#/spaces/${foreign.id}/issues/${issue.id}`)
+    await expect(memberPage.getByRole("heading", { name: "Issue", exact: true })).toBeVisible()
+    await expect(memberPage.getByText(/you don't have access to/i)).toBeVisible()
+  } finally {
+    await memberContext.close()
+  }
 })

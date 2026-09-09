@@ -42,6 +42,50 @@ func TestRequestLogRecordsOutcome(t *testing.T) {
 	}
 }
 
+// The WebSocket upgrade carries its JWT in ?token= (handlers/ws.go), so a
+// verbatim query in the request line would copy the credential into every log
+// and any artifact that captures one. The value must never appear; the
+// surrounding non-sensitive diagnostics must survive.
+func TestRequestLogRedactsCredentialQueryParams(t *testing.T) {
+	buf := captureLog(t)
+	h := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
+	const jwt = "eyJhbGciOiJIUzI1NiJ9.secretpayload.signaturebits"
+
+	serve(h, httptest.NewRequest(http.MethodGet, "/api/spaces/sp_1/ws?token="+jwt+"&limit=5", nil))
+
+	out := buf.String()
+	for _, leaked := range []string{jwt, "secretpayload", "signaturebits"} {
+		if strings.Contains(out, leaked) {
+			t.Errorf("credential leaked into log: %q", out)
+		}
+	}
+	if !strings.Contains(out, "token=REDACTED") {
+		t.Errorf("want the token redacted in place, got %q", out)
+	}
+	if !strings.Contains(out, "limit=5") {
+		t.Errorf("want the non-sensitive limit kept, got %q", out)
+	}
+}
+
+// A malformed escape cannot be parsed into keys, so a credential could hide in
+// it. The whole query is dropped rather than logged raw.
+func TestRequestLogDropsUnparseableQuery(t *testing.T) {
+	buf := captureLog(t)
+	h := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
+	r := httptest.NewRequest(http.MethodGet, "/api/spaces", nil)
+	r.URL.RawQuery = "token=%zz"
+
+	serve(h, r)
+
+	out := buf.String()
+	if strings.Contains(out, "%zz") {
+		t.Errorf("raw unparseable query leaked: %q", out)
+	}
+	if !strings.Contains(out, "query=REDACTED") {
+		t.Errorf("want the whole query redacted, got %q", out)
+	}
+}
+
 // The id has to reach both the caller and the records the handler wrote, or it
 // cannot join a bug report to a log line.
 func TestRequestIDIsSharedByHeaderAndRecords(t *testing.T) {
