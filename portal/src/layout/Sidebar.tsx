@@ -164,14 +164,15 @@ export function SidebarNavContent({
   // The only place a Space switch is a genuine user action, as opposed to the
   // shell catching up to a Space a route or a loaded resource already named
   // (see App.tsx) -- so this is the only place that also navigates.
+  // Unlike go(), this deliberately does not call onNavigate(): switching
+  // Space is not "choosing a destination and leaving" the way a nav button
+  // is, so the narrow drawer stays open for further switcher interaction
+  // (see golden-path-viewports.spec.ts).
   function switchSpace(spaceId: string) {
     setCurrentSpaceId(spaceId)
     setPendingConversation(null)
     const target = spaceSwitchTarget(route, spaceId)
-    if (target) {
-      navigate(target)
-      onNavigate?.()
-    }
+    if (target) navigate(target)
   }
 
   return (
