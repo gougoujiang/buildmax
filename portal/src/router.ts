@@ -81,10 +81,9 @@ function parseSpaceScopedRoute(spaceId: string, rest: string[]): Route {
       if (id === "audit") return { name: "space", spaceId, section: "audit" }
       return { name: "space", spaceId, section: "overview" }
   }
-  // An unrecognized or incomplete Space-scoped path. Until a not-found route
-  // exists (a later slice of the navigation design), land on the Space's Chat
-  // rather than guess further.
-  return { name: "chat", spaceId }
+  // An unrecognized or incomplete Space-scoped path, e.g. a bad resource word
+  // or a detail path missing its id.
+  return { name: "notFound" }
 }
 
 /**
@@ -193,8 +192,13 @@ export function parseHash(hash: string, currentSpaceId: string): Route {
     return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.chat])
   }
 
-  // Bare `#/` and anything else unrecognized: the Space's Chat.
-  return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.chat])
+  // Bare `#/` is the one legitimate empty path: the Space's Chat. Anything
+  // else here matched no route at all -- a genuinely unknown address, not a
+  // fallback to guess from.
+  if (parts.length === 0) {
+    return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.chat])
+  }
+  return { name: "notFound" }
 }
 
 /** Convert a Route into a canonical hash string (includes leading #). */
@@ -284,6 +288,12 @@ export function buildHash(route: Route): string {
       return `#/${SEGMENT.marketplace}`
     case "help":
       return route.slug ? `#/${SEGMENT.help}/${route.slug}` : `#/${SEGMENT.help}`
+    case "notFound":
+      // No canonical address of its own -- Portal never links here, it only
+      // ever arrives by the hash already being unrecognized. This marker
+      // parses back to the same state, rather than clobbering whatever the
+      // reader actually typed.
+      return "#/404"
   }
 }
 

@@ -4,6 +4,7 @@ import type { ApiIssueComment, ApiIssueFlowResponse, ApiSpaceMember } from "../.
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { ApiRequestError } from "../../lib/api/client"
+import { ResourceUnavailable, type ResourceUnavailableKind } from "../../components/ResourceUnavailable"
 import { taskIsRetryable, taskIsStoppable } from "../../lib/taskStatus"
 import {
   apiAgentToAgent,
@@ -103,6 +104,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [runError, setRunError] = useState<string | null>(null)
+  const [unavailable, setUnavailable] = useState<ResourceUnavailableKind | null>(null)
   const [subIssueTitle, setSubIssueTitle] = useState("")
   const [addingSubIssue, setAddingSubIssue] = useState(false)
   const [subIssueError, setSubIssueError] = useState<string | null>(null)
@@ -122,6 +124,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
     }
     setLoading(true)
     setLoadError(null)
+    setUnavailable(null)
     try {
       const [flowApi, agentsApi, membersApi, workflowsApi] = await Promise.all([
         getIssueFlow(spaceId, issueId, token),
@@ -144,6 +147,14 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
           : "",
       )
     } catch (err) {
+      if (err instanceof ApiRequestError && err.status === 404) {
+        setUnavailable("notFound")
+      } else if (err instanceof ApiRequestError && err.status === 403) {
+        setUnavailable("forbidden")
+      } else {
+        setUnavailable("error")
+      }
+      setFlow(null)
       setLoadError(getErrorMessage(err, "Failed to load issue detail"))
     } finally {
       setLoading(false)
@@ -327,6 +338,32 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
       .finally(() => setRunningAgent(false))
   }
 
+  if (loading) {
+    return (
+      <div className="page-activity">
+        <p className="page-activity__empty">Loading…</p>
+      </div>
+    )
+  }
+
+  if (unavailable) {
+    return (
+      <ResourceUnavailable
+        resourceLabel="Issue"
+        kind={unavailable}
+        errorMessage={loadError}
+        onRetry={() => void load()}
+        backLabel="Back to Issues"
+        onBack={() => navigate({ name: "issues", spaceId })}
+      />
+    )
+  }
+
+  // Neither loading nor unavailable at this point, so the load succeeded and
+  // set flow -- this is what lets the rest of the render use flow.issue
+  // directly instead of threading `flow?.` through every field access below.
+  if (!flow) return null
+
   // Run is disabled until its executor is actually runnable; these name the
   // specific reason rather than leaving a disabled button unexplained.
   const workflowRunDisabledReason = !isWorkflowAssigned
@@ -360,35 +397,29 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
         </div>
       </div>
 
-      {loadError ? <p className="page-activity__empty">{loadError}</p> : null}
+      <>
+        <nav className="issue-detail-page__tabs" aria-label="Issue sections">
+          {ISSUE_TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={
+                t.id === tab ? "issue-detail-page__tab issue-detail-page__tab--active" : "issue-detail-page__tab"
+              }
+              aria-current={t.id === tab}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+              {t.id === "discussion" && comments.length > 0 ? (
+                <span className="issue-detail-page__tab-count">{comments.length}</span>
+              ) : null}
+              {t.id === "results" && flow.outputs.length > 0 ? (
+                <span className="issue-detail-page__tab-count">{flow.outputs.length}</span>
+              ) : null}
+            </button>
+          ))}
+        </nav>
 
-      {loading ? (
-        <p className="page-activity__empty">Loading...</p>
-      ) : flow == null ? (
-        <p className="page-activity__empty">Issue not found.</p>
-      ) : (
-        <>
-          <nav className="issue-detail-page__tabs" aria-label="Issue sections">
-            {ISSUE_TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                className={
-                  t.id === tab ? "issue-detail-page__tab issue-detail-page__tab--active" : "issue-detail-page__tab"
-                }
-                aria-current={t.id === tab}
-                onClick={() => setTab(t.id)}
-              >
-                {t.label}
-                {t.id === "discussion" && comments.length > 0 ? (
-                  <span className="issue-detail-page__tab-count">{comments.length}</span>
-                ) : null}
-                {t.id === "results" && flow.outputs.length > 0 ? (
-                  <span className="issue-detail-page__tab-count">{flow.outputs.length}</span>
-                ) : null}
-              </button>
-            ))}
-          </nav>
 
           {tab === "overview" ? (
             <div className="issue-detail-page__panel issue-detail-page__grid">
@@ -817,7 +848,6 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
             </div>
           ) : null}
         </>
-      )}
       <RunTraceModal
         open={traceRunId != null}
         spaceId={spaceId}

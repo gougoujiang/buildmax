@@ -5,10 +5,12 @@
 > 用语：Home 更名为 Chat，侧边栏按 Work/Reuse/Data/Manage 分组，暴露 Workspace
 > Files，将部署管理从 Space 范围中分离）、第 2 阶段（规范化的 `#/spaces/{space_id}/...`
 > 路由；每个 Space 拥有的页面都从路由本身读取 Space，而不是此前选中的 Space；
-> 为旧的扁平 hash 提供有时限的迁移重定向）与第 3 阶段（Space 切换会把每个
+> 为旧的扁平 hash 提供有时限的迁移重定向）、第 3 阶段（Space 切换会把每个
 > Space 拥有的路由都重定向到目标 Space 中有效的目的地，由同一张穷举、经类型
 > 检查的表驱动——补上了此前 Agent 与 Task 在切换时仍悄悄显示上一个 Space 数据
-> 的缺口）均已上线。解析状态以及面包屑/响应式打磨仍在计划中。
+> 的缺口）与第 4 阶段（解析状态：无法识别的路由会渲染未找到页面，而不是悄悄
+> 回退到 Chat；Agent、Workflow、Workflow Run、Task 与 Issue 详情页能区分真正的
+> "未找到"与"无权访问的 Space 或资源"）均已上线。面包屑与响应式打磨仍在计划中。
 
 本文定义 Portal 导航如何表达作用域，以及 URL 如何确保 Space 所拥有的资源始终位于
 正确的 Space 中。这是一项可以独立交付的 R3 运维者路径改进，不改变路线图优先级。
