@@ -13,7 +13,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -130,29 +129,20 @@ func kindKubectl(args ...string) error {
 }
 
 // kindDatabasePreflight refuses to run the browser suite against a database that
-// is not healthy right now. The kind MySQL is a single pod on an emptyDir
-// (deployment/kind/mysql.yaml): a restart it survives still drops server
-// readiness mid-run, and a pod that is currently not Ready fails the suite in
-// ways that read as product bugs. Catching it here turns an unexplained mid-run
-// hang -- the audit-view "Loading…" the Agent-autonomous e2e assessment saw --
-// into a precise "the database is unhealthy, reload it" before any test data is
-// created.
+// is not ready right now. The kind MySQL is a single pod on an emptyDir
+// (deployment/kind/mysql.yaml); one that is currently not Ready fails the suite
+// in ways that read as product bugs -- the audit-view "Loading…" the
+// Agent-autonomous e2e assessment saw. Readiness is the signal that the pod can
+// serve this run: cumulative restart count is not, because a long-lived dev
+// cluster accumulates a few restarts over days without being unstable now.
 func kindDatabasePreflight() error {
-	const flappingRestarts = 3
 	out, err := captureKindKubectl("get", "pods", "-n", "db", "-l", "app=mysql",
-		"-o", "jsonpath={.items[0].status.containerStatuses[0].ready} {.items[0].status.containerStatuses[0].restartCount}")
+		"-o", "jsonpath={.items[0].status.containerStatuses[0].ready}")
 	if err != nil {
 		return fmt.Errorf("check the kind database before testing: %w", err)
 	}
-	fields := strings.Fields(out)
-	if len(fields) < 2 {
-		return errors.New("kind database is not running (no mysql pod in namespace db); run `./make kind reload` first")
-	}
-	if ready := fields[0]; ready != "true" {
-		return fmt.Errorf("kind database is not ready (mysql pod ready=%s); wait for it or run `./make kind reload` before testing", ready)
-	}
-	if n, convErr := strconv.Atoi(fields[1]); convErr == nil && n >= flappingRestarts {
-		return fmt.Errorf("kind database is flapping (mysql restarted %d times); it is too unstable for clean evidence -- run `./make kind reload` before testing", n)
+	if strings.TrimSpace(out) != "true" {
+		return errors.New("kind database is not ready (no ready mysql pod in namespace db); wait for it or run `./make kind reload` before testing")
 	}
 	return nil
 }
