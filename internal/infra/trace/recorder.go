@@ -38,6 +38,13 @@ type Meta struct {
 	// this one, so an inspection can walk parent run → tool call → child run.
 	// Empty when the launch context carried none.
 	ParentToolCallID string
+	// CreatedBy, CreatedByType, TriggerSource, and RetryOfTaskRunID are this
+	// run's TaskRun provenance -- who or what started it and why -- when it
+	// has one. Left empty by every surface with no TaskRun to report.
+	CreatedBy        string
+	CreatedByType    string
+	TriggerSource    string
+	RetryOfTaskRunID string
 	// Sandbox is the execution boundary resolved for this run. Nil is recorded
 	// as unsandboxed rather than unknown — see boundaryRecord.
 	Sandbox *agent.SandboxInfo
@@ -110,6 +117,10 @@ func NewRecorder(dir string, meta Meta) *Recorder {
 		ParentRunID:      meta.ParentRunID,
 		ParentToolCallID: meta.ParentToolCallID,
 		TraceVersion:     traceVersion,
+		CreatedBy:        meta.CreatedBy,
+		CreatedByType:    meta.CreatedByType,
+		TriggerSource:    meta.TriggerSource,
+		RetryOfTaskRunID: meta.RetryOfTaskRunID,
 	})
 	r.write(boundaryRecord(meta.Sandbox))
 	r.write(sourcesRecord(meta.Sources))

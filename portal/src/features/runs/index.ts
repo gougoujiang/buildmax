@@ -1,5 +1,5 @@
 export { getTaskRunProvenance, getTaskRunTrace, listTaskRunLLMCalls } from "./api"
 export { RunTraceModal } from "./RunTraceModal"
 export { callElapsed, describeSpend, summarizeSpend } from "./spend"
-export { describeAgent, describeOrigin, inputMatchesMessage } from "./origin"
+export { describeAgent, describeOrigin, inputMatchesMessage, runInputLabel } from "./origin"
 export { describeBoundary, formatDuration, runElapsed } from "./summary"

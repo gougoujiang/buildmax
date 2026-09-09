@@ -43,32 +43,50 @@ func TestUpdateIssue_InvalidStatus(t *testing.T) {
 	}
 }
 
-func TestUpdateIssue_AssignToPerson(t *testing.T) {
+func TestUpdateIssue_SetOwner(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
 			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", SpaceID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
 		},
 		Spaces: &mock.MockSpaceStore{Members: []corespace.Member{{SpaceID: "tm_1", UserID: "u1", Role: corespace.RoleOwner}}},
 	}
-	kind := coreissue.AssigneePerson
 	id := "u1"
 	issue, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
-		IfVersion:    1,
-		UserID:       "u1",
-		SpaceID:      "tm_1",
-		IssueID:      "i_1",
-		AssigneeKind: &kind,
-		AssigneeID:   &id,
+		IfVersion: 1,
+		UserID:    "u1",
+		SpaceID:   "tm_1",
+		IssueID:   "i_1",
+		OwnerID:   &id,
 	})
 	if err != nil {
 		t.Fatalf("UpdateIssue: %v", err)
 	}
-	if issue.AssigneeKind == nil || *issue.AssigneeKind != coreissue.AssigneePerson {
-		t.Fatalf("issue.AssigneeKind = %v", issue.AssigneeKind)
+	if issue.OwnerID == nil || *issue.OwnerID != "u1" {
+		t.Fatalf("issue.OwnerID = %v", issue.OwnerID)
 	}
 }
 
-func TestUpdateIssue_AssignToAgent(t *testing.T) {
+func TestUpdateIssue_OwnerMustBeASpaceMember(t *testing.T) {
+	svc := &Service{
+		Issues: &mock.MockIssueStore{
+			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", SpaceID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
+		},
+		Spaces: &mock.MockSpaceStore{Members: []corespace.Member{{SpaceID: "tm_1", UserID: "u1", Role: corespace.RoleOwner}}},
+	}
+	id := "u2"
+	_, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
+		IfVersion: 1,
+		UserID:    "u1",
+		SpaceID:   "tm_1",
+		IssueID:   "i_1",
+		OwnerID:   &id,
+	})
+	if !errors.Is(err, ErrInvalidOwnerID) {
+		t.Fatalf("err = %v, want %v", err, ErrInvalidOwnerID)
+	}
+}
+
+func TestUpdateIssue_AssignExecutorToAgent(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
 			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", SpaceID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
@@ -77,25 +95,25 @@ func TestUpdateIssue_AssignToAgent(t *testing.T) {
 			Agents: []agentdef.Agent{{ID: "a_1", UserID: "u1", SpaceID: "tm_1", Name: "Agent 1"}},
 		},
 	}
-	kind := coreissue.AssigneeAgent
+	kind := coreissue.ExecutorAgent
 	id := "a_1"
 	issue, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
 		IfVersion:    1,
 		UserID:       "u1",
 		SpaceID:      "tm_1",
 		IssueID:      "i_1",
-		AssigneeKind: &kind,
-		AssigneeID:   &id,
+		ExecutorKind: &kind,
+		ExecutorID:   &id,
 	})
 	if err != nil {
 		t.Fatalf("UpdateIssue: %v", err)
 	}
-	if issue.AssigneeID == nil || *issue.AssigneeID != "a_1" {
-		t.Fatalf("issue.AssigneeID = %v", issue.AssigneeID)
+	if issue.ExecutorID == nil || *issue.ExecutorID != "a_1" {
+		t.Fatalf("issue.ExecutorID = %v", issue.ExecutorID)
 	}
 }
 
-func TestUpdateIssue_AssignToWrongAgent(t *testing.T) {
+func TestUpdateIssue_AssignExecutorToWrongAgent(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
 			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", SpaceID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
@@ -104,22 +122,22 @@ func TestUpdateIssue_AssignToWrongAgent(t *testing.T) {
 			Agents: []agentdef.Agent{{ID: "a_1", UserID: "u2", SpaceID: "tm_2", Name: "Other Agent"}},
 		},
 	}
-	kind := coreissue.AssigneeAgent
+	kind := coreissue.ExecutorAgent
 	id := "a_1"
 	_, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
 		IfVersion:    1,
 		UserID:       "u1",
 		SpaceID:      "tm_1",
 		IssueID:      "i_1",
-		AssigneeKind: &kind,
-		AssigneeID:   &id,
+		ExecutorKind: &kind,
+		ExecutorID:   &id,
 	})
 	if !errors.Is(err, ErrAgentNotFound) {
 		t.Fatalf("err = %v, want %v", err, ErrAgentNotFound)
 	}
 }
 
-func TestUpdateIssue_AssignToWorkflow(t *testing.T) {
+func TestUpdateIssue_AssignExecutorToWorkflow(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
 			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", SpaceID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
@@ -128,25 +146,93 @@ func TestUpdateIssue_AssignToWorkflow(t *testing.T) {
 			Workflows: []coreworkflow.Workflow{{ID: "w_1", SpaceID: "tm_1", Name: "WF", Status: coreworkflow.StatusPublished}},
 		},
 	}
-	kind := coreissue.AssigneeWorkflow
+	kind := coreissue.ExecutorWorkflow
 	id := "w_1"
 	issue, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
 		IfVersion:    1,
 		UserID:       "u1",
 		SpaceID:      "tm_1",
 		IssueID:      "i_1",
-		AssigneeKind: &kind,
-		AssigneeID:   &id,
+		ExecutorKind: &kind,
+		ExecutorID:   &id,
 	})
 	if err != nil {
 		t.Fatalf("UpdateIssue: %v", err)
 	}
-	if issue.AssigneeID == nil || *issue.AssigneeID != "w_1" {
-		t.Fatalf("issue.AssigneeID = %v", issue.AssigneeID)
+	if issue.ExecutorID == nil || *issue.ExecutorID != "w_1" {
+		t.Fatalf("issue.ExecutorID = %v", issue.ExecutorID)
 	}
 }
 
-func TestUpdateIssue_AssignToUnpublishedWorkflow(t *testing.T) {
+// A person can be Owner and an Agent or Workflow can be Executor on the same
+// Issue at once -- the combined assignee field this replaced could not
+// express both together.
+func TestUpdateIssue_OwnerAndExecutorBothSetAtOnce(t *testing.T) {
+	svc := &Service{
+		Issues: &mock.MockIssueStore{
+			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", SpaceID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
+		},
+		Spaces: &mock.MockSpaceStore{Members: []corespace.Member{{SpaceID: "tm_1", UserID: "u1", Role: corespace.RoleOwner}}},
+		Agents: &mock.MockAgentStore{
+			Agents: []agentdef.Agent{{ID: "a_1", UserID: "u1", SpaceID: "tm_1", Name: "Agent 1"}},
+		},
+	}
+	ownerID := "u1"
+	kind := coreissue.ExecutorAgent
+	executorID := "a_1"
+	issue, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
+		IfVersion:    1,
+		UserID:       "u1",
+		SpaceID:      "tm_1",
+		IssueID:      "i_1",
+		OwnerID:      &ownerID,
+		ExecutorKind: &kind,
+		ExecutorID:   &executorID,
+	})
+	if err != nil {
+		t.Fatalf("UpdateIssue: %v", err)
+	}
+	if issue.OwnerID == nil || *issue.OwnerID != "u1" {
+		t.Fatalf("issue.OwnerID = %v, want u1", issue.OwnerID)
+	}
+	if issue.ExecutorID == nil || *issue.ExecutorID != "a_1" {
+		t.Fatalf("issue.ExecutorID = %v, want a_1", issue.ExecutorID)
+	}
+}
+
+// Saving an Issue -- including changing its executor -- must never itself
+// schedule work: Run is the only action that spends execution quota. Service
+// holds no Tasks/TaskRuns store at all, so UpdateIssue cannot create a Task by
+// construction; this proves the Workflow side too, where a run is a method
+// call away on the same store used for executor validation.
+func TestUpdateIssue_AssigningWorkflowNeverCreatesARun(t *testing.T) {
+	workflows := &mock.MockWorkflowStore{
+		Workflows: []coreworkflow.Workflow{{ID: "w_1", SpaceID: "tm_1", Name: "WF", Status: coreworkflow.StatusPublished}},
+	}
+	svc := &Service{
+		Issues: &mock.MockIssueStore{
+			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", SpaceID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
+		},
+		Workflows: workflows,
+	}
+	kind := coreissue.ExecutorWorkflow
+	id := "w_1"
+	if _, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
+		IfVersion:    1,
+		UserID:       "u1",
+		SpaceID:      "tm_1",
+		IssueID:      "i_1",
+		ExecutorKind: &kind,
+		ExecutorID:   &id,
+	}); err != nil {
+		t.Fatalf("UpdateIssue: %v", err)
+	}
+	if len(workflows.Runs) != 0 {
+		t.Fatalf("workflow runs after save = %d, want 0: saving an executor is not running it", len(workflows.Runs))
+	}
+}
+
+func TestUpdateIssue_AssignExecutorToUnpublishedWorkflow(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
 			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", SpaceID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
@@ -155,15 +241,15 @@ func TestUpdateIssue_AssignToUnpublishedWorkflow(t *testing.T) {
 			Workflows: []coreworkflow.Workflow{{ID: "w_1", SpaceID: "tm_1", Name: "WF", Status: coreworkflow.StatusDraft}},
 		},
 	}
-	kind := coreissue.AssigneeWorkflow
+	kind := coreissue.ExecutorWorkflow
 	id := "w_1"
 	_, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
 		IfVersion:    1,
 		UserID:       "u1",
 		SpaceID:      "tm_1",
 		IssueID:      "i_1",
-		AssigneeKind: &kind,
-		AssigneeID:   &id,
+		ExecutorKind: &kind,
+		ExecutorID:   &id,
 	})
 	if !errors.Is(err, ErrWorkflowNotPublished) {
 		t.Fatalf("err = %v, want %v", err, ErrWorkflowNotPublished)

@@ -93,8 +93,8 @@ not become the same object merely because they contribute to the same outcome.
 
 Several required pieces already exist:
 
-- An Issue belongs to a Space, may be assigned to a person, Agent, or Workflow,
-  and may have one level of child Issues.
+- An Issue belongs to a Space, may have an owner (a person) and an executor
+  (an Agent or Workflow) independently, and may have one level of child Issues.
 - Issue comments form a durable human- and Agent-readable work thread.
 - Tasks carry an optional Issue ID, so remote execution is already attributable
   to an Issue.
@@ -103,12 +103,12 @@ Several required pieces already exist:
 - Managed models let a connected local client use the deployment's model
   catalog without holding a provider credential.
 - An authenticated local Agent can publish a unified Artifact to the Server.
-- The current surface-positioning decision already permits an assigned-work
-  inbox, starting a local Session from an Issue, and returning results.
-- `buildmax issue list` shows what a space assigned the signed-in person, across
-  every space they are in. The server-side listing filters it needs — by
-  assignee and by status — now exist; `openapi.json` had described them for a
-  while before anything implemented them.
+- The current surface-positioning decision already permits an owned-work inbox,
+  starting a local Session from an Issue, and returning results.
+- `buildmax issue list` shows what the signed-in person owns, across every
+  space they are in. The server-side listing filters it needs — by owner and by
+  status — now exist; `openapi.json` had described them for a while before
+  anything implemented them.
 - `buildmax issue start <id>` scopes one local session to one Issue: the Agent can
   read it and report back. The report is stored as `local_agent`, a claim the
   relaying person is accountable for, never as the `agent` a worker run writes.
@@ -189,7 +189,7 @@ The bridge depends on one clear owner for each kind of fact:
 
 | Object or fact | Authority | Local surface role |
 |---|---|---|
-| Issue title, description, status, assignee, hierarchy, comments | Server | Read and perform authorized contextual mutations |
+| Issue title, description, status, owner, executor, hierarchy, comments | Server | Read and perform authorized contextual mutations |
 | Local workspace and path mapping | Local client | Choose, persist locally, and never imply Server possession |
 | Local Session messages, tool state, approvals, and live process | Local client | Execute and persist under the existing local contract |
 | Task and TaskRun lifecycle | Server and Worker | Trigger or observe; never impersonate a Worker |
@@ -303,7 +303,7 @@ directory as a side effect.
 
 `in_progress` means the Space says work is in progress. It does not mean a local
 process is alive. Starting a local Session may offer to set the status and
-assignee, but the user confirms the mutation. Losing the client connection does
+owner, but the user confirms the mutation. Losing the client connection does
 not move the Issue back or mark it failed.
 
 If the product later needs live local execution presence, that belongs in a
@@ -386,8 +386,8 @@ needs an idempotency key and visible `pending`, `failed`, or `conflict` state.
 
 Issue mutation needs an optimistic concurrency contract, such as an update
 version or `updated_at` precondition. A stale local snapshot must not overwrite
-a newer assignee, status, description, or hierarchy without a conflict the user
-can resolve.
+a newer owner, executor, status, description, or hierarchy without a conflict
+the user can resolve.
 
 ## Model, Data, And Trust Boundary
 

@@ -36,6 +36,13 @@ type TaskResponse struct {
 	// routes -- trace, LLM calls -- are keyed by it, so a caller that can see a
 	// task can reach what that task actually did.
 	LastRunID *string `json:"last_run_id,omitempty"`
+	// WorkflowRunID names the workflow run that dispatched this task, when the
+	// task carries neither an IssueID nor a ConversationID of its own. A
+	// workflow step task's only origin is its step run, so without this a
+	// caller has no way to tell "started by a workflow" from "started with no
+	// recorded origin at all." Resolved only for the single-task read: listing
+	// endpoints would otherwise pay one lookup per row.
+	WorkflowRunID *string `json:"workflow_run_id,omitempty"`
 }
 
 type createTaskRequest struct {
@@ -297,7 +304,23 @@ func (h *Handler) getTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	httputil.WriteJSON(w, http.StatusOK, taskToResponse(*target))
+	out := taskToResponse(*target)
+	out.WorkflowRunID = h.resolveTaskWorkflowRunID(r.Context(), target)
+	httputil.WriteJSON(w, http.StatusOK, out)
+}
+
+// resolveTaskWorkflowRunID finds the workflow run that dispatched a task with
+// no Issue or Conversation of its own. A task with either already has a true
+// origin to navigate through; only the workflow case needs this extra lookup.
+func (h *Handler) resolveTaskWorkflowRunID(ctx context.Context, t *coretask.Task) *string {
+	if h.cfg.Workflows == nil || (t.IssueID != nil && *t.IssueID != "") || t.ConversationID != "" {
+		return nil
+	}
+	step, err := h.cfg.Workflows.GetWorkflowStepRunByTaskID(ctx, t.ID)
+	if err != nil || step == nil {
+		return nil
+	}
+	return &step.WorkflowRunID
 }
 
 type createTaskRunRequest struct {

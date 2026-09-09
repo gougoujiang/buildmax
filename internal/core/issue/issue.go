@@ -11,9 +11,12 @@ const (
 	StatusTodo       = "todo"
 	StatusInProgress = "in_progress"
 	StatusDone       = "done"
-	AssigneePerson   = "person"
-	AssigneeAgent    = "agent"
-	AssigneeWorkflow = "workflow"
+	// ExecutorAgent and ExecutorWorkflow are the only Executor kinds: a person
+	// cannot be an Executor. Accountability for a person is Owner, a separate
+	// field that can be set at the same time. See
+	// docs/design/portal-work-and-execution-experience.md.
+	ExecutorAgent    = "agent"
+	ExecutorWorkflow = "workflow"
 )
 
 // Issue comment author kinds. A comment is written by a person, reported by an
@@ -45,18 +48,29 @@ const (
 // which is enforced in internal/service/issue, not by the schema. See
 // docs/contribute/architecture/data-model.md.
 type Issue struct {
-	ID            string    `json:"id"`
-	UserID        string    `json:"user_id"`
-	SpaceID       string    `json:"space_id,omitempty"`
-	ParentIssueID *string   `json:"parent_issue_id,omitempty"`
-	Title         string    `json:"title"`
-	Description   string    `json:"description"`
-	Status        string    `json:"status"`
-	AssigneeKind  *string   `json:"assignee_kind,omitempty"`
-	AssigneeID    *string   `json:"assignee_id,omitempty"`
-	CreatedBy     string    `json:"created_by"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID            string  `json:"id"`
+	UserID        string  `json:"user_id"`
+	SpaceID       string  `json:"space_id,omitempty"`
+	ParentIssueID *string `json:"parent_issue_id,omitempty"`
+	Title         string  `json:"title"`
+	Description   string  `json:"description"`
+	Status        string  `json:"status"`
+	// OwnerID is the accountable person for this Issue: a space member's user
+	// ID, or nil when nobody is accountable yet. It is independent of
+	// ExecutorKind/ExecutorID -- a human owner and an Agent or Workflow
+	// executor can both be set at once, which one combined field could not
+	// express. See docs/design/portal-work-and-execution-experience.md.
+	OwnerID *string `json:"owner_id,omitempty"`
+	// ExecutorKind and ExecutorID name what is selected to perform the work --
+	// an Agent or a Workflow, never a person. Both nil means no executor is
+	// selected. Like OwnerID, ExecutorID stays an opaque handle: ExecutorKind
+	// says which table it names, because one numeric column cannot reference
+	// rows in two.
+	ExecutorKind *string   `json:"executor_kind,omitempty"`
+	ExecutorID   *string   `json:"executor_id,omitempty"`
+	CreatedBy    string    `json:"created_by"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 	// Version counts accepted updates, starting at 1. It is the precondition an
 	// update must carry, so a reader that acts on a stale copy is refused
 	// instead of overwriting whatever it never saw.
@@ -80,8 +94,9 @@ type UpdateInput struct {
 	Title         *string
 	Description   *string
 	Status        *string
-	AssigneeKind  *string
-	AssigneeID    *string
+	OwnerID       *string
+	ExecutorKind  *string
+	ExecutorID    *string
 	ParentIssueID *string
 }
 
@@ -93,11 +108,13 @@ type ListFilter struct {
 	// ParentIssueID restricts the listing to one parent's children. It is
 	// ignored when TopLevelOnly is set.
 	ParentIssueID string
-	// AssigneeKind and AssigneeID restrict the listing to one assignee. Both
-	// must be set to narrow anything: an assignee_id means nothing without the
+	// OwnerID restricts the listing to one accountable person.
+	OwnerID string
+	// ExecutorKind and ExecutorID restrict the listing to one executor. Both
+	// must be set to narrow anything: an executor_id means nothing without the
 	// kind that says which table to read it against.
-	AssigneeKind string
-	AssigneeID   string
+	ExecutorKind string
+	ExecutorID   string
 	// Status restricts the listing to one status. Empty lists every status.
 	Status string
 }

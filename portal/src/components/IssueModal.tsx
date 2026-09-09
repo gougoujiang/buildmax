@@ -5,14 +5,11 @@ import type { Agent, Issue, Workflow } from "../lib/types"
 
 interface IssueModalProps {
   open: boolean
-  mode: "create" | "edit"
-  issue?: Issue | null
   agents: Agent[]
   workflows: Workflow[]
   members: ApiSpaceMember[]
   userId?: string
   loading: boolean
-  runningWorkflow?: boolean
   allowWorkflowAssignment?: boolean
   error: string | null
   onClose: () => void
@@ -20,66 +17,45 @@ interface IssueModalProps {
     title: string
     description: string
     status: Issue["status"]
-    assignee_kind: "person" | "agent" | "workflow" | ""
-    assignee_id: string
+    owner_id: string
+    executor_kind: "agent" | "workflow" | ""
+    executor_id: string
   }) => void
-  onRunWorkflow?: () => void
 }
 
+/** Creates a new Issue. Editing an existing one happens on its own detail
+ *  page (`IssueDetail`), which needs Discussion, Results, and Runs alongside
+ *  the same fields -- there is no reason to fit all of that into one modal. */
 export function IssueModal({
   open,
-  mode,
-  issue,
   agents,
   workflows,
   members,
   userId,
   loading,
-  runningWorkflow = false,
   allowWorkflowAssignment = true,
   error,
   onClose,
   onSubmit,
-  onRunWorkflow,
 }: IssueModalProps) {
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [status, setStatus] = useState<Issue["status"]>("todo")
-  const [assigneeValue, setAssigneeValue] = useState("")
-  const selectedWorkflowId = assigneeValue.startsWith("workflow:")
-    ? assigneeValue.slice("workflow:".length)
-    : issue?.assigneeKind === "workflow"
-      ? issue.assigneeId ?? ""
-      : ""
+  const [ownerValue, setOwnerValue] = useState("")
+  const [executorValue, setExecutorValue] = useState("")
+  const selectedWorkflowId = executorValue.startsWith("workflow:") ? executorValue.slice("workflow:".length) : ""
   const selectableWorkflows = workflows.filter(
     (workflow) => workflow.status === "published" || workflow.id === selectedWorkflowId,
   )
 
   useEffect(() => {
     if (!open) return
-    if (mode === "edit" && issue) {
-      setTitle(issue.title)
-      setDescription(issue.description)
-      setStatus(issue.status)
-        setAssigneeValue(
-          issue.assigneeKind === "person"
-            ? `person:${issue.assigneeId ?? ""}`
-            : issue.assigneeKind === "agent"
-              ? `agent:${issue.assigneeId ?? ""}`
-              : issue.assigneeKind === "workflow"
-                ? `workflow:${issue.assigneeId ?? ""}`
-                : "",
-      )
-      return
-    }
     setTitle("")
     setDescription("")
     setStatus("todo")
-    setAssigneeValue("")
-  }, [open, mode, issue])
-
-  const titleText = mode === "create" ? "New Issue" : "Issue Details"
-  const submitText = mode === "create" ? "Create issue" : "Save"
+    setOwnerValue("")
+    setExecutorValue("")
+  }, [open])
 
   function memberLabel(member: ApiSpaceMember): string {
     if (member.user_id === userId) return "Me"
@@ -91,7 +67,7 @@ export function IssueModal({
   return (
     <BaseModal
       open={open}
-      title={titleText}
+      title="New Issue"
       titleId="issue-modal-title"
       onClose={onClose}
       className="modal--large"
@@ -114,50 +90,41 @@ export function IssueModal({
               <option value="done">done</option>
             </select>
           </label>
-          <label className="issues-page__field">
-            <span className="issues-page__field-label">Assignee</span>
-            <select className="issues-page__select" value={assigneeValue} onChange={(e) => setAssigneeValue(e.target.value)}>
-              <option value="">Unassigned</option>
-              {members.map((member) => (
-                <option key={member.user_id} value={`person:${member.user_id}`}>
-                  {memberLabel(member)}
-                </option>
-              ))}
-              {agents.map((agent) => (
-                    <option key={agent.id} value={`agent:${agent.id}`}>{agent.name}</option>
-              ))}
-              {allowWorkflowAssignment
-                ? selectableWorkflows.map((workflow) => (
-                    <option key={workflow.id} value={`workflow:${workflow.id}`}>
-                      {workflow.name}{workflow.status !== "published" ? ` (${workflow.status})` : ""}
-                    </option>
-                  ))
-                : null}
-            </select>
-            <span className="issues-page__field-label">
-              {allowWorkflowAssignment
-                ? "Only `published` workflows are available for new assignment."
-                : "You can assign a person or agent here. Workflow assignment is limited to space owners and admins."}
-            </span>
-          </label>
-          {mode === "edit" && issue?.assigneeKind === "workflow" ? (
-            <div className="workflow-page__inline-actions">
-              <button
-                type="button"
-                className="page-activity__action-btn"
-                disabled={runningWorkflow}
-                onClick={onRunWorkflow}
-              >
-                {runningWorkflow ? "Running…" : "Run Workflow"}
-              </button>
-            </div>
-          ) : null}
-          {mode === "edit" && issue ? (
-            <div className="issues-page__meta-row">
-              <div className="page-activity__meta">Created: {new Date(issue.createdAt).toLocaleString()}</div>
-              <div className="page-activity__meta">Updated: {new Date(issue.updatedAt).toLocaleString()}</div>
-            </div>
-          ) : null}
+          <div className="issue-detail-page__split">
+            <label className="issues-page__field">
+              <span className="issues-page__field-label">Owner</span>
+              <select className="issues-page__select" value={ownerValue} onChange={(e) => setOwnerValue(e.target.value)}>
+                <option value="">Unassigned</option>
+                {members.map((member) => (
+                  <option key={member.user_id} value={member.user_id}>
+                    {memberLabel(member)}
+                  </option>
+                ))}
+              </select>
+              <span className="issues-page__field-label">Who is accountable for this issue.</span>
+            </label>
+            <label className="issues-page__field">
+              <span className="issues-page__field-label">Executor</span>
+              <select className="issues-page__select" value={executorValue} onChange={(e) => setExecutorValue(e.target.value)}>
+                <option value="">None</option>
+                {agents.map((agent) => (
+                  <option key={agent.id} value={`agent:${agent.id}`}>{agent.name}</option>
+                ))}
+                {allowWorkflowAssignment
+                  ? selectableWorkflows.map((workflow) => (
+                      <option key={workflow.id} value={`workflow:${workflow.id}`}>
+                        {workflow.name}{workflow.status !== "published" ? ` (${workflow.status})` : ""}
+                      </option>
+                    ))
+                  : null}
+              </select>
+              <span className="issues-page__field-label">
+                {allowWorkflowAssignment
+                  ? "What runs the work. Only `published` workflows are available."
+                  : "What runs the work. Workflow assignment is limited to space owners and admins."}
+              </span>
+            </label>
+          </div>
           {error ? (
             <p className="modal__error" role="alert">
               {error}
@@ -172,17 +139,18 @@ export function IssueModal({
               className="modal__btn modal__btn--secondary"
               disabled={loading || !title.trim()}
               onClick={() => {
-                const [kind, id] = assigneeValue ? assigneeValue.split(":") : ["", ""]
+                const [executorKind, executorID] = executorValue ? executorValue.split(":") : ["", ""]
                 onSubmit({
                   title: title.trim(),
                   description,
                   status,
-                  assignee_kind: (kind as "person" | "agent" | "workflow" | "") || "",
-                  assignee_id: id || "",
+                  owner_id: ownerValue,
+                  executor_kind: (executorKind as "agent" | "workflow" | "") || "",
+                  executor_id: executorID || "",
                 })
               }}
             >
-              {loading ? `${submitText}…` : submitText}
+              {loading ? "Creating issue…" : "Create issue"}
             </button>
           </div>
         </div>

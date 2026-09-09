@@ -523,6 +523,22 @@ func runtimeModelEntries(runtimeModel config.ModelEntry, managed ManagedInferenc
 	return []config.ModelEntry{runtimeModel}
 }
 
+// runProvenance restates a TaskRun's origin as the plain-string shape
+// agentapp accepts, so its trace carries who or what started this run and
+// why. RetryOfTaskRunID is left empty rather than dereferenced when nil.
+func runProvenance(run *coretask.Run) agentapp.RunProvenance {
+	retryOf := ""
+	if run.RetryOfTaskRunID != nil {
+		retryOf = *run.RetryOfTaskRunID
+	}
+	return agentapp.RunProvenance{
+		CreatedBy:        run.CreatedBy,
+		CreatedByType:    run.CreatedByType,
+		TriggerSource:    run.TriggerSource,
+		RetryOfTaskRunID: retryOf,
+	}
+}
+
 func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, managedHTTPClient *http.Client, spaceAgentInstructions, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issues tool.IssueClient, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string) (agentRunOutput, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
@@ -545,6 +561,7 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGl
 			AdditionalSystemPrompt:      additionalSystemPrompt,
 			AdditionalSystemPromptLayer: "agent_instructions",
 			SpaceAgentInstructions:      spaceAgentInstructions,
+			RunProvenance:               runProvenance(run),
 			ArtifactPublisher:           publisher,
 			IssueClient:                 issues,
 			// A worker executes model-chosen shell commands, so it resolves

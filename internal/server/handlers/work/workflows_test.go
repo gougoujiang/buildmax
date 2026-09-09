@@ -50,8 +50,8 @@ func TestWorkflowHandlers(t *testing.T) {
 			Title:        "Issue",
 			Description:  "Desc",
 			Status:       coreissue.StatusTodo,
-			AssigneeKind: util.Ptr(coreissue.AssigneeWorkflow),
-			AssigneeID:   util.Ptr("w_1"),
+			ExecutorKind: util.Ptr(coreissue.ExecutorWorkflow),
+			ExecutorID:   util.Ptr("w_1"),
 			CreatedBy:    "u1",
 		}},
 	}

@@ -5,6 +5,7 @@ import {
   describeOrigin,
   describeSpaceInstructions,
   inputMatchesMessage,
+  runInputLabel,
 } from "./origin"
 
 function provenance(over: Partial<ApiRunProvenance> = {}): ApiRunProvenance {
@@ -185,5 +186,38 @@ describe("describeSpaceInstructions", () => {
     )
     expect(configuredLater?.text).toContain("now revision 1")
     expect(configuredLater?.driftedSinceRun).toBe(true)
+  })
+})
+
+describe("runInputLabel", () => {
+  it("credits a Portal- or directly-triggered run to the signed-in person", () => {
+    for (const trigger of [
+      "task_create",
+      "task_rerun",
+      "task_retry",
+      "portal_conversation",
+      "portal_task_create",
+      "portal_task_rerun",
+    ]) {
+      expect(runInputLabel({ trigger_source: trigger, created_by_type: "user" })).toBe("You")
+    }
+  })
+
+  it("never credits a workflow- or issue-dispatched run to a person", () => {
+    expect(runInputLabel({ trigger_source: "workflow_step", created_by_type: "user" })).toBe(
+      "Workflow"
+    )
+    expect(runInputLabel({ trigger_source: "issue_agent_run", created_by_type: "user" })).toBe(
+      "Issue"
+    )
+  })
+
+  it("names the runtime or an external caller instead of guessing a person", () => {
+    expect(runInputLabel({ created_by_type: "system" })).toBe("System")
+    expect(runInputLabel({ trigger_source: "webhook", created_by_type: "webhook" })).toBe("Webhook")
+  })
+
+  it("says 'Unknown origin' for migrated data rather than defaulting to You", () => {
+    expect(runInputLabel({})).toBe("Unknown origin")
   })
 })

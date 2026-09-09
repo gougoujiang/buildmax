@@ -21,7 +21,7 @@ CLI 和 Desktop 界面完全不使用这个数据库。Session、trace 和设置
 
 **并非每一行都有句柄。** 关联行、修订版本、目录记录各自用别的方式寻址：`space_member` 用其二元组寻址，`agent_revision` 和 `workflow_revision` 用父项加修订号寻址，`plugin` 用名称寻址，`plugin_release` 用名称加版本寻址。这些表没有 `public_id`。
 
-**部分引用仍是文本。** 以 `_id` 结尾的列是 `bigint unsigned` 引用，除非它是多态的、由外部拥有，或者本身是一个值而非引用——例如类型列可接受操作员身份的审计参与者、可能是人、Agent 或 Workflow 的受理人、提供商的工具调用 ID、指向文件的 Agent Session。下文各表中会逐一说明，完整清单及原因在 `internal/architecture` 中，若新增引用以文本形式添加却没有对应说明，测试会失败。
+**部分引用仍是文本。** 以 `_id` 结尾的列是 `bigint unsigned` 引用，除非它是多态的、由外部拥有，或者本身是一个值而非引用——例如类型列可接受操作员身份的审计参与者、可能是 Agent 或 Workflow 的 executor、提供商的工具调用 ID、指向文件的 Agent Session。下文各表中会逐一说明，完整清单及原因在 `internal/architecture` 中，若新增引用以文本形式添加却没有对应说明，测试会失败。
 
 **Session ID 不是句柄。** `task.session_id` 和 `task_run.session_id` 是 `varchar(36)` 的 UUID，指向该运行 `BUILDMAX_HOME` 下的 Session 文件，而不是任何表。`user_refresh_token.session_id` 则完全是另一回事：一个 `as_` 前缀的登录链，作为声明携带在其下签发的每个访问令牌中。
 
@@ -335,18 +335,19 @@ Space 是授权边界：一个请求被允许，是因为调用者对该资源�
 | `title` | `varchar(255)` | 否 | |
 | `description` | `text` | 否 | |
 | `status` | `varchar(32)` | 否 | `todo`、`in_progress`、`done` |
-| `assignee_kind` | `varchar(32)` | 是 | `person`、`agent` 或 `workflow` |
-| `assignee_id` | `varchar(64)` | 是 | 根据 `assignee_kind` 解释为 `user_id`、`agent_id` 或 `workflow_id` |
+| `owner_id` | `bigint unsigned` | 是 | 负责该 Issue 的人；`user.id` |
+| `executor_kind` | `varchar(32)` | 是 | `agent` 或 `workflow` |
+| `executor_id` | `varchar(64)` | 是 | 根据 `executor_kind` 解释为 `agent_id` 或 `workflow_id` |
 | `created_by` | `bigint unsigned` | 否 | `user.id` |
 | `version` | `bigint unsigned` | 否 | 乐观并发控制令牌，从 1 开始 |
 | `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
 | `updated_at` | `datetime(6)` | 是 | `autoUpdateTime` |
 
-索引：主键 `id`；索引 `parent_issue_id`；(`space_id`, `updated_at`) 上的索引 `idx_issue_space_updated`；索引 `user_id`；唯一索引 `public_id`。
+索引：主键 `id`；索引 `parent_issue_id`；(`space_id`, `updated_at`) 上的索引 `idx_issue_space_updated`；索引 `user_id`；索引 `owner_id`；唯一索引 `public_id`。
 
 `version` 使每次更新都带条件。更新携带其所依据的版本，store 用 `WHERE public_id = ? AND version = ?` 写入并设置 `version = version + 1`；版本不再匹配的调用者收到 `coreissue.ErrVersionConflict`，即 409，而不是覆盖自己未读过的变更。没有无条件更新路径：不带版本的更新会失败，因为零值不匹配任何行。这里没有复用 `updated_at`；它用于展示和排序，正确性检查不应依赖它经过 RFC 3339 后仍能精确往返。
 
-`assignee_kind` / `assignee_id` 对是多态引用，没有索引或约束将其绑定到特定表，因此验证位于 `internal/service/issue`。
+`owner_id` 是一个已解析的引用：owner 始终是一个 user 行，因此它和其他普通引用一样，是一个带索引的普通 `bigint unsigned`。`executor_kind` / `executor_id` 对是多态引用，没有索引或约束将其绑定到特定表，因此验证位于 `internal/service/issue`。owner 与 executor 相互独立：一个 Issue 可以有负责人、选定的 Agent 或 Workflow、两者都有，或两者都没有。
 
 `parent_issue_id` 是构成邻接表的自引用，层级最多为**两层**：父项自身必须满足 `parent_issue_id IS NULL`。模式不强制这一点；不变量位于 `internal/service/issue`，它还拒绝不同 Space 的父项、自身作为父项，以及为已有子项的 Issue 设置父项。进度（`child_count`、`done_child_count`）通过分组查询为每个响应计算，从不存储。权威验证见 `internal/service/issue`。
 

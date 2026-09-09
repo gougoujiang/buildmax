@@ -9,12 +9,45 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/testsupport/mockllm"
 )
+
+func TestRunProvenance_CarriesTheRunsTrigger(t *testing.T) {
+	retryOf := "tr_previous"
+	run := &coretask.Run{
+		ID:               "tr_current",
+		CreatedBy:        "u_1",
+		CreatedByType:    coretask.RunCreatedByTypeUser,
+		TriggerSource:    coretask.RunTriggerSourceIssueAgentRun,
+		RetryOfTaskRunID: &retryOf,
+	}
+	got := runProvenance(run)
+	want := agentapp.RunProvenance{
+		CreatedBy:        "u_1",
+		CreatedByType:    coretask.RunCreatedByTypeUser,
+		TriggerSource:    coretask.RunTriggerSourceIssueAgentRun,
+		RetryOfTaskRunID: "tr_previous",
+	}
+	if got != want {
+		t.Errorf("runProvenance(run) = %+v, want %+v", got, want)
+	}
+}
+
+// A first run repeats nothing, and RetryOfTaskRunID is nil for it -- the
+// provenance passed to the trace has to say "" rather than dereference a nil
+// pointer or fabricate an id.
+func TestRunProvenance_LeavesRetryOfEmptyForAFirstRun(t *testing.T) {
+	run := &coretask.Run{ID: "tr_1", CreatedBy: "u_1", CreatedByType: coretask.RunCreatedByTypeUser, TriggerSource: coretask.RunTriggerSourceTaskCreate}
+	got := runProvenance(run)
+	if got.RetryOfTaskRunID != "" {
+		t.Errorf("RetryOfTaskRunID = %q, want empty for a run that repeats nothing", got.RetryOfTaskRunID)
+	}
+}
 
 // fakePersistStorage is an in-memory PersistStorage for tests.
 type fakePersistStorage struct {

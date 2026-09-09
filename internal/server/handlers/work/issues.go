@@ -24,8 +24,9 @@ type IssueResponse struct {
 	Title         string    `json:"title"`
 	Description   string    `json:"description"`
 	Status        string    `json:"status"`
-	AssigneeKind  *string   `json:"assignee_kind,omitempty"`
-	AssigneeID    *string   `json:"assignee_id,omitempty"`
+	OwnerID       *string   `json:"owner_id,omitempty"`
+	ExecutorKind  *string   `json:"executor_kind,omitempty"`
+	ExecutorID    *string   `json:"executor_id,omitempty"`
 	CreatedBy     string    `json:"created_by"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
@@ -82,8 +83,9 @@ type patchIssueRequest struct {
 	Title         *string `json:"title"`
 	Description   *string `json:"description"`
 	Status        *string `json:"status"`
-	AssigneeKind  *string `json:"assignee_kind"`
-	AssigneeID    *string `json:"assignee_id"`
+	OwnerID       *string `json:"owner_id"`
+	ExecutorKind  *string `json:"executor_kind"`
+	ExecutorID    *string `json:"executor_id"`
 	ParentIssueID *string `json:"parent_issue_id"`
 }
 
@@ -96,8 +98,9 @@ func issueToResponse(issue coreissue.Issue) IssueResponse {
 		Title:         issue.Title,
 		Description:   issue.Description,
 		Status:        issue.Status,
-		AssigneeKind:  issue.AssigneeKind,
-		AssigneeID:    issue.AssigneeID,
+		OwnerID:       issue.OwnerID,
+		ExecutorKind:  issue.ExecutorKind,
+		ExecutorID:    issue.ExecutorID,
 		CreatedBy:     issue.CreatedBy,
 		CreatedAt:     issue.CreatedAt,
 		UpdatedAt:     issue.UpdatedAt,
@@ -172,15 +175,16 @@ func (h *Handler) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		filter.ParentIssueID = parentID
 	}
-	// assignee=me is the inbox: the caller is the one identity this route can
+	// owner=me is the inbox: the caller is the one identity this route can
 	// resolve without being told, and spelling out one's own user id to ask
-	// what one has been given is a worse question than the one being asked.
-	if assignee := r.URL.Query().Get("assignee"); assignee == "me" {
-		filter.AssigneeKind, filter.AssigneeID = coreissue.AssigneePerson, userID
+	// what one is accountable for is a worse question than the one being asked.
+	if owner := r.URL.Query().Get("owner"); owner == "me" {
+		filter.OwnerID = userID
 	} else {
-		filter.AssigneeKind = r.URL.Query().Get("assignee_kind")
-		filter.AssigneeID = r.URL.Query().Get("assignee_id")
+		filter.OwnerID = r.URL.Query().Get("owner_id")
 	}
+	filter.ExecutorKind = r.URL.Query().Get("executor_kind")
+	filter.ExecutorID = r.URL.Query().Get("executor_id")
 	filter.Status = r.URL.Query().Get("status")
 	list, total, err := h.issueService().ListIssues(r.Context(), spaceID, filter, limit, offset)
 	if err != nil {
@@ -393,7 +397,7 @@ func (h *Handler) patchIssueHandler(w http.ResponseWriter, r *http.Request) {
 	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
-	if req.AssigneeKind != nil && *req.AssigneeKind == coreissue.AssigneeWorkflow {
+	if req.ExecutorKind != nil && *req.ExecutorKind == coreissue.ExecutorWorkflow {
 		if _, ok := h.guard().SpaceAction(w, r, userID, spaceID, corespace.ActionAssignIssueWorkflow); !ok {
 			return
 		}
@@ -406,8 +410,9 @@ func (h *Handler) patchIssueHandler(w http.ResponseWriter, r *http.Request) {
 		Title:         req.Title,
 		Description:   req.Description,
 		Status:        req.Status,
-		AssigneeKind:  req.AssigneeKind,
-		AssigneeID:    req.AssigneeID,
+		OwnerID:       req.OwnerID,
+		ExecutorKind:  req.ExecutorKind,
+		ExecutorID:    req.ExecutorID,
 		ParentIssueID: req.ParentIssueID,
 	})
 	if err != nil {

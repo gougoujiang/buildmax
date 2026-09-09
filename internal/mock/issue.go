@@ -29,8 +29,9 @@ func (m *MockIssueStore) CreateIssueInSpace(_ context.Context, spaceID, createdB
 		CreatedBy:     createdBy,
 		CreatedAt:     time.Now().UTC(),
 		UpdatedAt:     time.Now().UTC(),
-		AssigneeKind:  nil,
-		AssigneeID:    nil,
+		OwnerID:       nil,
+		ExecutorKind:  nil,
+		ExecutorID:    nil,
 	}
 	m.Issues = append(m.Issues, issue)
 	return &m.Issues[len(m.Issues)-1], nil
@@ -66,9 +67,12 @@ func (m *MockIssueStore) ListIssuesBySpace(_ context.Context, spaceID string, fi
 		case filter.ParentIssueID != "" && (issue.ParentIssueID == nil || *issue.ParentIssueID != filter.ParentIssueID):
 			continue
 		}
-		if filter.AssigneeKind != "" && filter.AssigneeID != "" {
-			if issue.AssigneeKind == nil || *issue.AssigneeKind != filter.AssigneeKind ||
-				issue.AssigneeID == nil || *issue.AssigneeID != filter.AssigneeID {
+		if filter.OwnerID != "" && (issue.OwnerID == nil || *issue.OwnerID != filter.OwnerID) {
+			continue
+		}
+		if filter.ExecutorKind != "" && filter.ExecutorID != "" {
+			if issue.ExecutorKind == nil || *issue.ExecutorKind != filter.ExecutorKind ||
+				issue.ExecutorID == nil || *issue.ExecutorID != filter.ExecutorID {
 				continue
 			}
 		}
@@ -166,18 +170,25 @@ func (m *MockIssueStore) applyIssueUpdate(i int, in coreissue.UpdateInput) (*cor
 	if in.Status != nil {
 		m.Issues[i].Status = *in.Status
 	}
-	if in.AssigneeKind != nil {
-		if *in.AssigneeKind == "" {
-			m.Issues[i].AssigneeKind = nil
+	if in.OwnerID != nil {
+		if *in.OwnerID == "" {
+			m.Issues[i].OwnerID = nil
 		} else {
-			m.Issues[i].AssigneeKind = in.AssigneeKind
+			m.Issues[i].OwnerID = in.OwnerID
 		}
 	}
-	if in.AssigneeID != nil {
-		if *in.AssigneeID == "" {
-			m.Issues[i].AssigneeID = nil
+	if in.ExecutorKind != nil {
+		if *in.ExecutorKind == "" {
+			m.Issues[i].ExecutorKind = nil
 		} else {
-			m.Issues[i].AssigneeID = in.AssigneeID
+			m.Issues[i].ExecutorKind = in.ExecutorKind
+		}
+	}
+	if in.ExecutorID != nil {
+		if *in.ExecutorID == "" {
+			m.Issues[i].ExecutorID = nil
+		} else {
+			m.Issues[i].ExecutorID = in.ExecutorID
 		}
 	}
 	if in.ParentIssueID != nil {

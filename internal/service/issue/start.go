@@ -64,11 +64,11 @@ func (s *Service) PlanAssignedAgentRun(
 	if err != nil {
 		return nil, err
 	}
-	if issue.AssigneeKind == nil || issue.AssigneeID == nil ||
-		*issue.AssigneeKind != coreissue.AssigneeAgent {
+	if issue.ExecutorKind == nil || issue.ExecutorID == nil ||
+		*issue.ExecutorKind != coreissue.ExecutorAgent {
 		return nil, ErrNotAssignedToAgent
 	}
-	agentID := *issue.AssigneeID
+	agentID := *issue.ExecutorID
 	if s.Agents != nil {
 		agent, err := s.Agents.GetAgent(ctx, agentID)
 		if err != nil {
@@ -94,11 +94,11 @@ func (s *Service) AssignedWorkflowID(ctx context.Context, spaceID, issueID strin
 	if err != nil {
 		return nil, "", err
 	}
-	if issue.AssigneeKind == nil || issue.AssigneeID == nil ||
-		*issue.AssigneeKind != coreissue.AssigneeWorkflow {
+	if issue.ExecutorKind == nil || issue.ExecutorID == nil ||
+		*issue.ExecutorKind != coreissue.ExecutorWorkflow {
 		return nil, "", ErrNotAssignedToWorkflow
 	}
-	return issue, *issue.AssigneeID, nil
+	return issue, *issue.ExecutorID, nil
 }
 
 // IsRefusal reports whether err is one of this package's refusals rather than a

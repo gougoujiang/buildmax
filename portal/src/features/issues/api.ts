@@ -64,9 +64,12 @@ export async function updateIssue(
     title?: string
     description?: string
     status?: "todo" | "in_progress" | "done"
-    assignee_kind?: "person" | "agent" | "workflow" | ""
-    assignee_id?: string
-    /** An empty string clears the parent, matching how assignee is cleared. */
+    /** An empty string clears the owner. */
+    owner_id?: string
+    executor_kind?: "agent" | "workflow" | ""
+    /** An empty string clears the executor. */
+    executor_id?: string
+    /** An empty string clears the parent, matching how owner/executor are cleared. */
     parent_issue_id?: string
   },
   token: string,

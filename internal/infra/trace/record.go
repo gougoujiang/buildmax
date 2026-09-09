@@ -39,6 +39,18 @@ type Record struct {
 	// one, closing the walk parent run → tool call → child run.
 	ParentToolCallID string `json:"parent_tool_call_id,omitempty"`
 	TraceVersion     int    `json:"trace_version,omitempty"`
+	// CreatedBy, CreatedByType, TriggerSource, and RetryOfTaskRunID are a
+	// TaskRun's provenance, carried through verbatim from the worker that
+	// executed it. A subagent's own run_start omits them: its parent_run_id
+	// already reaches the top-level record that carries them, and a TaskRun
+	// has one origin, not one per delegated call. Every surface without a
+	// TaskRun -- CLI, TUI, Desktop, eval -- leaves all four empty, which is
+	// the honest answer, not a guess. See
+	// docs/design/portal-work-and-execution-experience.md.
+	CreatedBy        string `json:"created_by,omitempty"`
+	CreatedByType    string `json:"created_by_type,omitempty"`
+	TriggerSource    string `json:"trigger_source,omitempty"`
+	RetryOfTaskRunID string `json:"retry_of_task_run_id,omitempty"`
 
 	// sandbox_boundary
 	//

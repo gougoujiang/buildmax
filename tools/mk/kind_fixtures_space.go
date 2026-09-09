@@ -116,10 +116,12 @@ func seedTeamFixtures(ctx context.Context, client *http.Client, target smokeTarg
 	}
 	specs := []fixtureIssue{
 		{title: "QA release checklist", description: "## Acceptance criteria\n\n- [ ] Review documentation\n- [x] Verify installation\n\nParent issue with mixed child progress.", status: "in_progress"},
-		{title: "Verify clean installation", description: "Check a fresh workspace with no existing settings.", status: "done", parentTitle: "QA release checklist", assigneeKind: "person", assigneeID: people["bob@buildmax.local"]},
-		{title: "Review Chinese onboarding 中文入门", description: "检查中文、Markdown 和长文本展示。\n\n```sh\n./make kind fixtures\n```", status: "todo", parentTitle: "QA release checklist", assigneeKind: "person", assigneeID: people["carol@buildmax.local"]},
-		{title: "Draft QA release notes", description: "Prepare a user-facing summary from fixtures/docs/brief.md.", status: "todo", assigneeKind: "agent", assigneeID: writer, comments: []string{"## Review notes\n\nPlease include the known limitations.", "The fixture data is synthetic and contains no customer information."}},
-		{title: "Run QA review workflow", description: "Draft and review a test plan in two sequential steps.", status: "todo", assigneeKind: "workflow", assigneeID: workflowID},
+		{title: "Verify clean installation", description: "Check a fresh workspace with no existing settings.", status: "done", parentTitle: "QA release checklist", ownerID: people["bob@buildmax.local"]},
+		{title: "Review Chinese onboarding 中文入门", description: "检查中文、Markdown 和长文本展示。\n\n```sh\n./make kind fixtures\n```", status: "todo", parentTitle: "QA release checklist", ownerID: people["carol@buildmax.local"]},
+		// Owner and executor set together: the case one combined assignee field
+		// could never express. Bob is accountable; the agent does the work.
+		{title: "Draft QA release notes", description: "Prepare a user-facing summary from fixtures/docs/brief.md.", status: "todo", ownerID: people["bob@buildmax.local"], executorKind: "agent", executorID: writer, comments: []string{"## Review notes\n\nPlease include the known limitations.", "The fixture data is synthetic and contains no customer information."}},
+		{title: "Run QA review workflow", description: "Draft and review a test plan in two sequential steps.", status: "todo", ownerID: people["carol@buildmax.local"], executorKind: "workflow", executorID: workflowID},
 		{title: "Unassigned backlog item", description: "", status: "todo"},
 		{title: "Completed QA retrospective", description: "All acceptance criteria verified.", status: "done", comments: []string{"Verified in the local reference deployment."}},
 	}

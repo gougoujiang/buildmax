@@ -468,14 +468,14 @@ func (h *Handler) createIssueWorkflowRunHandler(w http.ResponseWriter, r *http.R
 		httputil.WriteJSONError(w, http.StatusNotFound, "issue not found")
 		return
 	}
-	if issue.AssigneeKind == nil || issue.AssigneeID == nil || *issue.AssigneeKind != coreissue.AssigneeWorkflow {
+	if issue.ExecutorKind == nil || issue.ExecutorID == nil || *issue.ExecutorKind != coreissue.ExecutorWorkflow {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "issue not assigned to workflow")
 		return
 	}
 	run, steps, err := h.workflowService().StartWorkflowRun(r.Context(), workflow.StartWorkflowRunCmd{
 		SpaceID:    spaceID,
 		UserID:     userID,
-		WorkflowID: *issue.AssigneeID,
+		WorkflowID: *issue.ExecutorID,
 		IssueID:    &issueID,
 	})
 	if err != nil {

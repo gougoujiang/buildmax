@@ -158,8 +158,8 @@ internal/
 │   │                   run and step-run state its execution moves through
 │   ├── agentdef/       The Agent a space defined and its revisions -- what an
 │   │                   Agent is configured to be, not the loop that runs it
-│   ├── issue/          The Issue, its hierarchy and assignee vocabulary, and
-│   │                   the comments people and agents leave on it
+│   ├── issue/          The Issue, its hierarchy, and its owner/executor
+│   │                   vocabulary, plus the comments people and agents leave on it
 │   ├── audit/          The append-only trail: what an event is, the actions
 │   │                   worth recording, and how it is read and pruned
 │   ├── secret/         The Space Secret: a group of named items, its lifecycle,

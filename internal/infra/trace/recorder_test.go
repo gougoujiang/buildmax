@@ -66,6 +66,58 @@ func TestRecorder_WritesRunStartEventsAndEnd(t *testing.T) {
 	}
 }
 
+// A worker running a TaskRun has provenance to report; every other surface
+// has none. run_start has to carry the first case and stay silent for the
+// second, not guess.
+func TestRecorder_WritesRunProvenanceWhenGiven(t *testing.T) {
+	dir := t.TempDir()
+	rec := NewRecorder(runDirFor(dir, "c_sess1"), Meta{
+		RunID:            "rt_test01",
+		SessionID:        "c_sess1",
+		CreatedBy:        "u_1",
+		CreatedByType:    "user",
+		TriggerSource:    "issue_agent_run",
+		RetryOfTaskRunID: "tr_prev",
+	})
+	if rec == nil {
+		t.Fatal("expected recorder")
+	}
+	if err := rec.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	recs := readRecords(t, filepath.Join(dir, "c_sess1", "rt_test01.jsonl"))
+	got := recs[0]
+	if got.CreatedBy != "u_1" || got.CreatedByType != "user" || got.TriggerSource != "issue_agent_run" || got.RetryOfTaskRunID != "tr_prev" {
+		t.Errorf("run_start provenance = %+v, want u_1/user/issue_agent_run/tr_prev", got)
+	}
+}
+
+// CLI, TUI, Desktop, and eval have no TaskRun. Their run_start must omit
+// these fields rather than write empty strings a reader could mistake for a
+// recorded "no origin" rather than "not applicable here".
+func TestRecorder_OmitsRunProvenanceWhenAbsent(t *testing.T) {
+	dir := t.TempDir()
+	rec := NewRecorder(runDirFor(dir, "c_sess1"), Meta{RunID: "rt_test02", SessionID: "c_sess1"})
+	if rec == nil {
+		t.Fatal("expected recorder")
+	}
+	if err := rec.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(dir, "c_sess1", "rt_test02.jsonl"))
+	if err != nil {
+		t.Fatalf("read trace: %v", err)
+	}
+	firstLine, _, _ := strings.Cut(string(raw), "\n")
+	for _, key := range []string{"created_by", "created_by_type", "trigger_source", "retry_of_task_run_id"} {
+		if strings.Contains(firstLine, "\""+key+"\"") {
+			t.Errorf("run_start should omit %q when this run has no TaskRun, got: %s", key, firstLine)
+		}
+	}
+}
+
 func TestRecorder_RunIDAndNilSafety(t *testing.T) {
 	var rec *Recorder // nil — tracing disabled
 	if rec.RunID() != "" {

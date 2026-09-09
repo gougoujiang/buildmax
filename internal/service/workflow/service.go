@@ -541,7 +541,7 @@ func (s *Service) validateIssueForRun(ctx context.Context, spaceID, workflowID s
 	if issue == nil || issue.SpaceID != spaceID {
 		return ErrIssueNotFound
 	}
-	if issue.AssigneeKind == nil || issue.AssigneeID == nil || *issue.AssigneeKind != coreissue.AssigneeWorkflow || *issue.AssigneeID != workflowID {
+	if issue.ExecutorKind == nil || issue.ExecutorID == nil || *issue.ExecutorKind != coreissue.ExecutorWorkflow || *issue.ExecutorID != workflowID {
 		return ErrIssueWorkflowMismatch
 	}
 	return nil

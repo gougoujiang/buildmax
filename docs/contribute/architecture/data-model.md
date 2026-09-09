@@ -49,8 +49,8 @@ and `workflow_revision` by parent plus revision number, `plugin` by name, and
 
 **Some references stay text.** A column ending in `_id` is a `bigint unsigned`
 reference unless it is polymorphic, externally owned, or a value rather than a
-reference — an audit actor whose type column admits an operator, an assignee
-that may be a person or an agent or a workflow, a provider's tool-call ID, an
+reference — an audit actor whose type column admits an operator, an executor
+that may be an agent or a workflow, a provider's tool-call ID, an
 agent session that names a file. Each one is called out in its table below, and
 the full list with its reasons is in `internal/architecture`, where a test
 fails when a reference is added as text without one.
@@ -497,15 +497,16 @@ The primary user-facing work object.
 | `title` | `varchar(255)` | no | |
 | `description` | `text` | no | |
 | `status` | `varchar(32)` | no | `todo`, `in_progress`, `done` |
-| `assignee_kind` | `varchar(32)` | yes | `person`, `agent`, or `workflow` |
-| `assignee_id` | `varchar(64)` | yes | Interpreted according to `assignee_kind`: a `user_id`, `agent_id`, or `workflow_id` |
+| `owner_id` | `bigint unsigned` | yes | Accountable person; `user.id` |
+| `executor_kind` | `varchar(32)` | yes | `agent` or `workflow` |
+| `executor_id` | `varchar(64)` | yes | Interpreted according to `executor_kind`: an `agent_id` or `workflow_id` |
 | `created_by` | `bigint unsigned` | no | `user.id` |
 | `version` | `bigint unsigned` | no | Optimistic-concurrency token, starts at 1 |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 | `updated_at` | `datetime(6)` | yes | `autoUpdateTime` |
 
 Indexes: PK `id`; index `parent_issue_id`; index `idx_issue_space_updated` on
-(`space_id`, `updated_at`); index `user_id`; unique `public_id`.
+(`space_id`, `updated_at`); index `user_id`; index `owner_id`; unique `public_id`.
 
 `version` makes every update conditional. An update carries the version it was
 built from, the store writes with `WHERE public_id = ? AND version = ?` and sets
@@ -516,9 +517,12 @@ fails, because the zero value matches no row. `updated_at` was not reused for
 this; it is a display and ordering value whose exact round trip through RFC 3339
 is not something a correctness check should rest on.
 
-The `assignee_kind` / `assignee_id` pair is a polymorphic reference — no index
-or constraint ties it to a specific table, so validation lives in
-`internal/service/issue`.
+`owner_id` is a resolved reference: an owner is always a user row, so it is a
+plain indexed `bigint unsigned` like any other. The `executor_kind` /
+`executor_id` pair is a polymorphic reference — no index or constraint ties it
+to a specific table, so validation lives in `internal/service/issue`. Owner and
+executor are independent: an issue can have an accountable person, a selected
+Agent or Workflow, both, or neither.
 
 `parent_issue_id` is a self-reference forming an adjacency list, and the
 hierarchy is capped at **two levels**: a parent must itself have

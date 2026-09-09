@@ -54,6 +54,57 @@ func TestCreateRun_PersistsProvenance(t *testing.T) {
 	}
 }
 
+// normalizeCreateTaskProvenance / normalizeCreateRunProvenance are this
+// value's one authoritative source (docs/design/portal-work-and-execution-experience.md
+// slice 5): a caller that names no trigger gets the service's default, not an
+// empty string a lower layer would have to guess how to fill in.
+func TestCreateTask_DefaultsProvenanceWhenTheCallerNamesNone(t *testing.T) {
+	taskStore := &mock.MockTaskStore{}
+	svc := &Service{Tasks: taskStore}
+
+	if _, err := svc.CreateTask(context.Background(), CreateTaskCmd{
+		UserID:  "u1",
+		SpaceID: "tm_1",
+		Input:   "do the thing",
+	}); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	if len(taskStore.Created) != 1 {
+		t.Fatalf("CreateInput count = %d, want 1", len(taskStore.Created))
+	}
+	got := taskStore.Created[0]
+	if got.InitialRunCreatedByType != coretask.RunCreatedByTypeUser {
+		t.Errorf("initial_run_created_by_type = %q, want %q", got.InitialRunCreatedByType, coretask.RunCreatedByTypeUser)
+	}
+	if got.InitialRunTriggerSource != coretask.RunTriggerSourceTaskCreate {
+		t.Errorf("initial_run_trigger_source = %q, want %q", got.InitialRunTriggerSource, coretask.RunTriggerSourceTaskCreate)
+	}
+}
+
+func TestCreateRun_DefaultsProvenanceWhenTheCallerNamesNone(t *testing.T) {
+	taskStore := &mock.MockTaskStore{List: []coretask.Task{{ID: "t_1", SpaceID: "tm_1", Status: "SUCCEEDED"}}}
+	runStore := &mock.MockTaskRunStore{}
+	svc := &Service{Tasks: taskStore, TaskRuns: runStore}
+
+	if _, err := svc.CreateRun(context.Background(), CreateRunCmd{
+		UserID: "u1",
+		TaskID: "t_1",
+		Input:  "try again",
+	}); err != nil {
+		t.Fatalf("CreateRun: %v", err)
+	}
+	if len(runStore.Runs) != 1 {
+		t.Fatalf("run count = %d, want 1", len(runStore.Runs))
+	}
+	got := runStore.Runs[0]
+	if got.CreatedByType != coretask.RunCreatedByTypeUser {
+		t.Errorf("created_by_type = %q, want %q", got.CreatedByType, coretask.RunCreatedByTypeUser)
+	}
+	if got.TriggerSource != coretask.RunTriggerSourceTaskRerun {
+		t.Errorf("trigger_source = %q, want %q", got.TriggerSource, coretask.RunTriggerSourceTaskRerun)
+	}
+}
+
 // A deleted agent is invisible to every path that would start new work with
 // it (agentdef.Agent.DeletedAt's own contract). Direct admission is one of
 // those paths, and the only thing that keeps it that way is CreateTask

@@ -146,10 +146,8 @@ export function Workflows({ token }: WorkflowsProps) {
 
       <WorkflowModal
         open={createOpen}
-        mode="create"
         agents={agents}
         loading={saving}
-        running={false}
         error={createOpen ? error : null}
         onClose={() => {
           setCreateOpen(false)

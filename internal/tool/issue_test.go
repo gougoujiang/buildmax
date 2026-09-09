@@ -34,7 +34,7 @@ func TestGetIssueRendersTheThreadWithAuthors(t *testing.T) {
 		Title:        "Ship the importer",
 		Description:  "Import the bundle",
 		Status:       "in_progress",
-		AssigneeKind: "agent",
+		ExecutorKind: "agent",
 		Children:     []IssueChild{{Title: "Write the adapter", Status: "todo"}},
 		Comments: []IssueComment{
 			{AuthorKind: "user", Body: "Start with the adapter", CreatedAt: time.Unix(100, 0).UTC()},

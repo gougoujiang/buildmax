@@ -298,13 +298,17 @@ func (s *Store) CreateTaskRun(ctx context.Context, in coretask.CreateRunInput) (
 			previous = &previousRow.PublicID
 		}
 
+		// CreatedByType and TriggerSource are not defaulted here: the service
+		// layer (internal/service/task.normalizeCreateRunProvenance) is this
+		// value's one authoritative source. See
+		// docs/design/portal-work-and-execution-experience.md.
 		row = &taskRunRow{
 			TaskID:            taskKey,
 			PreviousTaskRunID: taskLock.LastRunID,
 			Input:             in.Input,
 			CreatedBy:         in.CreatedBy,
-			CreatedByType:     defaultString(in.CreatedByType, coretask.RunCreatedByTypeUser),
-			TriggerSource:     defaultString(in.TriggerSource, coretask.RunTriggerSourceTaskRerun),
+			CreatedByType:     in.CreatedByType,
+			TriggerSource:     in.TriggerSource,
 			Status:            "PENDING",
 			CreatedAt:         time.Now().UTC(),
 			AgentRevision:     in.AgentRevision,

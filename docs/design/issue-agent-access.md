@@ -52,8 +52,8 @@ Four rules make that safe enough to be worth having:
 
 1. **Neither tool takes an Issue identifier.** The scope is a constructor
    argument, so the model cannot address a second Issue. §5.3.
-2. **Status, assignee, and hierarchy are never tool-writable.** The Agent says
-   what happened; only a person says what state the work is in. §6.
+2. **Status, owner, executor, and hierarchy are never tool-writable.** The
+   Agent says what happened; only a person says what state the work is in. §6.
 3. **Issue text arrives as a tool result, never as a prompt layer.** §7.
 4. **A surface with no Issue does not register the tools at all** — the
    `UploadArtifact` rule, not a tool that exists to answer "unavailable". §8.
@@ -162,7 +162,8 @@ runtime assembly (a direct service call).
 
 Returns a bounded view of the scoped Issue:
 
-- title, description, status, assignee kind;
+- title, description, status, executor kind (never the owner — that is
+  accountability for a person, and this port has no reason to see it);
 - its children as title plus status — enough to know what was split out, not a
   recursive board;
 - the most recent comments, each labeled with its author kind; and
@@ -229,8 +230,8 @@ interactive equivalent.
 
 ## 6. What The Agent May Never State
 
-`status`, `assignee_kind`, `assignee_id`, and `parent_issue_id` are not
-writable by any tool. Creating a child Issue is not a tool either.
+`status`, `owner_id`, `executor_kind`, `executor_id`, and `parent_issue_id` are
+not writable by any tool. Creating a child Issue is not a tool either.
 
 This preserves an invariant the product already holds — nothing in the codebase
 moves an Issue's status on its own (§3) — rather than inventing one. The

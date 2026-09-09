@@ -263,7 +263,7 @@ Versioned workspace 能支撑共享状态、修改隔离、历史、并行方案
 |---|---|---|
 | Scope | 谁共同拥有工作和结果？ | Space；未来是否需要 Server Project 仍开放 |
 | Intent | 为什么做，完成标准是什么？ | Issue |
-| Responsibility | 谁推进，谁有权决定？ | Assignee、Space role 与具体 capability |
+| Responsibility | 谁推进，谁有权决定？ | Issue 的 Owner/Executor、Space role 与具体 capability |
 | Execution | 谁在什么时候实际做了什么？ | Task / TaskRun |
 | Proposal | 建议如何改变共享状态？ | 候选协议；底层可以是 Git、Figma、Wiki 或 API |
 | Evidence | 为什么应该相信这个结果？ | Diff、测试、Artifact、Trace |

@@ -341,7 +341,7 @@ below fails that test and keeps its string column, renamed to
 | Column | Why it stays |
 |---|---|
 | `audit_event.actor_id` / `target_id` | Polymorphic. `actor_type` and `target_type` carry the type; one numeric column cannot address rows in several tables |
-| `issue.assignee_id` | Polymorphic. `assignee_kind` is `person`, `agent`, or `workflow` |
+| `issue.executor_id` | Polymorphic. `executor_kind` is `agent` or `workflow`. `issue.owner_id` is not here: an owner is always a user row, so it is a resolved numeric reference |
 | `issue_comment.author_id` | Polymorphic under `author_kind` |
 | `artifact.created_by_id`, `artifact.source_id` | Polymorphic under `created_by_type` and `source_type` |
 | `task_run.created_by` | Typed by `created_by_type`, which admits `user`, `webhook`, and `system` |
@@ -802,7 +802,7 @@ The retired proposal left four questions. All four are answered.
 
 | Question | Answer |
 |---|---|
-| Normalize creator fields, or keep them typed and opaque? | Split by whether a type column exists. `task_run.created_by`, `issue_comment.author_id`, `audit_event.actor_id`/`target_id`, `artifact.created_by_id`, and `issue.assignee_id` are polymorphic and stay opaque. The nine unconditional-user creator columns of §7 become numeric. Normalizing the actor model is separate work |
+| Normalize creator fields, or keep them typed and opaque? | Split by whether a type column exists. `task_run.created_by`, `issue_comment.author_id`, `audit_event.actor_id`/`target_id`, `artifact.created_by_id`, and `issue.executor_id` are polymorphic and stay opaque. The nine unconditional-user creator columns of §7 become numeric, and `issue.owner_id` later joins them once the owner/executor split gives it a single-table meaning. Normalizing the actor model is separate work |
 | Is `llm_call.target_id` a live relationship or a snapshot? | A snapshot, and it stays a string. `Target.ID` in `internal/service/llmgateway/catalog.go` is a catalog identifier whose namespace may be owned by configuration rather than by the `llm_model` table — `store_catalog.go` is one catalog implementation, not the only one. A numeric `llm_model` reference would be wrong for a config-backed target |
 | Include `RESTRICT` constraints? | No, and §8 now says why rather than deferring: the store deletes no parent rows, so constraints would guard a hazard that does not exist and charge every fixture for it. The answer changes when a real deletion feature specifies an order |
 | Is an Alpha reset acceptable for every deployment? | Yes. There is no formal deployment, and the local reference environment is regenerated with `./make kind up`. No export/import bridge is written, and none should be added later on the strength of this design |

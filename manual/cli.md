@@ -29,7 +29,7 @@ buildmax <command> [flags]
 | `buildmax sandbox deps` | Check host-side sandbox dependencies (`bwrap`, `sandbox-exec`, `socat`) |
 | `buildmax sandbox enable` / `disable` | Set `sandbox.enabled` in `settings.yaml` |
 | `buildmax sandbox mode <auto_allow\|regular>` | Set `sandbox.auto_allow_bash_if_sandboxed` |
-| `buildmax issue list` | List the issues a space assigned you, across every space you are in; `--status`, `--limit` |
+| `buildmax issue list` | List the issues you own, across every space you are in; `--status`, `--limit` |
 | `buildmax issue show <id>` | Show one issue: what it asks for, its sub-issues, and recent discussion |
 | `buildmax issue status <id> <status>` | Move an issue to `todo`, `in_progress`, or `done` |
 | `buildmax issue start <id>` | Work a space issue in this session: the agent can read it and report back |
@@ -183,12 +183,12 @@ are visible with the Space's other shared automation and audit history.
 
 ### `buildmax issue`
 
-`buildmax issue list` is the receiving end of space work: it shows what a
-BuildMax server assigned you, so you can start on it here instead of reading a
-board in a browser. Sign in with `buildmax login` first.
+`buildmax issue list` is the receiving end of space work: it shows what you
+own, so you can start on it here instead of reading a board in a browser. Sign
+in with `buildmax login` first.
 
 ```bash
-buildmax issue list                    # everything assigned to you
+buildmax issue list                    # everything you own
 buildmax issue list --status todo      # only what has not been started
 ```
 
@@ -213,8 +213,9 @@ buildmax issue start i_7Kq2... -p "..."   # one print-mode run
 
 The agent gains two tools: `GetIssue` reads the issue, its sub-issues, and
 recent discussion; `ReportToIssue` posts a short report on the thread, at most
-three times in a run. Neither can change the issue's status, assignee, or
-sub-issues — the agent says what it believes should happen and a person decides.
+three times in a run. Neither can change the issue's status, owner, executor,
+or sub-issues — the agent says what it believes should happen and a person
+decides.
 
 A report from your machine is recorded as a **local agent report**, attributed
 to you, and Portal shows it as reported rather than said. It is not the same as

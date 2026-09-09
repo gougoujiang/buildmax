@@ -1,7 +1,9 @@
 # Portal Work and Execution Experience
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Portal工作与执行体验.md)
-> **Audience:** Portal, service, and execution-plane contributors · **Status:** planned
+> **Audience:** Portal, service, and execution-plane contributors · **Status:**
+> implemented — all six slices shipped, including the owner/executor split
+> against a real MySQL.
 
 This record defines the Portal experience from an Issue through Agent execution
 to a durable result. It is an independently deliverable R3 operator-journey
@@ -63,11 +65,11 @@ The experience uses three distinct concepts:
 - **Executor** is an Agent or Workflow selected to perform work.
 - **Trigger** is the actor or rule that requested a specific run.
 
-The current combined assignee shape cannot represent a human owner and an Agent
-executor at the same time. The stable API and storage model therefore separates
-owner from executor rather than adding more variants to a single field. Until
-that schema change lands, Portal labels the existing field “Executor” when its
-value is an Agent or Workflow and does not claim that it is human ownership.
+A combined assignee field could not represent a human owner and an Agent
+executor at the same time. The API and storage model separate owner from
+executor rather than adding more variants to a single field: `issue.owner_id`
+and `issue.executor_kind`/`issue.executor_id` are independent columns, and
+either, both, or neither may be set. See slice 6 below.
 
 No handler, Portal form, or scheduler independently infers execution from a
 save. The service that creates TaskRuns remains the single authority for quota,

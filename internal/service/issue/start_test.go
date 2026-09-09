@@ -16,7 +16,7 @@ type refusingAdmitter struct{ err error }
 
 func (a refusingAdmitter) Admits(context.Context, string) error { return a.err }
 
-func assignedIssue(t *testing.T, kind, assigneeID string) (*issue.Service, string) {
+func assignedIssue(t *testing.T, kind, executorID string) (*issue.Service, string) {
 	t.Helper()
 	issues := &mock.MockIssueStore{}
 	created, err := issues.CreateIssueInSpace(context.Background(), "tm_1", "u_1",
@@ -25,7 +25,7 @@ func assignedIssue(t *testing.T, kind, assigneeID string) (*issue.Service, strin
 		t.Fatalf("CreateIssueInSpace: %v", err)
 	}
 	if _, err := issues.UpdateIssueInSpace(context.Background(), created.ID, "tm_1", coreissue.UpdateInput{
-		AssigneeKind: util.Ptr(kind), AssigneeID: util.Ptr(assigneeID),
+		ExecutorKind: util.Ptr(kind), ExecutorID: util.Ptr(executorID),
 	}); err != nil {
 		t.Fatalf("UpdateIssueInSpace: %v", err)
 	}
@@ -33,7 +33,7 @@ func assignedIssue(t *testing.T, kind, assigneeID string) (*issue.Service, strin
 }
 
 func TestARefusedRunReturnsTheAdmissionError(t *testing.T) {
-	svc, issueID := assignedIssue(t, coreissue.AssigneeAgent, "ag_1")
+	svc, issueID := assignedIssue(t, coreissue.ExecutorAgent, "ag_1")
 	quota := apierr.New(apierr.KindQuotaExceeded, "quota exceeded: run limit")
 
 	_, err := svc.PlanAssignedAgentRun(context.Background(),
@@ -62,7 +62,7 @@ func TestAnUnassignedIssueIsRefused(t *testing.T) {
 }
 
 func TestAnAdmittedRunReturnsTheAssignedAgent(t *testing.T) {
-	svc, issueID := assignedIssue(t, coreissue.AssigneeAgent, "ag_1")
+	svc, issueID := assignedIssue(t, coreissue.ExecutorAgent, "ag_1")
 
 	plan, err := svc.PlanAssignedAgentRun(context.Background(),
 		issue.StartAssignedAgentCmd{SpaceID: "tm_1", IssueID: issueID, UserID: "u_1"},

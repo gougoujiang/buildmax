@@ -21,7 +21,8 @@ Open **Issues** in the sidebar and choose **New Issue**. An issue has:
 - **Description** — the detail an agent needs to act on it.
 - **Business Status** — `todo`, `in progress`, or `done`. You set this yourself;
   it is not changed automatically by a run.
-- **Assignee** — who should do it (see below).
+- **Owner** — the person accountable for the issue (see below).
+- **Executor** — the agent or workflow selected to do the work (see below).
 
 Issues can be nested: from an issue you can add **sub-issues** to break the work
 down. Sub-issue status is tracked independently — closing a parent while
@@ -29,25 +30,43 @@ sub-issues are still open is allowed and never rolls their status up.
 
 You can discuss an issue in its comments, where both people and agents leave notes.
 
-## Assign work to an agent or workflow
+## Owner, executor, and running the work
 
-The **Assignee** on an issue is what turns it into action. Open an issue and set
-the assignee to one of:
+Owner and executor are independent choices, and either, both, or neither can
+be set at once:
 
-- **Unassigned** — no one yet.
-- **A person** (including *Me*) — a human owns it.
-- **An agent** — a saved [agent](portal-agents-workflows.md) runs the issue in the
-  background.
-- **A workflow** — a published [workflow](portal-agents-workflows.md) runs its
-  steps for the issue.
+- **Owner** — the accountable person, including *Me*. Setting an owner never
+  starts a run; it only records who is responsible.
+- **Executor** — what performs the work, one of:
+  - **Unassigned** — nothing selected yet.
+  - **An agent** — a saved [agent](portal-agents-workflows.md) can run the
+    issue in the background.
+  - **A workflow** — a published [workflow](portal-agents-workflows.md) can
+    run its steps for the issue.
 
-Assigning to an agent or workflow schedules a background run on a worker: it
-materializes the space's files, runs the agent, writes any outputs, and reports
-back — without tying up your browser.
+**Save** only records the owner and executor you chose. It never starts a run
+and never spends your space's execution quota — you can change either as often
+as you like while you get the issue ready.
 
-## Follow a run on Issue Detail
+Once an agent or workflow executor is set, a **Run Workflow** or **Run Agent**
+button appears next to Save. That button is the only thing that schedules a
+background run on a worker: it materializes the space's files, runs the agent,
+writes any outputs, and reports back — without tying up your browser. A
+successful Run takes you straight to the run it started.
 
-Open an issue to see its detail view, where a run's progress and results appear:
+## Issue Detail
+
+Open an issue to see its detail view, split into four tabs:
+
+- **Overview** — the owner and executor, status, description, sub-issues, and
+  a summary of the most recent run.
+- **Discussion** — the comment thread, where both people and agents leave notes.
+- **Results** — the latest result and every saved [artifact](portal-overview.md)
+  a run produced. Larger outputs are stored as artifacts you can open or
+  download.
+- **Runs** — the full execution history for the issue.
+
+From the Overview or Runs tab, a run in progress offers:
 
 - **Stop Run** — while a run is pending or running, you can stop it. A run nobody
   has picked up yet ends immediately; a run a worker is executing is asked to stop
@@ -58,9 +77,6 @@ Open an issue to see its detail view, where a run's progress and results appear:
   timed out without retyping anything. A retry counts against your space's quota
   and leaves the original run's record intact. A run that is a workflow step is
   retried by re-running its workflow, not from here.
-- **Outputs** — files and results a run produced show up on the issue, including
-  the latest result and any saved [artifacts](portal-overview.md). Larger outputs
-  are stored as artifacts you can open or download.
 
 ## Next
 

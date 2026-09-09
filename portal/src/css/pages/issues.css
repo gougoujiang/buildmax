@@ -157,29 +157,67 @@
   gap: 0.75rem;
 }
 
-.issue-detail-page__timeline {
-  list-style: none;
-  padding: 0;
-  margin: 0.75rem 0 0;
-  display: grid;
-  gap: 0.65rem;
+/* --- Issue Detail tabs: Overview / Discussion / Results / Runs ---
+   Same shape as .agent-detail__tab* -- kept as separate rules, scoped to this
+   page, rather than sharing agent-detail's classes across pages. */
+.issue-detail-page__tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--color-border);
+  margin: 1.5rem 0;
 }
 
-.issue-detail-page__timeline-item {
-  display: grid;
-  gap: 0.35rem;
-  padding: 0.7rem 0.8rem;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-bg);
+.issue-detail-page__tab {
+  padding: 0.55rem 0.9rem;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
 }
 
-.issue-detail-page__timeline-detail {
+.issue-detail-page__tab:hover {
+  color: var(--color-text);
+}
+
+.issue-detail-page__tab--active {
+  color: var(--color-text);
+  border-bottom-color: var(--color-text);
+  font-weight: 600;
+}
+
+.issue-detail-page__tab-count {
+  margin-left: 0.4rem;
+  font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  color: var(--color-text-subtle);
+}
+
+.issue-detail-page__panel {
+  animation: issue-detail-fade 0.18s ease;
+}
+
+@keyframes issue-detail-fade {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .issue-detail-page__panel { animation: none; }
+}
+
+/* Save and Run sit together at the bottom of the Issue form: they act on the
+   same fields, but Save only persists while Run schedules and spends quota,
+   so each button keeps its own disabled reason and feedback beside it. */
+.issues-page__form-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.5rem;
-  color: var(--color-text-muted);
-  line-height: 1.45;
+  margin-top: 0.5rem;
 }
 
 /* Earlier than the shell's 767px Narrow boundary on purpose: the detail

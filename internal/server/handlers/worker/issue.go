@@ -23,7 +23,7 @@ const issueCommentWindow = 20
 // its task names, and add one comment to it.
 //
 // Narrow on purpose. There is no update method here, so no worker route can
-// change an Issue's status, assignee, or hierarchy however the run's agent is
+// change an Issue's status, owner, executor, or hierarchy however the run's agent is
 // prompted. See docs/design/issue-agent-access.md section 6.
 type IssueAccess interface {
 	GetIssue(ctx context.Context, spaceID, issueID string) (*coreissue.Issue, error)
@@ -47,7 +47,7 @@ type runIssueResponse struct {
 	Title           string                    `json:"title"`
 	Description     string                    `json:"description"`
 	Status          string                    `json:"status"`
-	AssigneeKind    string                    `json:"assignee_kind,omitempty"`
+	ExecutorKind    string                    `json:"executor_kind,omitempty"`
 	Children        []runIssueChildResponse   `json:"children"`
 	Comments        []runIssueCommentResponse `json:"comments"`
 	OmittedComments int                       `json:"omitted_comments"`
@@ -122,8 +122,8 @@ func (h *Handler) getRunIssue(w http.ResponseWriter, r *http.Request) {
 		Children:    []runIssueChildResponse{},
 		Comments:    []runIssueCommentResponse{},
 	}
-	if issue.AssigneeKind != nil {
-		out.AssigneeKind = *issue.AssigneeKind
+	if issue.ExecutorKind != nil {
+		out.ExecutorKind = *issue.ExecutorKind
 	}
 	// Children and comments are context, not the answer. A failure to load
 	// either leaves the issue readable rather than failing the whole call: an
