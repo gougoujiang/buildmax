@@ -28,6 +28,10 @@
 }
 
 .page-activity__action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
   font: inherit;
   font-size: 0.9rem;
   color: var(--color-text);
