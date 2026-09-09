@@ -27,8 +27,24 @@ const desktopDevServerURL = "http://localhost:34115"
 // window renders the same page, and not the signed, packaged binary.
 // `wails dev` launches a native window too, as a side effect of starting —
 // this suite makes no assertion about it and does not need one to be present.
-func e2eDesktopUI() error {
-	fmt.Println("[e2e] Desktop UI suite: desktop/frontend driven through `wails dev`'s browser bridge (a native window may briefly appear as a side effect of `wails dev` itself)")
+func e2eDesktopUI(args []string) error {
+	// core runs only the @smoke-tagged cases -- the subset CI gates every desktop
+	// change on. The full run is the default and is what the release matrix and
+	// an on-demand local check use.
+	core := false
+	switch {
+	case len(args) == 0:
+	case len(args) == 1 && args[0] == "core":
+		core = true
+	default:
+		return usageErrorf("e2e", "desktop-ui takes at most `core`")
+	}
+
+	if core {
+		fmt.Println("[e2e] Desktop UI suite (core): the @smoke cases only, through `wails dev`'s browser bridge")
+	} else {
+		fmt.Println("[e2e] Desktop UI suite: desktop/frontend driven through `wails dev`'s browser bridge (a native window may briefly appear as a side effect of `wails dev` itself)")
+	}
 	if err := e2eDesktopUIPreflight(); err != nil {
 		return err
 	}
@@ -62,11 +78,16 @@ func e2eDesktopUI() error {
 	}
 
 	fmt.Printf("[e2e] running desktop UI browser tests against %s\n", desktopDevServerURL)
+	npmArgs := []string{"run", "e2e"}
+	if core {
+		// Everything after `--` reaches playwright; --grep selects by tag.
+		npmArgs = append(npmArgs, "--", "--grep", "@smoke")
+	}
 	testErr := runWith(filepath.Join("desktop", "frontend"), []string{
 		"BUILDMAX_E2E_BASE_URL=" + desktopDevServerURL,
 		"BUILDMAX_E2E_RUN_ID=" + runID,
 		"BUILDMAX_E2E_ARTIFACTS=" + filepath.Join(artifacts, "results"),
-	}, "npm", "run", "e2e")
+	}, "npm", npmArgs...)
 	if testErr != nil {
 		return fmt.Errorf("%w\nSee %s for what `wails dev` printed", testErr, dev.logPath)
 	}

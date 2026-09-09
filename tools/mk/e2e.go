@@ -46,17 +46,19 @@ func cmdE2E(args []string) error {
 	if len(args) == 0 {
 		return usageErrorf("e2e", "e2e needs a suite")
 	}
+	suite := args[0]
+	// desktop-ui optionally takes a scope; every other suite takes none.
+	if suite == "desktop-ui" {
+		return e2eDesktopUI(args[1:])
+	}
 	if len(args) > 1 {
 		return usageErrorf("e2e", "e2e runs one suite at a time")
 	}
-	suite := args[0]
 	switch suite {
 	case "cli":
 		return e2eCLI()
 	case "desktop":
 		return e2eDesktopBridge()
-	case "desktop-ui":
-		return e2eDesktopUI()
 	case "all":
 		return e2eFullMatrix()
 	case "local":

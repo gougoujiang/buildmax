@@ -1,0 +1,100 @@
+# Runs the desktop UI's core (@smoke) browser cases through `wails dev`, so a
+# desktop change cannot break the app's boot into the real Wails bridge without a
+# CI signal. Only the @smoke subset runs here; the fuller suite is the on-demand
+# `./make e2e desktop-ui` run and the release matrix, kept out of every PR so the
+# gate stays fast.
+#
+# It is intentionally not a required check: `wails dev` plus a browser is more
+# prone to environmental flake than a unit test, and a flaky required gate would
+# block every merge (the lesson deployment-smoke.yml records). Promote it once it
+# has proven stable.
+#
+# macOS only: `wails dev` builds and shows a native window, which works on a
+# macOS runner without the webkit apt packages and virtual display a Linux runner
+# would need for the same smoke.
+name: Desktop UI
+
+# The two path lists are duplicated rather than shared through a YAML anchor: the
+# Actions workflow parser does not resolve anchors, so one would silently leave a
+# trigger with no filter at all.
+on:
+  pull_request:
+    paths:
+      - 'desktop/**'
+      - 'gui/**'
+      - 'cmd/buildmax-desktop/**'
+      - 'internal/interface/desktop/**'
+      - 'tools/mk/desktop_ui.go'
+      - 'tools/mk/e2e.go'
+      - '.node-version'
+      - '.github/workflows/desktop-ui.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'desktop/**'
+      - 'gui/**'
+      - 'cmd/buildmax-desktop/**'
+      - 'internal/interface/desktop/**'
+      - 'tools/mk/desktop_ui.go'
+      - 'tools/mk/e2e.go'
+      - '.node-version'
+      - '.github/workflows/desktop-ui.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # One group per pull request, one per commit on main. A superseded pull request
+  # run is worth cancelling; a run on main is not, for the reason
+  # desktop-package.yml records.
+  group: desktop-ui-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  core:
+    name: Desktop UI (core)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            gui/package-lock.json
+            desktop/frontend/package-lock.json
+
+      - name: Use pinned npm
+        run: npm install --global npm@11.17.0
+
+      # gui/dist/index.js is what the desktop frontend consumes and what
+      # `wails dev`'s first build needs; e2eDesktopUIPreflight refuses without it.
+      - name: Build gui
+        working-directory: gui
+        run: npm ci && npm run build
+
+      - name: Install desktop frontend dependencies
+        working-directory: desktop/frontend
+        run: npm ci
+
+      - name: Install Playwright browser
+        working-directory: desktop/frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Desktop UI core smoke
+        run: ./make e2e desktop-ui core
+
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-ui-artifacts
+          path: .artifacts/e2e/desktop-ui
+          if-no-files-found: ignore
