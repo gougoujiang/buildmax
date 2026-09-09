@@ -35,8 +35,8 @@ async function seedCompletedAgentRun(page: Page, current: Session): Promise<stri
   reportLeftovers(current.spaceId, [`agent ${agent.id}`, `issue ${issue.id}`])
   await patchJSON(page, `${space}/issues/${encodeURIComponent(issue.id)}`, current, {
     version: issue.version,
-    assignee_kind: "agent",
-    assignee_id: agent.id,
+    executor_kind: "agent",
+    executor_id: agent.id,
   })
   const task = await postJSON<{ id: string }>(
     page,
@@ -107,7 +107,7 @@ test("switch Space, start Chat, open an Issue's latest run, browse Workspace Fil
     // Asserted against the select's own value, not visible text: a closed
     // <select>'s text content is every <option>'s text concatenated, not
     // just the selected one, so it would read as "visible" either way.
-    await page.goto("/#/home")
+    await page.goto(`/#/spaces/${current.spaceId}/chat`)
     await withSpaceSwitcher(page, width, async (switcher) => {
       await switcher.selectOption({ label: spaceB.name })
       await expect(switcher).toHaveValue(spaceB.id)
@@ -119,13 +119,15 @@ test("switch Space, start Chat, open an Issue's latest run, browse Workspace Fil
     await expectNoHorizontalOverflow(page, `${width}px switch Space`)
 
     // --- Start Chat ---
-    await page.goto("/#/home")
+    await page.goto(`/#/spaces/${current.spaceId}/chat`)
     await expect(page.getByRole("textbox", { name: "What would you like to do?" })).toBeVisible()
     await expectNoHorizontalOverflow(page, `${width}px start Chat`)
 
     // --- Open an Issue and its latest run ---
-    await page.goto(`/#/issue/${issueId}`)
+    await page.goto(`/#/spaces/${current.spaceId}/issues/${issueId}`)
     await expect(page.getByRole("heading", { name: "Issue Detail" })).toBeVisible()
+    // Discussion is its own tab, not part of the default Overview.
+    await page.getByRole("navigation", { name: "Issue sections" }).getByRole("button", { name: "Discussion" }).click()
     await page.locator(".issue-discussion__actions").getByRole("button", { name: "Run details" }).first().click()
     const runDialog = page.getByRole("dialog", { name: "Run details" })
     await expect(runDialog).toBeVisible()
@@ -135,12 +137,12 @@ test("switch Space, start Chat, open an Issue's latest run, browse Workspace Fil
     await expectNoHorizontalOverflow(page, `${width}px open Issue and its latest run`)
 
     // --- Browse Workspace Files ---
-    await page.goto("/#/explore")
+    await page.goto(`/#/spaces/${current.spaceId}/files`)
     await expect(page.getByRole("heading", { name: "Workspace Files" })).toBeVisible()
     await expectNoHorizontalOverflow(page, `${width}px browse Workspace Files`)
 
     // --- Reach Space settings ---
-    await page.goto("/#/space")
+    await page.goto(`/#/spaces/${current.spaceId}/settings`)
     await expect(page.getByRole("heading", { name: "Space settings", exact: true }).first()).toBeVisible()
     await expectNoHorizontalOverflow(page, `${width}px reach Space settings`)
   }

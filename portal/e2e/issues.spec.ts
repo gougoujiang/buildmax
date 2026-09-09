@@ -20,7 +20,7 @@ test("Issue Detail organizes into Overview, Discussion, Results, and Runs tabs",
   })
   reportLeftovers(current.spaceId, [`issue ${issue.id}`])
 
-  await page.goto(`/#/issue/${issue.id}`)
+  await page.goto(`/#/spaces/${current.spaceId}/issues/${issue.id}`)
   await expect(page.getByRole("heading", { name: "Issue Detail", exact: true })).toBeVisible()
 
   // Overview is the default tab: the persistable form and the latest outcome,
@@ -64,7 +64,7 @@ test("saving an Issue never starts a run", async ({ page }) => {
   })
   reportLeftovers(current.spaceId, [`issue ${issue.id}`])
 
-  await page.goto(`/#/issue/${issue.id}`)
+  await page.goto(`/#/spaces/${current.spaceId}/issues/${issue.id}`)
   const titleField = page.getByLabel("Title")
   await expect(titleField).toHaveValue(title)
 

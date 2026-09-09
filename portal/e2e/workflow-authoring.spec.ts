@@ -25,7 +25,7 @@ test("the Agent-step form has no free-form Type field or editable step id, and c
   })
   reportLeftovers(current.spaceId, [`agent ${agent.id}`])
 
-  await page.goto("/#/workflows")
+  await page.goto(`/#/spaces/${current.spaceId}/workflows`)
   await page.getByRole("button", { name: "New Workflow" }).click()
 
   const dialog = page.getByRole("dialog", { name: "New Workflow" })
@@ -59,7 +59,7 @@ test("advanced JSON mode is checked against the same validation as the step form
   })
   reportLeftovers(current.spaceId, [`agent ${agent.id}`])
 
-  await page.goto("/#/workflows")
+  await page.goto(`/#/spaces/${current.spaceId}/workflows`)
   await page.getByRole("button", { name: "New Workflow" }).click()
 
   const dialog = page.getByRole("dialog", { name: "New Workflow" })

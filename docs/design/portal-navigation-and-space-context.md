@@ -1,20 +1,24 @@
 # Portal Navigation and Space Context
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Portal导航与Space上下文.md)
-> **Audience:** Portal contributors and product designers · **Status:** in
-> progress — slice 1 (navigation language: Home renamed to Chat, sidebar
+> **Audience:** Portal contributors and product designers · **Status:**
+> implemented — slice 1 (navigation language: Home renamed to Chat, sidebar
 > grouped into Work/Reuse/Data/Manage, Workspace Files exposed, deployment
 > Administration separated from Space scope), slice 2 (canonical
 > `#/spaces/{space_id}/...` routes; every Space-owned page reads its Space from
-> the route, not a previously selected one; migration-bounded redirects for the
-> old flat hashes), slice 3 (Space switching redirects every Space-owned
-> route to a valid destination in the target Space, from one exhaustive,
-> type-checked table — closing a gap where Agent and Task silently kept
-> showing the previous Space's data on switch), and slice 4 (resolution
-> states: an unrecognized route renders a not-found page instead of silently
-> falling through to Chat; Agent, Workflow, Workflow Run, Task, and Issue
-> detail distinguish a genuine not-found from a forbidden Space or resource)
-> have shipped. Breadcrumb and responsive polish are still planned.
+> the route, not a previously selected one), slice 3 (Space switching
+> redirects every Space-owned route to a valid destination in the target
+> Space, from one exhaustive, type-checked table — closing a gap where Agent
+> and Task silently kept showing the previous Space's data on switch), slice 4
+> (resolution states: an unrecognized route renders a not-found page instead
+> of silently falling through to Chat; Agent, Workflow, Workflow Run, Task,
+> and Issue detail distinguish a genuine not-found from a forbidden Space or
+> resource), and slice 5 (orientation polish: the browser tab title names the
+> page and, for Space-scoped routes, the Space; the narrow compact header and
+> breadcrumbs carry the same Space/type/location cues as the desktop sidebar;
+> the migration-bounded redirects for the pre-Space-prefix hashes are removed
+> — an old flat hash is now an ordinary not-found, not a silent alias) have
+> all shipped.
 
 This record defines how Portal navigation communicates scope and how URLs keep
 Space-owned resources in the correct Space. It is an independently deliverable

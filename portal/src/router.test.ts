@@ -50,28 +50,6 @@ describe("hash router", () => {
     // API. See docs/design/unified-artifacts.md section 6.1.
     ["#/artifact/gsyt7at6cjfr33d73mta", { name: "artifact", artifactId: "gsyt7at6cjfr33d73mta" }],
     ["#/marketplace", { name: "marketplace" }],
-    // Pre-migration flat hashes redirect into the currently selected Space --
-    // temporary, bounded to this migration.
-    ["#/issue/i_123", { name: "issue", spaceId: SPACE, issueId: "i_123" }],
-    ["#/issues", { name: "issues", spaceId: SPACE }],
-    ["#/agent/a_123", { name: "agent", spaceId: SPACE, agentId: "a_123" }],
-    ["#/agents", { name: "agents", spaceId: SPACE }],
-    ["#/workflow/w_123", { name: "workflow", spaceId: SPACE, workflowId: "w_123" }],
-    ["#/workflows", { name: "workflows", spaceId: SPACE }],
-    ["#/workflow-run/wr_123", { name: "workflowRun", spaceId: SPACE, workflowRunId: "wr_123" }],
-    ["#/task/t_123", { name: "task", spaceId: SPACE, taskId: "t_123" }],
-    ["#/explore", { name: "explore", spaceId: SPACE }],
-    ["#/artifacts", { name: "artifacts", spaceId: SPACE }],
-    ["#/conversation/c_123", { name: "chat", spaceId: SPACE, conversationId: "c_123" }],
-    ["#/conversations", { name: "chat", spaceId: SPACE }],
-    ["#/home", { name: "chat", spaceId: SPACE }],
-    ["#/space", { name: "space", spaceId: SPACE, section: "overview" }],
-    ["#/space/members", { name: "space", spaceId: SPACE, section: "members" }],
-    ["#/space/members/new", { name: "space", spaceId: SPACE, section: "memberNew" }],
-    // Artifacts left space settings for their own top-level area; the old
-    // address still lands on them rather than silently falling through.
-    ["#/space/artifacts", { name: "artifacts", spaceId: SPACE }],
-    ["#/space-settings", { name: "space", spaceId: SPACE, section: "overview" }],
   ] satisfies Array<[string, Route]>)("parses %s", (hash, route) => {
     expect(parseHash(hash, SPACE)).toEqual(route)
   })
@@ -124,6 +102,16 @@ describe("hash router", () => {
   it("renders not-found for an unrecognized hash, never silently falling through to Chat", () => {
     expect(parseHash("#/unknown/path", SPACE)).toEqual({ name: "notFound" })
     expect(parseHash(`#/spaces/${SPACE}/bogus`, SPACE)).toEqual({ name: "notFound" })
+  })
+
+  it("renders not-found for a pre-migration flat hash -- the redirect was bounded to the migration, not a compatibility contract", () => {
+    expect(parseHash("#/issues", SPACE)).toEqual({ name: "notFound" })
+    expect(parseHash("#/issue/i_123", SPACE)).toEqual({ name: "notFound" })
+    expect(parseHash("#/agents", SPACE)).toEqual({ name: "notFound" })
+    expect(parseHash("#/explore", SPACE)).toEqual({ name: "notFound" })
+    expect(parseHash("#/space", SPACE)).toEqual({ name: "notFound" })
+    expect(parseHash("#/conversations", SPACE)).toEqual({ name: "notFound" })
+    expect(parseHash("#/home", SPACE)).toEqual({ name: "notFound" })
   })
 
   it("renders not-found for an incomplete Space-scoped path", () => {

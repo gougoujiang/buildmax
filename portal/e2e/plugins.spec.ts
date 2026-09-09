@@ -55,7 +55,7 @@ test("a plugin release moves from Marketplace through Space Plugins to an agent'
   await expect(row.locator(".tp-status")).toHaveText(/Active/)
 
   // Agent Plugins: the agent's picker offers what was just activated.
-  await page.goto(`/#/agent/${agent.id}`)
+  await page.goto(`/#/spaces/${current.spaceId}/agents/${agent.id}`)
   await page.getByRole("button", { name: "Configuration" }).click()
   await page.getByRole("button", { name: "Plugins", exact: true }).click()
   await expect(page.getByText(name)).toBeVisible()

@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test"
 
+import { session } from "./fixtures"
+
 // Narrow-width (320–767px) and keyboard coverage for the shell drawer and the
 // shared dialog primitives, added alongside the slice that introduced them
 // rather than deferred to a later regression matrix — a global stylesheet
@@ -9,7 +11,7 @@ import { expect, test } from "@playwright/test"
 test.use({ viewport: { width: 390, height: 844 } })
 
 test("the narrow shell shows a compact header instead of the persistent sidebar", async ({ page }) => {
-  await page.goto("/#/home")
+  await session(page)
 
   await expect(page.getByLabel("Sidebar", { exact: true })).toBeHidden()
   await expect(page.getByRole("button", { name: "Open navigation" })).toBeVisible()
@@ -19,7 +21,7 @@ test("the narrow shell shows a compact header instead of the persistent sidebar"
 })
 
 test("the drawer traps Tab focus, closes on Escape, and returns focus to the menu button", async ({ page }) => {
-  await page.goto("/#/home")
+  await session(page)
 
   const menuButton = page.getByRole("button", { name: "Open navigation" })
   await menuButton.focus()
@@ -40,7 +42,7 @@ test("the drawer traps Tab focus, closes on Escape, and returns focus to the men
 })
 
 test("choosing a destination in the drawer navigates and closes it", async ({ page }) => {
-  await page.goto("/#/home")
+  await session(page)
 
   await page.getByRole("button", { name: "Open navigation" }).click()
   await page.getByRole("dialog", { name: "Navigation" }).getByRole("button", { name: "Agents" }).click()
@@ -50,7 +52,8 @@ test("choosing a destination in the drawer navigates and closes it", async ({ pa
 })
 
 test("a tabbed dialog becomes a full-height sheet with a horizontal, arrow-key tablist", async ({ page }) => {
-  await page.goto("/#/agents")
+  const current = await session(page)
+  await page.goto(`/#/spaces/${current.spaceId}/agents`)
   await page.getByRole("button", { name: "Create agent" }).click()
 
   const dialog = page.getByRole("dialog", { name: "New Agent" })

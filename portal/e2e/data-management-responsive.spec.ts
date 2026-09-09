@@ -24,7 +24,7 @@ test("Workspace Files shows either the folder list or the selected file, with a 
   await uploadFile(page, current, name, "narrow layout probe\n")
   reportLeftovers(current.spaceId, [`file ${name}`])
 
-  await page.goto("/#/explore")
+  await page.goto(`/#/spaces/${current.spaceId}/files`)
   await expect(page.getByRole("heading", { name: "Workspace Files" })).toBeVisible()
 
   // No side tree at narrow width, and the folder list is what's shown first.
@@ -56,7 +56,7 @@ test("the Artifacts list reflows to a stacked card at narrow width", async ({ pa
   await uploadFile(page, current, name, "narrow layout probe\n")
   reportLeftovers(current.spaceId, [`file ${name}`])
 
-  await page.goto("/#/artifacts")
+  await page.goto(`/#/spaces/${current.spaceId}/artifacts`)
   await expect(page.getByRole("heading", { name: "Artifacts", exact: true })).toBeVisible()
   await expectNoHorizontalOverflow(page)
 })
@@ -73,7 +73,8 @@ test("an admin list row reflows to a stacked card at narrow width", async ({ pag
 })
 
 test("a Space membership row's actions wrap instead of overflowing at narrow width", async ({ page }) => {
-  await page.goto("/#/space/members")
+  const current = await session(page)
+  await page.goto(`/#/spaces/${current.spaceId}/settings/members`)
   await expect(page.getByRole("heading", { name: "Members" })).toBeVisible()
   // The signed-in account's own row — every space has at least this one —
   // proves the actions row wraps rather than being clipped or forcing scroll.
@@ -86,7 +87,8 @@ test("a Space membership row's actions wrap instead of overflowing at narrow wid
 // that gap rather than leaving the surface this slice's CSS changes touched
 // entirely unguarded.
 test("the Space Plugins tab renders without horizontal overflow at narrow width", async ({ page }) => {
-  await page.goto("/#/space/plugins")
+  const current = await session(page)
+  await page.goto(`/#/spaces/${current.spaceId}/settings/plugins`)
   const tab = page.getByRole("tab", { name: "Plugins" })
   await expect(tab).toHaveAttribute("aria-selected", "true")
   await expectNoHorizontalOverflow(page)

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test"
 
 import { MEMBER_STATE } from "./global-setup"
+import { session } from "./fixtures"
 
 /**
  * Authority over the deployment is not authority inside a space, and the Portal
@@ -30,7 +31,8 @@ test("an account without a grant is sent away from the admin area", async ({ pag
 test("an ungranted account still has a space of its own", async ({ page }) => {
   // The refusal above has to be a boundary holding, not a session that never
   // worked: the same account reaches its own space settings.
-  await page.goto("/#/space/overview")
+  const current = await session(page)
+  await page.goto(`/#/spaces/${current.spaceId}/settings`)
   await expect(page.locator(".login-page__card")).toHaveCount(0)
   await expect(page.getByRole("heading", { name: "Administration" })).toHaveCount(0)
 })

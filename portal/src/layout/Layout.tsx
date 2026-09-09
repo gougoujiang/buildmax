@@ -41,6 +41,18 @@ export function Layout({
     if (!narrow) setDrawerOpen(false)
   }, [narrow])
 
+  // The browser tab is the one orientation surface the in-page chrome can't
+  // cover: a person with several Spaces open across tabs tells them apart by
+  // title alone. Space-scoped pages get the Space name; global pages (Account,
+  // Admin, Marketplace, Help) don't, since the selected Space has no bearing
+  // on them.
+  useEffect(() => {
+    const spaceScoped = "spaceId" in route
+    document.title = [pageTitle, spaceScoped ? currentSpace?.name : null, "BuildMax"]
+      .filter(Boolean)
+      .join(" · ")
+  }, [pageTitle, route, currentSpace])
+
   return (
     <div className="shell">
       <header className="shell__compact-header">
