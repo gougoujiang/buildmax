@@ -4,6 +4,11 @@ import type { ExploreNode } from "../../../lib/types"
 interface FileListProps {
   folderName: string
   children: ExploreNode[]
+  /** While the tree is loading or failed, the FileTree panel already carries
+   * that status; an empty list here must not additionally claim the folder
+   * has no content when it is simply not known yet. */
+  treeLoading: boolean
+  treeError: string | null
   selectedFileId: string | null
   isRoot: boolean
   onSelectFolder: (folderId: string) => void
@@ -13,6 +18,8 @@ interface FileListProps {
 export function FileList({
   folderName,
   children,
+  treeLoading,
+  treeError,
   selectedFileId,
   isRoot,
   onSelectFolder,
@@ -22,7 +29,7 @@ export function FileList({
     <div className="page-explore__file-list-wrap">
       <h2 className="page-explore__content-heading">{folderName}</h2>
       <ul className="page-explore__list" role="list">
-        {children.length === 0 ? (
+        {children.length === 0 && (treeLoading || treeError) ? null : children.length === 0 ? (
           <li className="page-explore__empty">
             {isRoot
               ? "Nothing uploaded yet. Upload files or a folder above, or have an agent write here during a run."

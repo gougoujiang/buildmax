@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { ApiArtifact } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { downloadAuthenticated } from "../../lib/download"
 import { navigate } from "../../router"
 import { useAuth } from "../../contexts/AuthContext"
 import { useSpace } from "../../contexts/SpaceContext"
+import { Alert } from "../../components/state/Alert"
+import { EmptyState } from "../../components/state/EmptyState"
+import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
 import {
   artifactContentUrl,
   artifactLabel,
@@ -34,25 +37,35 @@ interface ArtifactsProps {
 export function Artifacts({ spaceId }: ArtifactsProps) {
   const { token, user } = useAuth()
   const { currentUserRole } = useSpace()
-  const [items, setItems] = useState<ApiArtifact[]>([])
+  // null means "not yet successfully fetched", distinct from [] meaning the
+  // space genuinely has no artifacts. See deriveResourceState.
+  const [itemsData, setItemsData] = useState<ApiArtifact[] | null>(null)
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [listError, setListError] = useState<RequestError | null>(null)
+  // Upload's own error: a page-level message, since the Upload button is a
+  // singleton with no row to associate it with.
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  // Download/Delete's own error, tagged with which artifact it was, so it
+  // renders next to that row instead of a page-level banner.
+  const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
   const load = useCallback(
     (offset: number) => {
       if (!spaceId || !token) return
       setLoading(true)
-      setError(null)
+      setListError(null)
       listArtifacts(spaceId, token, { limit: PAGE_SIZE, offset })
         .then((res) => {
-          setItems((prev) => (offset === 0 ? res.items : [...prev, ...res.items]))
+          setItemsData((prev) => (offset === 0 ? res.items : [...(prev ?? []), ...res.items]))
           setTotal(res.total)
         })
-        .catch((err) => setError(getErrorMessage(err, "Failed to load artifacts")))
+        // itemsData from a prior successful fetch (if any) is left in place,
+        // so a failed refresh reads as Stale rather than wiping the list.
+        .catch((err) => setListError(classifyError(err, "Failed to load artifacts")))
         .finally(() => setLoading(false))
     },
     [spaceId, token]
@@ -62,18 +75,24 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
     load(0)
   }, [load])
 
+  const itemsState = useMemo(
+    () => deriveResourceState({ loading, data: itemsData, error: listError, isEmpty: (data) => data.length === 0 }),
+    [loading, itemsData, listError]
+  )
+  const items = itemsData ?? []
+
   async function onFileChosen(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     // Cleared straight away so choosing the same file twice still fires.
     event.target.value = ""
     if (!file || !spaceId || !token) return
     setUploading(true)
-    setError(null)
+    setUploadError(null)
     try {
       await uploadArtifact(spaceId, token, file)
       load(0)
     } catch (err) {
-      setError(getErrorMessage(err, "Upload failed"))
+      setUploadError(getErrorMessage(err, "Upload failed"))
     } finally {
       setUploading(false)
     }
@@ -82,11 +101,11 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
   async function onDownload(artifact: ApiArtifact) {
     if (!token) return
     setBusyId(artifact.id)
-    setError(null)
+    setRowError(null)
     try {
       await downloadAuthenticated(artifactContentUrl(artifact.id), token, artifact.filename)
     } catch (err) {
-      setError(getErrorMessage(err, "Download failed"))
+      setRowError({ id: artifact.id, message: getErrorMessage(err, "Download failed") })
     } finally {
       setBusyId(null)
     }
@@ -96,13 +115,13 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
     if (!token) return
     if (!confirmArtifactDeletion(artifact)) return
     setBusyId(artifact.id)
-    setError(null)
+    setRowError(null)
     try {
       await deleteArtifact(artifact.id, token)
-      setItems((prev) => prev.filter((a) => a.id !== artifact.id))
+      setItemsData((prev) => (prev ?? []).filter((a) => a.id !== artifact.id))
       setTotal((prev) => Math.max(0, prev - 1))
     } catch (err) {
-      setError(getErrorMessage(err, "Delete failed"))
+      setRowError({ id: artifact.id, message: getErrorMessage(err, "Delete failed") })
     } finally {
       setBusyId(null)
     }
@@ -139,9 +158,19 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
         </div>
       </div>
 
-      {error ? (
+      {(itemsState.kind === "error" ||
+        itemsState.kind === "forbidden" ||
+        itemsState.kind === "notFound" ||
+        itemsState.kind === "stale") && (
+        <Alert
+          tone={itemsState.kind === "stale" ? "stale" : itemsState.kind}
+          message={itemsState.error.message}
+          retry={{ label: "Retry", onClick: () => load(0) }}
+        />
+      )}
+      {uploadError ? (
         <p className="settings-section__error" role="alert">
-          {error}
+          {uploadError}
         </p>
       ) : null}
 
@@ -151,14 +180,11 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
           <span className="page-activity__meta">{countLabel}</span>
         </div>
 
-        {!error && items.length === 0 && !loading ? (
-          <p className="page-activity__empty">
-            Nothing kept here yet. Upload a file, or have an agent publish one with
-            UploadArtifact.
-          </p>
+        {itemsState.kind === "readyEmpty" ? (
+          <EmptyState message="Nothing kept here yet. Upload a file, or have an agent publish one with UploadArtifact." />
         ) : null}
 
-        {items.length > 0 ? (
+        {itemsState.kind !== "forbidden" && itemsState.kind !== "notFound" && items.length > 0 ? (
           <ul className="artifact-list">
             {items.map((artifact) => (
               <li key={artifact.id} className="artifact-row">
@@ -200,6 +226,11 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
                     </button>
                   ) : null}
                 </div>
+                {rowError?.id === artifact.id ? (
+                  <p className="settings-section__error" role="alert">
+                    {rowError.message}
+                  </p>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -207,7 +238,7 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
 
         {loading ? <p className="page-activity__empty">Loading…</p> : null}
 
-        {items.length < total ? (
+        {itemsState.kind !== "forbidden" && itemsState.kind !== "notFound" && items.length < total ? (
           <button
             type="button"
             className="page-activity__action-btn"

@@ -8,6 +8,11 @@ import { getAgents } from "../../features/agents"
 import { getSpaceMembers } from "../../features/spaces/api"
 import { getWorkflows } from "../../features/workflows"
 import { IssueModal } from "../../components/IssueModal"
+import { useSpaceCapability } from "../../contexts/SpaceContext"
+import { Alert } from "../../components/state/Alert"
+import { EmptyState } from "../../components/state/EmptyState"
+import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
+import { isAllowed } from "../../state/permissionState"
 import { useSpace } from "../../contexts/SpaceContext"
 import type { ApiSpaceMember } from "../../lib/api/types"
 import type { Workflow } from "../../lib/types"
@@ -22,36 +27,43 @@ interface IssuesProps {
 
 export function Issues({ token, spaceId, userId }: IssuesProps) {
   const { currentUserRole } = useSpace()
-  const [issues, setIssues] = useState<Issue[]>([])
+  // null means "not yet successfully fetched", distinct from [] meaning this
+  // page of the collection is genuinely empty. See deriveResourceState.
+  const [issuesData, setIssuesData] = useState<Issue[] | null>(null)
   const [total, setTotal] = useState(0)
   const [agents, setAgents] = useState<Agent[]>([])
   const [workflows, setWorkflows] = useState<Workflow[]>([])
   const [members, setMembers] = useState<ApiSpaceMember[]>([])
   const [loading, setLoading] = useState(true)
+  const [listError, setListError] = useState<RequestError | null>(null)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Distinct from listError: the create-issue mutation's own error, shown
+  // inside IssueModal rather than as a page-level Alert.
+  const [createError, setCreateError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [createOpen, setCreateOpen] = useState(false)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   // An entry appears here once a parent's children have been fetched; undefined
   // while the request is in flight.
   const [children, setChildren] = useState<Record<string, Issue[]>>({})
-  const canAssignWorkflow = currentUserRole === "owner" || currentUserRole === "admin"
+  const canAssignWorkflowState = useSpaceCapability(currentUserRole === "owner" || currentUserRole === "admin")
+  const canAssignWorkflow = isAllowed(canAssignWorkflowState)
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   const fetchIssues = useCallback(() => {
     if (!token || !spaceId) {
-      setIssues([])
+      setIssuesData(null)
       setAgents([])
       setWorkflows([])
       setMembers([])
       setTotal(0)
       setLoading(false)
+      setListError(null)
       return Promise.resolve()
     }
     setLoading(true)
-    setError(null)
+    setListError(null)
     return Promise.all([
       // The board shows top-level issues; sub-issues appear under the parent
       // they were split out of, not as siblings in the same list.
@@ -61,15 +73,22 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
       getWorkflows(spaceId, token),
     ])
       .then(([issueRes, agentRes, memberRes, workflowRes]) => {
-        setIssues(issueRes.issues.map(apiIssueToIssue))
+        setIssuesData(issueRes.issues.map(apiIssueToIssue))
         setTotal(issueRes.total)
         setAgents(agentRes.map(apiAgentToAgent))
         setMembers(memberRes)
         setWorkflows(workflowRes.workflows.map(apiWorkflowToWorkflow))
       })
-      .catch((err) => setError(getErrorMessage(err, "Failed to load issues")))
+      // issuesData from a prior successful fetch (if any) is left in place, so
+      // a failed refresh reads as Stale rather than wiping the board.
+      .catch((err) => setListError(classifyError(err, "Failed to load issues")))
       .finally(() => setLoading(false))
   }, [page, token, spaceId])
+
+  const issuesState = useMemo(
+    () => deriveResourceState({ loading, data: issuesData, error: listError, isEmpty: (data) => data.length === 0 }),
+    [loading, issuesData, listError]
+  )
 
   useEffect(() => {
     void fetchIssues()
@@ -92,7 +111,7 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
     if (!nowOpen || !token || !spaceId || children[issueId] !== undefined) return
     getIssues(spaceId, token, { limit: 100, parentId: issueId })
       .then((res) => setChildren((prev) => ({ ...prev, [issueId]: res.issues.map(apiIssueToIssue) })))
-      .catch((err) => setError(getErrorMessage(err, "Failed to load sub-issues")))
+      .catch((err) => setListError(classifyError(err, "Failed to load sub-issues")))
   }
 
   // What is being done needs both halves at a glance: who is accountable and
@@ -140,7 +159,7 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
   }) {
     if (!token || !spaceId) return
     setSaving(true)
-    setError(null)
+    setCreateError(null)
     createIssue(spaceId, { title: values.title, description: values.description }, token)
       .then(async (created) => {
         const needsPatch =
@@ -163,11 +182,11 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
           )
         }
         setCreateOpen(false)
-        setPage(1)
-        navigate({ name: "issues", spaceId })
-        void fetchIssues()
+        // Success lands on the created issue, not back on the list: the reader
+        // created one specific object and wants to see it.
+        navigate({ name: "issue", spaceId, issueId: created.id })
       })
-      .catch((err) => setError(getErrorMessage(err, "Failed to create issue")))
+      .catch((err) => setCreateError(getErrorMessage(err, "Failed to create issue")))
       .finally(() => setSaving(false))
   }
 
@@ -185,7 +204,7 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
             type="button"
             className="page-activity__action-btn"
             onClick={() => {
-              setError(null)
+              setCreateError(null)
               setCreateOpen(true)
             }}
           >
@@ -194,11 +213,26 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
         </div>
       </div>
 
-      {error ? <p className="page-activity__empty">{error}</p> : null}
-      {!canAssignWorkflow ? (
+      {(issuesState.kind === "error" ||
+        issuesState.kind === "forbidden" ||
+        issuesState.kind === "notFound" ||
+        issuesState.kind === "stale") && (
+        <Alert
+          tone={issuesState.kind === "stale" ? "stale" : issuesState.kind}
+          message={issuesState.error.message}
+          retry={{ label: "Retry", onClick: () => void fetchIssues() }}
+        />
+      )}
+      {canAssignWorkflowState === "denied" ? (
         <p className="page-activity__empty">
           You can create issues and assign people or agents here. Workflow assignment is reserved for space owners and admins.
         </p>
+      ) : canAssignWorkflowState === "failed" ? (
+        <p className="page-activity__empty">
+          Couldn&apos;t verify your role in this space, so workflow assignment stays unavailable. Refresh to try again.
+        </p>
+      ) : canAssignWorkflowState === "unknown" ? (
+        <p className="page-activity__empty">Checking whether you can assign workflows…</p>
       ) : null}
 
       <section className="issues-page__panel">
@@ -207,15 +241,16 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
           <span className="page-activity__meta">{pageLabel}</span>
         </div>
 
-        {loading ? (
+        {issuesState.kind === "loading" ? (
           <p className="page-activity__empty">Loading…</p>
-        ) : issues.length === 0 ? (
-          <p className="page-activity__empty">
-            No issues yet. Create one to track a work item, ownership, and progress for this space.
-          </p>
-        ) : (
+        ) : issuesState.kind === "readyEmpty" ? (
+          <EmptyState
+            message="No issues yet. Create one to track a work item, ownership, and progress for this space."
+            action={{ label: "New Issue", onClick: () => setCreateOpen(true) }}
+          />
+        ) : issuesState.kind === "error" || issuesState.kind === "forbidden" || issuesState.kind === "notFound" ? null : (
           <ul className="issues-page__list">
-            {issues.map((issue) => (
+            {(issuesData ?? []).map((issue) => (
               <li key={issue.id} className="issues-page__list-item">
                 <button
                   type="button"
@@ -323,10 +358,10 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
         userId={userId}
         loading={saving}
         allowWorkflowAssignment={canAssignWorkflow}
-        error={createOpen ? error : null}
+        error={createOpen ? createError : null}
         onClose={() => {
           setCreateOpen(false)
-          setError(null)
+          setCreateError(null)
         }}
         onSubmit={handleCreate}
       />

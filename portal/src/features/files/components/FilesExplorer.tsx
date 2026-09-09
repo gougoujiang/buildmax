@@ -71,6 +71,8 @@ export function FilesExplorer({ spaceId, className }: FilesExplorerProps) {
             tree={explorer.tree}
             treeLoading={explorer.treeLoading}
             treeError={explorer.treeError}
+            treeErrorKind={explorer.treeErrorKind}
+            onRetry={explorer.refetchTree}
             expandedIds={explorer.expandedIds}
             selectedFolderId={explorer.selectedFolderId}
             onToggle={explorer.toggleFolder}
@@ -88,6 +90,8 @@ export function FilesExplorer({ spaceId, className }: FilesExplorerProps) {
             <FileList
               folderName={explorer.folderName}
               children={explorer.children}
+              treeLoading={explorer.treeLoading}
+              treeError={explorer.treeError}
               selectedFileId={explorer.selectedFileId}
               isRoot={explorer.selectedFolderId === "."}
               onSelectFolder={explorer.selectListFolder}

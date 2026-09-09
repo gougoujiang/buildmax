@@ -15,6 +15,7 @@ export function useFilesExplorer({ spaceId, token }: UseFilesExplorerOptions) {
     data: tree,
     loading: treeLoading,
     error: treeError,
+    errorKind: treeErrorKind,
     refetch: refetchTree,
   } = useFetch(
     () => getFileTree(spaceId!, token!),
@@ -150,6 +151,8 @@ export function useFilesExplorer({ spaceId, token }: UseFilesExplorerOptions) {
     tree,
     treeLoading,
     treeError,
+    treeErrorKind,
+    refetchTree,
     expandedIds,
     selectedFolderId,
     selectedFileId,

@@ -15,41 +15,66 @@ import { AgentAvatar } from "../../components/UserAvatar"
 import { CreateAgentModal } from "../../components/CreateAgentModal"
 import { consumptionHealthCount } from "../../components/SecretConsumptionEditor"
 import { RunAgentModal } from "../../components/RunAgentModal"
-import { useSpace } from "../../contexts/SpaceContext"
+import { useSpace, useSpaceCapability } from "../../contexts/SpaceContext"
+import { Alert } from "../../components/state/Alert"
+import { EmptyState } from "../../components/state/EmptyState"
+import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
+import { isAllowed } from "../../state/permissionState"
 
 interface AgentListProps {
   token: string | null
   spaceId: string
 }
 
+// Stable identity so `agents` doesn't churn every render while agentsData is
+// still null (before the first successful fetch).
+const EMPTY_AGENTS: Agent[] = []
+
 export function AgentList({ token, spaceId }: AgentListProps) {
   const { currentUserRole } = useSpace()
-  const [agents, setAgents] = useState<Agent[]>([])
+  // null means "not yet successfully fetched", distinct from [] meaning the
+  // space genuinely has no agents. See deriveResourceState.
+  const [agentsData, setAgentsData] = useState<Agent[] | null>(null)
+  const agents = agentsData ?? EMPTY_AGENTS
   const [secrets, setSecrets] = useState<ApiSecret[]>([])
   const [availablePlugins, setAvailablePlugins] = useState<string[]>([])
   const [availableModels, setAvailableModels] = useState<string[]>([])
   const [tasksByAgent, setTasksByAgent] = useState<Record<string, ApiTask[]>>({})
   const [loading, setLoading] = useState(true)
+  const [listError, setListError] = useState<RequestError | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [newTaskAgent, setNewTaskAgent] = useState<Agent | null>(null)
   const [startingTaskAgentId, setStartingTaskAgentId] = useState<string | null>(null)
+  // Distinct from listError: the create-agent / run-agent mutations' own
+  // error, shown inside their respective modals.
   const [error, setError] = useState<string | null>(null)
-  const canManageAgents = currentUserRole === "owner" || currentUserRole === "admin"
+  const canManageAgentsState = useSpaceCapability(currentUserRole === "owner" || currentUserRole === "admin")
+  const canManageAgents = isAllowed(canManageAgentsState)
 
   const fetchAgents = useCallback(() => {
     if (!token || !spaceId) {
-      setAgents([])
+      setAgentsData(null)
       setLoading(false)
+      setListError(null)
       return
     }
     setLoading(true)
+    setListError(null)
     getAgents(spaceId, token)
       .then((list) => {
-        setAgents(list.map(apiAgentToAgent))
+        setAgentsData(list.map(apiAgentToAgent))
       })
+      // agentsData from a prior successful fetch (if any) is left in place, so
+      // a failed refresh reads as Stale rather than wiping the grid.
+      .catch((err) => setListError(classifyError(err, "Failed to load agents")))
       .finally(() => setLoading(false))
   }, [token, spaceId])
+
+  const agentsState = useMemo(
+    () => deriveResourceState({ loading, data: agentsData, error: listError, isEmpty: (data) => data.length === 0 }),
+    [loading, agentsData, listError]
+  )
 
   // The space's secrets, to populate the create dialog's consumption editor and
   // flag broken grants on the cards and overview. Owner-or-admin may list them;
@@ -163,7 +188,7 @@ export function AgentList({ token, spaceId }: AgentListProps) {
     createAgent(spaceId, values, token)
       .then((created) => {
         const mapped = apiAgentToAgent(created)
-        setAgents((prev) => [...prev, mapped])
+        setAgentsData((prev) => [...(prev ?? []), mapped])
         setModalOpen(false)
         navigate({ name: "agent", spaceId, agentId: mapped.id })
       })
@@ -225,12 +250,28 @@ export function AgentList({ token, spaceId }: AgentListProps) {
         </div>
       </div>
 
+      {(agentsState.kind === "error" ||
+        agentsState.kind === "forbidden" ||
+        agentsState.kind === "notFound" ||
+        agentsState.kind === "stale") && (
+        <Alert
+          tone={agentsState.kind === "stale" ? "stale" : agentsState.kind}
+          message={agentsState.error.message}
+          retry={{ label: "Retry", onClick: () => fetchAgents() }}
+        />
+      )}
       {error ? <p className="page-activity__empty">{error}</p> : null}
 
-      {!canManageAgents ? (
+      {canManageAgentsState === "denied" ? (
         <p className="page-activity__empty">
           You can start conversations with space agents, but only space owners and admins can create or edit them.
         </p>
+      ) : canManageAgentsState === "failed" ? (
+        <p className="page-activity__empty">
+          Couldn&apos;t verify your role in this space, so creating or editing agents stays unavailable. Refresh to try again.
+        </p>
+      ) : canManageAgentsState === "unknown" ? (
+        <p className="page-activity__empty">Checking whether you can manage agents…</p>
       ) : null}
 
       {!loading && agents.length > 0 ? (
@@ -248,15 +289,18 @@ export function AgentList({ token, spaceId }: AgentListProps) {
 
       <div className="agent-home">
         <section className="agent-list">
-          {loading ? (
+          {agentsState.kind === "loading" ? (
             <p className="page-activity__empty">Loading…</p>
-          ) : agents.length === 0 ? (
-            <p className="page-activity__empty agent-list__empty">
-              {canManageAgents
-                ? "No agents yet. Click \"Create agent\" to add one."
-                : "No agents are available in this space yet. Space owners and admins can add one when you're ready to share a reusable agent."}
-            </p>
-          ) : (
+          ) : agentsState.kind === "readyEmpty" ? (
+            <EmptyState
+              message={
+                canManageAgents
+                  ? 'No agents yet. Click "Create agent" to add one.'
+                  : "No agents are available in this space yet. Space owners and admins can add one when you're ready to share a reusable agent."
+              }
+              action={canManageAgents ? { label: "Create agent", onClick: () => setModalOpen(true) } : undefined}
+            />
+          ) : agentsState.kind === "error" || agentsState.kind === "forbidden" || agentsState.kind === "notFound" ? null : (
             <div className="agent-list__grid">
               {agents.map((a) => {
                 const meta = agentMeta(a)
