@@ -47,7 +47,10 @@ test("the Agent-step form has no free-form Type field or editable step id, and c
   await submit.click()
 
   await expect(dialog).toBeHidden()
-  await expect(page.getByText(tagged("Workflow authoring probe"), { exact: true })).toBeVisible()
+  // Creating a workflow navigates to its detail page (Workflows.tsx handleCreate),
+  // where the name appears in both the breadcrumb and the narrow compact header;
+  // assert the landing route rather than a name that now resolves to two elements.
+  await expect(page).toHaveURL(new RegExp(`#/spaces/${current.spaceId}/workflows/[^/]+$`))
 })
 
 test("advanced JSON mode is checked against the same validation as the step form", async ({ page }) => {
