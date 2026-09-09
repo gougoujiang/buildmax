@@ -218,10 +218,9 @@ before it starts.
   uniquely tagged resources, and prints what it left behind — most of them have
   no delete route, so the line naming them is the cleanup instruction.
 
-`./make e2e kind` first checks that the cluster's MySQL is Ready and not
-flapping, and refuses with a `kind reload` instruction if it is mid-restart, so
-an unhealthy shared database fails fast instead of surfacing as a product bug
-part-way through the suite.
+`./make e2e kind` first checks that the cluster's MySQL is Ready, and refuses
+with a `kind reload` instruction otherwise, so an unhealthy shared database
+fails fast instead of surfacing as a product bug part-way through the suite.
 
 It also checks that the deployment matches the working tree. `kind up` and
 `kind reload` stamp the commit they built onto the `buildmax-server` and
