@@ -18,6 +18,7 @@ loop rather than a pull-request gate — is in
 ./make e2e desktop    # just the Desktop bridge suite
 ./make e2e desktop-ui # desktop/frontend through `wails dev`'s browser bridge
 ./make e2e desktop-ui core # just the @smoke subset CI gates desktop changes on
+./make e2e desktop-launch # launch the packaged app (after `build desktop`) and require it to stay up
 ./make e2e local      # Portal in a browser, against a Compose stack this command owns
 ./make e2e all        # cli, desktop, then local — the release-time matrix
 ./make kind up        # build the local cluster and verify a Kubernetes worker run

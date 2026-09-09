@@ -13,6 +13,12 @@
 # inputs change, and catching a broken build before the merge beats catching it
 # after. It also runs after merge, weekly, and on demand.
 #
+# After building, it launches the packaged app and requires it to stay up
+# briefly (`./make e2e desktop-launch`) — a build proves it compiles, this proves
+# the bundle starts, catching a crash on launch a build never sees. The launched
+# binary is the locally built one, so Gatekeeper's download quarantine does not
+# apply.
+#
 # It builds and does not publish. The app is deliberately absent from
 # .goreleaser.yaml — an unsigned, unnotarized macOS bundle is refused by
 # Gatekeeper once it has been downloaded, so shipping one would be worse than
@@ -107,3 +113,15 @@ jobs:
         if: runner.os == 'Windows'
         shell: cmd
         run: .\make.bat build desktop
+
+      # A build proves it compiles; this proves the bundle starts. Launches the
+      # packaged app and requires it to stay up briefly, catching a crash on
+      # launch a build never sees.
+      - name: Launch smoke
+        if: runner.os != 'Windows'
+        run: ./make e2e desktop-launch
+
+      - name: Launch smoke
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: .\make.bat e2e desktop-launch

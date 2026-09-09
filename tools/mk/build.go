@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 )
 
@@ -191,26 +190,19 @@ func buildDesktop() error {
 // `run desktop` finds all local binaries in one place. macOS builds an .app
 // bundle, which nests the executable a few levels down.
 func copyDesktopBinary() error {
-	candidates := []string{filepath.Join(desktopDir, "build", "bin", exe(desktopBinary))}
-	if runtime.GOOS == "darwin" {
-		bundled := filepath.Join(desktopDir, "build", "bin", "BuildMax.app", "Contents", "MacOS", desktopBinary)
-		candidates = append([]string{bundled}, candidates...)
+	src, ok := desktopBuiltBinary()
+	if !ok {
+		return fmt.Errorf("wails build completed but no desktop binary was found under %s", filepath.Join(desktopDir, "build", "bin"))
 	}
-	for _, src := range candidates {
-		if !exists(src) {
-			continue
-		}
-		if err := os.MkdirAll(binDir, 0o755); err != nil {
-			return fmt.Errorf("create %s: %w", binDir, err)
-		}
-		dst := filepath.Join(binDir, exe(desktopBinary))
-		if err := copyFile(src, dst, 0o755); err != nil {
-			return fmt.Errorf("copy desktop binary: %w", err)
-		}
-		logf("desktop", "Copied binary to %s", dst)
-		return nil
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		return fmt.Errorf("create %s: %w", binDir, err)
 	}
-	return fmt.Errorf("wails build completed but no desktop binary was found under %s", filepath.Join(desktopDir, "build", "bin"))
+	dst := filepath.Join(binDir, exe(desktopBinary))
+	if err := copyFile(src, dst, 0o755); err != nil {
+		return fmt.Errorf("copy desktop binary: %w", err)
+	}
+	logf("desktop", "Copied binary to %s", dst)
+	return nil
 }
 
 func cmdClean() error {
