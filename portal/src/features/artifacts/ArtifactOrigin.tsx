@@ -42,13 +42,13 @@ export function ArtifactOrigin({ artifact, spaceId, token }: ArtifactOriginProps
   }, [artifact.source_id, artifact.source_type, spaceId, token])
 
   const label = sourceLabel(artifact)
-  if (!taskId) return <>{label}</>
+  if (!taskId || !spaceId) return <>{label}</>
 
   return (
     <button
       type="button"
       className="artifact-details__link"
-      onClick={() => navigate({ name: "task", taskId })}
+      onClick={() => navigate({ name: "task", spaceId, taskId })}
     >
       {label}
     </button>

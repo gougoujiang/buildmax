@@ -16,11 +16,12 @@ const PAGE_SIZE = 10
 
 interface IssuesProps {
   token: string | null
+  spaceId: string
   userId?: string
 }
 
-export function Issues({ token, userId }: IssuesProps) {
-  const { currentSpaceId, currentUserRole } = useSpace()
+export function Issues({ token, spaceId, userId }: IssuesProps) {
+  const { currentUserRole } = useSpace()
   const [issues, setIssues] = useState<Issue[]>([])
   const [total, setTotal] = useState(0)
   const [agents, setAgents] = useState<Agent[]>([])
@@ -40,7 +41,7 @@ export function Issues({ token, userId }: IssuesProps) {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   const fetchIssues = useCallback(() => {
-    if (!token || !currentSpaceId) {
+    if (!token || !spaceId) {
       setIssues([])
       setAgents([])
       setWorkflows([])
@@ -54,10 +55,10 @@ export function Issues({ token, userId }: IssuesProps) {
     return Promise.all([
       // The board shows top-level issues; sub-issues appear under the parent
       // they were split out of, not as siblings in the same list.
-      getIssues(currentSpaceId, token, { limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE, parentId: "none" }),
-      getAgents(currentSpaceId, token),
-      getSpaceMembers(currentSpaceId, token),
-      getWorkflows(currentSpaceId, token),
+      getIssues(spaceId, token, { limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE, parentId: "none" }),
+      getAgents(spaceId, token),
+      getSpaceMembers(spaceId, token),
+      getWorkflows(spaceId, token),
     ])
       .then(([issueRes, agentRes, memberRes, workflowRes]) => {
         setIssues(issueRes.issues.map(apiIssueToIssue))
@@ -68,7 +69,7 @@ export function Issues({ token, userId }: IssuesProps) {
       })
       .catch((err) => setError(getErrorMessage(err, "Failed to load issues")))
       .finally(() => setLoading(false))
-  }, [page, token, currentSpaceId])
+  }, [page, token, spaceId])
 
   useEffect(() => {
     void fetchIssues()
@@ -76,20 +77,20 @@ export function Issues({ token, userId }: IssuesProps) {
 
   useEffect(() => {
     setPage(1)
-  }, [currentSpaceId])
+  }, [spaceId])
 
   // A reload invalidates every cached breakdown: statuses may have moved, and a
   // stale child list is worse than a second fetch.
   useEffect(() => {
     setExpanded({})
     setChildren({})
-  }, [page, currentSpaceId])
+  }, [page, spaceId])
 
   function toggleChildren(issueId: string) {
     const nowOpen = !expanded[issueId]
     setExpanded((prev) => ({ ...prev, [issueId]: nowOpen }))
-    if (!nowOpen || !token || !currentSpaceId || children[issueId] !== undefined) return
-    getIssues(currentSpaceId, token, { limit: 100, parentId: issueId })
+    if (!nowOpen || !token || !spaceId || children[issueId] !== undefined) return
+    getIssues(spaceId, token, { limit: 100, parentId: issueId })
       .then((res) => setChildren((prev) => ({ ...prev, [issueId]: res.issues.map(apiIssueToIssue) })))
       .catch((err) => setError(getErrorMessage(err, "Failed to load sub-issues")))
   }
@@ -137,10 +138,10 @@ export function Issues({ token, userId }: IssuesProps) {
     executor_kind: "agent" | "workflow" | ""
     executor_id: string
   }) {
-    if (!token || !currentSpaceId) return
+    if (!token || !spaceId) return
     setSaving(true)
     setError(null)
-    createIssue(currentSpaceId, { title: values.title, description: values.description }, token)
+    createIssue(spaceId, { title: values.title, description: values.description }, token)
       .then(async (created) => {
         const needsPatch =
           values.status !== "todo" ||
@@ -149,7 +150,7 @@ export function Issues({ token, userId }: IssuesProps) {
           values.executor_id !== ""
         if (needsPatch) {
           await updateIssue(
-            currentSpaceId,
+            spaceId,
             created.id,
             {
               version: created.version,
@@ -163,7 +164,7 @@ export function Issues({ token, userId }: IssuesProps) {
         }
         setCreateOpen(false)
         setPage(1)
-        navigate({ name: "issues" })
+        navigate({ name: "issues", spaceId })
         void fetchIssues()
       })
       .catch((err) => setError(getErrorMessage(err, "Failed to create issue")))
@@ -220,7 +221,7 @@ export function Issues({ token, userId }: IssuesProps) {
                   type="button"
                   className="issues-page__row"
                   onClick={() => {
-                    navigate({ name: "issue", issueId: issue.id })
+                    navigate({ name: "issue", spaceId, issueId: issue.id })
                   }}
                 >
                   <span className="issues-page__row-main">
@@ -269,7 +270,7 @@ export function Issues({ token, userId }: IssuesProps) {
                               <button
                                 type="button"
                                 className="issues-page__row"
-                                onClick={() => navigate({ name: "issue", issueId: child.id })}
+                                onClick={() => navigate({ name: "issue", spaceId, issueId: child.id })}
                               >
                                 <span className="issues-page__row-main">
                                   <span className="issues-page__row-title">{child.title}</span>

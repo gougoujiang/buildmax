@@ -38,7 +38,7 @@ interface ArtifactDetailProps {
 export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
   const { token, user } = useAuth()
   const { setEntityLabel } = useApp()
-  const { currentSpaceId, currentUserRole } = useSpace()
+  const { currentSpaceId, currentUserRole, setCurrentSpaceId } = useSpace()
   const [artifact, setArtifact] = useState<ApiArtifact | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -77,6 +77,14 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
     if (artifact) setEntityLabel(artifact.id, artifactLabel(artifact))
   }, [artifact, setEntityLabel])
 
+  // Artifact detail is the one route resolved by id alone -- once the lookup
+  // authorizes it, reconcile the shell to the artifact's own Space so the
+  // sidebar, switcher, and "back to Artifacts" link agree with what is on
+  // screen, per docs/design/portal-navigation-and-space-context.md.
+  useEffect(() => {
+    if (artifact) setCurrentSpaceId(artifact.space_id)
+  }, [artifact, setCurrentSpaceId])
+
   async function onDownload() {
     if (!artifact || !token) return
     setBusy(true)
@@ -97,7 +105,7 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
     setError(null)
     try {
       await deleteArtifact(artifact.id, token)
-      navigate({ name: "artifacts" })
+      navigate({ name: "artifacts", spaceId: artifact?.space_id ?? currentSpaceId! })
     } catch (err) {
       setError(getErrorMessage(err, "Delete failed"))
       setBusy(false)
@@ -144,7 +152,7 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
           <button
             type="button"
             className="page-activity__action-btn"
-            onClick={() => navigate({ name: "artifacts" })}
+            onClick={() => navigate({ name: "artifacts", spaceId: currentSpaceId! })}
           >
             Back to artifacts
           </button>

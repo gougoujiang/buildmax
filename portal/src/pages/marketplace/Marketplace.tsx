@@ -144,6 +144,7 @@ export function Marketplace({ token }: { token: string | null }) {
         <PluginDetailModal
           plugin={selectedPlugin}
           release={releases[selectedPlugin.name] ?? null}
+          spaceId={currentSpace?.id ?? null}
           spaceName={currentSpace?.name ?? null}
           canManageSpace={currentUserRole === "owner" || currentUserRole === "admin"}
           onClose={() => setSelected(null)}
@@ -201,12 +202,14 @@ function PluginCard({
 function PluginDetailModal({
   plugin,
   release,
+  spaceId,
   spaceName,
   canManageSpace,
   onClose,
 }: {
   plugin: ApiPlugin
   release: ApiPluginRelease | null
+  spaceId: string | null
   spaceName: string | null
   canManageSpace: boolean
   onClose: () => void
@@ -274,7 +277,7 @@ function PluginDetailModal({
                 <button
                   type="button"
                   className="mkt-install__copy"
-                  onClick={() => navigate({ name: "space", section: "plugins" })}
+                  onClick={() => spaceId && navigate({ name: "space", spaceId, section: "plugins" })}
                 >
                   Open Space Plugins
                 </button>

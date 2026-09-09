@@ -5,24 +5,24 @@ import { getErrorMessage } from "../../lib/errorMessage"
 import { cn } from "../../lib/cn"
 import { createConversation } from "../../features/conversations"
 import { useApp } from "../../contexts/AppContext"
-import { useSpace } from "../../contexts/SpaceContext"
 import type { Conversation } from "../../lib/types"
 
 type NewConversationTab = "conversations" | "files"
 
 interface NewConversationProps {
   token?: string
+  spaceId: string
   onRefetchConversations?: () => void
   conversations: Conversation[]
 }
 
 export function NewConversation({
   token,
+  spaceId,
   onRefetchConversations,
   conversations,
 }: NewConversationProps) {
   const { setPendingConversation } = useApp()
-  const { currentSpaceId } = useSpace()
   const [prompt, setPrompt] = useState("")
   const [running, setRunning] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
@@ -30,11 +30,11 @@ export function NewConversation({
 
   async function handleSend() {
     const input = prompt.trim()
-    if (!input || !token || !currentSpaceId || running) return
+    if (!input || !token || !spaceId || running) return
     setRunning(true)
     setRunError(null)
     try {
-      const created = await createConversation(currentSpaceId, { channel: "portal" }, token)
+      const created = await createConversation(spaceId, { channel: "portal" }, token)
       setPendingConversation({
         conversationId: created.conversation_id,
         initialMessage: input,
@@ -42,7 +42,8 @@ export function NewConversation({
       onRefetchConversations?.()
       setPrompt("")
       navigate({
-        name: "conversation",
+        name: "chat",
+        spaceId,
         conversationId: created.conversation_id,
       })
     } catch (err) {
@@ -118,7 +119,8 @@ export function NewConversation({
                         className="page-activity__link"
                         onClick={() =>
                           navigate({
-                            name: "conversation",
+                            name: "chat",
+                            spaceId,
                             conversationId: conv.id,
                           })
                         }
@@ -154,7 +156,7 @@ export function NewConversation({
               <button
                 type="button"
                 className="page-activity__action-btn"
-                onClick={() => navigate({ name: "explore" })}
+                onClick={() => navigate({ name: "explore", spaceId })}
               >
                 Open Workspace Files
               </button>

@@ -31,7 +31,7 @@ test("a workflow is listed, and its detail view opens by URL", async ({ page }) 
   })
   reportLeftovers(current.spaceId, [`agent ${agent.id}`, `workflow ${workflow.id}`])
 
-  await page.goto("/#/workflows")
+  await page.goto(`/#/spaces/${current.spaceId}/workflows`)
   await expect(page.getByRole("heading", { name: "Workflows", exact: true })).toBeVisible()
   const list = page.locator(".issues-page__panel").filter({
     has: page.getByRole("heading", { name: "All Workflows" }),
@@ -41,7 +41,7 @@ test("a workflow is listed, and its detail view opens by URL", async ({ page }) 
   // The detail route carries the id, so linking to it is the same claim as
   // reaching it by clicking — and it is the one an operator pastes to a
   // colleague.
-  await page.goto(`/#/workflow/${workflow.id}`)
+  await page.goto(`/#/spaces/${current.spaceId}/workflows/${workflow.id}`)
   await expect(page.getByRole("heading", { name: "Workflow Detail" })).toBeVisible()
   // The breadcrumb is the reader's orientation cue, so once the workflow has
   // loaded it names the workflow rather than its opaque id. The Definition
@@ -114,7 +114,7 @@ test("a workflow runs, and the run view reports each step's outcome", async ({ p
     )
     .toBe("succeeded")
 
-  await page.goto(`/#/workflow-run/${runId}`)
+  await page.goto(`/#/spaces/${current.spaceId}/workflow-runs/${runId}`)
   // exact: the panel below carries the workflow's own name, and this run's
   // workflow is called "Workflow run probe …", which a substring match finds too.
   await expect(page.getByRole("heading", { name: "Workflow Run", exact: true })).toBeVisible()

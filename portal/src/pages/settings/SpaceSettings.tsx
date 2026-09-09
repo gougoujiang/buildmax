@@ -14,9 +14,8 @@ import { SpaceSandboxDefaults } from "../../features/spaceSandbox"
 import { SpaceSecrets } from "../../features/spaceSecrets"
 import { SpaceAgentInstructions } from "../../features/spaceInstructions"
 import { useAuth } from "../../contexts/AuthContext"
-import { useSpace } from "../../contexts/SpaceContext"
 
-export function SpaceSettings({ section }: { section: SpaceSection }) {
+export function SpaceSettings({ spaceId, section }: { spaceId: string; section: SpaceSection }) {
   const [inviteOpen, setInviteOpen] = useState(section === "memberNew")
   const {
     user,
@@ -51,9 +50,8 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
     handleChangeRole,
     handleTransferOwnership,
     handleIssueLoginCode,
-  } = useSettingsData()
+  } = useSettingsData(spaceId)
   const { token } = useAuth()
-  const { currentSpaceId } = useSpace()
 
   useEffect(() => {
     setInviteOpen(section === "memberNew")
@@ -68,7 +66,7 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
     setEmail("")
     setInviteRole("member")
     if (section === "memberNew") {
-      navigate({ name: "space", section: "members" })
+      navigate({ name: "space", spaceId, section: "members" })
     }
   }
 
@@ -107,7 +105,7 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
                 role="tab"
                 aria-selected={active}
                 className={`settings-page__tab ${active ? "settings-page__tab--active" : ""}`}
-                onClick={() => navigate({ name: "space", section: item.id })}
+                onClick={() => navigate({ name: "space", spaceId, section: item.id })}
               >
                 <span className="settings-page__tab-icon" aria-hidden>
                   <Icon />
@@ -132,7 +130,7 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
             />
             <SpaceAgentInstructions
               token={token}
-              spaceId={currentSpaceId}
+              spaceId={spaceId}
               canManage={
                 currentUserMember?.role === "owner" || currentUserMember?.role === "admin"
               }
@@ -142,7 +140,7 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
         {section === "plugins" ? (
           <SpacePlugins
             token={token}
-            spaceId={currentSpaceId}
+            spaceId={spaceId}
             // Changing an activation is owner-or-admin, the authority the
             // space's other shared automation already needs. Reading is not.
             canManage={
@@ -153,7 +151,7 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
         {section === "security" ? (
           <SpaceSandboxDefaults
             token={token}
-            spaceId={currentSpaceId}
+            spaceId={spaceId}
             canManage={
               currentUserMember?.role === "owner" || currentUserMember?.role === "admin"
             }
@@ -162,7 +160,7 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
         {section === "secrets" ? (
           <SpaceSecrets
             token={token}
-            spaceId={currentSpaceId}
+            spaceId={spaceId}
             // Secrets are owner-only: value authority stays with the owner
             // until BuildMax has finer space grants. See
             // docs/design/space-secrets.md §10.
@@ -171,7 +169,7 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
         ) : null}
         {section === "audit" ? (
           <SpaceAuditSection
-            spaceId={currentSpaceId}
+            spaceId={spaceId}
             token={token}
             currentUserIsOwner={currentUserIsOwner}
             currentUserId={user?.id}
@@ -179,6 +177,7 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
         ) : null}
         {section === "members" ? (
           <SpaceMembersSection
+            spaceId={spaceId}
             currentSpaceName={currentSpaceName}
             currentUserIsOwner={currentUserIsOwner}
             currentUserRole={currentUserRole}

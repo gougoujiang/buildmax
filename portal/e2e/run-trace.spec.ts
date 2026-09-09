@@ -81,7 +81,7 @@ test("Portal states what confined a run, and what the run spent", async ({ page 
   const current = await session(page)
   const issueId = await seedCompletedAgentRun(page, current)
 
-  await page.goto(`/#/issue/${issueId}`)
+  await page.goto(`/#/spaces/${current.spaceId}/issues/${issueId}`)
   // Discussion is its own tab, not part of the default Overview.
   await page.getByRole("navigation", { name: "Issue sections" }).getByRole("button", { name: "Discussion" }).click()
 

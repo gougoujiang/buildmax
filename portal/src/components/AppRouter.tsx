@@ -38,65 +38,84 @@ export function AppRouter({
     setPendingConversation,
   } = useApp()
 
-  const routeConversationId = route.name === "conversation" ? route.conversationId : undefined
+  const routeConversationId = route.name === "chat" ? route.conversationId : undefined
 
   useEffect(() => {
     if (!pendingConversation) return
-    const viewing = route.name === "conversation" && routeConversationId === pendingConversation.conversationId
+    const viewing = route.name === "chat" && routeConversationId === pendingConversation.conversationId
     if (!viewing) setPendingConversation(null)
   }, [route.name, routeConversationId, pendingConversation, setPendingConversation])
 
-  const fallbackHome = (
-    <NewConversation
-      token={token ?? undefined}
-      onRefetchConversations={onRefetchConversations}
-      conversations={conversations}
-    />
-  )
+  if (route.name === "chat") {
+    if (route.conversationId) {
+      const initialMessage =
+        pendingConversation?.conversationId === route.conversationId
+          ? pendingConversation.initialMessage
+          : undefined
+      return (
+        <ConversationDetail
+          spaceId={route.spaceId}
+          conversationId={route.conversationId}
+          onRefetch={onRefetchConversations}
+          initialMessage={initialMessage}
+        />
+      )
+    }
+    return (
+      <NewConversation
+        token={token ?? undefined}
+        spaceId={route.spaceId}
+        onRefetchConversations={onRefetchConversations}
+        conversations={conversations}
+      />
+    )
+  }
 
-  if (route.name === "home") return fallbackHome
-  if (route.name === "conversations") return fallbackHome
-  if (route.name === "explore") return <Explore />
+  if (route.name === "explore") return <Explore spaceId={route.spaceId} />
 
   if (route.name === "agents") {
     return (
       <AgentList
         token={token ?? null}
+        spaceId={route.spaceId}
       />
     )
   }
 
   if (route.name === "agent") {
-    return <AgentDetail token={token ?? null} agentId={route.agentId} />
+    return <AgentDetail token={token ?? null} spaceId={route.spaceId} agentId={route.agentId} />
   }
 
   if (route.name === "account") return <AccountSettings section={route.section ?? "general"} />
-  if (route.name === "space") return <SpaceSettings section={route.section ?? "overview"} />
+  if (route.name === "space")
+    return <SpaceSettings spaceId={route.spaceId} section={route.section ?? "overview"} />
   if (route.name === "admin")
     return <AdminSettings section={route.section ?? "overview"} userId={route.userId} />
 
   if (route.name === "workflows") {
-    return <Workflows token={token ?? null} />
+    return <Workflows token={token ?? null} spaceId={route.spaceId} />
   }
 
   if (route.name === "workflow") {
-    return <WorkflowDetail token={token ?? null} workflowId={route.workflowId} />
+    return <WorkflowDetail token={token ?? null} spaceId={route.spaceId} workflowId={route.workflowId} />
   }
 
   if (route.name === "workflowRun") {
-    return <WorkflowRunDetail token={token ?? null} workflowRunId={route.workflowRunId} />
+    return (
+      <WorkflowRunDetail token={token ?? null} spaceId={route.spaceId} workflowRunId={route.workflowRunId} />
+    )
   }
 
   if (route.name === "issues") {
-    return <Issues token={token ?? null} userId={userId} />
+    return <Issues token={token ?? null} spaceId={route.spaceId} userId={userId} />
   }
 
   if (route.name === "issue") {
-    return <IssueDetail token={token ?? null} issueId={route.issueId} userId={userId} />
+    return <IssueDetail token={token ?? null} spaceId={route.spaceId} issueId={route.issueId} userId={userId} />
   }
 
   if (route.name === "artifacts") {
-    return <Artifacts />
+    return <Artifacts spaceId={route.spaceId} />
   }
 
   if (route.name === "marketplace") {
@@ -111,23 +130,9 @@ export function AppRouter({
     return <ArtifactDetail artifactId={route.artifactId} />
   }
 
-  if (route.name === "conversation") {
-    const initialMessage =
-      pendingConversation?.conversationId === route.conversationId
-        ? pendingConversation.initialMessage
-        : undefined
-    return (
-        <ConversationDetail
-          conversationId={route.conversationId}
-          onRefetch={onRefetchConversations}
-          initialMessage={initialMessage}
-        />
-      )
-  }
-
   if (route.name === "task") {
-    return <TaskDetail token={token ?? null} taskId={route.taskId} />
+    return <TaskDetail token={token ?? null} spaceId={route.spaceId} taskId={route.taskId} />
   }
 
-  return fallbackHome
+  return null
 }

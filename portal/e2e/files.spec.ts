@@ -21,7 +21,7 @@ test("an uploaded file is listed and readable in Workspace Files", async ({ page
 
   // Straight to the URL: a view reachable only by clicking cannot be linked,
   // and the specs beside this one hold routing to the same rule.
-  await page.goto("/#/explore")
+  await page.goto(`/#/spaces/${current.spaceId}/files`)
   await expect(page.getByRole("heading", { name: "Workspace Files" })).toBeVisible()
 
   // The root folder is selected on load, which is where an upload lands.

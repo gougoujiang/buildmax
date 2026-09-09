@@ -4,9 +4,14 @@
 > **Audience:** Portal contributors and product designers · **Status:** in
 > progress — slice 1 (navigation language: Home renamed to Chat, sidebar
 > grouped into Work/Reuse/Data/Manage, Workspace Files exposed, deployment
-> Administration separated from Space scope) has shipped; the canonical
-> Space-prefixed route model, centralized Space switching, resolution states,
-> and breadcrumb/responsive polish are still planned.
+> Administration separated from Space scope) and slice 2 (canonical
+> `#/spaces/{space_id}/...` routes; every Space-owned page reads its Space from
+> the route, not a previously selected one; migration-bounded redirects for the
+> old flat hashes) have shipped. Centralized Space switching, resolution
+> states, and breadcrumb/responsive polish are still planned — until Space
+> switching is centralized, a handful of routes (Space settings, Agent, Task)
+> do not yet redirect off a stale detail page on switch, matching their
+> pre-slice-2 behavior.
 
 This record defines how Portal navigation communicates scope and how URLs keep
 Space-owned resources in the correct Space. It is an independently deliverable

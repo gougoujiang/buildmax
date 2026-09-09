@@ -224,8 +224,8 @@ export function SidebarNavContent({
           <span className="sidebar__group-label">Work</span>
           <button
             type="button"
-            className={cn("sidebar__nav-item", route.name === "home" && "sidebar__nav-item--active")}
-            onClick={() => go({ name: "home" })}
+            className={cn("sidebar__nav-item", route.name === "chat" && "sidebar__nav-item--active")}
+            onClick={() => go({ name: "chat", spaceId: currentSpaceId! })}
           >
             <NewChatIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">Chat</span>
@@ -233,7 +233,7 @@ export function SidebarNavContent({
           <button
             type="button"
             className={cn("sidebar__nav-item", isIssuesActive(route) && "sidebar__nav-item--active")}
-            onClick={() => go({ name: "issues" })}
+            onClick={() => go({ name: "issues", spaceId: currentSpaceId! })}
           >
             <IssueIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">Issues</span>
@@ -244,7 +244,7 @@ export function SidebarNavContent({
           <button
             type="button"
             className={cn("sidebar__nav-item", isAgentsActive(route) && "sidebar__nav-item--active")}
-            onClick={() => go({ name: "agents" })}
+            onClick={() => go({ name: "agents", spaceId: currentSpaceId! })}
           >
             <AgentsIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">Agents</span>
@@ -252,7 +252,7 @@ export function SidebarNavContent({
           <button
             type="button"
             className={cn("sidebar__nav-item", isWorkflowsActive(route) && "sidebar__nav-item--active")}
-            onClick={() => go({ name: "workflows" })}
+            onClick={() => go({ name: "workflows", spaceId: currentSpaceId! })}
           >
             <WorkflowIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">Workflows</span>
@@ -263,7 +263,7 @@ export function SidebarNavContent({
           <button
             type="button"
             className={cn("sidebar__nav-item", isFilesActive(route) && "sidebar__nav-item--active")}
-            onClick={() => go({ name: "explore" })}
+            onClick={() => go({ name: "explore", spaceId: currentSpaceId! })}
           >
             <FilesIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">Workspace Files</span>
@@ -271,7 +271,7 @@ export function SidebarNavContent({
           <button
             type="button"
             className={cn("sidebar__nav-item", isArtifactsActive(route) && "sidebar__nav-item--active")}
-            onClick={() => go({ name: "artifacts" })}
+            onClick={() => go({ name: "artifacts", spaceId: currentSpaceId! })}
           >
             <ArtifactIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">Artifacts</span>
@@ -282,7 +282,7 @@ export function SidebarNavContent({
           <button
             type="button"
             className={cn("sidebar__nav-item", isSpaceSettingsActive(route) && "sidebar__nav-item--active")}
-            onClick={() => go({ name: "space", section: "overview" })}
+            onClick={() => go({ name: "space", spaceId: currentSpaceId!, section: "overview" })}
           >
             <SettingsIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">Space settings</span>

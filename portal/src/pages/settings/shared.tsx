@@ -419,6 +419,7 @@ function memberDisplayLabel(invitation: ApiInvitation): string {
 }
 
 export function SpaceMembersSection({
+  spaceId,
   currentSpaceName,
   currentUserIsOwner,
   currentUserRole,
@@ -440,6 +441,7 @@ export function SpaceMembersSection({
   loginCodeError,
   onIssueLoginCode,
 }: {
+  spaceId: string
   currentSpaceName: string
   currentUserIsOwner: boolean
   currentUserRole: string | null
@@ -479,7 +481,7 @@ export function SpaceMembersSection({
             <button
               type="button"
               className="page-activity__action-btn"
-              onClick={() => navigate({ name: "space", section: "memberNew" })}
+              onClick={() => navigate({ name: "space", spaceId, section: "memberNew" })}
             >
               Invite
             </button>
@@ -790,9 +792,23 @@ export function AccountInvitationsSection({
   )
 }
 
-export function useSettingsData() {
+/**
+ * `spaceId` pins the space-scoped half of this data to the route's own Space
+ * rather than whichever one is currently selected -- pass it from a
+ * Space-prefixed page (Space settings). Omit it from a global page (Account
+ * settings), where there is no route Space to defer to and the currently
+ * selected one is the only sensible source.
+ */
+export function useSettingsData(spaceId?: string) {
   const { token, user } = useAuth()
-  const { currentSpace, currentSpaceId, refetchSpaces } = useSpace()
+  const { spaces, currentSpace: contextSpace, currentSpaceId: contextSpaceId, refetchSpaces } = useSpace()
+  const currentSpaceId = spaceId ?? contextSpaceId
+  // Look the summary up by the resolved id rather than trusting the context's
+  // own `currentSpace`: right after a Space switch, context updates before
+  // this page's route does (that reconciliation is centralized in a later
+  // slice), and showing one Space's name over another's fetched data would be
+  // a real, silent correctness bug, not just a cosmetic lag.
+  const currentSpace = spaceId ? spaces.find((s) => s.id === spaceId) ?? null : contextSpace
   const [usage, setUsage] = useState<ApiUsage | null>(null)
   const [spaceUsage, setSpaceUsage] = useState<ApiUsage | null>(null)
   const [members, setMembers] = useState<ApiSpaceMember[]>([])
@@ -945,7 +961,7 @@ export function useSettingsData() {
       // Not yet a member: the invitation is pending, not active, so the
       // roster does not change -- only the pending list does.
       await loadInvitations()
-      navigate({ name: "space", section: "members" })
+      navigate({ name: "space", spaceId: currentSpaceId, section: "members" })
       return true
     } catch (err) {
       setInviteError(getErrorMessage(err, "Failed to invite"))

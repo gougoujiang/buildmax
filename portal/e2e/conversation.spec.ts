@@ -44,7 +44,7 @@ test("a conversation turn crosses the deployment's WebSocket in both directions"
   )
   reportLeftovers(current.spaceId, [`conversation ${conversation.conversation_id}`])
 
-  await page.goto(`/#/conversation/${conversation.conversation_id}`)
+  await page.goto(`/#/spaces/${current.spaceId}/chat/${conversation.conversation_id}`)
   // By role: the section around the composer is labelled "Send a message", and
   // a label match alone finds both it and the box inside it.
   const composer = page.getByRole("textbox", { name: "Message" })

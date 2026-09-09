@@ -10,6 +10,7 @@ import {
   useAdminAccess,
 } from "../../features/admin"
 import { useAuth } from "../../contexts/AuthContext"
+import { useSpace } from "../../contexts/SpaceContext"
 import { navigate } from "../../router"
 import SettingsIcon from "../../icons/settings.svg?react"
 import AgentsIcon from "../../icons/agents.svg?react"
@@ -63,6 +64,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
 export function AdminSettings({ section, userId }: { section: AdminSection; userId?: string }) {
   const { token, user } = useAuth()
   const { isAdmin, loading } = useAdminAccess()
+  const { currentSpaceId } = useSpace()
 
   if (loading) {
     return (
@@ -72,7 +74,7 @@ export function AdminSettings({ section, userId }: { section: AdminSection; user
     )
   }
   if (!isAdmin) {
-    navigate({ name: "home" })
+    if (currentSpaceId) navigate({ name: "chat", spaceId: currentSpaceId })
     return null
   }
 

@@ -2,30 +2,28 @@ import { describe, expect, it } from "vitest"
 import { buildHash, parseHash } from "./router"
 import type { Route } from "./lib/types"
 
+const SPACE = "s_test123"
+
 describe("hash router", () => {
   it.each([
-    ["#/", { name: "home" }],
+    ["#/", { name: "chat", spaceId: SPACE }],
     ["#/login", { name: "login" }],
-    ["#/conversation/c_123", { name: "conversation", conversationId: "c_123" }],
-    ["#/conversations", { name: "conversations" }],
-    ["#/explore", { name: "explore" }],
-    ["#/agents", { name: "agents" }],
-    ["#/agent/a_123", { name: "agent", agentId: "a_123" }],
+    [`#/spaces/${SPACE}/chat`, { name: "chat", spaceId: SPACE }],
+    [`#/spaces/${SPACE}/chat/c_123`, { name: "chat", spaceId: SPACE, conversationId: "c_123" }],
+    [`#/spaces/${SPACE}/files`, { name: "explore", spaceId: SPACE }],
+    [`#/spaces/${SPACE}/agents`, { name: "agents", spaceId: SPACE }],
+    [`#/spaces/${SPACE}/agents/a_123`, { name: "agent", spaceId: SPACE, agentId: "a_123" }],
     ["#/account", { name: "account", section: "general" }],
     ["#/account/usage", { name: "account", section: "usage" }],
     ["#/account/webhook", { name: "account", section: "webhook" }],
     ["#/account/invitations", { name: "account", section: "invitations" }],
-    ["#/space", { name: "space", section: "overview" }],
-    ["#/space/members", { name: "space", section: "members" }],
-    ["#/space/members/new", { name: "space", section: "memberNew" }],
+    [`#/spaces/${SPACE}/settings`, { name: "space", spaceId: SPACE, section: "overview" }],
+    [`#/spaces/${SPACE}/settings/members`, { name: "space", spaceId: SPACE, section: "members" }],
+    [`#/spaces/${SPACE}/settings/members/new`, { name: "space", spaceId: SPACE, section: "memberNew" }],
     // A section reachable only by clicking a tab cannot be linked, shared, or
     // survive a reload, so every one of them needs a URL.
-    ["#/space/audit", { name: "space", section: "audit" }],
-    ["#/space/security", { name: "space", section: "security" }],
-    // Artifacts left space settings for their own area; the old address still
-    // lands on them rather than silently falling through to Overview.
-    ["#/space/artifacts", { name: "artifacts" }],
-    ["#/space-settings", { name: "space", section: "overview" }],
+    [`#/spaces/${SPACE}/settings/audit`, { name: "space", spaceId: SPACE, section: "audit" }],
+    [`#/spaces/${SPACE}/settings/security`, { name: "space", spaceId: SPACE, section: "security" }],
     // Deployment administration is a separate area from space settings, and
     // its sections are linkable for the same reason the space ones are.
     ["#/admin", { name: "admin", section: "overview" }],
@@ -41,28 +39,50 @@ describe("hash router", () => {
     ["#/admin/models", { name: "admin", section: "models" }],
     ["#/admin/plugins", { name: "admin", section: "plugins" }],
     ["#/admin/audit", { name: "admin", section: "audit" }],
-    ["#/workflows", { name: "workflows" }],
-    ["#/workflow/w_123", { name: "workflow", workflowId: "w_123" }],
-    ["#/workflow-run/wr_123", { name: "workflowRun", workflowRunId: "wr_123" }],
-    ["#/issues", { name: "issues" }],
-    ["#/issue/i_123", { name: "issue", issueId: "i_123" }],
-    ["#/artifacts", { name: "artifacts" }],
+    [`#/spaces/${SPACE}/workflows`, { name: "workflows", spaceId: SPACE }],
+    [`#/spaces/${SPACE}/workflows/w_123`, { name: "workflow", spaceId: SPACE, workflowId: "w_123" }],
+    [`#/spaces/${SPACE}/workflow-runs/wr_123`, { name: "workflowRun", spaceId: SPACE, workflowRunId: "wr_123" }],
+    [`#/spaces/${SPACE}/issues`, { name: "issues", spaceId: SPACE }],
+    [`#/spaces/${SPACE}/issues/i_123`, { name: "issue", spaceId: SPACE, issueId: "i_123" }],
+    [`#/spaces/${SPACE}/tasks/t_123`, { name: "task", spaceId: SPACE, taskId: "t_123" }],
+    [`#/spaces/${SPACE}/artifacts`, { name: "artifacts", spaceId: SPACE }],
     // No space in the path: an artifact's id is the whole address, matching the
     // API. See docs/design/unified-artifacts.md section 6.1.
     ["#/artifact/gsyt7at6cjfr33d73mta", { name: "artifact", artifactId: "gsyt7at6cjfr33d73mta" }],
     ["#/marketplace", { name: "marketplace" }],
+    // Pre-migration flat hashes redirect into the currently selected Space --
+    // temporary, bounded to this migration.
+    ["#/issue/i_123", { name: "issue", spaceId: SPACE, issueId: "i_123" }],
+    ["#/issues", { name: "issues", spaceId: SPACE }],
+    ["#/agent/a_123", { name: "agent", spaceId: SPACE, agentId: "a_123" }],
+    ["#/agents", { name: "agents", spaceId: SPACE }],
+    ["#/workflow/w_123", { name: "workflow", spaceId: SPACE, workflowId: "w_123" }],
+    ["#/workflows", { name: "workflows", spaceId: SPACE }],
+    ["#/workflow-run/wr_123", { name: "workflowRun", spaceId: SPACE, workflowRunId: "wr_123" }],
+    ["#/task/t_123", { name: "task", spaceId: SPACE, taskId: "t_123" }],
+    ["#/explore", { name: "explore", spaceId: SPACE }],
+    ["#/artifacts", { name: "artifacts", spaceId: SPACE }],
+    ["#/conversation/c_123", { name: "chat", spaceId: SPACE, conversationId: "c_123" }],
+    ["#/conversations", { name: "chat", spaceId: SPACE }],
+    ["#/home", { name: "chat", spaceId: SPACE }],
+    ["#/space", { name: "space", spaceId: SPACE, section: "overview" }],
+    ["#/space/members", { name: "space", spaceId: SPACE, section: "members" }],
+    ["#/space/members/new", { name: "space", spaceId: SPACE, section: "memberNew" }],
+    // Artifacts left space settings for their own top-level area; the old
+    // address still lands on them rather than silently falling through.
+    ["#/space/artifacts", { name: "artifacts", spaceId: SPACE }],
+    ["#/space-settings", { name: "space", spaceId: SPACE, section: "overview" }],
   ] satisfies Array<[string, Route]>)("parses %s", (hash, route) => {
-    expect(parseHash(hash)).toEqual(route)
+    expect(parseHash(hash, SPACE)).toEqual(route)
   })
 
   it.each([
-    [{ name: "home" }, "#/"],
     [{ name: "login" }, "#/login"],
-    [{ name: "conversation", conversationId: "c_123" }, "#/conversation/c_123"],
-    [{ name: "conversations" }, "#/conversations"],
-    [{ name: "explore" }, "#/explore"],
-    [{ name: "agents" }, "#/agents"],
-    [{ name: "agent", agentId: "a_123" }, "#/agent/a_123"],
+    [{ name: "chat", spaceId: SPACE }, `#/spaces/${SPACE}/chat`],
+    [{ name: "chat", spaceId: SPACE, conversationId: "c_123" }, `#/spaces/${SPACE}/chat/c_123`],
+    [{ name: "explore", spaceId: SPACE }, `#/spaces/${SPACE}/files`],
+    [{ name: "agents", spaceId: SPACE }, `#/spaces/${SPACE}/agents`],
+    [{ name: "agent", spaceId: SPACE, agentId: "a_123" }, `#/spaces/${SPACE}/agents/a_123`],
     [{ name: "account", section: "general" }, "#/account"],
     [{ name: "account", section: "usage" }, "#/account/usage"],
     [{ name: "admin", section: "overview" }, "#/admin"],
@@ -75,24 +95,33 @@ describe("hash router", () => {
     [{ name: "admin", section: "audit" }, "#/admin/audit"],
     [{ name: "account", section: "webhook" }, "#/account/webhook"],
     [{ name: "account", section: "invitations" }, "#/account/invitations"],
-    [{ name: "space", section: "overview" }, "#/space"],
-    [{ name: "space", section: "audit" }, "#/space/audit"],
-    [{ name: "space", section: "security" }, "#/space/security"],
-    [{ name: "space", section: "members" }, "#/space/members"],
-    [{ name: "space", section: "memberNew" }, "#/space/members/new"],
-    [{ name: "workflows" }, "#/workflows"],
-    [{ name: "workflow", workflowId: "w_123" }, "#/workflow/w_123"],
-    [{ name: "workflowRun", workflowRunId: "wr_123" }, "#/workflow-run/wr_123"],
-    [{ name: "issues" }, "#/issues"],
-    [{ name: "issue", issueId: "i_123" }, "#/issue/i_123"],
-    [{ name: "artifacts" }, "#/artifacts"],
+    [{ name: "space", spaceId: SPACE, section: "overview" }, `#/spaces/${SPACE}/settings`],
+    [{ name: "space", spaceId: SPACE, section: "audit" }, `#/spaces/${SPACE}/settings/audit`],
+    [{ name: "space", spaceId: SPACE, section: "security" }, `#/spaces/${SPACE}/settings/security`],
+    [{ name: "space", spaceId: SPACE, section: "members" }, `#/spaces/${SPACE}/settings/members`],
+    [{ name: "space", spaceId: SPACE, section: "memberNew" }, `#/spaces/${SPACE}/settings/members/new`],
+    [{ name: "workflows", spaceId: SPACE }, `#/spaces/${SPACE}/workflows`],
+    [{ name: "workflow", spaceId: SPACE, workflowId: "w_123" }, `#/spaces/${SPACE}/workflows/w_123`],
+    [
+      { name: "workflowRun", spaceId: SPACE, workflowRunId: "wr_123" },
+      `#/spaces/${SPACE}/workflow-runs/wr_123`,
+    ],
+    [{ name: "issues", spaceId: SPACE }, `#/spaces/${SPACE}/issues`],
+    [{ name: "issue", spaceId: SPACE, issueId: "i_123" }, `#/spaces/${SPACE}/issues/i_123`],
+    [{ name: "task", spaceId: SPACE, taskId: "t_123" }, `#/spaces/${SPACE}/tasks/t_123`],
+    [{ name: "artifacts", spaceId: SPACE }, `#/spaces/${SPACE}/artifacts`],
     [{ name: "artifact", artifactId: "gsyt7at6cjfr33d73mta" }, "#/artifact/gsyt7at6cjfr33d73mta"],
     [{ name: "marketplace" }, "#/marketplace"],
   ] satisfies Array<[Route, string]>)("builds %s", (route, hash) => {
     expect(buildHash(route)).toBe(hash)
   })
 
-  it("falls back to home for unknown hashes", () => {
-    expect(parseHash("#/unknown/path")).toEqual({ name: "home" })
+  it("falls back to the current Space's Chat for unknown hashes", () => {
+    expect(parseHash("#/unknown/path", SPACE)).toEqual({ name: "chat", spaceId: SPACE })
+  })
+
+  it("falls back to an incomplete Space-scoped path's Chat", () => {
+    expect(parseHash(`#/spaces/${SPACE}/workflow-runs`, SPACE)).toEqual({ name: "chat", spaceId: SPACE })
+    expect(parseHash(`#/spaces/${SPACE}/tasks`, SPACE)).toEqual({ name: "chat", spaceId: SPACE })
   })
 })

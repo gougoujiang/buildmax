@@ -8,6 +8,7 @@ import {
 import type { BreadcrumbCrumb, Route } from "../lib/types"
 import { useHashRoute } from "../router"
 import { useAuth } from "./AuthContext"
+import { useSpace } from "./SpaceContext"
 
 export interface PendingConversation {
   conversationId: string
@@ -40,7 +41,8 @@ const AppContext = createContext<AppContextValue | null>(null)
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const { token } = useAuth()
-  const route = useHashRoute()
+  const { currentSpaceId } = useSpace()
+  const route = useHashRoute(currentSpaceId ?? "")
   const [pendingConversation, setPendingConversationState] = useState<PendingConversation | null>(null)
   const setPendingConversation = useCallback((p: PendingConversation | null) => {
     setPendingConversationState(p)

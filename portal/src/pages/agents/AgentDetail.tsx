@@ -29,6 +29,7 @@ import { useSpace } from "../../contexts/SpaceContext"
 
 interface AgentDetailProps {
   token: string | null
+  spaceId: string
   agentId: string
 }
 
@@ -41,8 +42,8 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "revisions", label: "Revisions" },
 ]
 
-export function AgentDetail({ token, agentId }: AgentDetailProps) {
-  const { currentSpaceId, currentUserRole } = useSpace()
+export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
+  const { currentUserRole } = useSpace()
   const { setEntityLabel } = useApp()
   const canManage = currentUserRole === "owner" || currentUserRole === "admin"
 
@@ -67,7 +68,7 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
   const [restoringRevision, setRestoringRevision] = useState<number | null>(null)
 
   const load = useCallback(async () => {
-    if (!token || !currentSpaceId) {
+    if (!token || !spaceId) {
       setAgent(null)
       setLoading(false)
       return
@@ -76,9 +77,9 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
     setError(null)
     try {
       const [agentApi, tasksApi, revisionsApi] = await Promise.all([
-        getAgent(currentSpaceId, agentId, token),
-        listAgentTasks(currentSpaceId, agentId, token),
-        getAgentRevisions(currentSpaceId, agentId, token),
+        getAgent(spaceId, agentId, token),
+        listAgentTasks(spaceId, agentId, token),
+        getAgentRevisions(spaceId, agentId, token),
       ])
       setAgent(apiAgentToAgent(agentApi))
       setTasks(tasksApi.tasks)
@@ -88,7 +89,7 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
     } finally {
       setLoading(false)
     }
-  }, [token, currentSpaceId, agentId])
+  }, [token, spaceId, agentId])
 
   useEffect(() => {
     void load()
@@ -104,16 +105,16 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
   // health check. Only owners/admins may list them; a member gets empty options
   // rather than a blocked page.
   useEffect(() => {
-    if (!token || !currentSpaceId || !canManage) {
+    if (!token || !spaceId || !canManage) {
       setSecrets([])
       setAvailablePlugins([])
       return
     }
-    listSecrets(token, currentSpaceId)
+    listSecrets(token, spaceId)
       .then((res) => setSecrets(res.secrets ?? []))
       .catch(() => setSecrets([]))
     Promise.all([
-      listActivations(token, currentSpaceId).catch(() => null),
+      listActivations(token, spaceId).catch(() => null),
       listPlugins(token).catch(() => null),
     ])
       .then(([activations, catalog]) =>
@@ -126,23 +127,23 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
     listAgentModels(token)
       .then(setAvailableModels)
       .catch(() => setAvailableModels([]))
-  }, [token, currentSpaceId, canManage])
+  }, [token, spaceId, canManage])
 
   const loadRevisions = useCallback(() => {
-    if (!token || !currentSpaceId) return
+    if (!token || !spaceId) return
     setRevisionsLoading(true)
     setRevisionsError(null)
-    getAgentRevisions(currentSpaceId, agentId, token)
+    getAgentRevisions(spaceId, agentId, token)
       .then((res) => setRevisions(res.revisions.map(apiAgentRevisionToAgentRevision)))
       .catch((err) => setRevisionsError(getErrorMessage(err, "Failed to load history")))
       .finally(() => setRevisionsLoading(false))
-  }, [token, currentSpaceId, agentId])
+  }, [token, spaceId, agentId])
 
   function handleSave(definition: AgentDefinitionInput) {
-    if (!token || !currentSpaceId || !agent) return
+    if (!token || !spaceId || !agent) return
     setSaving(true)
     setSaveError(null)
-    updateAgent(currentSpaceId, agent.id, definition, token)
+    updateAgent(spaceId, agent.id, definition, token)
       .then((updated) => {
         setAgent(apiAgentToAgent(updated))
         loadRevisions()
@@ -152,11 +153,11 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
   }
 
   function handleDelete() {
-    if (!token || !currentSpaceId || !agent) return
+    if (!token || !spaceId || !agent) return
     setDeleting(true)
     setSaveError(null)
-    deleteAgent(currentSpaceId, agent.id, token)
-      .then(() => navigate({ name: "agents" }))
+    deleteAgent(spaceId, agent.id, token)
+      .then(() => navigate({ name: "agents", spaceId }))
       .catch((err) => {
         setSaveError(getErrorMessage(err, "Failed to delete agent"))
         setDeleting(false)
@@ -164,10 +165,10 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
   }
 
   function handleRestoreRevision(revision: number) {
-    if (!token || !currentSpaceId || !agent) return
+    if (!token || !spaceId || !agent) return
     setRevisionsError(null)
     setRestoringRevision(revision)
-    restoreAgentRevision(currentSpaceId, agent.id, revision, token)
+    restoreAgentRevision(spaceId, agent.id, revision, token)
       .then((restored) => {
         setAgent(apiAgentToAgent(restored))
         loadRevisions()
@@ -177,13 +178,13 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
   }
 
   function handleStartRun(input: string) {
-    if (!token || !currentSpaceId || !agent) return
+    if (!token || !spaceId || !agent) return
     setStarting(true)
     setRunError(null)
-    createAgentTask(currentSpaceId, agent.id, input, token)
+    createAgentTask(spaceId, agent.id, input, token)
       .then((created) => {
         setRunOpen(false)
-        navigate({ name: "task", taskId: created.id })
+        navigate({ name: "task", spaceId, taskId: created.id })
       })
       .catch((err) => setRunError(getErrorMessage(err, "Failed to run agent")))
       .finally(() => setStarting(false))
@@ -216,9 +217,9 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
             const ui = apiTaskToTask(t)
             const tone = runStatusTone(t.status)
             return (
-              <tr key={t.id} onClick={() => navigate({ name: "task", taskId: t.id })} tabIndex={0}
+              <tr key={t.id} onClick={() => navigate({ name: "task", spaceId, taskId: t.id })} tabIndex={0}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") navigate({ name: "task", taskId: t.id })
+                  if (e.key === "Enter") navigate({ name: "task", spaceId, taskId: t.id })
                 }}>
                 <td className="agent-runs__title">{ui.title}</td>
                 <td>
@@ -247,7 +248,7 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
           </div>
         </div>
         <div className="page-activity__actions">
-          <button type="button" className="page-activity__action-btn" onClick={() => navigate({ name: "agents" })}>
+          <button type="button" className="page-activity__action-btn" onClick={() => navigate({ name: "agents", spaceId })}>
             Back to Agents
           </button>
           {canManage ? (
