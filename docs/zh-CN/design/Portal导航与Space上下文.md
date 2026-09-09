@@ -3,12 +3,12 @@
 > **翻译说明：** 本文是[英文原文](../../design/portal-navigation-and-space-context.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 > **受众：** Portal 贡献者与产品设计者 · **状态：** 进行中 —— 第 1 阶段（导航
 > 用语：Home 更名为 Chat，侧边栏按 Work/Reuse/Data/Manage 分组，暴露 Workspace
-> Files，将部署管理从 Space 范围中分离）与第 2 阶段（规范化的 `#/spaces/{space_id}/...`
+> Files，将部署管理从 Space 范围中分离）、第 2 阶段（规范化的 `#/spaces/{space_id}/...`
 > 路由；每个 Space 拥有的页面都从路由本身读取 Space，而不是此前选中的 Space；
-> 为旧的扁平 hash 提供有时限的迁移重定向）均已上线。集中式 Space 切换、解析
-> 状态以及面包屑/响应式打磨仍在计划中——在 Space 切换被集中化之前，少数路由
-> （Space settings、Agent、Task）在切换 Space 时尚不会离开已过期的详情页，
-> 与第 2 阶段之前的行为一致。
+> 为旧的扁平 hash 提供有时限的迁移重定向）与第 3 阶段（Space 切换会把每个
+> Space 拥有的路由都重定向到目标 Space 中有效的目的地，由同一张穷举、经类型
+> 检查的表驱动——补上了此前 Agent 与 Task 在切换时仍悄悄显示上一个 Space 数据
+> 的缺口）均已上线。解析状态以及面包屑/响应式打磨仍在计划中。
 
 本文定义 Portal 导航如何表达作用域，以及 URL 如何确保 Space 所拥有的资源始终位于
 正确的 Space 中。这是一项可以独立交付的 R3 运维者路径改进，不改变路线图优先级。

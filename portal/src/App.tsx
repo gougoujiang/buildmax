@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react"
+import { useEffect } from "react"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
 import { ThemeProvider } from "@buildmax/gui"
 import { AppProvider, useApp } from "./contexts/AppContext"
@@ -12,13 +12,12 @@ import { navigate } from "./router"
 
 function AppContent() {
   const { token, user, logout } = useAuth()
-  const { route, setPendingConversation } = useApp()
-  const { currentSpaceId, loading: spacesLoading } = useSpace()
+  const { route } = useApp()
+  const { currentSpaceId, loading: spacesLoading, setCurrentSpaceId } = useSpace()
   const {
     data: conversations,
     refetch: refetchConversations,
   } = useConversations(token, currentSpaceId)
-  const previousSpaceIdRef = useRef<string | null>(currentSpaceId)
 
   useEffect(() => {
     if (!token || !currentSpaceId) return
@@ -26,38 +25,16 @@ function AppContent() {
     navigate({ name: "chat", spaceId: currentSpaceId })
   }, [token, route, currentSpaceId])
 
+  // The URL is authoritative for Space context (docs/design/portal-navigation
+  // -and-space-context.md): reconcile the shell to whatever Space a direct
+  // link or a reload just named, so the sidebar and switcher agree with what
+  // is on screen. This only ever sets context, never navigates -- the one
+  // place a Space change is a genuine user action, and so the one place that
+  // also redirects the route, is the switcher itself (Sidebar.tsx).
   useEffect(() => {
-    const previousSpaceId = previousSpaceIdRef.current
-    previousSpaceIdRef.current = currentSpaceId
-    if (!previousSpaceId || !currentSpaceId || previousSpaceId === currentSpaceId) return
-
-    setPendingConversation(null)
-    // TODO(slice 3): centralize this into an exhaustive per-route-name table
-    // (docs/design/portal-navigation-and-space-context.md) -- today's list
-    // still omits `agent` and `task`, so switching Space while viewing either
-    // leaves stale data on screen, same as before this slice.
-    if (route.name === "chat") {
-      navigate({ name: "chat", spaceId: currentSpaceId })
-      return
-    }
-    if (route.name === "issue") {
-      navigate({ name: "issues", spaceId: currentSpaceId })
-      return
-    }
-    if (route.name === "workflow") {
-      navigate({ name: "workflows", spaceId: currentSpaceId })
-      return
-    }
-    if (route.name === "workflowRun") {
-      navigate({ name: "workflows", spaceId: currentSpaceId })
-      return
-    }
-    // An artifact belongs to one space, so the detail open before the switch is
-    // not readable after it -- leaving it would render the 404 page.
-    if (route.name === "artifact") {
-      navigate({ name: "artifacts", spaceId: currentSpaceId })
-    }
-  }, [currentSpaceId, route, setPendingConversation])
+    if (!("spaceId" in route) || !route.spaceId || route.spaceId === currentSpaceId) return
+    setCurrentSpaceId(route.spaceId)
+  }, [route, currentSpaceId, setCurrentSpaceId])
 
   if (!token) {
     return <Login />

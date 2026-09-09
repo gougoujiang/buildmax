@@ -18,7 +18,9 @@ import FilesIcon from "../icons/files.svg?react"
 import ShieldIcon from "../icons/shield.svg?react"
 import { CreateSpaceDialog } from "../components/CreateSpaceDialog"
 import { useSpace } from "../contexts/SpaceContext"
+import { useApp } from "../contexts/AppContext"
 import { useAdminAccess } from "../features/admin"
+import { spaceSwitchTarget } from "../lib/spaceSwitch"
 
 /** ASCII art for "BuildMax" (matches internal/tui/banner.go). */
 const LOGO_ASCII = `
@@ -129,6 +131,7 @@ export function SidebarNavContent({
   onNavigate,
 }: SidebarNavContentProps) {
   const { spaces, currentSpace, currentSpaceId, loading: spacesLoading, setCurrentSpaceId } = useSpace()
+  const { setPendingConversation } = useApp()
   const { isAdmin: isSystemAdmin } = useAdminAccess()
   const showSpaceSwitcher = spaces.length > 1
   // The persistent sidebar and the narrow drawer can both mount this
@@ -156,6 +159,19 @@ export function SidebarNavContent({
   function go(target: Route) {
     navigate(target)
     onNavigate?.()
+  }
+
+  // The only place a Space switch is a genuine user action, as opposed to the
+  // shell catching up to a Space a route or a loaded resource already named
+  // (see App.tsx) -- so this is the only place that also navigates.
+  function switchSpace(spaceId: string) {
+    setCurrentSpaceId(spaceId)
+    setPendingConversation(null)
+    const target = spaceSwitchTarget(route, spaceId)
+    if (target) {
+      navigate(target)
+      onNavigate?.()
+    }
   }
 
   return (
@@ -186,7 +202,7 @@ export function SidebarNavContent({
                   id={spaceSelectId}
                   className="sidebar__space-select"
                   value={currentSpaceId ?? ""}
-                  onChange={(e) => setCurrentSpaceId(e.target.value)}
+                  onChange={(e) => switchSpace(e.target.value)}
                   disabled={spacesLoading}
                 >
                   {personalSpaces.length > 0 ? (
