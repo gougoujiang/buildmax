@@ -64,7 +64,7 @@ async function startAgentRun(page: Page, current: Session): Promise<string> {
   await expect(modal).toBeVisible()
   await modal.getByLabel("Task").fill("Narrow layout probe")
   await modal.getByRole("button", { name: "Start" }).click()
-  await page.waitForURL(/#\/tasks\//, { timeout: 15_000 })
+  await page.waitForURL(/#\/spaces\/[^/]+\/tasks\//, { timeout: 15_000 })
   return decodeURIComponent(page.url().split("/tasks/")[1] ?? "")
 }
 
