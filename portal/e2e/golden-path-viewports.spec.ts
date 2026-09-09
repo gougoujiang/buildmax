@@ -35,8 +35,8 @@ async function seedCompletedAgentRun(page: Page, current: Session): Promise<stri
   reportLeftovers(current.spaceId, [`agent ${agent.id}`, `issue ${issue.id}`])
   await patchJSON(page, `${space}/issues/${encodeURIComponent(issue.id)}`, current, {
     version: issue.version,
-    assignee_kind: "agent",
-    assignee_id: agent.id,
+    executor_kind: "agent",
+    executor_id: agent.id,
   })
   const task = await postJSON<{ id: string }>(
     page,
