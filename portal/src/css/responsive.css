@@ -1,18 +1,22 @@
-/* Responsive: stack sidebar on narrow screens */
+/* Responsive shell: Narrow range is 320–767px, Compact starts at 768px (see
+   docs/design/portal-responsive-and-accessible-interaction.md). Below 768px
+   the persistent sidebar is replaced by a compact header + overlay drawer
+   (Layout.tsx) instead of being squeezed into the document flow. */
 
-@media (max-width: 48rem) {
-  .shell__body {
-    flex-direction: column;
+@media (max-width: 767px) {
+  .sidebar {
+    display: none;
   }
 
-  .sidebar {
-    width: 100%;
-    border-right: none;
-    border-bottom: 1px solid var(--color-border);
-    max-height: 12rem;
+  .shell__compact-header {
+    display: flex;
   }
 
   .shell__main {
     padding: 1rem;
+  }
+
+  .shell__top {
+    flex-wrap: wrap;
   }
 }
