@@ -19,6 +19,7 @@
     },
     "./theme.css": "./dist/theme.css",
     "./modal.css": "./dist/modal.css",
+    "./drawer.css": "./dist/drawer.css",
     "./widgets.css": "./dist/widgets.css"
   },
   "peerDependencies": {
@@ -36,7 +37,7 @@
     "vitest": "^4.1.11"
   },
   "scripts": {
-    "build": "vite build && cp src/theme.css dist/theme.css && cp src/modal.css dist/modal.css && cp src/widgets.css dist/widgets.css && npm run build:types",
+    "build": "vite build && cp src/theme.css dist/theme.css && cp src/modal.css dist/modal.css && cp src/drawer.css dist/drawer.css && cp src/widgets.css dist/widgets.css && npm run build:types",
     "build:types": "tsc --emitDeclarationOnly --outDir dist --rootDir src",
     "dev": "vite build --watch",
     "test": "tsc --noEmit -p tsconfig.test.json && vitest run"

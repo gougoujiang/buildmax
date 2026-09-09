@@ -1,4 +1,5 @@
-import { useRef, useEffect, type ReactNode } from "react"
+import { useRef, type ReactNode } from "react"
+import { useOverlayA11y } from "./useOverlayA11y"
 
 export interface BaseModalProps {
   open: boolean
@@ -23,23 +24,7 @@ export function BaseModal({
 }: BaseModalProps) {
   const focusRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (open) {
-      setTimeout(() => {
-        const first = focusRef.current?.querySelector("input, textarea") as HTMLInputElement | HTMLTextAreaElement | null
-        if (first) first.focus()
-      }, 0)
-    }
-  }, [open])
-
-  useEffect(() => {
-    if (!open) return
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose()
-    }
-    window.addEventListener("keydown", handleKey)
-    return () => window.removeEventListener("keydown", handleKey)
-  }, [open, onClose])
+  useOverlayA11y({ open, onClose, containerRef: focusRef })
 
   if (!open) return null
 
@@ -69,7 +54,7 @@ export function BaseModal({
             </button>
           </div>
         )}
-        {children}
+        <div className="modal__scroll-body">{children}</div>
       </div>
     </div>
   )

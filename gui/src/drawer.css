@@ -1,0 +1,82 @@
+/* Drawer: an accessible, left-edge slide-in overlay for narrow-width
+   navigation — requires theme.css (CSS variables) to be loaded first. Sits
+   just below the modal overlay's z-index so a dialog opened from within the
+   drawer (e.g. "create a Space") layers on top of it. */
+
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: flex;
+  background: rgba(0, 0, 0, 0.45);
+  animation: drawer-fade-in 0.15s ease-out;
+}
+
+@keyframes drawer-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes drawer-slide-in {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+.drawer {
+  display: flex;
+  flex-direction: column;
+  width: min(20rem, 85vw);
+  height: 100%;
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-modal);
+  animation: drawer-slide-in 0.2s ease-out;
+}
+
+.drawer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.drawer__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.drawer__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--color-text-subtle);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.drawer__close:hover {
+  color: var(--color-text);
+  background: var(--color-bg-muted);
+}
+
+.drawer__body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer-overlay,
+  .drawer {
+    animation: none;
+  }
+}
