@@ -87,8 +87,9 @@ export interface ApiIssue {
   title: string
   description: string
   status: string
-  assignee_kind?: string | null
-  assignee_id?: string | null
+  owner_id?: string | null
+  executor_kind?: string | null
+  executor_id?: string | null
   created_by: string
   created_at: string
   updated_at: string
@@ -272,6 +273,9 @@ export interface ApiTask {
   issue_id?: string | null
   /** The run behind the current status. Keys the trace route. */
   last_run_id?: string | null
+  /** Set only when the task has neither issue_id nor conversation_id: the
+   *  workflow run that dispatched it. */
+  workflow_run_id?: string | null
 }
 
 export interface ApiTaskRun {
@@ -281,6 +285,7 @@ export interface ApiTaskRun {
   previous_task_run_id?: string | null
   input: string
   created_by?: string
+  created_by_type?: string
   trigger_source?: string
   status: string
   output?: string | null

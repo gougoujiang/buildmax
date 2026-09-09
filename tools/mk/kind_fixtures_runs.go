@@ -222,7 +222,7 @@ func seedFixtureIssueRuns(ctx context.Context, client *http.Client, base, token 
 		if err := requestJSON(ctx, client, http.MethodGet, issueURL+"/flow", token, nil, &flow, http.StatusOK); err != nil {
 			return err
 		}
-		switch issue.AssigneeKind {
+		switch issue.ExecutorKind {
 		case "agent":
 			var task fxTask
 			if len(flow.Tasks) > 0 {

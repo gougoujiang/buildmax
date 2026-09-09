@@ -1,4 +1,4 @@
-import type { ApiRunProvenance } from "../../lib/api/types"
+import type { ApiRunProvenance, ApiTaskRun } from "../../lib/api/types"
 
 /** How a run's origin should read to someone asking why it exists. */
 export interface OriginDescription {
@@ -53,6 +53,35 @@ export function describeOrigin(provenance: ApiRunProvenance): OriginDescription 
     quote = messagelessTriggers.has(trigger) ? "none-expected" : "none-recorded"
   }
   return { text: parts.join(" "), isRepeat, quote }
+}
+
+// Triggers where the input was never typed by the currently signed-in
+// person, keyed to a short label naming what actually started the run. A
+// trigger absent from this map, with created_by_type "user", is credited to
+// "You" -- every direct or Portal-initiated human trigger (task_create,
+// task_rerun, task_retry, portal_conversation, portal_task_create,
+// portal_task_rerun).
+const nonHumanTrigger: Record<string, string> = {
+  workflow_step: "Workflow",
+  issue_agent_run: "Issue",
+  webhook: "Webhook",
+}
+
+/**
+ * Who to credit for a run's input, from its trigger and creator type.
+ *
+ * Takes the lighter `ApiTaskRun` shape rather than a fetched `ApiRunProvenance`
+ * so the main task thread can label every turn without a per-run round trip.
+ * Never returns "You" for a run this person did not start.
+ */
+export function runInputLabel(run: Pick<ApiTaskRun, "trigger_source" | "created_by_type">): string {
+  if (run.trigger_source && nonHumanTrigger[run.trigger_source]) {
+    return nonHumanTrigger[run.trigger_source]
+  }
+  if (run.created_by_type === "system") return "System"
+  if (run.created_by_type === "webhook") return "Webhook"
+  if (!run.trigger_source && !run.created_by_type) return "Unknown origin"
+  return "You"
 }
 
 /**

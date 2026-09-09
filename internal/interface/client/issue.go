@@ -17,14 +17,14 @@ import (
 	"github.com/gougoujiang/buildmax/internal/tool"
 )
 
-// AssignedIssue is one item of the caller's inbox, with the space it belongs to
+// OwnedIssue is one item of the caller's inbox, with the space it belongs to
 // kept alongside it.
 //
 // The space travels with the issue because a local surface has no current space:
 // a login names a server and a person, and that person's work is spread across
 // every space they are in. Anything the caller does next with this issue needs
 // the space back.
-type AssignedIssue struct {
+type OwnedIssue struct {
 	SpaceID   string
 	SpaceName string
 	Issue     coreissue.Issue
@@ -46,8 +46,8 @@ func (c *Client) ListSpaces(ctx context.Context, token string) ([]corespace.Spac
 	return out, nil
 }
 
-// ListAssignedIssues returns what the caller has been assigned, across every
-// space they belong to.
+// ListOwnedIssues returns what the caller owns, across every space they
+// belong to.
 //
 // One request per space, because the server has no cross-space listing and
 // inventing one would put a route that reads every space a person is in behind a
@@ -57,29 +57,29 @@ func (c *Client) ListSpaces(ctx context.Context, token string) ([]corespace.Spac
 // A space that fails is skipped rather than failing the inbox: an inbox missing
 // one space's work is more useful than no inbox, and the caller is told which
 // space could not be read.
-func (c *Client) ListAssignedIssues(ctx context.Context, token, status string, limit int) ([]AssignedIssue, []error) {
+func (c *Client) ListOwnedIssues(ctx context.Context, token, status string, limit int) ([]OwnedIssue, []error) {
 	spaces, err := c.ListSpaces(ctx, token)
 	if err != nil {
 		return nil, []error{fmt.Errorf("list spaces: %w", err)}
 	}
-	var out []AssignedIssue
+	var out []OwnedIssue
 	var problems []error
 	for _, space := range spaces {
-		issues, err := c.listAssignedInSpace(ctx, token, space.ID, status, limit)
+		issues, err := c.listOwnedInSpace(ctx, token, space.ID, status, limit)
 		if err != nil {
 			problems = append(problems, fmt.Errorf("space %s: %w", space.Name, err))
 			continue
 		}
 		for _, issue := range issues {
-			out = append(out, AssignedIssue{SpaceID: space.ID, SpaceName: space.Name, Issue: issue})
+			out = append(out, OwnedIssue{SpaceID: space.ID, SpaceName: space.Name, Issue: issue})
 		}
 	}
 	return out, problems
 }
 
-func (c *Client) listAssignedInSpace(ctx context.Context, token, spaceID, status string, limit int) ([]coreissue.Issue, error) {
+func (c *Client) listOwnedInSpace(ctx context.Context, token, spaceID, status string, limit int) ([]coreissue.Issue, error) {
 	query := url.Values{}
-	query.Set("assignee", "me")
+	query.Set("owner", "me")
 	if status != "" {
 		query.Set("status", status)
 	}
@@ -165,8 +165,8 @@ func (c *localIssueClient) Issue(ctx context.Context) (tool.IssueSnapshot, error
 		Description: issue.Description,
 		Status:      issue.Status,
 	}
-	if issue.AssigneeKind != nil {
-		out.AssigneeKind = *issue.AssigneeKind
+	if issue.ExecutorKind != nil {
+		out.ExecutorKind = *issue.ExecutorKind
 	}
 	// Children and the thread are context, not the answer. Failing to read
 	// either leaves the Issue readable rather than failing the whole call.

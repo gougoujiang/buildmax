@@ -113,6 +113,42 @@ var migrations = []Migration{
 			return nil
 		},
 	},
+	{
+		// Issue's combined assignee (assignee_kind admitting person, agent, or
+		// workflow) could not represent a human owner and an Agent/Workflow
+		// executor at once. owner_id and executor_kind/executor_id, added by
+		// AutoMigrate from the row struct, replace it: this backfills the split
+		// from the old columns, then drops them. A person's assignee_id was the
+		// public_id string opaque columns use, resolved here against `user` into
+		// the internal key owner_id actually stores -- unlike ExecutorID, an
+		// owner is always a user row, so it is a resolved reference, not another
+		// opaque handle. An agent's or workflow's assignee_id becomes
+		// executor_id verbatim, since ExecutorID stays opaque. See
+		// docs/design/portal-work-and-execution-experience.md.
+		ID: "issue_owner_executor_split",
+		Apply: func(ctx context.Context, db *gorm.DB) error {
+			m := db.WithContext(ctx).Migrator()
+			if !m.HasColumn(&issueRow{}, "assignee_kind") {
+				// Fresh database: AutoMigrate never created the old columns.
+				return nil
+			}
+			if err := db.WithContext(ctx).Exec(
+				"UPDATE issue i JOIN `user` u ON u.public_id = i.assignee_id " +
+					"SET i.owner_id = u.id " +
+					"WHERE i.assignee_kind = 'person' AND i.assignee_id IS NOT NULL AND i.owner_id IS NULL").Error; err != nil {
+				return err
+			}
+			if err := db.WithContext(ctx).Exec(
+				"UPDATE issue SET executor_kind = assignee_kind, executor_id = assignee_id " +
+					"WHERE assignee_kind IN ('agent', 'workflow') AND executor_kind IS NULL").Error; err != nil {
+				return err
+			}
+			if err := m.DropColumn(&issueRow{}, "assignee_kind"); err != nil {
+				return err
+			}
+			return m.DropColumn(&issueRow{}, "assignee_id")
+		},
+	},
 }
 
 // runMigrations applies every migration this binary knows and the database has

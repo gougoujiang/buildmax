@@ -18,8 +18,9 @@ Open **Agents** in the sidebar and create a new agent. An agent definition has:
 - **Sandbox tiers** — the filesystem and network confinement for its `Bash` tool.
   See [Sandbox](sandbox.md).
 
-Save the definition to make it assignable. You assign an agent to an issue from the
-issue's **Assignee** field — see [Conversations & issues](portal-issues.md).
+Save the definition to make it assignable. You set an agent as an issue's
+**Executor** from the issue's Overview tab — see
+[Conversations & issues](portal-issues.md).
 
 ### Versions
 
@@ -39,10 +40,19 @@ Open **Workflows** in the sidebar and choose **New Workflow**. A workflow is a
 reusable, step-by-step execution plan you can run manually or assign to an issue.
 Build it from **steps**:
 
-- Use **Add Step** to add a step.
-- Each step targets an **agent** and carries a **prompt** describing what that step
+- Use **Add Step** to add a step. Every step is an Agent step -- the only kind
+  the runtime executes today -- so there is nothing else to choose; each one
+  just targets an **agent** and carries a **prompt** describing what that step
   should do.
 - Steps run in order; the plan is currently a linear sequence.
+- A step's id is generated for you, not typed. It only matters for tracing a
+  specific run back to the step that produced it, so it stays out of the way
+  here and shows up where that tracing happens.
+- **Advanced: edit raw JSON** shows the same definition as JSON, for exact
+  inspection or a change the step form does not cover yet. It is not a second
+  way to build the same workflow side by side with the form -- Save checks
+  either path against the same rules, so neither can leave a step the runtime
+  cannot run.
 
 ### Draft, publish, archive
 

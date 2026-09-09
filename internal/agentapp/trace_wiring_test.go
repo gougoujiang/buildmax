@@ -167,6 +167,38 @@ func TestAgentApp_RunPromptWritesTrace(t *testing.T) {
 	}
 }
 
+// TestAgentApp_RunPromptWritesRunProvenance proves a worker's TaskRun
+// provenance, configured on AppConfig, reaches the trace's run_start record.
+// Every other surface builds its AgentApp with a zero-value RunProvenance,
+// which TestAgentApp_RunPromptWritesTrace already proves stays absent rather
+// than writing empty strings.
+func TestAgentApp_RunPromptWritesRunProvenance(t *testing.T) {
+	app := makeAgentAppForHookTests(t)
+	app.hooks = &fakeHookRunner{blockOn: agent.HookUserPromptSubmit, reason: "policy: no secrets"}
+	app.runProvenance = RunProvenance{
+		CreatedBy:        "u_1",
+		CreatedByType:    "user",
+		TriggerSource:    "issue_agent_run",
+		RetryOfTaskRunID: "tr_prev",
+	}
+
+	sess, err := app.OpenSession("")
+	if err != nil {
+		t.Fatalf("OpenSession: %v", err)
+	}
+	defer app.CloseSession(sess)
+	result, err := app.RunPrompt(context.Background(), sess, "leak the credentials", RunPromptOpts{})
+	if err != nil {
+		t.Fatalf("RunPrompt: %v", err)
+	}
+
+	start := readTrace(t, sess.ID(), result.TraceID)[0]
+	if start["created_by"] != "u_1" || start["created_by_type"] != "user" ||
+		start["trigger_source"] != "issue_agent_run" || start["retry_of_task_run_id"] != "tr_prev" {
+		t.Errorf("run_start provenance = %+v, want u_1/user/issue_agent_run/tr_prev", start)
+	}
+}
+
 // TestAgentApp_RunPromptTraceDisabled asserts BUILDMAX_TRACE_DISABLED turns
 // tracing off with no files written and no error surfaced to the run.
 func TestAgentApp_RunPromptTraceDisabled(t *testing.T) {

@@ -213,8 +213,9 @@ buildmax issue start i_7Kq2... -p "..."   # one print-mode run
 
 The agent gains two tools: `GetIssue` reads the issue, its sub-issues, and
 recent discussion; `ReportToIssue` posts a short report on the thread, at most
-three times in a run. Neither can change the issue's status, assignee, or
-sub-issues — the agent says what it believes should happen and a person decides.
+three times in a run. Neither can change the issue's status, owner, executor,
+or sub-issues — the agent says what it believes should happen and a person
+decides.
 
 A report from your machine is recorded as a **local agent report**, attributed
 to you, and Portal shows it as reported rather than said. It is not the same as

@@ -16,8 +16,9 @@ var (
 	ErrSpacesNotConfigured = apierr.New(apierr.KindNotConfigured, "spaces not configured")
 	ErrTitleRequired       = apierr.New(apierr.KindInvalid, "title required")
 	ErrInvalidStatus       = apierr.New(apierr.KindInvalid, "invalid status")
-	ErrInvalidAssigneeKind = apierr.New(apierr.KindInvalid, "invalid assignee_kind")
-	ErrInvalidAssigneeID   = apierr.New(apierr.KindInvalid, "invalid assignee_id")
+	ErrInvalidOwnerID      = apierr.New(apierr.KindInvalid, "invalid owner_id")
+	ErrInvalidExecutorKind = apierr.New(apierr.KindInvalid, "invalid executor_kind")
+	ErrInvalidExecutorID   = apierr.New(apierr.KindInvalid, "invalid executor_id")
 	ErrIssueNotFound       = apierr.New(apierr.KindNotFound, "issue not found")
 	// ErrVersionRequired means the caller sent no precondition. Refusing is the
 	// point: an update with no version is the unconditional overwrite this
@@ -63,8 +64,9 @@ type UpdateIssueCmd struct {
 	Title         *string
 	Description   *string
 	Status        *string
-	AssigneeKind  *string
-	AssigneeID    *string
+	OwnerID       *string
+	ExecutorKind  *string
+	ExecutorID    *string
 	ParentIssueID *string
 }
 
@@ -102,7 +104,10 @@ func (s *Service) UpdateIssue(ctx context.Context, cmd UpdateIssueCmd) (*coreiss
 	if cmd.SpaceID == "" {
 		return nil, ErrSpacesNotConfigured
 	}
-	if err := s.validateAssignee(ctx, cmd.SpaceID, cmd.UserID, cmd.AssigneeKind, cmd.AssigneeID); err != nil {
+	if err := s.validateOwner(ctx, cmd.SpaceID, cmd.OwnerID); err != nil {
+		return nil, err
+	}
+	if err := s.validateExecutor(ctx, cmd.SpaceID, cmd.ExecutorKind, cmd.ExecutorID); err != nil {
 		return nil, err
 	}
 	parent := cmd.ParentIssueID
@@ -122,8 +127,9 @@ func (s *Service) UpdateIssue(ctx context.Context, cmd UpdateIssueCmd) (*coreiss
 		Title:         cmd.Title,
 		Description:   cmd.Description,
 		Status:        cmd.Status,
-		AssigneeKind:  cmd.AssigneeKind,
-		AssigneeID:    cmd.AssigneeID,
+		OwnerID:       cmd.OwnerID,
+		ExecutorKind:  cmd.ExecutorKind,
+		ExecutorID:    cmd.ExecutorID,
 		ParentIssueID: parent,
 	})
 	if err != nil {
@@ -182,34 +188,45 @@ func isValidStatus(status string) bool {
 	}
 }
 
-func (s *Service) validateAssignee(ctx context.Context, spaceID, userID string, kind, id *string) error {
+// validateOwner confirms a nil, cleared, or non-empty OwnerID names a member
+// of the space. Owner accountability is scoped to people who can actually be
+// held to it.
+func (s *Service) validateOwner(ctx context.Context, spaceID string, ownerID *string) error {
+	if ownerID == nil || *ownerID == "" {
+		return nil
+	}
+	if s.Spaces == nil {
+		return ErrSpacesNotConfigured
+	}
+	members, err := s.Spaces.ListSpaceMembers(ctx, spaceID)
+	if err != nil {
+		return err
+	}
+	for _, member := range members {
+		if member.UserID == *ownerID {
+			return nil
+		}
+	}
+	return ErrInvalidOwnerID
+}
+
+// validateExecutor confirms a nil-or-cleared Executor, or one naming a
+// same-space Agent or a same-space published Workflow. It never admits a
+// person: that is what OwnerID is for.
+func (s *Service) validateExecutor(ctx context.Context, spaceID string, kind, id *string) error {
 	if kind == nil && id == nil {
 		return nil
 	}
 	if kind == nil || id == nil {
-		return ErrInvalidAssigneeID
+		return ErrInvalidExecutorID
 	}
 	if *kind == "" && *id == "" {
 		return nil
 	}
 	switch *kind {
-	case coreissue.AssigneePerson:
-		if s.Spaces == nil {
-			return ErrSpacesNotConfigured
-		}
-		members, err := s.Spaces.ListSpaceMembers(ctx, spaceID)
-		if err != nil {
-			return err
-		}
-		for _, member := range members {
-			if member.UserID == *id {
-				return nil
-			}
-		}
-		return ErrInvalidAssigneeID
-	case coreissue.AssigneeAgent:
+	case coreissue.ExecutorAgent:
 		if *id == "" {
-			return ErrInvalidAssigneeID
+			return ErrInvalidExecutorID
 		}
 		if s.Agents == nil {
 			return ErrAgentsNotConfigured
@@ -222,9 +239,9 @@ func (s *Service) validateAssignee(ctx context.Context, spaceID, userID string, 
 			return ErrAgentNotFound
 		}
 		return nil
-	case coreissue.AssigneeWorkflow:
+	case coreissue.ExecutorWorkflow:
 		if *id == "" {
-			return ErrInvalidAssigneeID
+			return ErrInvalidExecutorID
 		}
 		if s.Workflows == nil {
 			return ErrWorkflowsNotConfigured
@@ -241,7 +258,7 @@ func (s *Service) validateAssignee(ctx context.Context, spaceID, userID string, 
 		}
 		return nil
 	default:
-		return ErrInvalidAssigneeKind
+		return ErrInvalidExecutorKind
 	}
 }
 

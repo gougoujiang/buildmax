@@ -13,7 +13,7 @@ import (
 
 // The inbox asks each space the same question and keeps the space alongside each
 // issue, because a local surface has no current space to put back later.
-func TestListAssignedIssuesCarriesTheSpace(t *testing.T) {
+func TestListOwnedIssuesCarriesTheSpace(t *testing.T) {
 	var asked []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -32,7 +32,7 @@ func TestListAssignedIssuesCarriesTheSpace(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	issues, problems := NewClient(srv.URL).ListAssignedIssues(t.Context(), "tok", "todo", 25)
+	issues, problems := NewClient(srv.URL).ListOwnedIssues(t.Context(), "tok", "todo", 25)
 	if len(problems) != 0 {
 		t.Fatalf("problems = %v", problems)
 	}
@@ -46,7 +46,7 @@ func TestListAssignedIssuesCarriesTheSpace(t *testing.T) {
 		t.Fatalf("asked %d spaces, want 2: %v", len(asked), asked)
 	}
 	for _, url := range asked {
-		if !strings.Contains(url, "assignee=me") || !strings.Contains(url, "status=todo") {
+		if !strings.Contains(url, "owner=me") || !strings.Contains(url, "status=todo") {
 			t.Fatalf("query lost a filter: %s", url)
 		}
 	}
@@ -54,7 +54,7 @@ func TestListAssignedIssuesCarriesTheSpace(t *testing.T) {
 
 // One unreadable space must not empty the inbox. The caller is told which space
 // failed and still sees the rest.
-func TestListAssignedIssuesSkipsASpaceItCannotRead(t *testing.T) {
+func TestListOwnedIssuesSkipsASpaceItCannotRead(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/spaces":
@@ -68,7 +68,7 @@ func TestListAssignedIssuesSkipsASpaceItCannotRead(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	issues, problems := NewClient(srv.URL).ListAssignedIssues(t.Context(), "tok", "", 0)
+	issues, problems := NewClient(srv.URL).ListOwnedIssues(t.Context(), "tok", "", 0)
 	if len(issues) != 1 {
 		t.Fatalf("one space failing emptied the inbox: %+v", issues)
 	}
@@ -79,14 +79,14 @@ func TestListAssignedIssuesSkipsASpaceItCannotRead(t *testing.T) {
 
 // A server that cannot even list spaces has no inbox to show, and says so rather
 // than reporting an empty one.
-func TestListAssignedIssuesReportsASpaceListingFailure(t *testing.T) {
+func TestListOwnedIssuesReportsASpaceListingFailure(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = w.Write([]byte(`{"error":"token expired"}`))
 	}))
 	defer srv.Close()
 
-	issues, problems := NewClient(srv.URL).ListAssignedIssues(t.Context(), "tok", "", 0)
+	issues, problems := NewClient(srv.URL).ListOwnedIssues(t.Context(), "tok", "", 0)
 	if len(issues) != 0 || len(problems) != 1 {
 		t.Fatalf("issues = %v, problems = %v", issues, problems)
 	}

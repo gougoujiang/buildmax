@@ -151,8 +151,8 @@ internal/
 │   │                   执行流经的 run 与 step-run 状态
 │   ├── agentdef/       一个 space 定义的 Agent 及其修订版本——即一个
 │   │                   Agent 被配置成什么样子，而非运行它的那个循环
-│   ├── issue/          Issue、其层级结构与 assignee 词汇，以及人与 agent
-│   │                   留在它上面的评论
+│   ├── issue/          Issue、其层级结构与 owner/executor 词汇，以及人与
+│   │                   agent 留在它上面的评论
 │   ├── audit/          仅追加的轨迹：什么算一个事件、哪些操作值得记录，
 │   │                   以及它如何被读取与清理
 │   ├── secret/         Space Secret：一组具名条目、其生命周期，以及

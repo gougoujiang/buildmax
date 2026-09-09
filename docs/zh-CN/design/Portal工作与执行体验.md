@@ -1,7 +1,8 @@
 # Portal 工作与执行体验
 
 > **翻译说明：** 本文是[英文原文](../../design/portal-work-and-execution-experience.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
-> **受众：** Portal、service 与执行平面贡献者 · **状态：** 计划中
+> **受众：** Portal、service 与执行平面贡献者 · **状态：**
+> 已实现——全部六个切片均已交付，包括针对真实 MySQL 验证过的 owner/executor 拆分。
 
 本文定义从 Issue 经 Agent 执行到持久结果的 Portal 体验。这是一项可以独立交付的 R3
 运维者路径改进；它不替代执行模型，也不改变路线图顺序。
@@ -55,10 +56,10 @@ Issue 继续作为工作中心。Portal 将执行呈现为从该中心主动发�
 - **Executor** 是选来执行工作的 Agent 或 Workflow。
 - **Trigger** 是请求某次具体 run 的参与者或规则。
 
-当前合并的 assignee 结构不能同时表示人类 owner 与 Agent executor。因此，稳定的 API
-和存储模型会分离 owner 与 executor，而不是继续向单个字段添加变体。该 schema 改动
-落地前，当当前字段值为 Agent 或 Workflow 时，Portal 将其标为“Executor”，不会声称
-它代表人类责任归属。
+合并的 assignee 字段无法同时表示人类 owner 与 Agent executor。API 与存储模型将
+owner 与 executor 分离为独立字段，而不是继续向单个字段添加变体：`issue.owner_id`
+与 `issue.executor_kind`/`issue.executor_id` 是相互独立的列，二者可以都设置、
+只设置一个，或都不设置。见下文的切片 6。
 
 Handler、Portal 表单或 scheduler 都不得自行从保存动作推断执行。创建 TaskRun 的
 service 仍是配额、授权、trigger 元数据和调度的唯一权威实现。

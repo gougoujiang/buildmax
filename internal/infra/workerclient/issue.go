@@ -40,7 +40,7 @@ type issuePayload struct {
 	Title           string                `json:"title"`
 	Description     string                `json:"description"`
 	Status          string                `json:"status"`
-	AssigneeKind    string                `json:"assignee_kind"`
+	ExecutorKind    string                `json:"executor_kind"`
 	Children        []issueChildPayload   `json:"children"`
 	Comments        []issueCommentPayload `json:"comments"`
 	OmittedComments int                   `json:"omitted_comments"`
@@ -70,7 +70,7 @@ func (c *issueClient) Issue(ctx context.Context) (tool.IssueSnapshot, error) {
 		Title:           payload.Title,
 		Description:     payload.Description,
 		Status:          payload.Status,
-		AssigneeKind:    payload.AssigneeKind,
+		ExecutorKind:    payload.ExecutorKind,
 		OmittedComments: payload.OmittedComments,
 	}
 	for _, child := range payload.Children {

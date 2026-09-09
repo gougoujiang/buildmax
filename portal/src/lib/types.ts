@@ -103,8 +103,13 @@ export interface Issue {
   title: string
   description: string
   status: "todo" | "in_progress" | "done"
-  assigneeKind?: "person" | "agent" | "workflow" | null
-  assigneeId?: string | null
+  /** The accountable person for this Issue, independent of who or what
+   *  executes it. */
+  ownerId?: string | null
+  /** What is selected to perform the work -- an Agent or a Workflow, never a
+   *  person. Both null means no executor is selected. */
+  executorKind?: "agent" | "workflow" | null
+  executorId?: string | null
   createdBy: string
   createdAt: string
   updatedAt: string

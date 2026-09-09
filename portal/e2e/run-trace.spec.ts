@@ -45,8 +45,8 @@ async function seedCompletedAgentRun(page: Page, session: Session): Promise<stri
   // is a precondition of the next call rather than a separate assertion.
   await patchJSON(page, `${space}/issues/${encodeURIComponent(issue.id)}`, session, {
     version: issue.version,
-    assignee_kind: "agent",
-    assignee_id: agent.id,
+    executor_kind: "agent",
+    executor_id: agent.id,
   })
   const task = await postJSON<{ id: string }>(
     page,
@@ -82,6 +82,8 @@ test("Portal states what confined a run, and what the run spent", async ({ page 
   const issueId = await seedCompletedAgentRun(page, current)
 
   await page.goto(`/#/issue/${issueId}`)
+  // Discussion is its own tab, not part of the default Overview.
+  await page.getByRole("navigation", { name: "Issue sections" }).getByRole("button", { name: "Discussion" }).click()
 
   // The agent run's comment carries the way in. An issue's outputs are its
   // published artifacts now, and this run only replied, so it has no output

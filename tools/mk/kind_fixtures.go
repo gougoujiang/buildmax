@@ -18,8 +18,9 @@ type fxIssue struct {
 	Status        string `json:"status"`
 	Version       uint64 `json:"version"`
 	ParentIssueID string `json:"parent_issue_id"`
-	AssigneeKind  string `json:"assignee_kind"`
-	AssigneeID    string `json:"assignee_id"`
+	OwnerID       string `json:"owner_id"`
+	ExecutorKind  string `json:"executor_kind"`
+	ExecutorID    string `json:"executor_id"`
 }
 
 type fxAgent struct {
@@ -37,13 +38,16 @@ type fxWorkflowList struct {
 }
 
 type fixtureIssue struct {
-	title        string
-	description  string
-	status       string
-	comments     []string
-	parentTitle  string
-	assigneeKind string
-	assigneeID   string
+	title       string
+	description string
+	status      string
+	comments    []string
+	parentTitle string
+	// ownerID is the accountable person, independent of executorKind/executorID
+	// -- both can be set on the same fixture at once.
+	ownerID      string
+	executorKind string
+	executorID   string
 }
 
 // kindFixtures fills the running deployment through public APIs. Stable fixture
@@ -185,14 +189,17 @@ func ensureIssues(ctx context.Context, client *http.Client, target smokeTarget, 
 		if !ok && spec.status != "" && spec.status != issue.Status {
 			patch["status"] = spec.status
 		}
-		if spec.assigneeKind != "" && (issue.AssigneeKind != spec.assigneeKind || issue.AssigneeID != spec.assigneeID) {
-			patch["assignee_kind"], patch["assignee_id"] = spec.assigneeKind, spec.assigneeID
+		if spec.ownerID != "" && issue.OwnerID != spec.ownerID {
+			patch["owner_id"] = spec.ownerID
+		}
+		if spec.executorKind != "" && (issue.ExecutorKind != spec.executorKind || issue.ExecutorID != spec.executorID) {
+			patch["executor_kind"], patch["executor_id"] = spec.executorKind, spec.executorID
 		}
 		if len(patch) > 1 {
 			if err := requestJSON(ctx, client, http.MethodPatch, base+"/"+url.PathEscape(issue.ID), token, patch, &issue, http.StatusOK); err != nil {
 				return err
 			}
-			fmt.Printf("    status %s; assignment %s\n", issue.Status, issue.AssigneeKind)
+			fmt.Printf("    status %s; owner %s; executor %s\n", issue.Status, issue.OwnerID, issue.ExecutorKind)
 		}
 
 		byTitle[spec.title] = issue

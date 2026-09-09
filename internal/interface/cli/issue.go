@@ -15,7 +15,7 @@ import (
 func newIssueCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "issue",
-		Short: "See the space work assigned to you",
+		Short: "See the space work you own",
 		Long: "Receive space work from the BuildMax server you are signed in to,\n" +
 			"do it here, and say where it got to.\n\n" +
 			"That is the whole scope: list what you were given, read one, work it\n" +
@@ -36,7 +36,8 @@ func newIssueStartCommand() *cobra.Command {
 		Short: "Work an issue in this session: the agent can read it and report back",
 		Long: "Scopes one local session to one issue and launches it, in the TUI or,\n" +
 			"with -p, one print-mode run. The agent can read that issue and post a\n" +
-			"report on it; its status, assignee, and sub-issues stay yours to change.\n\n" +
+			"report on it; its status, owner, executor, and sub-issues stay yours to\n" +
+			"change.\n\n" +
 			"This takes the same run flags as `buildmax` itself (-p, -r, --model,\n" +
 			"--workspace, and so on). Requires login. The scope lasts for this\n" +
 			"session only; it is not remembered.",
@@ -59,7 +60,7 @@ func runIssueStart(cmd *cobra.Command, args []string) error {
 func newIssueListCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List the issues assigned to you, across every space you are in",
+		Short: "List the issues you own, across every space you are in",
 		RunE:  runIssueList,
 	}
 	cmd.Flags().String("status", "", "only issues with this status: todo, in_progress, or done")
@@ -73,7 +74,7 @@ func runIssueList(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("read credentials: %w", err)
 	}
 	if !info.LoggedIn || info.ServerURL == "" {
-		return fmt.Errorf("not signed in: run `buildmax login` to see the work a space assigned you")
+		return fmt.Errorf("not signed in: run `buildmax login` to see the work you own")
 	}
 	status, _ := cmd.Flags().GetString("status")
 	if status != "" && !isKnownIssueStatus(status) {
@@ -85,7 +86,7 @@ func runIssueList(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("authenticate to %s: %w", info.ServerURL, err)
 	}
-	issues, problems := client.NewClient(info.ServerURL).ListAssignedIssues(cmd.Context(), token, status, limit)
+	issues, problems := client.NewClient(info.ServerURL).ListOwnedIssues(cmd.Context(), token, status, limit)
 	// Problems are printed before the list rather than swallowed: an inbox that
 	// quietly omits a space is worse than one that says which space it could not
 	// read.
@@ -96,14 +97,14 @@ func runIssueList(cmd *cobra.Command, _ []string) error {
 		if len(problems) > 0 {
 			return fmt.Errorf("no issues could be read")
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), "Nothing is assigned to you.")
+		fmt.Fprintln(cmd.OutOrStdout(), "You own nothing yet.")
 		return nil
 	}
-	printAssignedIssues(cmd, issues)
+	printOwnedIssues(cmd, issues)
 	return nil
 }
 
-func printAssignedIssues(cmd *cobra.Command, issues []client.AssignedIssue) {
+func printOwnedIssues(cmd *cobra.Command, issues []client.OwnedIssue) {
 	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 	fmt.Fprintln(w, "ISSUE\tSTATUS\tSPACE\tTITLE")
 	for _, item := range issues {
@@ -149,7 +150,8 @@ func issueSessionNotice(session *auth.IssueSession, source auth.ModelSource) str
 	var b strings.Builder
 	fmt.Fprintf(&b, "Working issue %s — %s (%s) in space %s on %s.\n",
 		session.Issue.ID, oneLine(session.Issue.Title), session.Issue.Status, space, session.ServerURL)
-	b.WriteString("The agent can read that issue and post a report on it. Its status, assignee, and sub-issues stay yours to change.\n")
+	b.WriteString("The agent can read that issue and post a report on it. Its status, owner,\n" +
+		"executor, and sub-issues stay yours to change.\n")
 	if source.ServerURL != "" {
 		fmt.Fprintf(&b, "Prompts go to %s.\n", source.ServerURL)
 	} else {
@@ -213,8 +215,11 @@ func runIssueShow(cmd *cobra.Command, args []string) error {
 	out := cmd.OutOrStdout()
 	fmt.Fprintf(out, "%s  %s\n", issue.ID, issue.Title)
 	fmt.Fprintf(out, "%s in space %s\n", issue.Status, space.Name)
-	if issue.AssigneeKind != nil && issue.AssigneeID != nil {
-		fmt.Fprintf(out, "assigned to %s %s\n", *issue.AssigneeKind, *issue.AssigneeID)
+	if issue.OwnerID != nil {
+		fmt.Fprintf(out, "owner %s\n", *issue.OwnerID)
+	}
+	if issue.ExecutorKind != nil && issue.ExecutorID != nil {
+		fmt.Fprintf(out, "executor %s %s\n", *issue.ExecutorKind, *issue.ExecutorID)
 	}
 	if strings.TrimSpace(issue.Description) != "" {
 		fmt.Fprintf(out, "\n%s\n", strings.TrimSpace(issue.Description))

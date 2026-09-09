@@ -265,11 +265,16 @@ func (s *Store) CreateTask(ctx context.Context, in *coretask.CreateInput) (*core
 		CreatedAt:             now,
 		SessionID:             &sessionID,
 	}
+	// CreatedByType and TriggerSource are not defaulted here: the service
+	// layer (internal/service/task.normalizeCreateTaskProvenance) is this
+	// value's one authoritative source, and defaulting it again here would
+	// give "what does an empty TriggerSource become" two independent answers
+	// that could drift apart. See docs/design/portal-work-and-execution-experience.md.
 	runDB := &taskRunRow{
 		Input:                 in.Input,
 		CreatedBy:             defaultString(in.InitialRunCreatedBy, in.CreatedBy),
-		CreatedByType:         defaultString(in.InitialRunCreatedByType, coretask.RunCreatedByTypeUser),
-		TriggerSource:         defaultString(in.InitialRunTriggerSource, coretask.RunTriggerSourceTaskCreate),
+		CreatedByType:         in.InitialRunCreatedByType,
+		TriggerSource:         in.InitialRunTriggerSource,
 		Status:                "PENDING",
 		CreatedAt:             now,
 		AgentRevision:         in.InitialRunAgentRevision,

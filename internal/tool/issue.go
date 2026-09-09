@@ -30,7 +30,7 @@ type IssueSnapshot struct {
 	Title        string
 	Description  string
 	Status       string
-	AssigneeKind string
+	ExecutorKind string
 	Children     []IssueChild
 	Comments     []IssueComment
 	// OmittedComments is how many older comments the window left out, so the
@@ -120,8 +120,8 @@ func (t *GetIssue) Execute(ctx context.Context, _ map[string]any) (string, error
 func renderIssueSnapshot(s IssueSnapshot) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Issue: %s\nStatus: %s\n", s.Title, s.Status)
-	if s.AssigneeKind != "" {
-		fmt.Fprintf(&b, "Assigned to: %s\n", s.AssigneeKind)
+	if s.ExecutorKind != "" {
+		fmt.Fprintf(&b, "Executor: %s\n", s.ExecutorKind)
 	}
 	if strings.TrimSpace(s.Description) != "" {
 		fmt.Fprintf(&b, "\nDescription:\n%s\n", s.Description)
@@ -163,7 +163,7 @@ func (t *ReportToIssue) Access(_ map[string]any) llm.Access { return llm.AccessW
 func (t *ReportToIssue) Description() string {
 	return "Post a short statement on this run's issue, for the people following it. " +
 		"Use it once, near the end, to say what you did and what the result was, or to correct something you already reported. " +
-		"It cannot change the issue's status, assignee, or sub-issues — say what you believe should happen and let a person decide. " +
+		"It cannot change the issue's status, owner, executor, or sub-issues — say what you believe should happen and let a person decide. " +
 		fmt.Sprintf("A run may report at most %d times.", issueReportBudget)
 }
 

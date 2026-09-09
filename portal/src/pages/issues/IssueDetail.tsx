@@ -36,13 +36,18 @@ interface IssueDetailProps {
   userId?: string
 }
 
-interface TimelineEvent {
-  id: string
-  label: string
-  detail: string
-  timestamp: string
-  status?: string
-}
+// The four user-level areas an Issue is read through: what is being done and
+// who or what is on it (Overview), the conversation about it (Discussion),
+// what it produced (Results), and its full execution history (Runs). Each is
+// independent -- nothing here duplicates another tab's content.
+type IssueTab = "overview" | "discussion" | "results" | "runs"
+
+const ISSUE_TABS: { id: IssueTab; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "discussion", label: "Discussion" },
+  { id: "results", label: "Results" },
+  { id: "runs", label: "Runs" },
+]
 
 function mapIssueFlow(api: ApiIssueFlowResponse): IssueFlow {
   return {
@@ -72,6 +77,7 @@ function latestRun(flow: IssueFlow | null): IssueFlowRun | null {
 export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   const { currentSpaceId, currentUserRole } = useSpace()
   const { setEntityLabel } = useApp()
+  const [tab, setTab] = useState<IssueTab>("overview")
   const [flow, setFlow] = useState<IssueFlow | null>(null)
   const [traceRunId, setTraceRunId] = useState<string | null>(null)
   const [agents, setAgents] = useState<Agent[]>([])
@@ -80,18 +86,27 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [status, setStatus] = useState<Issue["status"]>("todo")
-  const [assigneeValue, setAssigneeValue] = useState("")
+  const [ownerValue, setOwnerValue] = useState("")
+  const [executorValue, setExecutorValue] = useState("")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [runningWorkflow, setRunningWorkflow] = useState(false)
   const [runningAgent, setRunningAgent] = useState(false)
   const [cancelingTaskId, setCancelingTaskId] = useState<string | null>(null)
   const [retryingTaskId, setRetryingTaskId] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  // Save persists; Run schedules work and spends quota. They are different
+  // user intentions with different failure modes, so each gets its own error
+  // and success feedback rather than one shared banner that leaves it unclear
+  // which action actually failed.
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [runError, setRunError] = useState<string | null>(null)
   const [subIssueTitle, setSubIssueTitle] = useState("")
   const [addingSubIssue, setAddingSubIssue] = useState(false)
-  // Owned by the Discussion panel's fetch and mirrored here so the timeline can
-  // interleave what people said with what runs did.
+  const [subIssueError, setSubIssueError] = useState<string | null>(null)
+  // Owned by the Discussion panel's fetch and mirrored here for the tab's
+  // comment count badge.
   const [comments, setComments] = useState<ApiIssueComment[]>([])
   const canAssignWorkflow = currentUserRole === "owner" || currentUserRole === "admin"
 
@@ -105,7 +120,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
       return
     }
     setLoading(true)
-    setError(null)
+    setLoadError(null)
     try {
       const [flowApi, agentsApi, membersApi, workflowsApi] = await Promise.all([
         getIssueFlow(currentSpaceId, issueId, token),
@@ -121,13 +136,14 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
       setTitle(mapped.issue.title)
       setDescription(mapped.issue.description)
       setStatus(mapped.issue.status)
-      setAssigneeValue(
-        mapped.issue.assigneeKind && mapped.issue.assigneeId
-          ? `${mapped.issue.assigneeKind}:${mapped.issue.assigneeId}`
+      setOwnerValue(mapped.issue.ownerId ?? "")
+      setExecutorValue(
+        mapped.issue.executorKind && mapped.issue.executorId
+          ? `${mapped.issue.executorKind}:${mapped.issue.executorId}`
           : "",
       )
     } catch (err) {
-      setError(getErrorMessage(err, "Failed to load issue detail"))
+      setLoadError(getErrorMessage(err, "Failed to load issue detail"))
     } finally {
       setLoading(false)
     }
@@ -147,13 +163,13 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   const currentRunLatestTaskId =
     [...(currentRun?.steps ?? [])].reverse().find((step) => step.taskId)?.taskId ?? null
   const latestAgentTask = flow?.agentTasks[0] ?? null
-  const isWorkflowAssigned = flow?.issue.assigneeKind === "workflow" && Boolean(flow.issue.assigneeId)
-  const isAgentAssigned = flow?.issue.assigneeKind === "agent" && Boolean(flow.issue.assigneeId)
+  const isWorkflowAssigned = flow?.issue.executorKind === "workflow" && Boolean(flow.issue.executorId)
+  const isAgentAssigned = flow?.issue.executorKind === "agent" && Boolean(flow.issue.executorId)
   const assignedWorkflowStatus =
     flow?.workflow?.status ??
-    workflows.find((workflow) => workflow.id === flow?.issue.assigneeId)?.status
+    workflows.find((workflow) => workflow.id === flow?.issue.executorId)?.status
   const publishedAssignableWorkflows = workflows.filter(
-    (workflow) => workflow.status === "published" || workflow.id === flow?.issue.assigneeId,
+    (workflow) => workflow.status === "published" || workflow.id === flow?.issue.executorId,
   )
 
   const openChildCount = (flow?.issue.childCount ?? 0) - (flow?.issue.doneChildCount ?? 0)
@@ -164,84 +180,32 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
     return out
   }, [agents])
 
-  const assigneeLabel = useCallback((issue: Issue): string => {
-    if (issue.assigneeKind === "person") {
-      if (issue.assigneeId === userId) return "Me"
-      const member = members.find((item) => item.user_id === issue.assigneeId)
-      if (member?.user_name) return member.user_name
-      if (member?.user_email) return member.user_email
-      return member ? `Member ${member.user_id.slice(0, 8)}` : "Member"
-    }
-    if (issue.assigneeKind === "agent") {
-      return agents.find((agent) => agent.id === issue.assigneeId)?.name || "Agent"
-    }
-    if (issue.assigneeKind === "workflow") {
-      return flow?.workflow?.name || workflows.find((workflow) => workflow.id === issue.assigneeId)?.name || "Workflow"
-    }
-    return "Unassigned"
-  }, [agents, flow?.workflow?.name, members, userId, workflows])
+  // Owner and Executor are independent: an Issue can have one, the other,
+  // both, or neither, which one combined field could never say at once.
+  function ownerLabel(issue: Issue): string | null {
+    if (!issue.ownerId) return null
+    if (issue.ownerId === userId) return "Me"
+    const member = members.find((item) => item.user_id === issue.ownerId)
+    if (member?.user_name) return member.user_name
+    if (member?.user_email) return member.user_email
+    return member ? `Member ${member.user_id.slice(0, 8)}` : "Member"
+  }
 
-  const timeline = useMemo<TimelineEvent[]>(() => {
-    if (!flow) return []
-    const events: TimelineEvent[] = [
-      {
-        id: "created",
-        label: "Issue created",
-        detail: flow.issue.title,
-        timestamp: flow.issue.createdAt,
-        status: flow.issue.status,
-      },
-    ]
-    for (const item of flow.runs) {
-      events.push({
-        id: `${item.run.id}-created`,
-        label: "Workflow run created",
-        detail: item.run.id,
-        timestamp: item.run.createdAt,
-        status: item.run.status,
-      })
-      for (const step of item.steps) {
-        const timestamp = step.endedAt ?? step.startedAt ?? step.createdAt
-        events.push({
-          id: step.id,
-          label: `Step ${step.stepId}`,
-          detail: step.outputSummary || step.errorMessage || step.prompt,
-          timestamp,
-          status: step.status,
-        })
-      }
+  function executorLabel(issue: Issue): string | null {
+    if (issue.executorKind === "agent") {
+      return agents.find((agent) => agent.id === issue.executorId)?.name || "Agent"
     }
-    for (const task of flow.agentTasks) {
-      events.push({
-        id: task.id,
-        label: "Agent run created",
-        detail: task.title || task.summary,
-        timestamp: task.createdAt,
-        status: task.status,
-      })
+    if (issue.executorKind === "workflow") {
+      return flow?.workflow?.name || workflows.find((workflow) => workflow.id === issue.executorId)?.name || "Workflow"
     }
-    // Comments belong on the same column as runs: an issue's history is what
-    // people said and what execution did, in one order.
-    for (const comment of comments) {
-      events.push({
-        id: comment.id,
-        label: commentEventLabel(comment.author_kind),
-        detail: comment.body,
-        timestamp: comment.created_at,
-      })
-    }
-    return events.sort((a, b) => (a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0))
-  }, [flow, comments])
+    return null
+  }
 
-  function commentEventLabel(kind: ApiIssueComment["author_kind"]): string {
-    switch (kind) {
-      case "user":
-        return "Comment"
-      case "local_agent":
-        return "Local agent report"
-      default:
-        return "Agent comment"
-    }
+  // A compact combined summary, for a sub-issue row where there is no room
+  // for two labeled lines.
+  function summaryLabel(issue: Issue): string {
+    const parts = [ownerLabel(issue), executorLabel(issue)].filter((label): label is string => label != null)
+    return parts.length > 0 ? parts.join(" · ") : "Unassigned"
   }
 
   function memberLabel(member: ApiSpaceMember): string {
@@ -253,13 +217,14 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
 
   function handleSave() {
     if (!token || !currentSpaceId || !flow) return
-    const [kind, id] = assigneeValue ? assigneeValue.split(":") : ["", ""]
-    if (kind === "workflow" && !canAssignWorkflow) {
-      setError("Workflow assignment is limited to space owners and admins")
+    const [executorKind, executorID] = executorValue ? executorValue.split(":") : ["", ""]
+    if (executorKind === "workflow" && !canAssignWorkflow) {
+      setSaveError("Workflow assignment is limited to space owners and admins")
       return
     }
     setSaving(true)
-    setError(null)
+    setSaveError(null)
+    setSaveMessage(null)
     updateIssue(
       currentSpaceId,
       flow.issue.id,
@@ -268,22 +233,30 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
         title: title.trim(),
         description,
         status,
-        assignee_kind: (kind as "person" | "agent" | "workflow" | "") || "",
-        assignee_id: id || "",
+        owner_id: ownerValue,
+        executor_kind: (executorKind as "agent" | "workflow" | "") || "",
+        executor_id: executorID || "",
       },
       token,
     )
-      .then(() => load())
+      .then(() => {
+        setSaveMessage(
+          executorKind === "agent" || executorKind === "workflow"
+            ? "Saved. This did not start a run — use Run to schedule one."
+            : "Saved.",
+        )
+        return load()
+      })
       .catch((err) => {
         // A conflict means someone else saved first. Reloading is what makes
         // the form usable again: the version it holds is stale, so every
         // further save would be refused for the same reason.
         if (err instanceof ApiRequestError && err.status === 409) {
-          setError("This issue changed while you were editing it. It has been reloaded — reapply your change.")
+          setSaveError("This issue changed while you were editing it. It has been reloaded — reapply your change.")
           void load()
           return
         }
-        setError(getErrorMessage(err, "Failed to update issue"))
+        setSaveError(getErrorMessage(err, "Failed to update issue"))
       })
       .finally(() => setSaving(false))
   }
@@ -293,60 +266,79 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
     const trimmed = subIssueTitle.trim()
     if (!trimmed || addingSubIssue) return
     setAddingSubIssue(true)
-    setError(null)
+    setSubIssueError(null)
     createIssue(currentSpaceId, { title: trimmed, parent_issue_id: flow.issue.id }, token)
       .then(() => {
         setSubIssueTitle("")
         return load()
       })
-      .catch((err) => setError(getErrorMessage(err, "Failed to add sub-issue")))
+      .catch((err) => setSubIssueError(getErrorMessage(err, "Failed to add sub-issue")))
       .finally(() => setAddingSubIssue(false))
   }
 
   function handleRunWorkflow() {
     if (!token || !currentSpaceId || !flow) return
     setRunningWorkflow(true)
-    setError(null)
+    setRunError(null)
     runIssueWorkflow(currentSpaceId, flow.issue.id, token)
       .then((detail) => {
         void load()
+        // A successful schedule links straight to what it started, not back to
+        // this form -- that link is the confirmation Run succeeded.
         navigate({ name: "workflowRun", workflowRunId: detail.run.id })
       })
-      .catch((err) => setError(getErrorMessage(err, "Failed to run workflow")))
+      .catch((err) => setRunError(getErrorMessage(err, "Failed to run workflow")))
       .finally(() => setRunningWorkflow(false))
   }
 
   function handleCancelTask(taskId: string) {
     if (!token || !currentSpaceId || cancelingTaskId) return
     setCancelingTaskId(taskId)
-    setError(null)
+    setRunError(null)
     cancelTask(currentSpaceId, taskId, token)
       .then(() => load())
-      .catch((err) => setError(getErrorMessage(err, "Failed to stop this run")))
+      .catch((err) => setRunError(getErrorMessage(err, "Failed to stop this run")))
       .finally(() => setCancelingTaskId(null))
   }
 
   function handleRetryTask(taskId: string) {
     if (!token || !currentSpaceId || retryingTaskId) return
     setRetryingTaskId(taskId)
-    setError(null)
+    setRunError(null)
     retryTask(currentSpaceId, taskId, token)
       .then(() => load())
-      .catch((err) => setError(getErrorMessage(err, "Failed to retry this run")))
+      .catch((err) => setRunError(getErrorMessage(err, "Failed to retry this run")))
       .finally(() => setRetryingTaskId(null))
   }
 
   function handleRunAgent() {
     if (!token || !currentSpaceId || !flow) return
     setRunningAgent(true)
-    setError(null)
+    setRunError(null)
     runIssueAgent(currentSpaceId, flow.issue.id, token)
-      .then(() => {
+      .then((created) => {
         void load()
+        // Same contract as Run Workflow: land on the run this started, not on
+        // a form that just quietly reloaded.
+        navigate({ name: "task", taskId: created.id })
       })
-      .catch((err) => setError(getErrorMessage(err, "Failed to run agent")))
+      .catch((err) => setRunError(getErrorMessage(err, "Failed to run agent")))
       .finally(() => setRunningAgent(false))
   }
+
+  // Run is disabled until its executor is actually runnable; these name the
+  // specific reason rather than leaving a disabled button unexplained.
+  const workflowRunDisabledReason = !isWorkflowAssigned
+    ? null
+    : assignedWorkflowStatus !== "published"
+      ? "This workflow is not published, so it cannot be run yet."
+      : null
+  const agentStillExists = agents.some((agent) => agent.id === flow?.issue.executorId)
+  const agentRunDisabledReason = !isAgentAssigned
+    ? null
+    : !agentStillExists
+      ? "The assigned agent no longer exists."
+      : null
 
   return (
     <div className="page-activity">
@@ -364,449 +356,466 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
           <button type="button" className="page-activity__action-btn" disabled={loading} onClick={() => void load()}>
             Refresh
           </button>
-          {isWorkflowAssigned ? (
-            <button
-              type="button"
-              className="page-activity__action-btn"
-              disabled={runningWorkflow || loading || assignedWorkflowStatus !== "published"}
-              onClick={handleRunWorkflow}
-            >
-              {runningWorkflow ? "Running..." : "Run Workflow"}
-            </button>
-          ) : null}
-          {isAgentAssigned ? (
-            <button
-              type="button"
-              className="page-activity__action-btn"
-              disabled={runningAgent || loading}
-              onClick={handleRunAgent}
-            >
-              {runningAgent ? "Running..." : "Run Agent"}
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="page-activity__action-btn"
-            disabled={saving || loading || !title.trim()}
-            onClick={handleSave}
-          >
-            {saving ? "Saving..." : "Save"}
-          </button>
         </div>
       </div>
 
-      {error ? <p className="page-activity__empty">{error}</p> : null}
+      {loadError ? <p className="page-activity__empty">{loadError}</p> : null}
 
       {loading ? (
         <p className="page-activity__empty">Loading...</p>
       ) : flow == null ? (
         <p className="page-activity__empty">Issue not found.</p>
       ) : (
-        <div className="issue-detail-page__grid">
-          <section className="issues-page__panel">
-            <div className="issues-page__toolbar">
-              <h2 className="issues-page__section-title">Issue</h2>
-              <span className="issues-page__status">{flow.issue.status}</span>
-            </div>
-            <div className="issues-page__form">
-              <label className="issues-page__field">
-                <span className="issues-page__field-label">Title</span>
-                <input className="issues-page__input" value={title} onChange={(e) => setTitle(e.target.value)} />
-              </label>
-              <label className="issues-page__field">
-                <span className="issues-page__field-label">Description</span>
-                <textarea
-                  className="issues-page__textarea"
-                  rows={8}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                />
-              </label>
-              <div className="issue-detail-page__split">
-                <label className="issues-page__field">
-                  <span className="issues-page__field-label">Business Status</span>
-                  <select className="issues-page__select" value={status} onChange={(e) => setStatus(e.target.value as Issue["status"])}>
-                    <option value="todo">todo</option>
-                    <option value="in_progress">in_progress</option>
-                    <option value="done">done</option>
-                  </select>
-                </label>
-                <label className="issues-page__field">
-                  <span className="issues-page__field-label">Assignee</span>
-                  <select className="issues-page__select" value={assigneeValue} onChange={(e) => setAssigneeValue(e.target.value)}>
-                    <option value="">Unassigned</option>
-                    {members.map((member) => (
-                      <option key={member.user_id} value={`person:${member.user_id}`}>
-                        {memberLabel(member)}
-                      </option>
-                    ))}
-                    {agents.map((agent) => (
-                      <option key={agent.id} value={`agent:${agent.id}`}>{agent.name}</option>
-                    ))}
-                    {canAssignWorkflow
-                      ? publishedAssignableWorkflows.map((workflow) => (
-                          <option key={workflow.id} value={`workflow:${workflow.id}`}>
-                            {workflow.name}{workflow.status !== "published" ? ` (${workflow.status})` : ""}
-                          </option>
-                        ))
-                      : null}
-                  </select>
-                  <span className="issues-page__field-label">
-                    {canAssignWorkflow
-                      ? "Only `published` workflows are available for new assignment."
-                      : "You can still assign a person or agent here. Workflow assignment is limited to space owners and admins."}
-                  </span>
-                </label>
-              </div>
-              {status === "done" && openChildCount > 0 ? (
-                <p className="page-activity__meta">
-                  {openChildCount} sub-issue{openChildCount === 1 ? " is" : "s are"} still open. Closing this issue
-                  anyway is allowed — sub-issue status is never rolled up.
-                </p>
-              ) : null}
-              <div className="issues-page__meta-row">
-                <div className="page-activity__meta">Current assignee: {assigneeLabel(flow.issue)}</div>
-                <div className="page-activity__meta">Created: {formatTimestamp(flow.issue.createdAt)}</div>
-                <div className="page-activity__meta">Updated: {formatTimestamp(flow.issue.updatedAt)}</div>
-              </div>
-            </div>
-          </section>
+        <>
+          <nav className="issue-detail-page__tabs" aria-label="Issue sections">
+            {ISSUE_TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className={
+                  t.id === tab ? "issue-detail-page__tab issue-detail-page__tab--active" : "issue-detail-page__tab"
+                }
+                aria-current={t.id === tab}
+                onClick={() => setTab(t.id)}
+              >
+                {t.label}
+                {t.id === "discussion" && comments.length > 0 ? (
+                  <span className="issue-detail-page__tab-count">{comments.length}</span>
+                ) : null}
+                {t.id === "results" && flow.outputs.length > 0 ? (
+                  <span className="issue-detail-page__tab-count">{flow.outputs.length}</span>
+                ) : null}
+              </button>
+            ))}
+          </nav>
 
-          <section className="issues-page__panel">
-            <div className="issues-page__toolbar">
-              <h2 className="issues-page__section-title">{flow.parent ? "Parent Issue" : "Sub-issues"}</h2>
-              {flow.parent ? null : (
-                <span className="page-activity__meta">
-                  {flow.issue.childCount === 0
-                    ? "None yet"
-                    : `${flow.issue.doneChildCount}/${flow.issue.childCount} done`}
-                </span>
-              )}
-            </div>
-            {flow.parent ? (
-              <div className="issue-detail-page__parent">
-                <button
-                  type="button"
-                  className="page-activity__action-btn"
-                  onClick={() => navigate({ name: "issue", issueId: flow.parent!.id })}
-                >
-                  ← {flow.parent.title}
-                </button>
-                <p className="page-activity__meta">
-                  This is a sub-issue. Sub-issues cannot have sub-issues of their own.
-                </p>
-              </div>
-            ) : (
-              <>
-                {flow.children.length === 0 ? (
-                  <p className="page-activity__empty">No sub-issues yet.</p>
-                ) : (
-                  <ul className="issue-detail-page__children">
-                    {flow.children.map((child) => (
-                      <li key={child.id} className="issue-detail-page__child">
+          {tab === "overview" ? (
+            <div className="issue-detail-page__panel issue-detail-page__grid">
+              <section className="issues-page__panel">
+                <div className="issues-page__toolbar">
+                  <h2 className="issues-page__section-title">Issue</h2>
+                  <span className="issues-page__status">{flow.issue.status}</span>
+                </div>
+                <div className="issues-page__form">
+                  <label className="issues-page__field">
+                    <span className="issues-page__field-label">Title</span>
+                    <input className="issues-page__input" value={title} onChange={(e) => setTitle(e.target.value)} />
+                  </label>
+                  <label className="issues-page__field">
+                    <span className="issues-page__field-label">Description</span>
+                    <textarea
+                      className="issues-page__textarea"
+                      rows={8}
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                    />
+                  </label>
+                  <div className="issue-detail-page__split">
+                    <label className="issues-page__field">
+                      <span className="issues-page__field-label">Business Status</span>
+                      <select className="issues-page__select" value={status} onChange={(e) => setStatus(e.target.value as Issue["status"])}>
+                        <option value="todo">todo</option>
+                        <option value="in_progress">in_progress</option>
+                        <option value="done">done</option>
+                      </select>
+                    </label>
+                    <label className="issues-page__field">
+                      <span className="issues-page__field-label">Owner</span>
+                      <select className="issues-page__select" value={ownerValue} onChange={(e) => setOwnerValue(e.target.value)}>
+                        <option value="">Unassigned</option>
+                        {members.map((member) => (
+                          <option key={member.user_id} value={member.user_id}>
+                            {memberLabel(member)}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="issues-page__field-label">Who is accountable for this issue.</span>
+                    </label>
+                  </div>
+                  <label className="issues-page__field">
+                    <span className="issues-page__field-label">Executor</span>
+                    <select className="issues-page__select" value={executorValue} onChange={(e) => setExecutorValue(e.target.value)}>
+                      <option value="">None</option>
+                      {agents.map((agent) => (
+                        <option key={agent.id} value={`agent:${agent.id}`}>{agent.name}</option>
+                      ))}
+                      {canAssignWorkflow
+                        ? publishedAssignableWorkflows.map((workflow) => (
+                            <option key={workflow.id} value={`workflow:${workflow.id}`}>
+                              {workflow.name}{workflow.status !== "published" ? ` (${workflow.status})` : ""}
+                            </option>
+                          ))
+                        : null}
+                    </select>
+                    <span className="issues-page__field-label">
+                      {canAssignWorkflow
+                        ? "What runs the work. Only `published` workflows are available for new assignment."
+                        : "What runs the work. Workflow assignment is limited to space owners and admins."}
+                    </span>
+                  </label>
+                  {status === "done" && openChildCount > 0 ? (
+                    <p className="page-activity__meta">
+                      {openChildCount} sub-issue{openChildCount === 1 ? " is" : "s are"} still open. Closing this issue
+                      anyway is allowed — sub-issue status is never rolled up.
+                    </p>
+                  ) : null}
+                  <div className="issues-page__meta-row">
+                    <div className="page-activity__meta">Owner: {ownerLabel(flow.issue) ?? "Unassigned"}</div>
+                    <div className="page-activity__meta">Executor: {executorLabel(flow.issue) ?? "None"}</div>
+                    <div className="page-activity__meta">Created: {formatTimestamp(flow.issue.createdAt)}</div>
+                    <div className="page-activity__meta">Updated: {formatTimestamp(flow.issue.updatedAt)}</div>
+                  </div>
+                  <div className="issues-page__form-actions">
+                    {isWorkflowAssigned ? (
+                      <span className="page-activity__action-group">
                         <button
                           type="button"
                           className="page-activity__action-btn"
-                          onClick={() => navigate({ name: "issue", issueId: child.id })}
+                          disabled={runningWorkflow || loading || workflowRunDisabledReason != null}
+                          title={workflowRunDisabledReason ?? undefined}
+                          onClick={handleRunWorkflow}
                         >
-                          {child.title}
+                          {runningWorkflow ? "Running..." : "Run Workflow"}
                         </button>
-                        <span className="issues-page__status">{child.status}</span>
-                        <span className="page-activity__meta">{assigneeLabel(child)}</span>
+                        {workflowRunDisabledReason ? (
+                          <span className="page-activity__meta">{workflowRunDisabledReason}</span>
+                        ) : null}
+                      </span>
+                    ) : null}
+                    {isAgentAssigned ? (
+                      <span className="page-activity__action-group">
+                        <button
+                          type="button"
+                          className="page-activity__action-btn"
+                          disabled={runningAgent || loading || agentRunDisabledReason != null}
+                          title={agentRunDisabledReason ?? undefined}
+                          onClick={handleRunAgent}
+                        >
+                          {runningAgent ? "Running..." : "Run Agent"}
+                        </button>
+                        {agentRunDisabledReason ? (
+                          <span className="page-activity__meta">{agentRunDisabledReason}</span>
+                        ) : null}
+                      </span>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="page-activity__action-btn"
+                      disabled={saving || loading || !title.trim()}
+                      onClick={handleSave}
+                    >
+                      {saving ? "Saving..." : "Save"}
+                    </button>
+                  </div>
+                  {runError ? <p className="page-activity__empty">{runError}</p> : null}
+                  {saveError ? (
+                    <p className="page-activity__empty">{saveError}</p>
+                  ) : saveMessage ? (
+                    <p className="page-activity__meta">{saveMessage}</p>
+                  ) : null}
+                </div>
+              </section>
+
+              <section className="issues-page__panel">
+                <div className="issues-page__toolbar">
+                  <h2 className="issues-page__section-title">{flow.parent ? "Parent Issue" : "Sub-issues"}</h2>
+                  {flow.parent ? null : (
+                    <span className="page-activity__meta">
+                      {flow.issue.childCount === 0
+                        ? "None yet"
+                        : `${flow.issue.doneChildCount}/${flow.issue.childCount} done`}
+                    </span>
+                  )}
+                </div>
+                {flow.parent ? (
+                  <div className="issue-detail-page__parent">
+                    <button
+                      type="button"
+                      className="page-activity__action-btn"
+                      onClick={() => navigate({ name: "issue", issueId: flow.parent!.id })}
+                    >
+                      ← {flow.parent.title}
+                    </button>
+                    <p className="page-activity__meta">
+                      This is a sub-issue. Sub-issues cannot have sub-issues of their own.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {flow.children.length === 0 ? (
+                      <p className="page-activity__empty">No sub-issues yet.</p>
+                    ) : (
+                      <ul className="issue-detail-page__children">
+                        {flow.children.map((child) => (
+                          <li key={child.id} className="issue-detail-page__child">
+                            <button
+                              type="button"
+                              className="page-activity__action-btn"
+                              onClick={() => navigate({ name: "issue", issueId: child.id })}
+                            >
+                              {child.title}
+                            </button>
+                            <span className="issues-page__status">{child.status}</span>
+                            <span className="page-activity__meta">{summaryLabel(child)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {/* A sub-issue starts as a title. Everything else is filled in
+                        on its own page, so decomposing an issue stays one keystroke
+                        per piece. */}
+                    <div className="issue-detail-page__child-actions">
+                      <input
+                        className="issues-page__input"
+                        value={subIssueTitle}
+                        placeholder="New sub-issue title"
+                        onChange={(e) => setSubIssueTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault()
+                            handleAddSubIssue()
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="page-activity__action-btn"
+                        onClick={handleAddSubIssue}
+                        disabled={addingSubIssue || subIssueTitle.trim() === ""}
+                      >
+                        {addingSubIssue ? "Adding…" : "Add sub-issue"}
+                      </button>
+                    </div>
+                    {subIssueError ? <p className="page-activity__empty">{subIssueError}</p> : null}
+                  </>
+                )}
+              </section>
+
+              <section className="issues-page__panel issue-detail-page__wide">
+                <div className="issues-page__toolbar">
+                  <h2 className="issues-page__section-title">Latest Outcome</h2>
+                  <span className="issues-page__status">{currentRun?.run.status ?? latestAgentTask?.status ?? "no_runs"}</span>
+                </div>
+                {currentRun ? (
+                  <div className="workflow-run-page__meta">
+                    <div><strong>Latest run:</strong> {currentRun.run.id}</div>
+                    <div><strong>Workflow:</strong> {flow.workflow?.name ?? currentRun.run.workflowId}</div>
+                    <div><strong>Started:</strong> {currentRun.run.startedAt ? formatTimestamp(currentRun.run.startedAt) : "Not started"}</div>
+                    <div><strong>Steps:</strong> {currentRun.steps.filter((step) => step.status === "succeeded").length} / {currentRun.steps.length} done</div>
+                    {currentRun.run.errorMessage ? <div className="modal__error">{currentRun.run.errorMessage}</div> : null}
+                    <div className="workflow-run-page__step-actions">
+                      <button
+                        type="button"
+                        className="page-activity__action-btn"
+                        onClick={() => navigate({ name: "workflowRun", workflowRunId: currentRun.run.id })}
+                      >
+                        Open Run Detail
+                      </button>
+                      {currentRunLatestTaskId ? (
+                        <button
+                          type="button"
+                          className="page-activity__action-btn"
+                          onClick={() => navigate({ name: "task", taskId: currentRunLatestTaskId })}
+                        >
+                          Open Task
+                        </button>
+                      ) : null}
+                      <button type="button" className="page-activity__action-btn" onClick={() => setTab("runs")}>
+                        View all runs
+                      </button>
+                    </div>
+                  </div>
+                ) : latestAgentTask ? (
+                  <div className="workflow-run-page__meta">
+                    <div><strong>Latest agent task:</strong> {latestAgentTask.id}</div>
+                    <div><strong>Agent:</strong> {executorLabel(flow.issue) ?? "Agent"}</div>
+                    <div><strong>Created:</strong> {formatTimestamp(latestAgentTask.createdAt)}</div>
+                    <div><strong>Status:</strong> {latestAgentTask.status}</div>
+                    <div className="workflow-run-page__step-actions">
+                      <button
+                        type="button"
+                        className="page-activity__action-btn"
+                        onClick={() => navigate({ name: "task", taskId: latestAgentTask.id })}
+                      >
+                        Open Task
+                      </button>
+                      {taskIsStoppable(latestAgentTask.status) ? (
+                        <button
+                          type="button"
+                          className="page-activity__action-btn"
+                          disabled={cancelingTaskId === latestAgentTask.id}
+                          onClick={() => handleCancelTask(latestAgentTask.id)}
+                        >
+                          {cancelingTaskId === latestAgentTask.id ? "Stopping..." : "Stop Run"}
+                        </button>
+                      ) : null}
+                      {taskIsRetryable(latestAgentTask.status) ? (
+                        <button
+                          type="button"
+                          className="page-activity__action-btn"
+                          disabled={retryingTaskId === latestAgentTask.id}
+                          onClick={() => handleRetryTask(latestAgentTask.id)}
+                        >
+                          {retryingTaskId === latestAgentTask.id ? "Retrying..." : "Retry Run"}
+                        </button>
+                      ) : null}
+                      <button type="button" className="page-activity__action-btn" onClick={() => setTab("runs")}>
+                        View all runs
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="page-activity__empty">No execution runs recorded for this issue yet.</p>
+                )}
+              </section>
+            </div>
+          ) : null}
+
+          {tab === "discussion" ? (
+            <div className="issue-detail-page__panel">
+              <section className="issues-page__panel issue-detail-page__wide">
+                <div className="issues-page__toolbar">
+                  <h2 className="issues-page__section-title">Discussion</h2>
+                  <div className="issues-page__toolbar-actions">
+                    <span className="page-activity__meta">
+                      {comments.length === 0
+                        ? "No comments"
+                        : `${comments.length} comment${comments.length === 1 ? "" : "s"}`}
+                    </span>
+                    <button
+                      type="button"
+                      className="page-activity__action-btn"
+                      onClick={() => navigate({ name: "explore" })}
+                    >
+                      Workspace Files
+                    </button>
+                  </div>
+                </div>
+                <IssueDiscussion
+                  spaceId={currentSpaceId}
+                  issueId={flow.issue.id}
+                  token={token}
+                  userId={userId ?? null}
+                  canModerate={currentUserRole === "owner"}
+                  members={members}
+                  agentNames={agentNames}
+                  onOpenTrace={(taskRunId) => setTraceRunId(taskRunId)}
+                  onCommentsChanged={setComments}
+                />
+              </section>
+            </div>
+          ) : null}
+
+          {tab === "results" ? (
+            <div className="issue-detail-page__panel">
+              <section className="issues-page__panel issue-detail-page__wide">
+                <div className="issues-page__toolbar">
+                  <h2 className="issues-page__section-title">Results</h2>
+                  <span className="page-activity__meta">
+                    {flow.outputs.length === 0
+                      ? "No outputs yet"
+                      : `${flow.outputs.length} output${flow.outputs.length === 1 ? "" : "s"}`}
+                  </span>
+                </div>
+                <OutputsList
+                  outputs={flow.outputs}
+                  token={token}
+                  onOpenConversation={(conversationId) => navigate({ name: "conversation", conversationId })}
+                  onOpenRun={(workflowRunId) => navigate({ name: "workflowRun", workflowRunId })}
+                  onOpenTrace={(taskRunId) => setTraceRunId(taskRunId)}
+                />
+              </section>
+            </div>
+          ) : null}
+
+          {tab === "runs" ? (
+            <div className="issue-detail-page__panel issue-detail-page__grid">
+              <section className="issues-page__panel">
+                <div className="issues-page__toolbar">
+                  <h2 className="issues-page__section-title">Run History</h2>
+                  <span className="page-activity__meta">{flow.total} total</span>
+                </div>
+                <p className="page-activity__subtitle">
+                  Each workflow run's steps and diagnostics live on its own run detail page.
+                </p>
+                {flow.runs.length === 0 ? (
+                  <p className="page-activity__empty">No runs yet.</p>
+                ) : (
+                  <ul className="workflow-page__runs">
+                    {flow.runs.map((item) => (
+                      <li key={item.run.id}>
+                        <button
+                          type="button"
+                          className="workflow-page__run-row"
+                          onClick={() => navigate({ name: "workflowRun", workflowRunId: item.run.id })}
+                        >
+                          <span>
+                            <strong>{item.run.id}</strong>
+                            <span className="page-activity__meta workflow-detail-page__run-id">
+                              {item.run.createdLabel}
+                            </span>
+                          </span>
+                          <span className="issues-page__status">{item.run.status}</span>
+                        </button>
                       </li>
                     ))}
                   </ul>
                 )}
-                {/* A sub-issue starts as a title. Everything else is filled in
-                    on its own page, so decomposing an issue stays one keystroke
-                    per piece. */}
-                <div className="issue-detail-page__child-actions">
-                  <input
-                    className="issues-page__input"
-                    value={subIssueTitle}
-                    placeholder="New sub-issue title"
-                    onChange={(e) => setSubIssueTitle(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault()
-                        handleAddSubIssue()
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="page-activity__action-btn"
-                    onClick={handleAddSubIssue}
-                    disabled={addingSubIssue || subIssueTitle.trim() === ""}
-                  >
-                    {addingSubIssue ? "Adding…" : "Add sub-issue"}
-                  </button>
+              </section>
+
+              <section className="issues-page__panel">
+                <div className="issues-page__toolbar">
+                  <h2 className="issues-page__section-title">Agent Run Sequence</h2>
+                  <span className="page-activity__meta">{flow.agentTasks.length} tasks</span>
                 </div>
-              </>
-            )}
-          </section>
-
-          <section className="issues-page__panel issue-detail-page__wide">
-            <div className="issues-page__toolbar">
-              <h2 className="issues-page__section-title">Discussion</h2>
-              <div className="issues-page__toolbar-actions">
-                <span className="page-activity__meta">
-                  {comments.length === 0
-                    ? "No comments"
-                    : `${comments.length} comment${comments.length === 1 ? "" : "s"}`}
-                </span>
-                <button
-                  type="button"
-                  className="page-activity__action-btn"
-                  onClick={() => navigate({ name: "explore" })}
-                >
-                  Workspace Files
-                </button>
-              </div>
+                {flow.agentTasks.length === 0 ? (
+                  <p className="page-activity__empty">No agent runs recorded for this issue yet.</p>
+                ) : (
+                  <ul className="workflow-page__runs">
+                    {flow.agentTasks.map((task) => (
+                      <li key={task.id}>
+                        <button
+                          type="button"
+                          className="workflow-page__run-row"
+                          onClick={() => navigate({ name: "task", taskId: task.id })}
+                        >
+                          <span>
+                            <strong>{task.title}</strong>
+                            <span className="page-activity__meta workflow-detail-page__run-id">
+                              {task.timeLabel}
+                            </span>
+                          </span>
+                          <span className="issues-page__status">{task.status}</span>
+                        </button>
+                        {taskIsStoppable(task.status) ? (
+                          <button
+                            type="button"
+                            className="page-activity__action-btn"
+                            disabled={cancelingTaskId === task.id}
+                            onClick={() => handleCancelTask(task.id)}
+                          >
+                            {cancelingTaskId === task.id ? "Stopping..." : "Stop Run"}
+                          </button>
+                        ) : null}
+                        {taskIsRetryable(task.status) ? (
+                          <button
+                            type="button"
+                            className="page-activity__action-btn"
+                            disabled={retryingTaskId === task.id}
+                            onClick={() => handleRetryTask(task.id)}
+                          >
+                            {retryingTaskId === task.id ? "Retrying..." : "Retry Run"}
+                          </button>
+                        ) : null}
+                        <pre className="workflow-page__step-output">{task.summary}</pre>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
             </div>
-            <IssueDiscussion
-              spaceId={currentSpaceId}
-              issueId={flow.issue.id}
-              token={token}
-              userId={userId ?? null}
-              canModerate={currentUserRole === "owner"}
-              members={members}
-              agentNames={agentNames}
-              onOpenTrace={(taskRunId) => setTraceRunId(taskRunId)}
-              onCommentsChanged={setComments}
-            />
-          </section>
-
-          <section className="issues-page__panel issue-detail-page__wide">
-            <div className="issues-page__toolbar">
-              <h2 className="issues-page__section-title">Results</h2>
-              <span className="page-activity__meta">
-                {flow.outputs.length === 0
-                  ? "No outputs yet"
-                  : `${flow.outputs.length} output${flow.outputs.length === 1 ? "" : "s"}`}
-              </span>
-            </div>
-            <OutputsList
-              outputs={flow.outputs}
-              token={token}
-              onOpenConversation={(conversationId) => navigate({ name: "conversation", conversationId })}
-              onOpenRun={(workflowRunId) => navigate({ name: "workflowRun", workflowRunId })}
-              onOpenTrace={(taskRunId) => setTraceRunId(taskRunId)}
-            />
-          </section>
-
-          {isWorkflowAssigned && assignedWorkflowStatus !== "published" ? (
-            <section className="issues-page__panel">
-              <div className="issues-page__toolbar">
-                <h2 className="issues-page__section-title">Workflow Availability</h2>
-              </div>
-              <p className="page-activity__empty">
-                The assigned workflow is currently `{assignedWorkflowStatus ?? "unknown"}` and cannot be run until it is `published`.
-              </p>
-            </section>
           ) : null}
-
-          <section className="issues-page__panel">
-            <div className="issues-page__toolbar">
-              <h2 className="issues-page__section-title">Execution Summary</h2>
-              <span className="issues-page__status">{currentRun?.run.status ?? latestAgentTask?.status ?? "no_runs"}</span>
-            </div>
-            {currentRun ? (
-              <div className="workflow-run-page__meta">
-                <div><strong>Latest run:</strong> {currentRun.run.id}</div>
-                <div><strong>Workflow:</strong> {flow.workflow?.name ?? currentRun.run.workflowId}</div>
-                <div><strong>Started:</strong> {currentRun.run.startedAt ? formatTimestamp(currentRun.run.startedAt) : "Not started"}</div>
-                <div><strong>Steps:</strong> {currentRun.steps.filter((step) => step.status === "succeeded").length} / {currentRun.steps.length} done</div>
-                {currentRun.run.errorMessage ? <div className="modal__error">{currentRun.run.errorMessage}</div> : null}
-                <div className="workflow-run-page__step-actions">
-                  <button
-                    type="button"
-                    className="page-activity__action-btn"
-                    onClick={() => navigate({ name: "workflowRun", workflowRunId: currentRun.run.id })}
-                  >
-                    Open Run Detail
-                  </button>
-                  {currentRunLatestTaskId ? (
-                    <button
-                      type="button"
-                      className="page-activity__action-btn"
-                      onClick={() => navigate({ name: "task", taskId: currentRunLatestTaskId })}
-                    >
-                      Open Task
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            ) : latestAgentTask ? (
-              <div className="workflow-run-page__meta">
-                <div><strong>Latest agent task:</strong> {latestAgentTask.id}</div>
-                <div><strong>Agent:</strong> {assigneeLabel(flow.issue)}</div>
-                <div><strong>Created:</strong> {formatTimestamp(latestAgentTask.createdAt)}</div>
-                <div><strong>Status:</strong> {latestAgentTask.status}</div>
-                <div className="workflow-run-page__step-actions">
-                  <button
-                    type="button"
-                    className="page-activity__action-btn"
-                    onClick={() => navigate({ name: "task", taskId: latestAgentTask.id })}
-                  >
-                    Open Task
-                  </button>
-                  {taskIsStoppable(latestAgentTask.status) ? (
-                    <button
-                      type="button"
-                      className="page-activity__action-btn"
-                      disabled={cancelingTaskId === latestAgentTask.id}
-                      onClick={() => handleCancelTask(latestAgentTask.id)}
-                    >
-                      {cancelingTaskId === latestAgentTask.id ? "Stopping..." : "Stop Run"}
-                    </button>
-                  ) : null}
-                  {taskIsRetryable(latestAgentTask.status) ? (
-                    <button
-                      type="button"
-                      className="page-activity__action-btn"
-                      disabled={retryingTaskId === latestAgentTask.id}
-                      onClick={() => handleRetryTask(latestAgentTask.id)}
-                    >
-                      {retryingTaskId === latestAgentTask.id ? "Retrying..." : "Retry Run"}
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            ) : (
-              <p className="page-activity__empty">No execution runs recorded for this issue yet.</p>
-            )}
-          </section>
-
-          <section className="issues-page__panel issue-detail-page__wide">
-            <div className="issues-page__toolbar">
-              <h2 className="issues-page__section-title">Flow Steps</h2>
-              <span className="page-activity__meta">{currentRun?.steps.length ?? 0} latest-run steps</span>
-            </div>
-            {currentRun && currentRun.steps.length > 0 ? (
-              <ol className="workflow-page__steps">
-                {currentRun.steps.map((step) => (
-                  <li key={step.id} className="workflow-page__step">
-                    <div className="workflow-page__step-head">
-                      <strong>{step.stepId}</strong>
-                      <span className="issues-page__status">{step.status}</span>
-                    </div>
-                    <div className="workflow-page__step-body">
-                      <div className="page-activity__meta">{step.stepType}</div>
-                      <div>{step.prompt}</div>
-                      {step.outputSummary ? <pre className="workflow-page__step-output">{step.outputSummary}</pre> : null}
-                      {step.errorMessage ? <p className="modal__error">{step.errorMessage}</p> : null}
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p className="page-activity__empty">No step state available.</p>
-            )}
-          </section>
-
-          <section className="issues-page__panel">
-            <div className="issues-page__toolbar">
-              <h2 className="issues-page__section-title">Timeline</h2>
-              <span className="page-activity__meta">{timeline.length} events</span>
-            </div>
-            <ol className="issue-detail-page__timeline">
-              {timeline.map((event) => (
-                <li key={event.id} className="issue-detail-page__timeline-item">
-                  <div>
-                    <strong>{event.label}</strong>
-                    <div className="page-activity__meta">{formatTimestamp(event.timestamp)}</div>
-                  </div>
-                  <div className="issue-detail-page__timeline-detail">
-                    {event.status ? <span className="issues-page__status">{event.status}</span> : null}
-                    <span>{event.detail}</span>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </section>
-
-          <section className="issues-page__panel">
-            <div className="issues-page__toolbar">
-              <h2 className="issues-page__section-title">Run History</h2>
-              <span className="page-activity__meta">{flow.total} total</span>
-            </div>
-            {flow.runs.length === 0 ? (
-              <p className="page-activity__empty">No runs yet.</p>
-            ) : (
-              <ul className="workflow-page__runs">
-                {flow.runs.map((item) => (
-                  <li key={item.run.id}>
-                    <button
-                      type="button"
-                      className="workflow-page__run-row"
-                      onClick={() => navigate({ name: "workflowRun", workflowRunId: item.run.id })}
-                    >
-                      <span>
-                        <strong>{item.run.id}</strong>
-                        <span className="page-activity__meta workflow-detail-page__run-id">
-                          {item.run.createdLabel}
-                        </span>
-                      </span>
-                      <span className="issues-page__status">{item.run.status}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          <section className="issues-page__panel">
-            <div className="issues-page__toolbar">
-              <h2 className="issues-page__section-title">Agent Run Sequence</h2>
-              <span className="page-activity__meta">{flow.agentTasks.length} tasks</span>
-            </div>
-            {flow.agentTasks.length === 0 ? (
-              <p className="page-activity__empty">No agent runs recorded for this issue yet.</p>
-            ) : (
-              <ul className="workflow-page__runs">
-                {flow.agentTasks.map((task) => (
-                  <li key={task.id}>
-                    <button
-                      type="button"
-                      className="workflow-page__run-row"
-                      onClick={() => navigate({ name: "task", taskId: task.id })}
-                    >
-                      <span>
-                        <strong>{task.title}</strong>
-                        <span className="page-activity__meta workflow-detail-page__run-id">
-                          {task.timeLabel}
-                        </span>
-                      </span>
-                      <span className="issues-page__status">{task.status}</span>
-                    </button>
-                    {taskIsStoppable(task.status) ? (
-                      <button
-                        type="button"
-                        className="page-activity__action-btn"
-                        disabled={cancelingTaskId === task.id}
-                        onClick={() => handleCancelTask(task.id)}
-                      >
-                        {cancelingTaskId === task.id ? "Stopping..." : "Stop Run"}
-                      </button>
-                    ) : null}
-                    {taskIsRetryable(task.status) ? (
-                      <button
-                        type="button"
-                        className="page-activity__action-btn"
-                        disabled={retryingTaskId === task.id}
-                        onClick={() => handleRetryTask(task.id)}
-                      >
-                        {retryingTaskId === task.id ? "Retrying..." : "Retry Run"}
-                      </button>
-                    ) : null}
-                    <pre className="workflow-page__step-output">{task.summary}</pre>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </div>
+        </>
       )}
       <RunTraceModal
         open={traceRunId != null}

@@ -14,11 +14,109 @@ import (
 	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
 	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
+
+// A workflow step task carries neither an IssueID nor a ConversationID: its
+// only origin is the step run that dispatched it. Getting the task has to
+// resolve that origin, or a caller has no way to tell "started by a
+// workflow" from "started with no recorded origin at all".
+func TestGetTaskResolvesWorkflowOrigin(t *testing.T) {
+	secret := "test-get-task-workflow-origin-secret"
+	spaceID := "tm_personal_u1"
+	spaces := &mock.MockSpaceStore{
+		Spaces:  []corespace.Space{{ID: spaceID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
+		Members: []corespace.Member{{SpaceID: spaceID, UserID: "u1", Role: corespace.RoleOwner}},
+	}
+	agentID := "a_1"
+
+	t.Run("a workflow-step task reports the workflow run that dispatched it", func(t *testing.T) {
+		task := coretask.Task{ID: "t_wf", SpaceID: spaceID, Status: "SUCCEEDED", Input: "step input", CreatedBy: "u1", CreatedAt: time.Unix(1000, 0).UTC(), AgentID: &agentID}
+		h := New(Config{
+			JWTSecret: secret,
+			Spaces:    spaces,
+			Tasks:     &mock.MockTaskStore{List: []coretask.Task{task}},
+			Workflows: &mock.MockWorkflowStore{
+				StepRuns: []coreworkflow.StepRun{{ID: "wsr_1", WorkflowRunID: "wr_1", TaskID: util.Ptr("t_wf")}},
+			},
+		})
+		mux := http.NewServeMux()
+		h.Register(mux)
+		req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/tasks/t_wf", nil)
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", secret))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+		}
+		var out TaskResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if out.WorkflowRunID == nil || *out.WorkflowRunID != "wr_1" {
+			t.Errorf("workflow_run_id = %v, want wr_1", out.WorkflowRunID)
+		}
+	})
+
+	t.Run("an issue-origin task never reports a workflow run, even if one exists for it", func(t *testing.T) {
+		issueID := "iss_1"
+		task := coretask.Task{ID: "t_issue", SpaceID: spaceID, Status: "SUCCEEDED", Input: "issue input", CreatedBy: "u1", CreatedAt: time.Unix(1000, 0).UTC(), AgentID: &agentID, IssueID: &issueID}
+		h := New(Config{
+			JWTSecret: secret,
+			Spaces:    spaces,
+			Tasks:     &mock.MockTaskStore{List: []coretask.Task{task}},
+			Workflows: &mock.MockWorkflowStore{
+				StepRuns: []coreworkflow.StepRun{{ID: "wsr_2", WorkflowRunID: "wr_2", TaskID: util.Ptr("t_issue")}},
+			},
+		})
+		mux := http.NewServeMux()
+		h.Register(mux)
+		req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/tasks/t_issue", nil)
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", secret))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+		}
+		var out TaskResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if out.WorkflowRunID != nil {
+			t.Errorf("workflow_run_id = %v, want nil for an issue-origin task", *out.WorkflowRunID)
+		}
+	})
+
+	t.Run("a direct agent task with no step run reports no workflow origin", func(t *testing.T) {
+		task := coretask.Task{ID: "t_agent", SpaceID: spaceID, Status: "SUCCEEDED", Input: "direct input", CreatedBy: "u1", CreatedAt: time.Unix(1000, 0).UTC(), AgentID: &agentID}
+		h := New(Config{
+			JWTSecret: secret,
+			Spaces:    spaces,
+			Tasks:     &mock.MockTaskStore{List: []coretask.Task{task}},
+			Workflows: &mock.MockWorkflowStore{},
+		})
+		mux := http.NewServeMux()
+		h.Register(mux)
+		req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/tasks/t_agent", nil)
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", secret))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+		}
+		var out TaskResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if out.WorkflowRunID != nil {
+			t.Errorf("workflow_run_id = %v, want nil", *out.WorkflowRunID)
+		}
+	})
+}
 
 func TestListConversationTasksHandler(t *testing.T) {
 	secret := "test-tasks-secret"

@@ -94,22 +94,32 @@ export function Issues({ token, userId }: IssuesProps) {
       .catch((err) => setError(getErrorMessage(err, "Failed to load sub-issues")))
   }
 
+  // What is being done needs both halves at a glance: who is accountable and
+  // what will execute, since an Issue can have one, the other, both, or
+  // neither.
+  function ownerLabel(issue: Issue): string | null {
+    if (!issue.ownerId) return null
+    if (issue.ownerId === userId) return "Me"
+    const member = members.find((item) => item.user_id === issue.ownerId)
+    if (member?.user_name) return member.user_name
+    if (member?.user_email) return member.user_email
+    if (member) return `Member ${member.user_id.slice(0, 8)}`
+    return "Member"
+  }
+
+  function executorLabel(issue: Issue): string | null {
+    if (issue.executorKind === "agent") {
+      return agents.find((agent) => agent.id === issue.executorId)?.name || "Agent"
+    }
+    if (issue.executorKind === "workflow") {
+      return workflows.find((workflow) => workflow.id === issue.executorId)?.name || "Workflow"
+    }
+    return null
+  }
+
   function assigneeLabel(issue: Issue): string {
-    if (issue.assigneeKind === "person") {
-      if (issue.assigneeId === userId) return "Me"
-      const member = members.find((item) => item.user_id === issue.assigneeId)
-      if (member?.user_name) return member.user_name
-      if (member?.user_email) return member.user_email
-      if (member) return `Member ${member.user_id.slice(0, 8)}`
-      return "Member"
-    }
-    if (issue.assigneeKind === "agent") {
-      return agents.find((agent) => agent.id === issue.assigneeId)?.name || "Agent"
-    }
-    if (issue.assigneeKind === "workflow") {
-      return workflows.find((workflow) => workflow.id === issue.assigneeId)?.name || "Workflow"
-    }
-    return "Unassigned"
+    const parts = [ownerLabel(issue), executorLabel(issue)].filter((label): label is string => label != null)
+    return parts.length > 0 ? parts.join(" · ") : "Unassigned"
   }
 
   const pageLabel = useMemo(() => {
@@ -123,8 +133,9 @@ export function Issues({ token, userId }: IssuesProps) {
     title: string
     description?: string
     status: Issue["status"]
-    assignee_kind: "person" | "agent" | "workflow" | ""
-    assignee_id: string
+    owner_id: string
+    executor_kind: "agent" | "workflow" | ""
+    executor_id: string
   }) {
     if (!token || !currentSpaceId) return
     setSaving(true)
@@ -133,8 +144,9 @@ export function Issues({ token, userId }: IssuesProps) {
       .then(async (created) => {
         const needsPatch =
           values.status !== "todo" ||
-          values.assignee_kind !== "" ||
-          values.assignee_id !== ""
+          values.owner_id !== "" ||
+          values.executor_kind !== "" ||
+          values.executor_id !== ""
         if (needsPatch) {
           await updateIssue(
             currentSpaceId,
@@ -142,8 +154,9 @@ export function Issues({ token, userId }: IssuesProps) {
             {
               version: created.version,
               status: values.status,
-              assignee_kind: values.assignee_kind,
-              assignee_id: values.assignee_id,
+              owner_id: values.owner_id,
+              executor_kind: values.executor_kind,
+              executor_id: values.executor_id,
             },
             token,
           )
@@ -303,7 +316,6 @@ export function Issues({ token, userId }: IssuesProps) {
 
       <IssueModal
         open={createOpen}
-        mode="create"
         agents={agents}
         workflows={workflows}
         members={members}

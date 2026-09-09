@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { BaseModal, ChatComposer, ChatThread, type ChatThreadItem } from "@buildmax/gui"
+import { Avatar, BaseModal, ChatComposer, ChatThread, type ChatThreadItem } from "@buildmax/gui"
 import { AgentAvatar, UserAvatar } from "../../components/UserAvatar"
 import { useApp } from "../../contexts/AppContext"
 import { useAuth } from "../../contexts/AuthContext"
 import { useSpace } from "../../contexts/SpaceContext"
 import { cancelTask, continueTask, getTask, getTaskRuns, retryTask, streamTaskOutput } from "../../features/tasks"
 import { getAgent } from "../../features/agents"
-import { RunTraceModal } from "../../features/runs"
+import { RunTraceModal, runInputLabel } from "../../features/runs"
 import { runStatusLabel } from "../../features/conversations/thread"
 import { navigate } from "../../router"
 import type { ApiTask, ApiTaskRun } from "../../lib/api/types"
@@ -146,18 +146,18 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
     if (task?.agent_id && agentName) setEntityLabel(task.agent_id, agentName)
   }, [task?.agent_id, agentName, setEntityLabel])
 
-  // Origin-aware breadcrumb: back to the agent, issue, or conversation.
+  // Origin-first breadcrumb: an Issue or Conversation is where this task came
+  // from and outranks the Agent, which only describes what executed it — the
+  // Agent gets its own link elsewhere (header, Details panel), never the
+  // primary trail. A workflow-step task carries neither on the Task itself,
+  // so its origin is the workflow run the server resolved for it. Only a task
+  // with no recorded origin at all (a direct agent run) shows the Agent here,
+  // because that genuinely is where it came from.
   useEffect(() => {
     if (!task) return
     const leaf: BreadcrumbCrumb = { label: task.title || "Task", route: { name: "task", taskId } }
     let trail: BreadcrumbCrumb[]
-    if (task.agent_id) {
-      trail = [
-        { label: "Agents", route: { name: "agents" } },
-        { label: entityLabels[task.agent_id] ?? "Agent", route: { name: "agent", agentId: task.agent_id } },
-        leaf,
-      ]
-    } else if (task.issue_id) {
+    if (task.issue_id) {
       trail = [
         { label: "Issues", route: { name: "issues" } },
         { label: entityLabels[task.issue_id] ?? "Issue", route: { name: "issue", issueId: task.issue_id } },
@@ -167,6 +167,18 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
       trail = [
         { label: "Chat", route: { name: "home" } },
         { label: "Conversation", route: { name: "conversation", conversationId: task.conversation_id } },
+        leaf,
+      ]
+    } else if (task.workflow_run_id) {
+      trail = [
+        { label: "Workflows", route: { name: "workflows" } },
+        { label: "Workflow run", route: { name: "workflowRun", workflowRunId: task.workflow_run_id } },
+        leaf,
+      ]
+    } else if (task.agent_id) {
+      trail = [
+        { label: "Agents", route: { name: "agents" } },
+        { label: entityLabels[task.agent_id] ?? "Agent", route: { name: "agent", agentId: task.agent_id } },
         leaf,
       ]
     } else {
@@ -181,12 +193,18 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
   const items = useMemo<ChatThreadItem[]>(() => {
     return runs.flatMap((run) => {
       const active = activeStatuses.has(run.status)
+      const inputLabel = runInputLabel(run)
       return [
         {
           id: `${run.id}-input`,
           role: "user",
-          label: "You",
-          avatar: user ? <UserAvatar user={user} size="sm" /> : undefined,
+          label: inputLabel,
+          avatar:
+            inputLabel === "You" && user ? (
+              <UserAvatar user={user} size="sm" />
+            ) : (
+              <Avatar label={inputLabel.slice(0, 1)} size="sm" />
+            ),
           body: (
             <div className="page-chat__msg-content page-chat__markdown">
               <Markdown remarkPlugins={[remarkGfm]}>{run.input}</Markdown>

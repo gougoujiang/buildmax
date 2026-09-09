@@ -86,7 +86,14 @@
           "started_at": { "type": "string", "format": "date-time", "nullable": true },
           "ended_at": { "type": "string", "format": "date-time", "nullable": true },
           "error_message": { "type": "string", "nullable": true },
-          "agent_id": { "type": "string", "nullable": true }
+          "agent_id": { "type": "string", "nullable": true },
+          "issue_id": { "type": "string", "nullable": true },
+          "last_run_id": { "type": "string", "nullable": true },
+          "workflow_run_id": {
+            "type": "string",
+            "nullable": true,
+            "description": "Set only when the task has neither an issue_id nor a conversation_id: the workflow run that dispatched it."
+          }
         }
       },
       "TaskRun": {
@@ -265,8 +272,9 @@
           "title": {"type": "string"},
           "description": {"type": "string"},
           "status": {"type": "string"},
-          "assignee_kind": {"type": "string"},
-          "assignee_id": {"type": "string"},
+          "owner_id": {"type": "string"},
+          "executor_kind": {"type": "string"},
+          "executor_id": {"type": "string"},
           "created_by": {"type": "string"},
           "created_at": {"type": "string", "format": "date-time"},
           "updated_at": {"type": "string", "format": "date-time"},
@@ -297,7 +305,7 @@
           "title": {"type": "string"},
           "description": {"type": "string"},
           "status": {"type": "string"},
-          "assignee_kind": {"type": "string"},
+          "executor_kind": {"type": "string"},
           "children": {
             "type": "array",
             "items": {
@@ -354,8 +362,9 @@
               "title": {"type": "string"},
               "description": {"type": "string"},
               "status": {"type": "string"},
-              "assignee_kind": {"type": "string"},
-              "assignee_id": {"type": "string"},
+              "owner_id": {"type": "string"},
+              "executor_kind": {"type": "string"},
+              "executor_id": {"type": "string"},
               "created_by": {"type": "string"},
               "created_at": {"type": "string", "format": "date-time"},
               "updated_at": {"type": "string", "format": "date-time"},
@@ -387,8 +396,9 @@
               "title": {"type": "string"},
               "description": {"type": "string"},
               "status": {"type": "string"},
-              "assignee_kind": {"type": "string"},
-              "assignee_id": {"type": "string"},
+              "owner_id": {"type": "string"},
+              "executor_kind": {"type": "string"},
+              "executor_id": {"type": "string"},
               "created_by": {"type": "string"},
               "created_at": {"type": "string", "format": "date-time"},
               "updated_at": {"type": "string", "format": "date-time"},
@@ -422,8 +432,9 @@
                 "title": {"type": "string"},
                 "description": {"type": "string"},
                 "status": {"type": "string"},
-                "assignee_kind": {"type": "string"},
-                "assignee_id": {"type": "string"},
+                "owner_id": {"type": "string"},
+                "executor_kind": {"type": "string"},
+                "executor_id": {"type": "string"},
                 "created_by": {"type": "string"},
                 "created_at": {"type": "string", "format": "date-time"},
                 "updated_at": {"type": "string", "format": "date-time"},
@@ -3392,14 +3403,15 @@
           },
           {"name": "status", "in": "query", "required": false, "schema": {"type": "string"}},
           {
-            "name": "assignee",
+            "name": "owner",
             "in": "query",
             "required": false,
             "schema": {"type": "string", "enum": ["me"]},
-            "description": "\"me\" lists what is assigned to the caller. Overrides assignee_kind and assignee_id."
+            "description": "\"me\" lists what the caller owns. Overrides owner_id."
           },
-          {"name": "assignee_kind", "in": "query", "required": false, "schema": {"type": "string"}},
-          {"name": "assignee_id", "in": "query", "required": false, "schema": {"type": "string", "description": "Only narrows the listing together with assignee_kind"}}
+          {"name": "owner_id", "in": "query", "required": false, "schema": {"type": "string"}},
+          {"name": "executor_kind", "in": "query", "required": false, "schema": {"type": "string"}},
+          {"name": "executor_id", "in": "query", "required": false, "schema": {"type": "string", "description": "Only narrows the listing together with executor_kind"}}
         ],
         "responses": {
           "200": {
@@ -3428,7 +3440,7 @@
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Issue"}}}
           },
           "400": {
-            "description": "Invalid body, parent, or assignee",
+            "description": "Invalid body, parent, owner, or executor",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
         }
@@ -3466,8 +3478,9 @@
                   "title": {"type": "string"},
                   "description": {"type": "string"},
                   "status": {"type": "string"},
-                  "assignee_kind": {"type": "string"},
-                  "assignee_id": {"type": "string"},
+                  "owner_id": {"type": "string"},
+                  "executor_kind": {"type": "string"},
+                  "executor_id": {"type": "string"},
                   "parent_issue_id": {"type": "string"}
                 },
                 "required": ["version"]
@@ -4430,7 +4443,7 @@
     "/api/worker/task-runs/{task_run_id}/issue/comments": {
       "post": {
         "summary": "Report on the issue this run is working",
-        "description": "Appends one agent-authored comment. There is no route that changes an issue's status, assignee, or hierarchy from a run token.",
+        "description": "Appends one agent-authored comment. There is no route that changes an issue's status, owner, executor, or hierarchy from a run token.",
         "security": [{"runTokenAuth": []}],
         "parameters": [{"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "requestBody": {

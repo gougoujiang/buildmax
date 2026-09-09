@@ -16,60 +16,16 @@ import {
   restoreWorkflowRevision,
   runWorkflow,
   updateWorkflow,
+  useWorkflowSteps,
+  WorkflowStepsEditor,
 } from "../../features/workflows"
 import { RevisionHistory } from "../../components/RevisionHistory"
 import { useSpace } from "../../contexts/SpaceContext"
 import { useApp } from "../../contexts/AppContext"
 
-interface WorkflowStepDraft {
-  step_id: string
-  type: string
-  target_agent_id: string
-  prompt: string
-}
-
-interface ParsedWorkflowDefinition {
-  steps: WorkflowStepDraft[]
-}
-
 interface WorkflowDetailProps {
   token: string | null
   workflowId: string
-}
-
-function buildDefinitionFromSteps(steps: WorkflowStepDraft[]) {
-  return JSON.stringify({ steps }, null, 2)
-}
-
-function parseWorkflowDefinition(definition: string): ParsedWorkflowDefinition | null {
-  try {
-    const parsed = JSON.parse(definition) as { steps?: unknown }
-    if (!Array.isArray(parsed.steps)) return null
-    return {
-      steps: parsed.steps.map((step, index) => {
-        const record = typeof step === "object" && step != null ? (step as Record<string, unknown>) : {}
-        return {
-          step_id: typeof record.step_id === "string" && record.step_id.trim()
-            ? record.step_id
-            : `step_${index + 1}`,
-          type: typeof record.type === "string" && record.type.trim() ? record.type : "agent_task",
-          target_agent_id: typeof record.target_agent_id === "string" ? record.target_agent_id : "",
-          prompt: typeof record.prompt === "string" ? record.prompt : "",
-        }
-      }),
-    }
-  } catch {
-    return null
-  }
-}
-
-function buildDefaultStep(agentId = "", index = 0): WorkflowStepDraft {
-  return {
-    step_id: `step_${index + 1}`,
-    type: "agent_task",
-    target_agent_id: agentId,
-    prompt: "Describe what this step should do.",
-  }
 }
 
 export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
@@ -80,10 +36,21 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
   const [runs, setRuns] = useState<WorkflowRun[]>([])
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
-  const [definition, setDefinition] = useState("")
   const [status, setStatus] = useState<Workflow["status"]>("draft")
-  const [stepDrafts, setStepDrafts] = useState<WorkflowStepDraft[]>([])
-  const [definitionHint, setDefinitionHint] = useState<string | null>(null)
+  const {
+    steps,
+    definition: stepsDefinition,
+    errors: stepErrors,
+    advanced: stepsAdvanced,
+    definitionText,
+    definitionParseError,
+    addStep,
+    removeStep,
+    changeStep,
+    toggleAdvanced,
+    setDefinitionText,
+    hydrate: hydrateSteps,
+  } = useWorkflowSteps(agents)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [running, setRunning] = useState(false)
@@ -93,12 +60,6 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
   const [revisionsError, setRevisionsError] = useState<string | null>(null)
   const [restoringRevision, setRestoringRevision] = useState<number | null>(null)
   const canManageWorkflows = currentUserRole === "owner" || currentUserRole === "admin"
-
-  const syncDefinition = useCallback((nextSteps: WorkflowStepDraft[]) => {
-    setStepDrafts(nextSteps)
-    setDefinition(buildDefinitionFromSteps(nextSteps))
-    setDefinitionHint(null)
-  }, [])
 
   const load = useCallback(async () => {
     if (!token || !currentSpaceId) {
@@ -118,23 +79,20 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
         getWorkflowRevisions(currentSpaceId, workflowId, token),
       ])
       const mappedWorkflow = apiWorkflowToWorkflow(workflowApi)
-      const parsed = parseWorkflowDefinition(mappedWorkflow.definition)
       setWorkflow(mappedWorkflow)
       setRuns(runsApi.runs.map(apiWorkflowRunToWorkflowRun))
       setAgents(agentsApi.map(apiAgentToAgent))
       setRevisions(revisionsApi.revisions.map(apiWorkflowRevisionToWorkflowRevision))
       setName(mappedWorkflow.name)
       setDescription(mappedWorkflow.description)
-      setDefinition(mappedWorkflow.definition)
       setStatus(mappedWorkflow.status)
-      setStepDrafts(parsed?.steps ?? [])
-      setDefinitionHint(parsed ? null : "Definition JSON is invalid, so the step form is temporarily disabled.")
+      hydrateSteps(mappedWorkflow.definition)
     } catch (err) {
       setError(getErrorMessage(err, "Failed to load workflow"))
     } finally {
       setLoading(false)
     }
-  }, [token, currentSpaceId, workflowId])
+  }, [token, currentSpaceId, workflowId, hydrateSteps])
 
   const loadRevisions = useCallback(() => {
     if (!token || !currentSpaceId) return
@@ -163,19 +121,16 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
     updateWorkflow(
       currentSpaceId,
       workflow.id,
-      { name: name.trim(), description, definition: definition.trim(), status },
+      { name: name.trim(), description, definition: stepsDefinition, status },
       token,
     )
       .then((updated) => {
         const mapped = apiWorkflowToWorkflow(updated)
-        const parsed = parseWorkflowDefinition(mapped.definition)
         setWorkflow(mapped)
         setName(mapped.name)
         setDescription(mapped.description)
-        setDefinition(mapped.definition)
         setStatus(mapped.status)
-        setStepDrafts(parsed?.steps ?? [])
-        setDefinitionHint(parsed ? null : "Definition JSON is invalid, so the step form is temporarily disabled.")
+        hydrateSteps(mapped.definition)
         loadRevisions()
       })
       .catch((err) => setError(getErrorMessage(err, "Failed to update workflow")))
@@ -189,14 +144,11 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
     restoreWorkflowRevision(currentSpaceId, workflow.id, revision, token)
       .then((restored) => {
         const mapped = apiWorkflowToWorkflow(restored)
-        const parsed = parseWorkflowDefinition(mapped.definition)
         setWorkflow(mapped)
         setName(mapped.name)
         setDescription(mapped.description)
-        setDefinition(mapped.definition)
         setStatus(mapped.status)
-        setStepDrafts(parsed?.steps ?? [])
-        setDefinitionHint(parsed ? null : "Definition JSON is invalid, so the step form is temporarily disabled.")
+        hydrateSteps(mapped.definition)
         loadRevisions()
       })
       .catch((err) => setRevisionsError(getErrorMessage(err, "Failed to restore revision")))
@@ -256,7 +208,14 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
             <button
               type="button"
               className="page-activity__action-btn"
-              disabled={saving || loading || workflow == null || !name.trim() || !definition.trim()}
+              disabled={
+                saving ||
+                loading ||
+                workflow == null ||
+                !name.trim() ||
+                stepErrors.length > 0 ||
+                (stepsAdvanced && definitionParseError != null)
+              }
               onClick={handleSave}
             >
               {saving ? "Saving…" : "Save"}
@@ -321,135 +280,20 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
                 </p>
               ) : null}
 
-              <section className="workflow-page__builder">
-                <div className="issues-page__toolbar">
-                  <h3 className="issues-page__section-title">Steps</h3>
-                  {canManageWorkflows ? (
-                    <button
-                      type="button"
-                      className="page-activity__action-btn"
-                      onClick={() => syncDefinition([...stepDrafts, buildDefaultStep(agents[0]?.id ?? "", stepDrafts.length)])}
-                    >
-                      Add Step
-                    </button>
-                  ) : null}
-                </div>
-                {stepDrafts.length === 0 ? (
-                  <p className="page-activity__empty">No steps yet.</p>
-                ) : (
-                  <ol className="workflow-page__steps">
-                    {stepDrafts.map((step, index) => (
-                      <li key={`${step.step_id}-${index}`} className="workflow-page__step">
-                        <div className="workflow-page__step-head">
-                          <strong>Step {index + 1}</strong>
-                          {canManageWorkflows ? (
-                            <button
-                              type="button"
-                              className="page-activity__action-btn"
-                              disabled={stepDrafts.length === 1}
-                              onClick={() => syncDefinition(stepDrafts.filter((_, draftIndex) => draftIndex !== index))}
-                            >
-                              Remove
-                            </button>
-                          ) : null}
-                        </div>
-                        <div className="workflow-page__builder-grid">
-                          <label className="issues-page__field">
-                            <span className="issues-page__field-label">Step ID</span>
-                            <input
-                              className="issues-page__input"
-                              value={step.step_id}
-                              disabled={!canManageWorkflows}
-                              onChange={(e) =>
-                                syncDefinition(
-                                  stepDrafts.map((draft, draftIndex) =>
-                                    draftIndex === index ? { ...draft, step_id: e.target.value } : draft,
-                                  ),
-                                )
-                              }
-                            />
-                          </label>
-                          <label className="issues-page__field">
-                            <span className="issues-page__field-label">Type</span>
-                            <input
-                              className="issues-page__input"
-                              value={step.type}
-                              disabled={!canManageWorkflows}
-                              onChange={(e) =>
-                                syncDefinition(
-                                  stepDrafts.map((draft, draftIndex) =>
-                                    draftIndex === index ? { ...draft, type: e.target.value } : draft,
-                                  ),
-                                )
-                              }
-                            />
-                          </label>
-                        </div>
-                        <label className="issues-page__field">
-                          <span className="issues-page__field-label">Target Agent</span>
-                          <select
-                            className="issues-page__input"
-                            value={step.target_agent_id}
-                            disabled={!canManageWorkflows}
-                            onChange={(e) =>
-                              syncDefinition(
-                                stepDrafts.map((draft, draftIndex) =>
-                                  draftIndex === index ? { ...draft, target_agent_id: e.target.value } : draft,
-                                ),
-                              )
-                            }
-                          >
-                            <option value="">Select an agent</option>
-                            {agents.map((agent) => (
-                              <option key={agent.id} value={agent.id}>
-                                {agent.name} ({agent.id})
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="issues-page__field">
-                          <span className="issues-page__field-label">Prompt</span>
-                          <textarea
-                            className="issues-page__textarea"
-                            rows={4}
-                            value={step.prompt}
-                            disabled={!canManageWorkflows}
-                            onChange={(e) =>
-                              syncDefinition(
-                                stepDrafts.map((draft, draftIndex) =>
-                                  draftIndex === index ? { ...draft, prompt: e.target.value } : draft,
-                                ),
-                              )
-                            }
-                          />
-                        </label>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </section>
-
-              <label className="issues-page__field">
-                <span className="issues-page__field-label">Definition (JSON)</span>
-                <textarea
-                  className="issues-page__textarea workflow-page__definition"
-                  rows={12}
-                  value={definition}
-                  disabled={!canManageWorkflows}
-                  onChange={(e) => {
-                    const nextDefinition = e.target.value
-                    setDefinition(nextDefinition)
-                    const parsed = parseWorkflowDefinition(nextDefinition)
-                    if (!parsed) {
-                      setDefinitionHint("JSON is invalid right now. Fix it to re-sync the step editor.")
-                      return
-                    }
-                    setStepDrafts(parsed.steps)
-                    setDefinitionHint(null)
-                  }}
-                />
-                {definitionHint ? <span className="issues-page__field-label">{definitionHint}</span> : null}
-              </label>
+              <WorkflowStepsEditor
+                steps={steps}
+                agents={agents}
+                disabled={!canManageWorkflows}
+                errors={stepErrors}
+                advanced={stepsAdvanced}
+                definitionText={definitionText}
+                definitionParseError={definitionParseError}
+                onAddStep={addStep}
+                onRemoveStep={removeStep}
+                onChangeStep={changeStep}
+                onToggleAdvanced={toggleAdvanced}
+                onDefinitionTextChange={setDefinitionText}
+              />
             </div>
           </section>
 

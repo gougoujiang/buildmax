@@ -21,10 +21,13 @@ type issueRow struct {
 	Title         string  `gorm:"type:varchar(255);not null"`
 	Description   string  `gorm:"type:text;not null"`
 	Status        string  `gorm:"type:varchar(32);not null"`
-	// AssigneeID stays an opaque handle: assignee_kind admits person, agent, or
-	// workflow, and one numeric column cannot name rows in three tables.
-	AssigneeKind *string `gorm:"type:varchar(32)"`
-	AssigneeID   *string `gorm:"type:varchar(64)"`
+	// OwnerID is a resolved reference, not an opaque handle: an owner is always
+	// a user row, so unlike ExecutorID there is no second table it could name.
+	OwnerID *uint64 `gorm:"column:owner_id;index"`
+	// ExecutorID stays an opaque handle: executor_kind admits agent or
+	// workflow, and one numeric column cannot name rows in two tables.
+	ExecutorKind *string `gorm:"column:executor_kind;type:varchar(32)"`
+	ExecutorID   *string `gorm:"column:executor_id;type:varchar(64)"`
 	CreatedBy    uint64  `gorm:"column:created_by;not null"`
 	// Version is the optimistic-concurrency token. Every accepted update carries
 	// the version it was built from and bumps it, so two writers racing on one
@@ -44,6 +47,7 @@ type issueReadRow struct {
 	SpacePublicID     *string  `gorm:"column:space_public_id"`
 	ParentPublicID    *string  `gorm:"column:parent_public_id"`
 	CreatedByPublicID string   `gorm:"column:created_by_public_id"`
+	OwnerPublicID     *string  `gorm:"column:owner_public_id"`
 }
 
 func (s *Store) issueSelect(ctx context.Context) *gorm.DB {
@@ -53,11 +57,13 @@ func (s *Store) issueSelect(ctx context.Context) *gorm.DB {
 func issueSelectTx(tx *gorm.DB) *gorm.DB {
 	return tx.Model(&issueRow{}).
 		Select("issue.*, u.public_id AS user_public_id, t.public_id AS space_public_id, " +
-			"p.public_id AS parent_public_id, cb.public_id AS created_by_public_id").
+			"p.public_id AS parent_public_id, cb.public_id AS created_by_public_id, " +
+			"o.public_id AS owner_public_id").
 		Joins("INNER JOIN `user` u ON u.id = issue.user_id").
 		Joins("LEFT JOIN space t ON t.id = issue.space_id").
 		Joins("LEFT JOIN issue p ON p.id = issue.parent_issue_id").
-		Joins("INNER JOIN `user` cb ON cb.id = issue.created_by")
+		Joins("INNER JOIN `user` cb ON cb.id = issue.created_by").
+		Joins("LEFT JOIN `user` o ON o.id = issue.owner_id")
 }
 
 func toIssue(row *issueReadRow) *coreissue.Issue {
@@ -71,8 +77,8 @@ func toIssue(row *issueReadRow) *coreissue.Issue {
 		Title:        row.Row.Title,
 		Description:  row.Row.Description,
 		Status:       row.Row.Status,
-		AssigneeKind: row.Row.AssigneeKind,
-		AssigneeID:   row.Row.AssigneeID,
+		ExecutorKind: row.Row.ExecutorKind,
+		ExecutorID:   row.Row.ExecutorID,
 		CreatedBy:    row.CreatedByPublicID,
 		CreatedAt:    row.Row.CreatedAt,
 		UpdatedAt:    row.Row.UpdatedAt,
@@ -81,6 +87,10 @@ func toIssue(row *issueReadRow) *coreissue.Issue {
 	if row.Row.ParentIssueID != nil {
 		parent := derefPublicID(row.ParentPublicID)
 		out.ParentIssueID = &parent
+	}
+	if row.Row.OwnerID != nil {
+		owner := derefPublicID(row.OwnerPublicID)
+		out.OwnerID = &owner
 	}
 	return out
 }
@@ -218,6 +228,17 @@ func (s *Store) ListIssuesBySpace(ctx context.Context, spaceID string, filter co
 		}
 		parentKey = &key
 	}
+	var ownerKey *uint64
+	if filter.OwnerID != "" {
+		key, err := lookupKey(ctx, s.db, "user", filter.OwnerID)
+		if errors.Is(err, apierr.ErrNotFound) {
+			return nil, 0, nil
+		}
+		if err != nil {
+			return nil, 0, err
+		}
+		ownerKey = &key
+	}
 	scope := func(q *gorm.DB, col string) *gorm.DB {
 		q = q.Where(col+"space_id = ?", spaceKey)
 		switch {
@@ -226,8 +247,11 @@ func (s *Store) ListIssuesBySpace(ctx context.Context, spaceID string, filter co
 		case parentKey != nil:
 			q = q.Where(col+"parent_issue_id = ?", *parentKey)
 		}
-		if filter.AssigneeKind != "" && filter.AssigneeID != "" {
-			q = q.Where(col+"assignee_kind = ? AND "+col+"assignee_id = ?", filter.AssigneeKind, filter.AssigneeID)
+		if ownerKey != nil {
+			q = q.Where(col+"owner_id = ?", *ownerKey)
+		}
+		if filter.ExecutorKind != "" && filter.ExecutorID != "" {
+			q = q.Where(col+"executor_kind = ? AND "+col+"executor_id = ?", filter.ExecutorKind, filter.ExecutorID)
 		}
 		if filter.Status != "" {
 			q = q.Where(col+"status = ?", filter.Status)
@@ -368,18 +392,29 @@ func (s *Store) updateIssue(ctx context.Context, issueID string, in coreissue.Up
 	if in.Status != nil {
 		updates["status"] = *in.Status
 	}
-	if in.AssigneeKind != nil {
-		if *in.AssigneeKind == "" {
-			updates["assignee_kind"] = nil
+	if in.OwnerID != nil {
+		if *in.OwnerID == "" {
+			updates["owner_id"] = nil
 		} else {
-			updates["assignee_kind"] = *in.AssigneeKind
+			owner, err := lookupKey(ctx, s.db, "user", *in.OwnerID)
+			if err != nil {
+				return nil, err
+			}
+			updates["owner_id"] = owner
 		}
 	}
-	if in.AssigneeID != nil {
-		if *in.AssigneeID == "" {
-			updates["assignee_id"] = nil
+	if in.ExecutorKind != nil {
+		if *in.ExecutorKind == "" {
+			updates["executor_kind"] = nil
 		} else {
-			updates["assignee_id"] = *in.AssigneeID
+			updates["executor_kind"] = *in.ExecutorKind
+		}
+	}
+	if in.ExecutorID != nil {
+		if *in.ExecutorID == "" {
+			updates["executor_id"] = nil
+		} else {
+			updates["executor_id"] = *in.ExecutorID
 		}
 	}
 	if in.ParentIssueID != nil {

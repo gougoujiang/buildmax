@@ -124,6 +124,12 @@ type AppConfig struct {
 	// Portal background run. They form their own prompt layer before the
 	// selected Agent's AdditionalSystemPrompt. Local surfaces leave this empty.
 	SpaceAgentInstructions string
+	// RunProvenance is a worker's TaskRun provenance, carried through to this
+	// run's trace verbatim. CLI, TUI, Desktop, and eval leave it at its zero
+	// value: they have no TaskRun to report, and the trace should say so
+	// honestly rather than guess an origin. See
+	// docs/design/portal-work-and-execution-experience.md.
+	RunProvenance RunProvenance
 	// ArtifactPublisher gives this surface the artifact capability. Nil means it
 	// has none — a session running straight against a model provider, with no
 	// BuildMax server — and no artifact tool is registered at all.
@@ -167,6 +173,17 @@ type AppConfig struct {
 // ManagedTokenFunc returns the BuildMax credential to use for serverURL. It is
 // expected to refuse when the stored login belongs to a different server.
 type ManagedTokenFunc func(serverURL string) (string, error)
+
+// RunProvenance is who or what asked for a run and why. It mirrors the fields
+// a worker's TaskRun already carries (see coretask.Run), restated here as
+// plain strings rather than importing the task domain into a package CLI,
+// TUI, and Desktop also build on and that has no concept of a Task.
+type RunProvenance struct {
+	CreatedBy        string
+	CreatedByType    string
+	TriggerSource    string
+	RetryOfTaskRunID string
+}
 
 type AgentApp struct {
 	workspace *MovableRoot
@@ -224,6 +241,7 @@ type AgentApp struct {
 	additionalSystemPrompt      string
 	additionalSystemPromptLayer string
 	spaceAgentInstructions      string
+	runProvenance               RunProvenance
 	artifactPublisher           tools.ArtifactPublisher
 	issueClient                 tools.IssueClient
 	grantsMu                    sync.Mutex
@@ -1102,14 +1120,18 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		// session's diagnostics are deleted, copied, and retained with the
 		// conversation they describe rather than from a second root.
 		recorder = trace.NewRecorder(sessionstore.SessionTracesDir(a.sessionManager.Dir(), sess.ID()), trace.Meta{
-			RunID:        runID,
-			SessionID:    sess.ID(),
-			Workspace:    a.workspace.Root(),
-			Model:        modelName,
-			Sandbox:      a.sandboxInfo(),
-			Sources:      a.contextSources(sess, promptLayers),
-			Plugins:      a.plugins.Provenance(ctx),
-			SecretValues: a.secretEnvValues,
+			RunID:            runID,
+			SessionID:        sess.ID(),
+			Workspace:        a.workspace.Root(),
+			Model:            modelName,
+			Sandbox:          a.sandboxInfo(),
+			Sources:          a.contextSources(sess, promptLayers),
+			Plugins:          a.plugins.Provenance(ctx),
+			SecretValues:     a.secretEnvValues,
+			CreatedBy:        a.runProvenance.CreatedBy,
+			CreatedByType:    a.runProvenance.CreatedByType,
+			TriggerSource:    a.runProvenance.TriggerSource,
+			RetryOfTaskRunID: a.runProvenance.RetryOfTaskRunID,
 		})
 		a.trackTrace(recorder)
 		defer a.releaseTrace(recorder)

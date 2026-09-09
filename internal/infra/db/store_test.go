@@ -470,14 +470,12 @@ func TestIssueStore_CreateListUpdate(t *testing.T) {
 
 	title := "Updated issue"
 	status := coreissue.StatusInProgress
-	kind := coreissue.AssigneePerson
 	id := user.ID
 	updated, err := s.UpdateIssue(ctx, issue.ID, user.ID, coreissue.UpdateInput{
-		IfVersion:    issue.Version,
-		Title:        &title,
-		Status:       &status,
-		AssigneeKind: &kind,
-		AssigneeID:   &id,
+		IfVersion: issue.Version,
+		Title:     &title,
+		Status:    &status,
+		OwnerID:   &id,
 	})
 	if err != nil {
 		t.Fatalf("UpdateIssue: %v", err)
@@ -485,8 +483,8 @@ func TestIssueStore_CreateListUpdate(t *testing.T) {
 	if updated == nil || updated.Title != title || updated.Status != status {
 		t.Fatalf("updated issue = %+v", updated)
 	}
-	if updated.AssigneeKind == nil || *updated.AssigneeKind != coreissue.AssigneePerson {
-		t.Fatalf("updated assignee kind = %v", updated.AssigneeKind)
+	if updated.OwnerID == nil || *updated.OwnerID != id {
+		t.Fatalf("updated owner id = %v, want %v", updated.OwnerID, id)
 	}
 	if updated.Version != issue.Version+1 {
 		t.Fatalf("version = %d, want %d", updated.Version, issue.Version+1)

@@ -63,8 +63,8 @@ func (h *Handler) loadIssueFlow(ctx context.Context, spaceID, issueID string, li
 		flow.Children = children
 	}
 
-	if issue.AssigneeKind != nil && issue.AssigneeID != nil && *issue.AssigneeKind == coreissue.AssigneeWorkflow {
-		workflow, err := h.cfg.Workflows.GetWorkflow(ctx, *issue.AssigneeID)
+	if issue.ExecutorKind != nil && issue.ExecutorID != nil && *issue.ExecutorKind == coreissue.ExecutorWorkflow {
+		workflow, err := h.cfg.Workflows.GetWorkflow(ctx, *issue.ExecutorID)
 		if err != nil {
 			return nil, fmt.Errorf("load the issue's workflow: %w", err)
 		}

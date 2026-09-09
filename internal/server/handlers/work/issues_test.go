@@ -37,8 +37,9 @@ func TestIssueHandlers(t *testing.T) {
 				CreatedBy:    "u1",
 				CreatedAt:    time.Unix(100, 0).UTC(),
 				UpdatedAt:    time.Unix(100, 0).UTC(),
-				AssigneeKind: nil,
-				AssigneeID:   nil,
+				OwnerID:      nil,
+				ExecutorKind: nil,
+				ExecutorID:   nil,
 				Version:      1,
 			},
 		},
@@ -133,8 +134,8 @@ func TestIssueHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("PATCH issue assign to agent", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPatch, "/api/spaces/"+personalSpaceID+"/issues/i_1", strings.NewReader(`{"version":1,"status":"in_progress","assignee_kind":"agent","assignee_id":"a_1"}`))
+	t.Run("PATCH issue assign executor to agent", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPatch, "/api/spaces/"+personalSpaceID+"/issues/i_1", strings.NewReader(`{"version":1,"status":"in_progress","executor_kind":"agent","executor_id":"a_1"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -146,7 +147,7 @@ func TestIssueHandlers(t *testing.T) {
 		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 			t.Fatalf("decode patch: %v", err)
 		}
-		if out.Status != coreissue.StatusInProgress || out.AssigneeKind == nil || *out.AssigneeKind != coreissue.AssigneeAgent {
+		if out.Status != coreissue.StatusInProgress || out.ExecutorKind == nil || *out.ExecutorKind != coreissue.ExecutorAgent {
 			t.Fatalf("patched = %+v", out)
 		}
 	})
@@ -203,8 +204,8 @@ func TestIssueHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("PATCH issue assign to workflow", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPatch, "/api/spaces/"+personalSpaceID+"/issues/i_1", strings.NewReader(`{"version":2,"assignee_kind":"workflow","assignee_id":"w_1"}`))
+	t.Run("PATCH issue assign executor to workflow", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPatch, "/api/spaces/"+personalSpaceID+"/issues/i_1", strings.NewReader(`{"version":2,"executor_kind":"workflow","executor_id":"w_1"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -216,13 +217,13 @@ func TestIssueHandlers(t *testing.T) {
 		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 			t.Fatalf("decode patch: %v", err)
 		}
-		if out.AssigneeKind == nil || *out.AssigneeKind != coreissue.AssigneeWorkflow {
+		if out.ExecutorKind == nil || *out.ExecutorKind != coreissue.ExecutorWorkflow {
 			t.Fatalf("patched = %+v", out)
 		}
 	})
 
-	t.Run("PATCH issue assign to workflow forbidden for member", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPatch, "/api/spaces/"+personalSpaceID+"/issues/i_1", strings.NewReader(`{"version":3,"assignee_kind":"workflow","assignee_id":"w_1"}`))
+	t.Run("PATCH issue assign executor to workflow forbidden for member", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPatch, "/api/spaces/"+personalSpaceID+"/issues/i_1", strings.NewReader(`{"version":3,"executor_kind":"workflow","executor_id":"w_1"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u2", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -278,19 +279,18 @@ func TestIssueHandlers(t *testing.T) {
 	})
 }
 
-// The listing filters openapi.json has always described now exist. `assignee=me`
-// is the inbox; the explicit pair answers for anyone else.
+// The listing filters openapi.json has always described now exist. `owner=me`
+// is the inbox; the explicit params answer for anyone else, and for Executor.
 func TestListIssuesFilters(t *testing.T) {
 	const space = "tm_filter"
-	person := coreissue.AssigneePerson
-	agent := coreissue.AssigneeAgent
+	agent := coreissue.ExecutorAgent
 	mine, theirs, bot := "u1", "u2", "a_1"
 	store := &mock.MockIssueStore{
 		Issues: []coreissue.Issue{
-			{ID: "i_mine_open", SpaceID: space, UserID: "u1", Title: "Mine, open", Status: coreissue.StatusTodo, AssigneeKind: &person, AssigneeID: &mine, Version: 1},
-			{ID: "i_mine_done", SpaceID: space, UserID: "u1", Title: "Mine, done", Status: coreissue.StatusDone, AssigneeKind: &person, AssigneeID: &mine, Version: 1},
-			{ID: "i_theirs", SpaceID: space, UserID: "u1", Title: "Someone else's", Status: coreissue.StatusTodo, AssigneeKind: &person, AssigneeID: &theirs, Version: 1},
-			{ID: "i_agent", SpaceID: space, UserID: "u1", Title: "An agent's", Status: coreissue.StatusTodo, AssigneeKind: &agent, AssigneeID: &bot, Version: 1},
+			{ID: "i_mine_open", SpaceID: space, UserID: "u1", Title: "Mine, open", Status: coreissue.StatusTodo, OwnerID: &mine, Version: 1},
+			{ID: "i_mine_done", SpaceID: space, UserID: "u1", Title: "Mine, done", Status: coreissue.StatusDone, OwnerID: &mine, Version: 1},
+			{ID: "i_theirs", SpaceID: space, UserID: "u1", Title: "Someone else's", Status: coreissue.StatusTodo, OwnerID: &theirs, Version: 1},
+			{ID: "i_agent", SpaceID: space, UserID: "u1", Title: "An agent's", Status: coreissue.StatusTodo, ExecutorKind: &agent, ExecutorID: &bot, Version: 1},
 			{ID: "i_unassigned", SpaceID: space, UserID: "u1", Title: "Nobody's", Status: coreissue.StatusTodo, Version: 1},
 		},
 	}
@@ -334,14 +334,14 @@ func TestListIssuesFilters(t *testing.T) {
 		want  []string
 	}{
 		{"unfiltered", "", []string{"i_mine_open", "i_mine_done", "i_theirs", "i_agent", "i_unassigned"}},
-		{"assigned to me", "assignee=me", []string{"i_mine_open", "i_mine_done"}},
-		{"my open work", "assignee=me&status=todo", []string{"i_mine_open"}},
-		{"assigned to someone else", "assignee_kind=person&assignee_id=u2", []string{"i_theirs"}},
-		{"assigned to an agent", "assignee_kind=agent&assignee_id=a_1", []string{"i_agent"}},
+		{"owned by me", "owner=me", []string{"i_mine_open", "i_mine_done"}},
+		{"my open work", "owner=me&status=todo", []string{"i_mine_open"}},
+		{"owned by someone else", "owner_id=u2", []string{"i_theirs"}},
+		{"executor is an agent", "executor_kind=agent&executor_id=a_1", []string{"i_agent"}},
 		{"one status", "status=done", []string{"i_mine_done"}},
 		// An id with no kind cannot say which table to read it against, so it
-		// narrows nothing rather than guessing person.
-		{"assignee_id alone narrows nothing", "assignee_id=u1", []string{"i_mine_open", "i_mine_done", "i_theirs", "i_agent", "i_unassigned"}},
+		// narrows nothing rather than guessing.
+		{"executor_id alone narrows nothing", "executor_id=u1", []string{"i_mine_open", "i_mine_done", "i_theirs", "i_agent", "i_unassigned"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := list(t, tc.query)

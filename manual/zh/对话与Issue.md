@@ -21,7 +21,8 @@ Shift+Enter 换行）。一段对话可以直接回答你，或者，当工作�
 - **Description** —— Agent 处理它所需的细节。
 - **Business Status** —— `todo`、`in progress` 或 `done`。由你自己设置；
   它不会因一次运行而自动改变。
-- **Assignee** —— 应由谁来完成（见下文）。
+- **Owner** —— 对该 Issue 负责的人（见下文）。
+- **Executor** —— 被选定来完成这项工作的 Agent 或 Workflow（见下文）。
 
 Issue 可以嵌套：你可以从一个 Issue 添加**子 Issue**来分解工作。
 子 Issue 的状态独立跟踪——在子 Issue 仍未关闭时关闭父 Issue 是允许的，
@@ -29,22 +30,36 @@ Issue 可以嵌套：你可以从一个 Issue 添加**子 Issue**来分解工作
 
 你可以在 Issue 的评论中讨论它，人和 Agent 都会在那里留下笔记。
 
-## 把工作分派给 Agent 或 Workflow
+## Owner、Executor 与运行工作
 
-Issue 上的 **Assignee** 才是把它转化为行动的东西。打开一个 Issue，
-将 assignee 设置为以下之一：
+Owner 与 Executor 是两个相互独立的选择，可以同时都设置、只设置一个，或都不设置：
 
-- **Unassigned** —— 尚无人负责。
-- **A person**（包括 *Me*）—— 由某个人负责。
-- **An agent** —— 一个已保存的 [Agent](Agent与工作流.md) 在后台运行该 Issue。
-- **A workflow** —— 一个已发布的 [Workflow](Agent与工作流.md) 为该 Issue 运行其步骤。
+- **Owner** —— 负责该 Issue 的人，包括 *Me*。设置 Owner 绝不会启动一次运行，
+  它只记录谁对此负责。
+- **Executor** —— 实际执行工作的对象，为以下之一：
+  - **Unassigned** —— 尚未选定。
+  - **An agent** —— 一个已保存的 [Agent](Agent与工作流.md) 可以在后台运行该 Issue。
+  - **A workflow** —— 一个已发布的 [Workflow](Agent与工作流.md) 可以为该 Issue 运行其步骤。
 
-分派给 Agent 或 Workflow 会在 worker 上安排一次后台运行：它会物化 space 的文件、
-运行 Agent、写入任何输出，并汇报结果——而不会占用你的浏览器。
+**Save** 只会记录你选择的 Owner 与 Executor。它绝不会启动一次运行，
+也不会消耗你 space 的执行配额——在把 Issue 准备好之前，你可以随意更改两者。
 
-## 在 Issue 详情中跟踪运行
+一旦 Executor 被设置为某个 Agent 或 Workflow，Save 旁边就会出现
+**Run Workflow** 或 **Run Agent** 按钮。只有这个按钮才会在 worker 上安排一次
+后台运行：它会物化 space 的文件、运行 Agent、写入任何输出，并汇报结果——
+而不会占用你的浏览器。成功发起的 Run 会直接把你带到它启动的那次运行。
 
-打开一个 Issue 查看它的详情视图，运行的进度和结果会显示在那里：
+## Issue 详情
+
+打开一个 Issue 查看它的详情视图，其中分为四个标签页：
+
+- **Overview** —— Owner 与 Executor、状态、描述、子 Issue，以及最近一次运行的摘要。
+- **Discussion** —— 评论线程，人和 Agent 都会在那里留下笔记。
+- **Results** —— 最新结果，以及一次运行产出的所有已保存
+  [Artifact](Portal概览.md)。较大的输出会作为 Artifact 存储，你可以打开或下载。
+- **Runs** —— 该 Issue 的完整执行历史。
+
+在 Overview 或 Runs 标签页中，一次正在进行的运行会提供：
 
 - **Stop Run** —— 当一次运行处于 pending 或 running 状态时，你可以停止它。
   尚无人接管的运行会立即结束；正在被某个 worker 执行的运行会被请求停止，
@@ -53,9 +68,6 @@ Issue 上的 **Assignee** 才是把它转化为行动的东西。打开一个 Is
   这样你就能从死掉的 worker 或超时的模型中恢复，而无需重新输入任何内容。
   一次重试会计入你 space 的配额，并保留原始运行的记录不变。
   作为 Workflow 步骤的运行是通过重新运行其 Workflow 来重试的，而不是从这里。
-- **Outputs** —— 一次运行产出的文件和结果会显示在 Issue 上，
-  包括最新结果和任何已保存的 [Artifact](Portal概览.md)。
-  较大的输出会作为 Artifact 存储，你可以打开或下载。
 
 ## 下一步
 

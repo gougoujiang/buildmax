@@ -101,8 +101,8 @@ func TestUpdateIssue_SetParent(t *testing.T) {
 	}
 }
 
-// An empty string clears the parent, matching how assignee is cleared on the
-// same endpoint.
+// An empty string clears the parent, matching how owner and executor are
+// cleared on the same endpoint.
 func TestUpdateIssue_ClearParent(t *testing.T) {
 	svc, _ := hierarchyService(
 		coreissue.Issue{ID: "i_parent", SpaceID: "tm_1", Version: 1},
