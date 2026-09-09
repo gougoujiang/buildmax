@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react"
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react"
 import { BaseModal } from "./BaseModal"
 
 export interface FormModalSelectOption {
@@ -102,6 +102,7 @@ export function FormModal({
   )
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const [activeTab, setActiveTab] = useState<string>("")
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({})
 
   useEffect(() => {
     if (!open) return
@@ -216,6 +217,41 @@ export function FormModal({
 
   const composedClassName = [className, asTabs ? "modal--tabs" : ""].filter(Boolean).join(" ") || undefined
 
+  const tabButtonId = (groupId: string) => `${titleId}-tab-${groupId}`
+  const tabPanelId = (groupId: string) => `${titleId}-panel-${groupId}`
+
+  function focusTab(groupId: string) {
+    tabRefs.current[groupId]?.focus()
+  }
+
+  // Roving-tabindex ARIA tabs pattern: arrow keys move both selection and
+  // focus between tabs, Home/End jump to the ends.
+  function handleTabKeyDown(e: KeyboardEvent<HTMLButtonElement>, index: number) {
+    let nextIndex: number | null = null
+    switch (e.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+        nextIndex = (index + 1) % groupList.length
+        break
+      case "ArrowLeft":
+      case "ArrowUp":
+        nextIndex = (index - 1 + groupList.length) % groupList.length
+        break
+      case "Home":
+        nextIndex = 0
+        break
+      case "End":
+        nextIndex = groupList.length - 1
+        break
+      default:
+        return
+    }
+    e.preventDefault()
+    const nextGroup = groupList[nextIndex]
+    setActiveTab(nextGroup.id)
+    focusTab(nextGroup.id)
+  }
+
   const footer = (
     <>
       {hint ? <p className="modal__hint">{hint}</p> : null}
@@ -260,27 +296,46 @@ export function FormModal({
       <form onSubmit={handleSubmit} className="modal__body">
         {asTabs ? (
           <div className="modal__tabs">
-            <nav className="modal__tabs-nav" aria-label={title}>
-              {groupList.map((group) => (
-                <button
-                  key={group.id}
-                  type="button"
-                  className={
-                    group.id === activeGroup?.id
-                      ? "modal__tabs-nav-item modal__tabs-nav-item--active"
-                      : "modal__tabs-nav-item"
-                  }
-                  aria-current={group.id === activeGroup?.id}
-                  onClick={() => setActiveTab(group.id)}
-                >
-                  {group.title ?? group.id}
-                </button>
-              ))}
-            </nav>
-            <div className="modal__tabs-panel">
-              {ungroupedFields.map(renderField)}
-              {activeGroup ? renderGroupBody(activeGroup) : null}
+            <div className="modal__tabs-nav" role="tablist" aria-label={title}>
+              {groupList.map((group, index) => {
+                const isActive = group.id === activeGroup?.id
+                return (
+                  <button
+                    key={group.id}
+                    ref={(el) => {
+                      tabRefs.current[group.id] = el
+                    }}
+                    type="button"
+                    role="tab"
+                    id={tabButtonId(group.id)}
+                    aria-controls={tabPanelId(group.id)}
+                    aria-selected={isActive}
+                    tabIndex={isActive ? 0 : -1}
+                    className={
+                      isActive
+                        ? "modal__tabs-nav-item modal__tabs-nav-item--active"
+                        : "modal__tabs-nav-item"
+                    }
+                    onClick={() => setActiveTab(group.id)}
+                    onKeyDown={(e) => handleTabKeyDown(e, index)}
+                  >
+                    {group.title ?? group.id}
+                  </button>
+                )
+              })}
             </div>
+            {activeGroup ? (
+              <div
+                className="modal__tabs-panel"
+                role="tabpanel"
+                id={tabPanelId(activeGroup.id)}
+                aria-labelledby={tabButtonId(activeGroup.id)}
+                tabIndex={0}
+              >
+                {ungroupedFields.map(renderField)}
+                {renderGroupBody(activeGroup)}
+              </div>
+            ) : null}
           </div>
         ) : (
           <>

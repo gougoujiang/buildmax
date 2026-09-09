@@ -1,7 +1,11 @@
 # Portal Responsive and Accessible Interaction
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Portal响应式与无障碍交互.md)
-> **Audience:** Portal and shared GUI contributors · **Status:** planned
+> **Audience:** Portal and shared GUI contributors · **Status:** implemented —
+> all five slices (shell and navigation, shared overlays, core work journey,
+> data and management, and the automated regression matrix) are shipped. The
+> Acceptance Criteria's screen-reader announcement checks stay manual QA, not
+> an automated slice, by their own description
 
 This record defines the interaction invariants that keep key Portal journeys
 usable at narrow widths and with keyboard or assistive technology. It is an

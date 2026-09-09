@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react"
+import { useId, useState, useRef, useEffect } from "react"
 import { cn } from "../lib/cn"
 import type { Route } from "../lib/types"
 import type { LoginUser } from "../lib/api"
@@ -22,11 +22,11 @@ import { useAdminAccess } from "../features/admin"
 
 /** ASCII art for "BuildMax" (matches internal/tui/banner.go). */
 const LOGO_ASCII = `
- ______        _ _     _ ______         _    _ 
+ ______        _ _     _ ______         _    _
 (____  \\      (_) |   | |  ___ \\   /\\  \\ \\  / /
- ____)  )_   _ _| | _ | | | _ | | /  \\  \\ \\/ / 
-|  __  (| | | | | |/ || | || || |/ /\\ \\  )  (  
-| |__)  ) |_| | | ( (_| | || || | |__| |/ /\\ \\ 
+ ____)  )_   _ _| | _ | | | _ | | /  \\  \\ \\/ /
+|  __  (| | | | | |/ || | || || |/ /\\ \\  )  (
+| |__)  ) |_| | | ( (_| | || || | |__| |/ /\\ \\
 |______/ \\____|_|_|\\____|_||_||_|______/_/  \\_\\
 `.trim()
 
@@ -64,31 +64,9 @@ function isAdminActive(route: Route): boolean {
   return route.name === "admin"
 }
 
-export function Sidebar({
-  route,
-  user,
-  onLogout,
-}: SidebarProps) {
-  const { spaces, currentSpace, currentSpaceId, loading: spacesLoading, setCurrentSpaceId } = useSpace()
-  const { isAdmin: isSystemAdmin } = useAdminAccess()
-  const showSpaceSwitcher = spaces.length > 1
-  const personalSpaces = spaces.filter((space) => Boolean(space.personalForUserId))
-  const sharedSpaces = spaces.filter((space) => !space.personalForUserId)
+/** The persistent desktop/compact sidebar: a collapsible icon rail, the app's chrome. */
+export function Sidebar({ route, user, onLogout }: SidebarProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [userMenuOpen, setUserMenuOpen] = useState(false)
-  const [createSpaceOpen, setCreateSpaceOpen] = useState(false)
-  const userMenuRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!userMenuOpen) return
-    function handleClickOutside(e: MouseEvent) {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
-        setUserMenuOpen(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [userMenuOpen])
 
   return (
     <aside
@@ -123,14 +101,73 @@ export function Sidebar({
           </>
         )}
       </div>
+      <SidebarNavContent route={route} user={user} onLogout={onLogout} collapsed={sidebarCollapsed} />
+    </aside>
+  )
+}
+
+export interface SidebarNavContentProps {
+  route: Route
+  user: LoginUser
+  onLogout: () => void
+  /** Icon-only rail rendering. Only meaningful for the persistent desktop sidebar. */
+  collapsed?: boolean
+  /** Called after every navigation, so a host (e.g. the narrow drawer) can close itself. */
+  onNavigate?: () => void
+}
+
+/**
+ * The Space switcher, grouped primary navigation, and user menu — the part of
+ * the sidebar shared between the persistent desktop `<aside>` and the narrow
+ * overlay drawer.
+ */
+export function SidebarNavContent({
+  route,
+  user,
+  onLogout,
+  collapsed = false,
+  onNavigate,
+}: SidebarNavContentProps) {
+  const { spaces, currentSpace, currentSpaceId, loading: spacesLoading, setCurrentSpaceId } = useSpace()
+  const { isAdmin: isSystemAdmin } = useAdminAccess()
+  const showSpaceSwitcher = spaces.length > 1
+  // The persistent sidebar and the narrow drawer can both mount this
+  // component at once (the drawer over the CSS-hidden persistent aside), so a
+  // hardcoded id would collide; useId keeps each instance's <select> paired
+  // with its own <label>.
+  const spaceSelectId = useId()
+  const personalSpaces = spaces.filter((space) => Boolean(space.personalForUserId))
+  const sharedSpaces = spaces.filter((space) => !space.personalForUserId)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [createSpaceOpen, setCreateSpaceOpen] = useState(false)
+  const userMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!userMenuOpen) return
+    function handleClickOutside(e: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [userMenuOpen])
+
+  function go(target: Route) {
+    navigate(target)
+    onNavigate?.()
+  }
+
+  return (
+    <>
       <nav className="sidebar__nav" aria-label="Primary">
         <div className="sidebar__section">
-          {!sidebarCollapsed ? (
+          {!collapsed ? (
             <div className="sidebar__space-switcher">
               <div className="sidebar__space-head">
                 <label
                   className="sidebar__space-label"
-                  htmlFor={showSpaceSwitcher ? "sidebar-space-select" : undefined}
+                  htmlFor={showSpaceSwitcher ? spaceSelectId : undefined}
                 >
                   Space
                 </label>
@@ -146,7 +183,7 @@ export function Sidebar({
               </div>
               {showSpaceSwitcher ? (
                 <select
-                  id="sidebar-space-select"
+                  id={spaceSelectId}
                   className="sidebar__space-select"
                   value={currentSpaceId ?? ""}
                   onChange={(e) => setCurrentSpaceId(e.target.value)}
@@ -188,7 +225,7 @@ export function Sidebar({
           <button
             type="button"
             className={cn("sidebar__nav-item", route.name === "home" && "sidebar__nav-item--active")}
-            onClick={() => navigate({ name: "home" })}
+            onClick={() => go({ name: "home" })}
           >
             <NewChatIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">Chat</span>
@@ -196,7 +233,7 @@ export function Sidebar({
           <button
             type="button"
             className={cn("sidebar__nav-item", isIssuesActive(route) && "sidebar__nav-item--active")}
-            onClick={() => navigate({ name: "issues" })}
+            onClick={() => go({ name: "issues" })}
           >
             <IssueIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">Issues</span>
@@ -207,7 +244,7 @@ export function Sidebar({
           <button
             type="button"
             className={cn("sidebar__nav-item", isAgentsActive(route) && "sidebar__nav-item--active")}
-            onClick={() => navigate({ name: "agents" })}
+            onClick={() => go({ name: "agents" })}
           >
             <AgentsIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">Agents</span>
@@ -215,7 +252,7 @@ export function Sidebar({
           <button
             type="button"
             className={cn("sidebar__nav-item", isWorkflowsActive(route) && "sidebar__nav-item--active")}
-            onClick={() => navigate({ name: "workflows" })}
+            onClick={() => go({ name: "workflows" })}
           >
             <WorkflowIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">Workflows</span>
@@ -226,7 +263,7 @@ export function Sidebar({
           <button
             type="button"
             className={cn("sidebar__nav-item", isFilesActive(route) && "sidebar__nav-item--active")}
-            onClick={() => navigate({ name: "explore" })}
+            onClick={() => go({ name: "explore" })}
           >
             <FilesIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">Workspace Files</span>
@@ -234,7 +271,7 @@ export function Sidebar({
           <button
             type="button"
             className={cn("sidebar__nav-item", isArtifactsActive(route) && "sidebar__nav-item--active")}
-            onClick={() => navigate({ name: "artifacts" })}
+            onClick={() => go({ name: "artifacts" })}
           >
             <ArtifactIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">Artifacts</span>
@@ -245,7 +282,7 @@ export function Sidebar({
           <button
             type="button"
             className={cn("sidebar__nav-item", isSpaceSettingsActive(route) && "sidebar__nav-item--active")}
-            onClick={() => navigate({ name: "space", section: "overview" })}
+            onClick={() => go({ name: "space", section: "overview" })}
           >
             <SettingsIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">Space settings</span>
@@ -260,7 +297,7 @@ export function Sidebar({
             <button
               type="button"
               className={cn("sidebar__nav-item", isAdminActive(route) && "sidebar__nav-item--active")}
-              onClick={() => navigate({ name: "admin", section: "overview" })}
+              onClick={() => go({ name: "admin", section: "overview" })}
             >
               <ShieldIcon className="sidebar__nav-icon" aria-hidden />
               <span className="sidebar__nav-item-text">Administration</span>
@@ -294,7 +331,7 @@ export function Sidebar({
               </div>
             </div>
             <div className="sidebar__user-menu-divider" role="separator" />
-            {!sidebarCollapsed && currentSpace ? (
+            {!collapsed && currentSpace ? (
               <>
                 <div className="sidebar__user-menu-space" role="none">
                   <span className="sidebar__user-menu-space-label">Current space</span>
@@ -309,7 +346,7 @@ export function Sidebar({
               role="menuitem"
               onClick={() => {
                 setUserMenuOpen(false)
-                navigate({ name: "account", section: "general" })
+                go({ name: "account", section: "general" })
               }}
             >
               <span className="sidebar__user-menu-item-icon" aria-hidden>
@@ -323,7 +360,7 @@ export function Sidebar({
               role="menuitem"
               onClick={() => {
                 setUserMenuOpen(false)
-                navigate({ name: "help" })
+                go({ name: "help" })
               }}
             >
               <span className="sidebar__user-menu-item-icon" aria-hidden>
@@ -338,6 +375,7 @@ export function Sidebar({
               role="menuitem"
               onClick={() => {
                 setUserMenuOpen(false)
+                onNavigate?.()
                 onLogout()
               }}
             >
@@ -350,6 +388,6 @@ export function Sidebar({
         )}
       </div>
       <CreateSpaceDialog open={createSpaceOpen} onClose={() => setCreateSpaceOpen(false)} />
-    </aside>
+    </>
   )
 }

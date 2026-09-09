@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react"
 import type { ExploreNode } from "../../../lib/types"
-import { findNodeById, getChildren } from "../../../lib/explore"
+import { findNodeById, findParentId, getChildren } from "../../../lib/explore"
 import { getErrorMessage } from "../../../lib/errorMessage"
 import { useFetch } from "../../../hooks/useFetch"
 import { getFileContent, getFileTree, uploadFiles } from "../api"
@@ -69,6 +69,21 @@ export function useFilesExplorer({ spaceId, token }: UseFilesExplorerOptions) {
     if (node.type !== "file") return
     setSelectedFileId(node.id)
   }, [])
+
+  // Narrow layouts show one of "a folder's contents" or "a selected file" at
+  // a time (no side tree), so they need a single Back action: clear the file
+  // selection if one is open, otherwise step up to the parent folder.
+  const goBack = useCallback(() => {
+    if (selectedFileId) {
+      setSelectedFileId(null)
+      return
+    }
+    if (!tree || selectedFolderId === ".") return
+    const parentId = findParentId(tree, selectedFolderId)
+    if (parentId !== null) setSelectedFolderId(parentId)
+  }, [tree, selectedFolderId, selectedFileId])
+
+  const canGoBack = selectedFileId !== null || selectedFolderId !== "."
 
   const doUpload = useCallback(
     async (files: File[], paths?: string[], options?: { maxFiles?: number }) => {
@@ -148,10 +163,12 @@ export function useFilesExplorer({ spaceId, token }: UseFilesExplorerOptions) {
     children,
     folderName,
     selectedFileName,
+    canGoBack,
     toggleFolder,
     selectFolder,
     selectListFolder,
     selectFile,
+    goBack,
     handleUpload,
     handleFolderUpload,
   }

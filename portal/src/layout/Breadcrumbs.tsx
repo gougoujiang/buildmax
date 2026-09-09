@@ -1,28 +1,41 @@
+import { useState } from "react"
 import type { Route, Conversation } from "../lib/types"
 import { navigate } from "../router"
 import { useApp } from "../contexts/AppContext"
+
+export interface Crumb {
+  label: string
+  route: Route
+}
 
 interface BreadcrumbsProps {
   route: Route
   conversations?: Conversation[]
 }
 
-export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
+/**
+ * Builds the crumb trail for a route. Shared by the inline Breadcrumbs nav
+ * and the compact header, which needs only the current page's label.
+ */
+export function useBreadcrumbs(route: Route, conversations: Conversation[] = []): Crumb[] {
   const { entityLabels, breadcrumbTrails } = useApp()
-  let crumbs: { label: string; route: Route }[] = []
 
   if (route.name === "conversations") {
-    crumbs = [{ label: "Conversations", route: { name: "conversations" } }]
-  } else if (route.name === "explore") {
-    crumbs = [{ label: "Workspace Files", route: { name: "explore" } }]
-  } else if (route.name === "agents") {
-    crumbs = [{ label: "Agents", route: { name: "agents" } }]
-  } else if (route.name === "agent") {
-    crumbs = [
+    return [{ label: "Conversations", route: { name: "conversations" } }]
+  }
+  if (route.name === "explore") {
+    return [{ label: "Workspace Files", route: { name: "explore" } }]
+  }
+  if (route.name === "agents") {
+    return [{ label: "Agents", route: { name: "agents" } }]
+  }
+  if (route.name === "agent") {
+    return [
       { label: "Agents", route: { name: "agents" } },
       { label: entityLabels[route.agentId] ?? "Agent", route },
     ]
-  } else if (route.name === "account") {
+  }
+  if (route.name === "account") {
     const sectionLabel = (() => {
       switch (route.section) {
         case "usage":
@@ -34,11 +47,12 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
           return "General"
       }
     })()
-    crumbs = [
+    return [
       { label: "Account", route: { name: "account", section: "general" } },
       { label: sectionLabel, route },
     ]
-  } else if (route.name === "space") {
+  }
+  if (route.name === "space") {
     const sectionLabel = (() => {
       switch (route.section) {
         case "members":
@@ -58,11 +72,12 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
           return "Overview"
       }
     })()
-    crumbs = [
+    return [
       { label: "Space settings", route: { name: "space", section: "overview" } },
       { label: sectionLabel, route },
     ]
-  } else if (route.name === "admin") {
+  }
+  if (route.name === "admin") {
     const sectionLabel = (() => {
       switch (route.section) {
         case "administrators":
@@ -82,60 +97,114 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
           return "Overview"
       }
     })()
-    crumbs = [
+    return [
       { label: "Administration", route: { name: "admin", section: "overview" } },
       { label: sectionLabel, route },
     ]
-  } else if (route.name === "workflows") {
-    crumbs = [{ label: "Workflows", route: { name: "workflows" } }]
-  } else if (route.name === "workflow") {
-    crumbs = [
+  }
+  if (route.name === "workflows") {
+    return [{ label: "Workflows", route: { name: "workflows" } }]
+  }
+  if (route.name === "workflow") {
+    return [
       { label: "Workflows", route: { name: "workflows" } },
       { label: entityLabels[route.workflowId] ?? "Workflow", route },
     ]
-  } else if (route.name === "workflowRun") {
-    crumbs = [
+  }
+  if (route.name === "workflowRun") {
+    return [
       { label: "Workflows", route: { name: "workflows" } },
       { label: entityLabels[route.workflowRunId] ?? "Workflow Run", route },
     ]
-  } else if (route.name === "issues") {
-    crumbs = [{ label: "Issues", route: { name: "issues" } }]
-  } else if (route.name === "issue") {
-    crumbs = [
+  }
+  if (route.name === "issues") {
+    return [{ label: "Issues", route: { name: "issues" } }]
+  }
+  if (route.name === "issue") {
+    return [
       { label: "Issues", route: { name: "issues" } },
       { label: entityLabels[route.issueId] ?? "Issue", route },
     ]
-  } else if (route.name === "artifacts") {
-    crumbs = [{ label: "Artifacts", route: { name: "artifacts" } }]
-  } else if (route.name === "artifact") {
-    crumbs = [
+  }
+  if (route.name === "artifacts") {
+    return [{ label: "Artifacts", route: { name: "artifacts" } }]
+  }
+  if (route.name === "artifact") {
+    return [
       { label: "Artifacts", route: { name: "artifacts" } },
       { label: entityLabels[route.artifactId] ?? "Artifact", route },
     ]
-  } else if (route.name === "marketplace") {
-    crumbs = [{ label: "Marketplace", route: { name: "marketplace" } }]
-  } else if (route.name === "task") {
+  }
+  if (route.name === "marketplace") {
+    return [{ label: "Marketplace", route: { name: "marketplace" } }]
+  }
+  if (route.name === "task") {
     // A task's parents (agent / issue / conversation) are not in the route, so
     // the detail page publishes the trail; fall back until it loads.
-    crumbs = breadcrumbTrails[route.taskId] ?? [
-      { label: "Chat", route: { name: "home" } },
-      { label: "Task", route },
-    ]
-  } else if (route.name === "conversation") {
+    return (
+      breadcrumbTrails[route.taskId] ?? [
+        { label: "Chat", route: { name: "home" } },
+        { label: "Task", route },
+      ]
+    )
+  }
+  if (route.name === "conversation") {
     const conv = conversations.find((c) => c.id === route.conversationId)
     const convLabel = conv?.title?.trim() || conv?.timeLabel || "Conversation"
-    crumbs = [
+    return [
       { label: "Chat", route: { name: "home" } },
       { label: convLabel, route },
     ]
-  } else {
-    crumbs = [{ label: "Chat", route: { name: "home" } }]
   }
+  return [{ label: "Chat", route: { name: "home" } }]
+}
+
+export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
+  const crumbs = useBreadcrumbs(route, conversations)
+  const [overflowOpen, setOverflowOpen] = useState(false)
+
+  // Keep the current object and its nearest parent inline; earlier ancestors
+  // collapse behind an overflow disclosure rather than crowding or wrapping.
+  const collapsedAncestors = crumbs.length > 2 ? crumbs.slice(0, -2) : []
+  const visibleCrumbs = collapsedAncestors.length > 0 ? crumbs.slice(-2) : crumbs
 
   return (
     <nav className="breadcrumbs" aria-label="Breadcrumb">
-      {crumbs.map((crumb, i) => {
-        const isLast = i === crumbs.length - 1
+      {collapsedAncestors.length > 0 && (
+        <span className="breadcrumbs__segment breadcrumbs__segment--overflow">
+          <button
+            type="button"
+            className="breadcrumbs__link breadcrumbs__overflow-toggle"
+            aria-expanded={overflowOpen}
+            aria-haspopup="menu"
+            aria-label="Show earlier breadcrumbs"
+            onClick={() => setOverflowOpen((open) => !open)}
+          >
+            …
+          </button>
+          {overflowOpen && (
+            <div className="breadcrumbs__overflow-menu" role="menu">
+              {collapsedAncestors.map((crumb, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  role="menuitem"
+                  className="breadcrumbs__overflow-item"
+                  onClick={() => {
+                    setOverflowOpen(false)
+                    navigate(crumb.route)
+                  }}
+                >
+                  {crumb.label}
+                </button>
+              ))}
+            </div>
+          )}
+          <span className="breadcrumbs__separator">/</span>
+        </span>
+      )}
+      {visibleCrumbs.map((crumb, i) => {
+        const isLast = i === visibleCrumbs.length - 1
         return (
           <span key={i} className="breadcrumbs__segment">
             {isLast ? (

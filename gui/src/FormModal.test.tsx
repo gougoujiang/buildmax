@@ -91,7 +91,7 @@ describe("FormModal tabs layout", () => {
 
   it("switches the panel when a sidebar tab is clicked", () => {
     render(<FormModal {...base()} fields={FIELDS} groups={GROUPS} layout="tabs" />)
-    fireEvent.click(screen.getByRole("button", { name: "Advanced" }))
+    fireEvent.click(screen.getByRole("tab", { name: "Advanced" }))
     expect(screen.getByLabelText(/Endpoint/)).toBeTruthy()
     // Leaving Basics hides its field — one tab at a time.
     expect(screen.queryByLabelText("Name")).toBeNull()
@@ -104,7 +104,38 @@ describe("FormModal tabs layout", () => {
     ]
     render(<FormModal {...base()} fields={FIELDS} groups={groups} layout="tabs" />)
     expect(screen.queryByText("revision list")).toBeNull()
-    fireEvent.click(screen.getByRole("button", { name: "History" }))
+    fireEvent.click(screen.getByRole("tab", { name: "History" }))
     expect(screen.getByText("revision list")).toBeTruthy()
+  })
+
+  it("exposes the ARIA tabs pattern: tablist, selected state, and panel linkage", () => {
+    render(<FormModal {...base()} fields={FIELDS} groups={GROUPS} layout="tabs" />)
+    expect(screen.getByRole("tablist", { name: "Test" })).toBeTruthy()
+    const basicsTab = screen.getByRole("tab", { name: "Basics" })
+    const advancedTab = screen.getByRole("tab", { name: "Advanced" })
+    expect(basicsTab.getAttribute("aria-selected")).toBe("true")
+    expect(advancedTab.getAttribute("aria-selected")).toBe("false")
+    expect(basicsTab.getAttribute("tabIndex") ?? basicsTab.getAttribute("tabindex")).toBe("0")
+    expect(advancedTab.getAttribute("tabIndex") ?? advancedTab.getAttribute("tabindex")).toBe("-1")
+    const panel = screen.getByRole("tabpanel")
+    expect(panel.getAttribute("aria-labelledby")).toBe(basicsTab.id)
+    expect(basicsTab.getAttribute("aria-controls")).toBe(panel.id)
+  })
+
+  it("moves selection and focus with the arrow keys, wrapping at the ends", () => {
+    render(<FormModal {...base()} fields={FIELDS} groups={GROUPS} layout="tabs" />)
+    const basicsTab = screen.getByRole("tab", { name: "Basics" })
+    const advancedTab = screen.getByRole("tab", { name: "Advanced" })
+    basicsTab.focus()
+    fireEvent.keyDown(basicsTab, { key: "ArrowRight" })
+    expect(document.activeElement).toBe(advancedTab)
+    expect(advancedTab.getAttribute("aria-selected")).toBe("true")
+    expect(screen.getByLabelText(/Endpoint/)).toBeTruthy()
+    fireEvent.keyDown(advancedTab, { key: "ArrowRight" })
+    expect(document.activeElement).toBe(basicsTab)
+    fireEvent.keyDown(basicsTab, { key: "End" })
+    expect(document.activeElement).toBe(advancedTab)
+    fireEvent.keyDown(advancedTab, { key: "Home" })
+    expect(document.activeElement).toBe(basicsTab)
   })
 })

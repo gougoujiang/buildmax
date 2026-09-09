@@ -1,10 +1,17 @@
-import type { ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import type { Conversation, Route } from "../lib/types"
 import type { LoginUser } from "../lib/api"
-import { Sidebar } from "./Sidebar"
-import { Breadcrumbs } from "./Breadcrumbs"
-import { ThemeToggle } from "@buildmax/gui"
+import { Sidebar, SidebarNavContent } from "./Sidebar"
+import { Breadcrumbs, useBreadcrumbs } from "./Breadcrumbs"
+import { Drawer, ThemeToggle } from "@buildmax/gui"
 import { navigate } from "../router"
+import { useMediaQuery } from "../hooks/useMediaQuery"
+import { useSpace } from "../contexts/SpaceContext"
+
+// Matches the Narrow range's upper bound in the Portal responsive design
+// (320–767px; Compact starts at 768px) — the shell switches from the
+// persistent sidebar to a compact header + overlay drawer below this width.
+const NARROW_QUERY = "(max-width: 767px)"
 
 export interface LayoutProps {
   route: Route
@@ -21,8 +28,51 @@ export function Layout({
   onLogout,
   children,
 }: LayoutProps) {
+  const narrow = useMediaQuery(NARROW_QUERY)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const { currentSpace } = useSpace()
+  const crumbs = useBreadcrumbs(route, conversations)
+  const pageTitle = crumbs[crumbs.length - 1]?.label ?? ""
+
+  // A resize back to Compact/Wide while the drawer happens to be open must
+  // not leave it mounted (and its focus trap active) behind the now-visible
+  // persistent sidebar.
+  useEffect(() => {
+    if (!narrow) setDrawerOpen(false)
+  }, [narrow])
+
   return (
     <div className="shell">
+      <header className="shell__compact-header">
+        <button
+          type="button"
+          className="shell__menu-btn"
+          aria-expanded={drawerOpen}
+          aria-controls="nav-drawer"
+          aria-label="Open navigation"
+          onClick={() => setDrawerOpen(true)}
+        >
+          <MenuIcon className="shell__menu-icon" />
+        </button>
+        <div className="shell__compact-title">
+          <span className="shell__compact-space">{currentSpace?.name ?? "My Space"}</span>
+          <span className="shell__compact-page">{pageTitle}</span>
+        </div>
+      </header>
+      <Drawer
+        id="nav-drawer"
+        open={drawerOpen && narrow}
+        onClose={() => setDrawerOpen(false)}
+        title="Navigation"
+        titleId="nav-drawer-title"
+      >
+        <SidebarNavContent
+          route={route}
+          user={user}
+          onLogout={onLogout}
+          onNavigate={() => setDrawerOpen(false)}
+        />
+      </Drawer>
       <div className="shell__body">
         <Sidebar
           route={route}
@@ -42,6 +92,26 @@ export function Layout({
         </main>
       </div>
     </div>
+  )
+}
+
+function MenuIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="M4 6h16" />
+      <path d="M4 12h16" />
+      <path d="M4 18h16" />
+    </svg>
   )
 }
 
