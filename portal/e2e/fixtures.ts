@@ -83,6 +83,16 @@ export async function postJSON<T>(page: Page, path: string, session: Session, bo
   return res.json() as Promise<T>
 }
 
+/** Create a second Space the signed-in account owns, for Space-switch specs. */
+export async function createSpace(page: Page, session: Session, name: string): Promise<{ id: string }> {
+  const res = await page.request.post(`${session.apiBase}/api/spaces`, {
+    headers: { Authorization: `Bearer ${session.token}` },
+    data: { name },
+  })
+  expect(res.ok(), `POST /api/spaces → ${res.status()} ${await res.text()}`).toBeTruthy()
+  return res.json() as Promise<{ id: string }>
+}
+
 export async function patchJSON<T>(page: Page, path: string, session: Session, body: unknown): Promise<T> {
   const res = await page.request.patch(path, {
     headers: { Authorization: `Bearer ${session.token}` },
