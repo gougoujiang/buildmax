@@ -180,10 +180,11 @@ Stated rather than left to be discovered:
 - **Worker egress NetworkPolicy.** The manifest ships the server-ingress policy
   that gates the worker port (see "Worker API boundary" above), but not a
   default-deny on worker *egress*. Worker pods reach the model endpoint, object
-  storage, and the server; restricting that is worth doing and is not settled
-  here — see [`docs/design/trust-harness.md`](../../docs/design/trust-harness.md)
-  §3.9, which compares portable NetworkPolicy, Cilium FQDN policy, and a
-  dedicated egress proxy, and defines the planned kind qualification evidence.
+  storage, and the server. The first private Beta records and accepts this
+  residual limit. Pod-wide destination control is conditional hardening rather
+  than a committed BuildMax dependency; see
+  [`docs/design/trust-harness.md`](../../docs/design/trust-harness.md) §3.9 for
+  the evidence that would reopen it.
 - **Backups.** Database and bucket backups are yours. BuildMax has no export or
   import command.
 - **Horizontal scaling of workers.** Worker Jobs are created per task run and

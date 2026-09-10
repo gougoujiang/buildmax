@@ -36,7 +36,8 @@ integration](https://gvisor.dev/docs/user_guide/quick_start/kubernetes/), and
 
 ## 1. Status
 
-- roadmap_priority: `R0` — contain unattended worker execution
+- roadmap_priority: `post-Beta conditional hardening` — reopen for a stronger
+  worker threat model or deployment evidence, not as a first-Beta requirement
 - status: planned; BuildMax does not currently set `runtimeClassName`, install
   `runsc`, or claim gVisor compatibility
 - decision_date: `2026-09-05`
@@ -748,4 +749,5 @@ When support ships:
 - [Support matrix](../../manual/support.md) distinguishes native and qualified
   gVisor workers; and
 - [Trust harness](trust-harness.md) marks the Pod-to-host runtime slice closed
-  while leaving destination egress and inner MCP policy accurately open.
+  while keeping destination egress conditional and reporting the inner MCP
+  policy accurately.

@@ -101,8 +101,8 @@ the individual record rather than being duplicated here.
 | Document | Lifecycle | Covers |
 |---|---|---|
 | [Agent Core trust harness](trust-harness.md) | Active plan | Containment, observability, and evidence across Agent execution surfaces |
-| [Worker API network boundary](worker-api-network-boundary.md) | Active plan | Separation and authorization of public and worker traffic |
-| [gVisor worker runtime](gvisor-worker-runtime.md) | Active plan | Fail-closed worker Pod isolation behind an optional RuntimeClass |
+| [Worker API network boundary](worker-api-network-boundary.md) | Specification | Separation and authorization of public and worker traffic |
+| [gVisor worker runtime](gvisor-worker-runtime.md) | Direction | Conditional worker Pod isolation behind an optional RuntimeClass |
 | [Agent-scoped sandbox policy](agent-sandbox-policy.md) | Active plan | Agent revisions, Space defaults, and claim-time sandbox selection |
 | [Space Secrets and run delivery](space-secrets.md) | Active plan | Space-owned credentials and run-scoped materialization |
 | [Tool permissions](tool-permissions.md) | Active plan | Runtime tool allow, deny, and approval policy |

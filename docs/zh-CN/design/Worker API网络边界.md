@@ -29,7 +29,7 @@ policy](Agent沙箱策略.md)、[Graceful shutdown](优雅关闭.md),以及
 
 ## 1. 状态
 
-- roadmap_priority:`R0`——约束无人值守的 Worker 执行
+- roadmap_priority：`R0`——验证已交付的 Worker API 边界候选版本
 - status:已交付。M1 在同一个进程内用第二个 listener 提供 Worker 控制
   API,拥有自己独立的 mux 和一套失败即关闭的配置;M2 让这个 listener 说
   TLS,而 Worker 则通过一个基于所配置信任关系构建的、显式的 HTTP 客户端
@@ -42,9 +42,9 @@ policy](Agent沙箱策略.md)、[Graceful shutdown](优雅关闭.md),以及
   一旦 Run 进入终态就不再拥有任何能力;M5 让 kind 冒烟测试生成 Worker
   listener 的证书、让 Worker 通过 HTTPS 运行,并在同一次部署中验证这条
   边界——一个带标签的 Worker Pod 能访问 Worker 端口,一个不带标签的 Pod
-  会被拒绝,而公共 Service 上的 `/api/worker` 会返回 `404`。更广泛的、
-  按域名感知的 Worker 出网问题,仍然留在
-  [trust-harness.md](信任保障.md) 第 3.9 节中未解决。
+  会被拒绝,而公共 Service 上的 `/api/worker` 会返回 `404`。更广泛的
+  Pod 级 Worker 出站属于 [trust-harness.md](信任保障.md) 第 3.9 节中
+  条件触发的 Beta 后加固。
 - decision_date:`2026-09-05`
 - scope:把 Server 的 Worker 控制通道从它的公共 HTTP 界面中隔离出来,
   并对其传输过程做身份验证
@@ -308,10 +308,9 @@ TaskRun ID 可以放在一个注解中用于关联,但它不是一个安全层�
 授权。
 
 本设计不会加入一条默认拒绝 Worker 出网的策略。要在保留 Git、软件包
-仓库、模型和对象存储访问能力的同时做到这一点,需要
-[trust-harness.md](信任保障.md) 第 3.9 节中那个尚未解决的、域名感知
-的出网决策。等到那条路径被确定并验证之后,这套参考配置以后可以再加入
-一条收窄的 Worker 出网规则。
+仓库、模型和对象存储访问能力的同时做到这一点，需要
+[trust-harness.md](信任保障.md) 第 3.9 节中的条件触发加固决策。
+只有部署证据重新开启该路径后，参考配置才增加收窄的 Worker 出网规则。
 
 ### 7.4 命名空间边界
 
@@ -555,7 +554,7 @@ YAML 文件,并不能证明这条边界真的被接通了。
 | 没有 `NetworkPolicy` 的 `ClusterIP` 是否足够? | 不够。它能防止刻意的外部服务暴露,但无法阻止直接的集群内访问 |
 | 没有 mTLS 的 TLS 是否足够? | 它能保护令牌并验证 Server 身份;`NetworkPolicy` 加上运行令牌共同完成对调用方的身份验证。在存在工作负载身份的场景下,优先采用逐 Pod 的 mTLS |
 | 公共 OpenAPI 是否应该描述 Worker 路由? | 目前应该继续描述,前提是注册相关的测试能证明"被描述"不等于"可访问" |
-| Worker 出网在本次改动中能否变成默认拒绝? | 不能。域名感知的外部访问,以及对象存储/模型这类目的地,需要 `trust-harness.md` 第 3.9 节中那个更广泛的决策 |
+| Worker 出网在本次改动中能否变成默认拒绝? | 不能。Pod 级目的地强制属于 `trust-harness.md` 第 3.9 节中条件触发的 Beta 后加固 |
 | Server 和 Worker 是否应该迁移到不同的命名空间? | 是一项兼容的后续工作;不是建立这条 listener 边界的必要条件 |
 | 证书如何签发和轮换? | 由运营方/平台提供;先采用基于重启的轮换方式,只有在运营证据确有需要时才引入热加载 |
 
@@ -575,7 +574,7 @@ YAML 文件,并不能证明这条边界真的被接通了。
 - [Worker run token](Worker运行令牌.md) 不再把网络可达性描述得好像
   令牌范围就是整条边界;
 - [Trust harness](信任保障.md) 把第 3.9 节中关于 Server 控制通道的
-  那部分标记为已关闭,同时保持关于 Worker 一般性出网的部分继续开放;
+  那部分标记为已关闭，同时把一般性 Worker 出网推迟到有证据时再开启；
   并且
 - [Support matrix](../../../manual/support.md) 只有在 kind 的拒绝探测
   成为常规冒烟测试的一部分之后,才去描述这条已部署的边界。

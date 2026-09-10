@@ -43,7 +43,7 @@ trust-harness.md §3.9 曾经权衡过“在 `server.yaml` 中放一份全部署
 - **粒度从全部署统一收窄到 Agent 修订版本级别**，且仅限于 `config.SandboxConfig` 的网络和文件系统这两个轴。worker 沙箱的其他所有轴——`enabled`、`fail_if_unavailable`、`allow_unsandboxed_commands`，以及未来可能出现的进程限制——依然由 worker 的 `SandboxSurfaceWorker` 基线和 `policy.yaml` 统一设置一次，和今天完全一样。
 - **运维人员的天花板不变。** `policy.yaml` 中的 `allow_managed_domains_only` / `allow_managed_read_paths_only` 仍然是最终裁决,可以把任何 Space 或 Agent 锁定到全部署统一的列表上,与今天 `mergeSandbox` 的语义（`internal/config/sandbox.go`）完全一致。想要 trust-harness.md 最初那种全部署统一行为的运维人员，只需设置这两个开关即可获得，本文档不会强迫任何部署采用按 Agent 划分的策略。
 - **工作负载声明的是一个粗粒度的层级，而不是一份域名列表。** §4.1 会说明，真正能消除可用性成本的粒度，远比逐个 Agent 编辑域名/路径要粗得多，因此这并不是 §3.9 所拒绝的那种泛化“分层配置”，而是一小组固定的、版本化的层级供工作负载选择。
-- **§3.9 表格中的集群出口问题依然未被触碰。** 生产拓扑是否还需要从一个 Space 内所有活跃 Agent 已解析的 `allowed_domains` 求并集,再生成一份 `NetworkPolicy`,这个问题仍然开放,仍然属于 §3.9,不属于本文档。本文档的范围仅限于进程内代理和操作系统后端已经在强制执行的、Go 端的 `SandboxConfig`。
+- **Pod 全局出站不属于本决策。** 生产拓扑是否还需要根据已解析的 `allowed_domains` 生成一份 `NetworkPolicy`，属于 §3.9 的条件触发 Beta 后加固，不属于本文档。本文档的范围仅限于进程内代理和操作系统后端已经在强制执行的 Go 端 `SandboxConfig`。
 
 如果未来某个部署确实需要在网络/文件系统之外的其他轴上也做按 Space 划分的配置，或者需要比下面这些层级更细的域名列表粒度，那应该是对 §3.9 的另一次独立重新开放，需要拿出自己的证据——本文档不会替它预先做出决定。
 
@@ -143,7 +143,7 @@ Agent 编辑器在名称和说明字段旁边新增了两个选择器——“Ne
 
 - **面向 Agent 作者的原始域名/路径编辑器。** §4.1 中的层级就是全部的自助服务界面。任何超出 `open` / 一个共享外部写入路径的需求，都是一个 `policy.yaml` 例外，和今天一样——本文档不会为此新增任何 UI。
 - **对 Agent 层级的按次运行覆盖。** 粒度始终停留在 Agent 修订版本这一级，正如 §4.2 所述——如果允许为单次临时运行单独申请网络访问，就意味着每次派发都要弹出一次提示，这比本文档要解决的问题带来的体验更差。一个偶尔需要更多权限的 Agent，应该被修订，而不是按次覆盖。
-- **集群级 `NetworkPolicy` 的生成。** trust-harness.md §3.9 出口表格中的那一行——生产拓扑是否需要一份根据已解析的 `allowed_domains` 生成的默认拒绝 `NetworkPolicy`——不受本文档影响，依然是开放问题。
+- **集群级 `NetworkPolicy` 的生成。** 根据已解析的 `allowed_domains` 生成默认拒绝策略，属于 trust-harness.md §3.9 的条件触发 Beta 后加固。
 - **进程资源限制、CLI/Desktop 的沙箱默认值，以及 `SandboxConfig` 中除 `Network` 和 `Filesystem` 之外的任何轴。** 这些依然是全部署统一的，仅由界面基线和 `policy.yaml` 设置。
 - **第四个层级，或者任意的按 Space 自定义层级定义。** 每个轴三个层级就是本方案的全部内容；只有在观察到某个部署确实无法用 `open` / `workspace_plus_external_write` 加一次 policy 例外来满足时，才应该扩展——这与 [space-governance.md](./Space治理.md) §11 对自定义角色所秉持的克制态度是一致的。
 

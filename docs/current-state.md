@@ -18,11 +18,13 @@ checkpoints, managed inference, and operator administration. This is not yet
 proof of production multi-tenant readiness or of a qualified Beta candidate.
 The [Beta readiness record](deploy/beta-readiness.md) remains unqualified.
 
-The main remaining boundaries are MCP child processes outside the Bash sandbox,
-worker-wide network egress, distributed lease fencing at database writes, and
-candidate failure/recovery evidence. Shared Redis coordination is implemented. The worker API already has a separate listener, TLS
-support, and a shipped ingress NetworkPolicy; that bounded network slice must
-not be confused with unrestricted worker egress.
+The one remaining R0 engineering boundary is MCP stdio child processes outside
+the Bash sandbox. Worker-wide network egress is a documented, accepted limit for
+the first private Beta rather than an R0 implementation requirement. Distributed
+lease fencing at database writes and candidate failure/recovery evidence also
+remain open. Shared Redis coordination is implemented. The worker API already
+has a separate listener, TLS support, and a shipped ingress NetworkPolicy; that
+bounded network slice must not be confused with unrestricted worker egress.
 
 This review inspected implementation, assembly, manifests, and test assertions.
 It does not reuse old full-build results, coverage percentages, mutation-test
@@ -130,13 +132,16 @@ Remaining limits:
 
 - MCP stdio servers launch with `exec.Command` and do not pass through the Bash
   sandbox ([`internal/infra/mcp/transport.go`](../internal/infra/mcp/transport.go)).
+  The supported Beta worker profile must reject them until it can confine them;
+  that fail-closed treatment is not implemented yet.
 - `local_process` remains in the Server's host trust domain even when its Bash
   commands are sandboxed.
 - `buildmax sandbox overrides` is not implemented. Portal exposes Agent tiers
   and Space defaults, but not resolved tiers and plugin pins in the Task's own
   run detail presentation.
 - No worker RuntimeClass selection is wired in the Job builder. gVisor remains
-  a qualification direction, not a shipped supported worker profile.
+  conditional post-Beta hardening, not a shipped supported worker profile or a
+  first-Beta requirement.
 
 ### Worker API Boundary
 
@@ -158,7 +163,7 @@ Sources and coverage:
 [`internal/bootstrap/worker_tls.go`](../internal/bootstrap/worker_tls.go), and
 [production manifest](../deployment/production/buildmax.yaml).
 
-**Still absent:** a worker egress NetworkPolicy. The Server-ingress policy does
+**Accepted first-Beta limit:** a worker egress NetworkPolicy is absent. The Server-ingress policy does
 not constrain all outbound traffic from a worker, sandbox MCP processes, or hide
 the storage credentials used by the worker. TLS support also does not mean every
 local development configuration requires TLS.

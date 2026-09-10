@@ -34,7 +34,8 @@
 
 ## 1. 状态
 
-- roadmap_priority：`R0` — 约束无人值守的 Worker 执行
+- roadmap_priority：`post-Beta conditional hardening` — 只有更强的 Worker 威胁模型
+  或部署证据提出要求时才重新开启，不属于首个 Beta 要求
 - status：规划中；BuildMax 目前不设置 `runtimeClassName`，不安装 `runsc`，也不宣称与
   gVisor 兼容
 - decision_date：`2026-09-05`
@@ -679,5 +680,5 @@ gVisor 才会从实验性状态转为受支持状态。生产参考部署也只�
   局限性；
 - [支持矩阵](../../../manual/support.md)需要区分原生 Worker 和已通过认证的 gVisor
   Worker；并且
-- [信任保障](信任保障.md)需要标记出“Pod 到宿主机”这一层运行时切面已经关闭，同时
-  如实保留“目的地出口”和“内层 MCP 策略”这两处仍然开放的问题。
+- [信任保障](信任保障.md)需要标记出“Pod 到宿主机”这一层运行时切面已经关闭，
+  同时把目的地出口保留为条件触发项，并如实报告内层 MCP 策略。
