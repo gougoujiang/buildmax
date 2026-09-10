@@ -20,6 +20,14 @@ const changelogDir = "docs/changelog"
 // a release body quotes.
 const changelogFile = "CHANGELOG.md"
 
+// zhChangelogDir mirrors changelogDir in simplified Chinese: one translated
+// entry per file, each cross-linked to its English original. A release empties
+// it alongside changelogDir (see the directory READMEs). CHANGELOG.md is the
+// English released history; the translations are not folded into a released
+// file, so the fold discards the mirror rather than keeping dangling links to
+// an emptied directory.
+const zhChangelogDir = "docs/zh-CN/changelog"
+
 // changelogCategories are the headings a release section uses, in the order
 // they appear in it. A directory outside this set is a typo rather than a new
 // category, and is reported as one.
@@ -137,7 +145,7 @@ func unreleasedSection() (string, int, error) {
 			if !strings.HasPrefix(text, "- ") {
 				return "", 0, fmt.Errorf("%s does not start with \"- \"; an entry is one Markdown list item", f)
 			}
-			b.WriteString(text)
+			b.WriteString(stripMirrorLink(text))
 			b.WriteString("\n\n")
 			total++
 		}
@@ -145,8 +153,36 @@ func unreleasedSection() (string, int, error) {
 	return b.String(), total, nil
 }
 
+// stripMirrorLink removes an entry's trailing link to its simplified-Chinese
+// mirror. An English fragment may end with a blockquote pointing at its mirror
+// under docs/zh-CN/changelog; that link is valid from the fragment but not from
+// CHANGELOG.md, and the release empties the directory it points at, so the fold
+// drops it. An entry without the trailer is returned unchanged.
+func stripMirrorLink(text string) string {
+	lines := strings.Split(text, "\n")
+	end := len(lines)
+	for end > 0 && strings.TrimSpace(lines[end-1]) == "" {
+		end--
+	}
+	if end > 0 && isMirrorLinkLine(lines[end-1]) {
+		end--
+		for end > 0 && strings.TrimSpace(lines[end-1]) == "" {
+			end--
+		}
+	}
+	return strings.Join(lines[:end], "\n")
+}
+
+func isMirrorLinkLine(line string) bool {
+	t := strings.TrimSpace(line)
+	return strings.HasPrefix(t, ">") && strings.Contains(t, "zh-CN/changelog/")
+}
+
 // releaseChangelog folds the fragments into CHANGELOG.md under version and
-// today's date, then removes the files it folded in.
+// today's date, then removes the files it folded in -- both the English
+// entries under changelogDir and their simplified-Chinese mirrors under
+// zhChangelogDir, so neither directory outlives the release with entries the
+// history has already absorbed.
 //
 // The files are deleted only after the rewrite succeeds, so a failure leaves
 // the entries where they were rather than half-moved.
@@ -186,11 +222,13 @@ func releaseChangelog(version string) error {
 		return fmt.Errorf("write %s: %w", changelogFile, err)
 	}
 
-	for _, category := range changelogCategories {
-		files, _ := filepath.Glob(filepath.Join(changelogDir, category, "*.md"))
-		for _, f := range files {
-			if err := os.Remove(f); err != nil {
-				return fmt.Errorf("remove %s: %w", f, err)
+	for _, dir := range []string{changelogDir, zhChangelogDir} {
+		for _, category := range changelogCategories {
+			files, _ := filepath.Glob(filepath.Join(dir, category, "*.md"))
+			for _, f := range files {
+				if err := os.Remove(f); err != nil {
+					return fmt.Errorf("remove %s: %w", f, err)
+				}
 			}
 		}
 	}

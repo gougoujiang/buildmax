@@ -64,6 +64,54 @@ func TestReleaseChangelogMovesTheCompareLinks(t *testing.T) {
 	}
 }
 
+// writeZhEntry writes a simplified-Chinese mirror entry, the shape the fold
+// must also empty.
+func writeZhEntry(t *testing.T, category, slug, body string) {
+	t.Helper()
+	dir := filepath.Join(zhChangelogDir, category)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("create %s: %v", dir, err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, slug+".md"), []byte(body), 0o644); err != nil {
+		t.Fatalf("write %s: %v", slug, err)
+	}
+}
+
+// A release folds the English entry without its mirror link, and empties the
+// simplified-Chinese mirror directory alongside the English one -- so the
+// released CHANGELOG.md carries no link into a directory the release just
+// emptied, and no mirror entry is left pointing at a deleted English original.
+func TestReleaseChangelogDropsTheMirrorAndItsLink(t *testing.T) {
+	writeChangelog(t, changelogWithLinks)
+	writeEntry(t, "added", "a-flag",
+		"- A new flag.\n\n  > **简体中文：** [阅读中文镜像](../../zh-CN/changelog/added/a-flag.md)\n")
+	writeZhEntry(t, "added", "a-flag",
+		"> **翻译说明：** 本文是[英文原文](../../../changelog/added/a-flag.md)的简体中文派生翻译。\n\n- 一个新开关。\n")
+
+	if err := releaseChangelog("v0.3.0"); err != nil {
+		t.Fatalf("releaseChangelog: %v", err)
+	}
+
+	raw, err := os.ReadFile(changelogFile)
+	if err != nil {
+		t.Fatalf("read %s: %v", changelogFile, err)
+	}
+	body := string(raw)
+	if !strings.Contains(body, "- A new flag.") {
+		t.Errorf("the entry text is missing:\n%s", body)
+	}
+	if strings.Contains(body, "zh-CN/changelog") {
+		t.Errorf("CHANGELOG.md kept a link into the emptied mirror directory:\n%s", body)
+	}
+
+	if _, err := os.Stat(filepath.Join(zhChangelogDir, "added", "a-flag.md")); !os.IsNotExist(err) {
+		t.Errorf("the mirror entry should be removed by the fold; stat err = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(changelogDir, "added", "a-flag.md")); !os.IsNotExist(err) {
+		t.Errorf("the English entry should be removed by the fold; stat err = %v", err)
+	}
+}
+
 func TestReleaseChangelogRefusesAVersionItAlreadyLinks(t *testing.T) {
 	writeChangelog(t, changelogWithLinks)
 	writeEntry(t, "added", "a-flag", "- A new flag.\n")
