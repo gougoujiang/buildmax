@@ -3,7 +3,7 @@
 > **简体中文：** [阅读中文镜像](zh-CN/ROADMAP.md)
 >
 > **Audience:** users, operators, and contributors · **Status:** current — Alpha
-> **Last reviewed:** 2026-09-08
+> **Last reviewed:** 2026-09-10
 
 BuildMax is an open-source Agent runtime for local work and private Space
 deployment. CLI/TUI, Desktop, and Server/Portal use the same Go Agent Core.
@@ -31,35 +31,34 @@ historical capability groupings; the R0–R5 order below governs current work.
 
 ## Active Priority Order
 
-R0–R2 come first because execution safety and state correctness underpin every
-Server feature. R3–R4 complete the operating and qualification evidence. These
-are priorities, not claims that someone is currently assigned to every item.
+R0 closes one known execution-boundary bypass. R1–R2 then address state
+correctness and recovery, which every Server deployment needs. R3–R4 complete
+the operating and qualification evidence. These are priorities, not claims that
+someone is currently assigned to every item.
 
-### R0. Contain Unattended Worker Execution
+### R0. Close The Worker Process-Boundary Bypass
 
-**Partly implemented.** Official worker images select the worker sandbox
-baseline; Bash confinement, process limits, hook transport policy, and backend
-self-tests are implemented and exercised by deployment smoke. MCP stdio child
-processes and cluster-level network egress remain outside that boundary.
-The worker API already has separate listeners, TLS support, and a shipped
-Server-ingress NetworkPolicy; worker-wide egress is a separate gap.
+**One engineering gap remains.** Official worker images select and probe the
+worker sandbox baseline; Bash confinement, process limits, hook transport
+policy, and worker API isolation are implemented and exercised by deployment
+smoke. MCP stdio servers still launch as direct child processes outside that
+command boundary.
 
-**Next:** define and enforce the MCP child-process boundary; verify the
-shipped worker API network boundary in the candidate environment; prototype
-the wider worker egress boundary with Cilium FQDN policy in kind, including
-direct-IP and alternate-DNS bypass tests, then decide whether production needs
-the stronger dedicated-egress-proxy shape.
-Make resolved sandbox policy understandable in the operator surfaces.
+**Next:** make the supported unattended-worker profile reject stdio MCP unless
+the child can be launched inside its declared sandbox boundary. Verify the
+existing Bash, process-limit, hook, and worker API controls with the candidate
+artifacts, and show the resolved sandbox and MCP treatment in the operator
+surface used to diagnose a TaskRun.
 
-**Done when:** the supported worker profile enforces its documented process and
-network boundaries, fails closed when required enforcement is unavailable,
-and has deployment evidence for those claims. The optional gVisor profile
-requires qualification with the actual worker and sandbox probe before it is
-supported or recommended.
+**Done when:** no stdio MCP child runs outside the boundary claimed by the
+supported worker profile; unavailable required enforcement fails closed; the
+actual boundary is visible; and candidate deployment evidence covers those
+claims. Pod-wide destination control and an outer runtime sandbox are not part
+of R0 or the first private Beta gate.
 
 Design: [trust harness](design/trust-harness.md),
 [worker API network boundary](design/worker-api-network-boundary.md), and
-[gVisor worker runtime](design/gvisor-worker-runtime.md).
+[sandbox boundaries](design/sandbox-boundaries.md).
 
 ### R1. Qualify Shared Server Coordination
 
@@ -141,6 +140,14 @@ adapters, executable Space plugins, Portal performance, Desktop automation,
 and throughput. Local CLI/TUI and Desktop improvements remain welcome when they
 address concrete problems; the Beta focus does not make Portal the only product.
 
+Conditional security hardening also belongs here rather than in the Beta gate:
+Pod-wide destination policy, a dedicated egress proxy, and an outer runtime such
+as gVisor should be selected only when deployment evidence or a stronger threat
+model requires them. Reopen that work for untrusted multi-tenant operation,
+untrusted repositories, or workers holding high-value credentials; do not make
+a particular CNI or proxy an unconditional BuildMax dependency without that
+evidence.
+
 Workflow expansion starts with reconciliation and typed dataflow before graph
 breadth. A provider-neutral structured-output contract in the shared runtime is
 a prerequisite for typed routes, planners, evaluators, and richer Task results.
@@ -158,16 +165,16 @@ Server, worker, and Portal artifacts proposed for release.
 | Required proof | Acceptance outcome |
 |---|---|
 | Candidate deployment | Deploy pinned image digests with external MySQL, S3, and TLS; record versions, configuration, operator, and date. |
-| Execution boundary and topology | Prove the supported sandbox, resource limits, hook/MCP treatment, and Server topology. Unrestricted Bash with a recorded `none` boundary does not pass. Record residual worker egress and storage-credential limits explicitly. |
+| Execution boundary and topology | Prove the supported sandbox, resource limits, hook/MCP treatment, and Server topology. Unrestricted Bash with a recorded `none` boundary does not pass, and stdio MCP must be disabled unless its child process is confined by the declared worker boundary. Record residual Pod-wide egress and storage-credential limits explicitly. |
 | Persistence and failure behavior | Attach passing critical MySQL tests; exercise cancellation, worker loss, database outage, and storage denial. Runs reach documented terminal states and retain available results and diagnostic evidence. |
 | Recovery and maintenance | Restore the database and bucket together; exercise a schema upgrade and binary rollback, plus credential rotation. Record recovery time, data checks, and accepted loss. |
 | Operator journey | An operator who did not implement the feature can sign in, execute and retry work with a managed model, and diagnose results from TaskRun, Artifacts, traces, usage, and audit history. |
 | Release verification | Attach current CI, direct and managed Compose/kind smoke, Portal browser E2E, archive verification, image scans, SBOMs, and provenance. |
 
-Engineering closes the execution and topology gaps first, then widens
-persistence and negative deployment tests. External candidate qualification
-follows, ending with a signed readiness record. Account journeys and evaluation
-coverage can progress alongside this work.
+Engineering closes the narrow process-boundary bypass first, then prioritizes
+coordination, persistence, and negative deployment tests. External candidate
+qualification follows, ending with a signed readiness record. Account journeys
+and evaluation coverage can progress alongside this work.
 
 The [Beta readiness record](deploy/beta-readiness.md) holds the detailed
 procedure and evidence. Passing unit tests or local smoke does not replace

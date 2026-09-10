@@ -28,7 +28,7 @@
 
 ## Status
 
-- roadmap_priority: [`R0`](../ROADMAP.md) for the credential debt in §13, and
+- roadmap_priority: post-Beta hardening for the credential debt in §13, and
   [`R3`](../ROADMAP.md) for the space-facing surface. It answers Phase D3 of
   [plugin-space-distribution.md](plugin-space-distribution.md), which deferred
   secret delivery to a follow-on record.

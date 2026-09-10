@@ -51,8 +51,8 @@
   is now verified against a real pod carrying the worker's exact security
   context and by an organic end-to-end run the deployment smoke performs
   automatically — see [`deployment/seccomp/README.md`](../../deployment/seccomp/README.md)
-  — but the cluster `NetworkPolicy` question this document leaves to
-  trust-harness.md §3.9 remains untouched.
+  — but Pod-wide destination enforcement remains the conditional hardening
+  described by trust-harness.md §3.9.
 - follows: [sandbox-boundaries.md](./sandbox-boundaries.md),
   [trust-harness.md](./trust-harness.md) §3.2, §3.9,
   [plugin-space-distribution.md](./plugin-space-distribution.md) (the closest
@@ -124,11 +124,11 @@ in general:
   coarser than a per-agent domain/path editor, so this is not "layered
   profiles" in the general sense §3.9 declined — it is a fixed, small,
   versioned set of tiers a workload picks from.
-- **The cluster egress question in §3.9's table is untouched.** Whether a
-  production topology also needs a `NetworkPolicy` generated from the union of
-  resolved `allowed_domains` across a space's active agents is still open and
-  still belongs to §3.9, not this document. This document is scoped to the
-  Go-side `SandboxConfig` the in-process proxy and OS backend already enforce.
+- **Pod-wide egress is outside this decision.** Whether a production topology
+  also needs a `NetworkPolicy` derived from resolved `allowed_domains` is
+  conditional post-Beta hardening under §3.9, not part of this document. This
+  document is scoped to the Go-side `SandboxConfig` the in-process proxy and OS
+  backend already enforce.
 
 If a future deployment does need per-space profiles for axes other than
 network/filesystem, or needs domain-list granularity finer than the tiers
@@ -339,10 +339,9 @@ picker.)
   need a prompt on every dispatch, which is worse UX than what this document
   fixes. An agent that sometimes needs more should be revised, not overridden
   per run.
-- **Cluster-level `NetworkPolicy` generation.** trust-harness.md §3.9's egress
-  table row — whether a production topology needs a default-deny
-  `NetworkPolicy` derived from resolved `allowed_domains` — is unaffected and
-  still open.
+- **Cluster-level `NetworkPolicy` generation.** A default-deny policy derived
+  from resolved `allowed_domains` is conditional post-Beta hardening under
+  trust-harness.md §3.9.
 - **Process resource limits, CLI/Desktop sandbox defaults, or any axis of
   `SandboxConfig` other than `Network` and `Filesystem`.** Those stay
   deployment-wide, set by the surface baseline and `policy.yaml` alone.

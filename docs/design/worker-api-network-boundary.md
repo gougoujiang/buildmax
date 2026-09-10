@@ -29,7 +29,8 @@ policy](agent-sandbox-policy.md), [Graceful shutdown](graceful-shutdown.md), and
 
 ## 1. Status
 
-- roadmap_priority: `R0` — contain unattended worker execution
+- roadmap_priority: `R0` — candidate verification of the shipped worker API
+  boundary
 - status: shipped. M1 serves the worker control API on a second in-process
   listener with its own mux and fail-closed configuration; M2 makes that
   listener speak TLS while the worker reaches it through one explicit HTTP
@@ -43,8 +44,8 @@ policy](agent-sandbox-policy.md), [Graceful shutdown](graceful-shutdown.md), and
   makes the kind smoke generate the worker-listener certificate, run the worker
   over HTTPS, and prove the boundary in the same deployment — a labelled worker
   pod reaches the worker port, an unlabelled one is denied, and `/api/worker`
-  answers `404` on the public Service. The wider domain-aware worker egress
-  question stays open in [trust-harness.md](trust-harness.md) §3.9.
+  answers `404` on the public Service. Wider Pod-level worker egress is
+  conditional post-Beta hardening in [trust-harness.md](trust-harness.md) §3.9.
 - decision_date: `2026-09-05`
 - scope: isolate the Server's worker control channel from its public HTTP
   surface and authenticate its transport
@@ -322,9 +323,9 @@ This policy protects direct Pod-IP access as well as Service access. A
 
 The design does not add a default-deny worker egress policy. Doing that while
 preserving Git, registry, model, and object-storage access requires the
-domain-aware egress decision still open in
-[trust-harness.md](trust-harness.md) §3.9. The reference may add a narrow worker
-egress rule later when that path is decided and verified.
+conditional hardening decision in [trust-harness.md](trust-harness.md) §3.9.
+The reference may add a narrow worker egress rule later if deployment evidence
+reopens that path.
 
 ### 7.4 Namespace Boundary
 
@@ -577,7 +578,7 @@ YAML file that merely parses is not evidence the boundary is connected.
 | Is `ClusterIP` sufficient without `NetworkPolicy`? | No. It prevents deliberate external service exposure but does not prevent direct cluster access |
 | Is TLS without mTLS sufficient? | It protects the token and verifies the Server; NetworkPolicy plus the run token authenticates the caller. Per-Pod mTLS is preferred where workload identity exists |
 | Should the public OpenAPI describe worker routes? | Yes initially, provided registration tests prove description is not reachability |
-| Can worker egress become default-deny in this change? | No. Domain-aware external access and object-storage/model destinations require the broader decision in `trust-harness.md` §3.9 |
+| Can worker egress become default-deny in this change? | No. Pod-wide destination enforcement is conditional post-Beta hardening in `trust-harness.md` §3.9 |
 | Should Server and workers move to different namespaces? | Compatible follow-up; not required to create the listener boundary |
 | How are certificates issued and rotated? | Operator/platform supplied; restart-based rotation first, live reload only if operating evidence requires it |
 
@@ -598,6 +599,6 @@ When the design ships:
 - [Worker run token](worker-run-token.md) stops describing network reachability
   as if token scope were the whole boundary;
 - [Trust harness](trust-harness.md) marks the Server-control-channel part of
-  §3.9 closed while keeping general worker egress open; and
+  §3.9 closed while deferring general worker egress to evidence; and
 - [Support matrix](../../manual/support.md) describes the deployed boundary only
   after the kind denial probe is part of the normal smoke.

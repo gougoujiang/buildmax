@@ -17,9 +17,9 @@
 - roadmap_priority: `R0`
 - status: `in_progress` — hooks, durable traces, the Bash sandbox, process
   limits, Agent/Space sandbox tiers, worker baseline selection, and worker API
-  ingress isolation are implemented. MCP stdio child-process containment,
-  worker-wide egress enforcement, candidate boundary evidence, and resolved
-  policy presentation remain open
+  ingress isolation are implemented. Fail-closed treatment for worker stdio
+  MCP, candidate boundary evidence, and resolved policy presentation remain
+  open. Pod-wide egress and an outer runtime are conditional post-Beta hardening
 - follows: P0 Agent Core stability, P1 Local agent experience, and P2 Portal outcome surface — all complete; their plans were retired (see git history)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-05-23`
@@ -27,17 +27,17 @@
 ## 1. Purpose
 
 The completed P0 work made the shared Agent Core stable enough for CLI, Desktop,
-Portal, and worker task runs. The remaining R0 work should make the core more
-trustworthy and easier to operate.
+Portal, and worker task runs. The remaining R0 work closes the one known process
+path around the worker sandbox and makes the supported boundary verifiable.
 
-This document intentionally stays at the product-capability level. It lists the
-key things BuildMax should support next, without prescribing detailed
-implementation shape.
+This document intentionally stays at the product-capability level. It records
+the trust capabilities already delivered and the bounded work that remains.
 
 ## 2. Direction
 
-R0 should focus on the shared Agent Core first. CLI, Desktop, Portal, and worker
-should expose the same core capabilities in surface-appropriate ways.
+The remaining R0 work focuses on the supported unattended-worker profile. CLI,
+Desktop, Portal, and worker should still expose shared core capabilities in
+surface-appropriate ways.
 
 The goal is:
 
@@ -262,166 +262,62 @@ Worker runs should:
 
 - fail closed when approval would be required
 - run with explicit sandbox boundaries
+- reject stdio MCP unless its child process can enter the declared boundary
 - record enough trace data for Portal diagnostics
 - load only the memory and instructions appropriate for the space/run scope
 - make denied actions understandable
 - avoid hiding local/remote capability drift
 
-### 3.9 Who Chooses A Worker's Boundary — open
+### 3.9 Pod-Wide Worker Egress — deferred conditional hardening
 
-Absorbed from the retired *Agent execution policy* proposal. Four things about
-worker execution are settled and described above or in
-[sandbox-boundaries.md](./sandbox-boundaries.md): what a run holds, what it runs
-inside, its resource bounds, and what it records. What is not settled is
-**authority**. The boundary is fixed by the deployment's manifests rather than
-chosen: a cluster operator hardens every worker equally or not at all, no space
-can be given a different one, and nothing defines what happens when a requested
-constraint is unavailable. The worker sandbox now fails closed when its
-required backend is unavailable, but cluster-level network egress is still not
-part of that enforcement.
+The shipped command boundary already constrains model-selected Bash and WebFetch
+network access, and hook transports consult the same policy. The worker control
+channel also has its own TLS listener and an ingress NetworkPolicy; see
+[worker-api-network-boundary.md](./worker-api-network-boundary.md). These controls
+do not impose a destination allow-list on every process in the Pod. General
+worker egress and the storage identity available to the worker remain explicit
+residual limits.
 
-One part of this is now closed: how a worker reaches the *Server*. The worker
-control channel is served on its own internal listener over TLS, fronted by an
-internal Service and a NetworkPolicy that admits only labelled worker pods — see
-[worker-api-network-boundary.md](./worker-api-network-boundary.md). That bounds
-worker-to-Server traffic; it does not decide worker egress to Git hosts,
-registries, or model endpoints.
+That wider boundary is not required for the first Beta, which supports one
+trusted Space on a private network. Making it an R0 gate would introduce a CNI
+or operated proxy before BuildMax has evidence for the legitimate destinations
+real runs need, and an allowed Git host, package registry, model endpoint, or
+upload service could still receive intentionally exfiltrated data. The Beta
+candidate must record the residual limit rather than imply containment it does
+not provide.
 
-The concrete gap that remains is general network egress. A worker pod reaches
-anything the cluster allows, and `deployment/production/README.md` states that
-absence rather than implying a boundary it does not have.
+Reopen Pod-wide destination enforcement when evidence changes the supported
+threat model, including any of these conditions:
 
-The essential outcome is narrower than a general network-policy product:
+- mutually untrusted tenants share worker infrastructure;
+- arbitrary untrusted repositories are a supported input;
+- workers hold high-value credentials whose exfiltration requires a Pod-wide
+  control rather than the existing command and hook boundaries; or
+- an operator requires and is prepared to operate a deployment-wide egress
+  allow-list.
 
-> An unattended worker cannot connect directly to an external destination that
-> the operator did not allow, every process in the pod is inside that boundary,
-> and a run does not silently continue when required enforcement is absent.
+Before selecting an implementation, record the destinations representative runs
+actually need and the deployment environments that must support enforcement.
+Portable Kubernetes `NetworkPolicy`, Cilium FQDN rules, and a dedicated egress
+proxy have materially different portability, hostname-authority, protocol, and
+operating costs. None is an unconditional BuildMax dependency until that evidence
+selects it. Per-Space policy, alternate-DNS and direct-IP bypass qualification,
+and an outer runtime such as gVisor belong to the same conditional hardening
+decision, not the current R0.
 
-This matters specifically for a malicious prompt or repository causing a
-model-chosen shell command or MCP child process to exfiltrate data. A proxy used
-only by cooperative HTTP clients does not contain the whole pod; the network
-boundary must also prevent a process from bypassing that proxy with a direct IP
-connection or a different DNS resolver.
-
-Four shapes were considered. Per-user runtime settings are disqualified: they
-cannot give an operator an authoritative worker boundary. Leaving it entirely to
-cluster manifests is coherent, but leaves BuildMax unable to record or explain a
-boundary it does not model, which the Beta gate requires. So the live choice is
-one deployment-wide profile in `server.yaml` against layered operator/space/task
-profiles, and **deployment-wide holds until evidence says otherwise** — it is
-materially cheaper, and a per-space boundary should be paid for by an operator
-who asks for it rather than assumed.
-
-What remains open, and what each needs:
-
-| Question | What would settle it |
-|---|---|
-| Is a per-space boundary a real requirement? | An operator statement either way. Until there is one, deployment-wide stands |
-| Does an inapplicable profile fail the run or downgrade it with a recorded warning? | Downgrade is defensible now that a trace reports an unsandboxed run as unsandboxed (§3.3). It must be decided before the worker surface is passed, because that baseline sets `FailIfUnavailable: true` |
-| Which destinations does a worker legitimately need? | A default-deny NetworkPolicy in the production reference, proven by a kind smoke run that still completes a task. The allow-list has to be grounded in what real runs reach — package registries, Git hosts, whatever a space configures — not assumed. Whether it is a NetworkPolicy alone or a proxy enforcing the host allow-list the sandbox contract already models with `HostAllowed`/`ProxyAddress` is part of the same question |
-| Does an approval gate belong here at all? | Unattended scheduled work is a primary use and nothing gates it today, so the burden is on adding one |
-| How is a profile change versioned and attached to an existing TaskRun record? | Falls out of whichever shape wins |
-
-#### 3.9.1 Enforcement Options
-
-The available mechanisms solve different parts of the problem and must not be
-described as equivalent:
-
-| Mechanism | What it proves | Limit |
-|---|---|---|
-| Kubernetes `NetworkPolicy` | Portable default-deny, exact internal Pod/namespace destinations, ports, and fixed external CIDRs | It has no hostname or DNS-query selector; a changing public service cannot be represented safely as a static CIDR list |
-| Cilium `toFQDNs` | Open-source DNS-aware egress rules, enforced for the whole selected pod, with flow and DNS evidence through Hubble | DNS answers are translated into L3 IP rules; shared CDN IPs and an allowed destination that itself relays traffic make this weaker than strict application-layer hostname authorization |
-| Calico Open Source policy | Portable Calico/Kubernetes policy plus richer ordering and selectors | Domain-based egress is a Calico Enterprise/Cloud capability, so it is not the open-source reference for this requirement |
-| A dedicated egress proxy plus default-deny `NetworkPolicy` | The pod can reach only the proxy, while the proxy validates HTTP targets or HTTPS `CONNECT` hostnames and centralizes audit evidence | It adds an operated dependency and still needs rules for non-HTTP protocols; TLS interception is a separate, substantially larger trust decision |
-
-References: [Kubernetes NetworkPolicy](https://kubernetes.io/docs/concepts/services-networking/network-policies/),
-[Cilium DNS-based policy](https://docs.cilium.io/en/stable/security/policy/layer3/#dns-based),
-[Cilium DNS policy and IP discovery](https://docs.cilium.io/en/stable/security/policy/layer7/#dns-policy-and-ip-discovery),
-and [Calico Enterprise DNS policy](https://docs.tigera.io/calico-enterprise/latest/network-policy/domain-based-policy).
-
-An FQDN allow-list is therefore a useful containment layer, not proof that an
-HTTPS request reached only the named virtual host. The stronger claim requires
-the pod to have no direct world egress and to send supported external protocols
-through a policy-enforcing proxy. Neither mechanism can make an allowed upload,
-Git host, package registry, or model endpoint safe from intentional data sent
-to that allowed destination.
-
-#### 3.9.2 Reference Qualification Direction
-
-The next evidence pass should use Cilium in the local kind cluster. Cilium has
-an official kind installation path, its open-source FQDN policy exercises the
-domain-shaped requirement directly, and Hubble makes accepted and denied flows
-observable. This is a qualification choice for the reference environment, not
-a requirement that every BuildMax deployment adopt Cilium.
-
-The kind lifecycle has to become:
-
-1. create the cluster with kind's default CNI disabled;
-2. install Cilium;
-3. wait for nodes to become Ready; and
-4. deploy ingress and the BuildMax stack.
-
-Waiting for Ready before installing the replacement CNI cannot work because
-nodes intentionally remain NotReady without a CNI. The first worker policy
-prototype should select the stable labels already stamped by the Kubernetes Job
-builder and default-deny egress, then allow only:
-
-- TCP and UDP DNS to the cluster DNS pods, with DNS queries narrowed to the
-  external names the run may use and the exact internal service names it needs;
-- the internal worker API on port 5679;
-- the configured object store;
-- the configured model endpoint; and
-- explicitly approved Git hosts, package registries, and other external
-  destinations, normally on their required port rather than all ports.
-
-Internal destinations should use Pod, namespace, or Service identities rather
-than FQDN-to-public-IP rules. External wildcard entries must be exceptional and
-reviewed: `*.example.com` grants every present and future subdomain, while a
-bare `example.com` does not imply its subdomains.
-
-The prototype is acceptable evidence only if one automated kind run proves all
-of the following against a real Cilium data plane:
-
-- the existing worker task still completes through the worker API, object
-  store, and configured model endpoint;
-- an allowed external hostname and port succeed;
-- a disallowed hostname, a direct public IP, an alternate DNS resolver, and an
-  unlisted port fail;
-- a Bash subprocess and an MCP stdio child process cannot bypass the pod-wide
-  rule;
-- accepted and denied flows are inspectable without exposing credentials; and
-- removing or failing the required enforcement stops the worker run instead of
-  silently restoring unrestricted egress.
-
-The test must also record the shared-IP limitation rather than converting a
-green FQDN test into a claim of strict hostname isolation. After this evidence,
-the project can decide whether the Cilium profile is sufficient for the first
-private Beta or whether the production contract requires the stronger egress
-proxy shape.
-
-Out of scope whichever way it lands: a general policy language, and replacing
-operating-system, Kubernetes, cloud, or network controls — a profile should
-*drive* a NetworkPolicy, not reimplement one.
-
-The cheapest missing input remains a threat model covering a malicious prompt,
-a model-chosen shell command, an MCP child process, DNS and direct-IP bypasses,
-and abuse of an allowed destination. It must be evaluated against the
-containment that now exists rather than against the state before it. The kind
-qualification above turns that threat model into executable evidence instead
-of a guessed allow-list.
-
-[agent-sandbox-policy.md](./agent-sandbox-policy.md) proposes an answer to the
-first two rows above, narrower than "layered per-space profiles" in general: it
-reopens deployment-wide-by-default for the `Network`/`Filesystem` axes of
-`SandboxConfig` only, moving those two to a fixed, small set of
-agent-revision-scoped tiers, while every other axis and the operator's
-`policy.yaml` ceiling stay exactly as decided here. The cluster egress row
-remains open and belongs to this section, not that document.
+The immediate process-boundary problem is smaller and does remain in R0: stdio
+MCP servers start as direct worker child processes. The supported unattended
+worker profile must reject them unless BuildMax can launch them inside the
+declared sandbox boundary. Disabling an unsupported transport is sufficient for
+the first Beta; BuildMax does not need to create a general Pod-egress product in
+order to make that claim.
 
 ## 4. Explicitly Out Of Scope For Now
 
 Do not include these in the current R0 trust-boundary scope:
 
+- Pod-wide destination policy, a dedicated egress proxy, or CNI selection
+- gVisor or another outer worker runtime
 - user-selectable checkpoint rollback or timeline restore
 - automatic workspace write-back or merging
 - full Portal audit product
@@ -438,29 +334,29 @@ write-back remain separate product questions and do not block R0.
 
 ## 5. Suggested Priority
 
-Recommended implementation order:
+The remaining R0 implementation order is:
 
-1. Durable run trace
-2. Sandbox and execution boundaries
-3. Memory and instructions
-4. Activity views
-5. Doctor and diagnostics
-6. Runtime hooks
-7. Subagent traceability
-8. Safer worker execution polish
+1. Reject worker stdio MCP unless the child process can use the declared
+   sandbox boundary.
+2. Present the resolved sandbox and MCP treatment where an operator diagnoses a
+   TaskRun.
+3. Exercise the existing command, hook, resource, and worker API boundaries
+   with the candidate artifacts.
 
-This order gives the space better visibility first, then better control, then
-more extensibility.
+Other trust-harness improvements follow demonstrated user or operator needs and
+do not block the first private Beta.
 
 ## 6. Acceptance
 
-The R0 trust-boundary work is successful when:
+The remaining R0 trust-boundary work is successful when:
 
-- users can inspect what happened in a run
-- users can understand tool approval and denial decisions
-- users and operators can understand active sandbox boundaries
-- local setup problems are easy to diagnose
-- worker runs produce useful diagnostic traces
-- memory is scoped, inspectable, and user-controllable
-- hooks can support common automation use cases
-- subagent behavior is attributable and policy-bound
+- no stdio MCP child runs outside the boundary claimed by the supported worker
+  profile;
+- missing required enforcement stops the run before model execution;
+- an operator can see the resolved sandbox and MCP treatment for a TaskRun; and
+- candidate deployment evidence verifies the already-supported Bash, hook,
+  process-limit, and worker API controls.
+
+Pod-wide egress and outer-runtime isolation remain truthful, accepted limits for
+the first private Beta. They become release gates only if the supported threat
+model changes.
