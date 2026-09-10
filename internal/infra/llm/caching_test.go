@@ -17,7 +17,7 @@ import (
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
-func newCachingClient(t *testing.T, provider, baseURL string) *LLMClient {
+func newCachingClient(t *testing.T, provider, baseURL string) *Client {
 	t.Helper()
 	client, err := NewClient(Config{
 		Provider: provider, APIKey: "test-key", BaseURL: baseURL,

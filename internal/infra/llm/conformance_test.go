@@ -565,7 +565,7 @@ func newUpstream(t *testing.T, p protocol, r reply, failStatus int) *upstream {
 	return up
 }
 
-func newTestClient(t *testing.T, provider, baseURL string) *LLMClient {
+func newTestClient(t *testing.T, provider, baseURL string) *Client {
 	t.Helper()
 	client, err := NewClient(Config{
 		Provider:      provider,

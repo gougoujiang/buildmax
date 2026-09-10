@@ -222,7 +222,7 @@ func TestReasoningIsOffByDefault(t *testing.T) {
 	}
 }
 
-func newReasoningClient(t *testing.T, provider, baseURL string) *LLMClient {
+func newReasoningClient(t *testing.T, provider, baseURL string) *Client {
 	t.Helper()
 	client, err := NewClient(Config{
 		Provider:      provider,

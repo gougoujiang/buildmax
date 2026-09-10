@@ -69,27 +69,27 @@ type adapter interface {
 	streaming(ctx context.Context, req cllm.Request, onDelta func(string)) (cllm.Completion, error)
 }
 
-// LLMClient calls one model through one wire protocol and holds the
+// Client calls one model through one wire protocol and holds the
 // configuration for those calls.
-type LLMClient struct {
+type Client struct {
 	adapter       adapter
 	contextWindow int
 	callTimeout   time.Duration
 }
 
 // ContextWindow returns the configured context window size (0 = no windowing).
-func (c *LLMClient) ContextWindow() int { return c.contextWindow }
+func (c *Client) ContextWindow() int { return c.contextWindow }
 
 // Provider returns the wire protocol this client speaks. Diagnostics and the
 // trace use it to say which protocol served a call.
-func (c *LLMClient) Provider() string { return c.adapter.name() }
+func (c *Client) Provider() string { return c.adapter.name() }
 
 // NewClient builds an LLM client for the configured wire protocol.
 //
 // An unknown provider is an error rather than a fallback: a model that cannot
 // be reached the way it was configured must fail at selection, not send its
 // prompt somewhere the operator did not name.
-func NewClient(cfg Config) (*LLMClient, error) {
+func NewClient(cfg Config) (*Client, error) {
 	cw := cfg.ContextWindow
 	if cw == 0 {
 		cw = resolveContextWindow(cfg)
@@ -141,7 +141,7 @@ func NewClient(cfg Config) (*LLMClient, error) {
 		return nil, err
 	}
 
-	return &LLMClient{
+	return &Client{
 		adapter:       impl,
 		contextWindow: cw,
 		callTimeout:   callTimeout,
@@ -166,7 +166,7 @@ func resolveContextWindow(cfg Config) int {
 // ChatCompletionBlocking sends messages and tool definitions, returns assistant content, any tool calls, and usage.
 // Retries on rate-limit and transient server errors up to maxRetryAttempts times.
 // Errors are wrapped with a human-readable classification before being returned.
-func (c *LLMClient) ChatCompletionBlocking(ctx context.Context, req cllm.Request) (completion cllm.Completion, err error) {
+func (c *Client) ChatCompletionBlocking(ctx context.Context, req cllm.Request) (completion cllm.Completion, err error) {
 	for attempt := range maxRetryAttempts {
 		if attempt > 0 {
 			logRetry(attempt, err)
@@ -192,7 +192,7 @@ func (c *LLMClient) ChatCompletionBlocking(ctx context.Context, req cllm.Request
 // Retries on transient errors only when no delta has been emitted yet, to avoid duplicate output.
 // Errors are wrapped with a human-readable classification before being returned.
 // If onDelta is nil, it is not called.
-func (c *LLMClient) ChatCompletionStreaming(ctx context.Context, req cllm.Request, onDelta func(delta string)) (completion cllm.Completion, err error) {
+func (c *Client) ChatCompletionStreaming(ctx context.Context, req cllm.Request, onDelta func(delta string)) (completion cllm.Completion, err error) {
 	for attempt := range maxRetryAttempts {
 		if attempt > 0 {
 			logRetry(attempt, err)
@@ -222,7 +222,7 @@ func (c *LLMClient) ChatCompletionStreaming(ctx context.Context, req cllm.Reques
 
 // withCallTimeout bounds one attempt. The returned cancel is always safe to
 // call, so the caller does not branch on whether a timeout is configured.
-func (c *LLMClient) withCallTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+func (c *Client) withCallTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	if c.callTimeout <= 0 {
 		return context.WithCancel(ctx)
 	}
@@ -238,5 +238,5 @@ func maxTokensOrDefault(configured int) int {
 	return config.DefaultMaxTokens
 }
 
-// Ensure *LLMClient implements cllm.LLMClient.
-var _ cllm.LLMClient = (*LLMClient)(nil)
+// Ensure *Client implements cllm.LLMClient.
+var _ cllm.LLMClient = (*Client)(nil)
