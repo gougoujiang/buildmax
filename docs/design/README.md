@@ -57,6 +57,7 @@ the individual record rather than being duplicated here.
 | [Prompt cache control](prompt-cache-control.md) | Active plan | Provider-native prompt caching and its telemetry |
 | [Parallel tool execution](parallel-tool-execution.md) | Active plan | Safe concurrency for read-only tools and subagents |
 | [Structured output](structured-output.md) | Active plan | Provider-neutral schema-constrained model results |
+| [ACP interoperability boundary](acp-interoperability.md) | Direction | How BuildMax may expose its native Agent Core to ACP clients without making ACP an internal or external-executor contract |
 | [Client modes: local and managed](client-modes.md) | Specification | Login-derived mode selection, model inventory, and usage attribution |
 | [LLM provider adapters](llm-provider-adapters.md) | Specification | Canonical messages and provider protocol differences |
 | [Hook system](hook-system.md) | Specification | Runtime events, transports, failure behavior, and trust boundaries |
