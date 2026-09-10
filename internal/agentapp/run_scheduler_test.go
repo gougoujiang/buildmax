@@ -8,16 +8,17 @@ import (
 	"time"
 )
 
-// fakeHost drives the scheduler without a model. RunPrompt records the prompts
-// it sees and, when runFn is set, defers to it so a test can block or fail a
-// turn deterministically.
+// fakeHost drives the scheduler without a model. RunPrompt and RunBackgroundEvent
+// record what they see and, when runFn is set, defer to it so a test can block or
+// fail a turn deterministically.
 type fakeHost struct {
 	mu      sync.Mutex
 	opened  int
 	closed  int
 	prompts []string
+	events  []string
 	openErr error
-	runFn   func(ctx context.Context, prompt string) (RunResult, error)
+	runFn   func(ctx context.Context, label string) (RunResult, error)
 }
 
 func (f *fakeHost) OpenSession(string) (*SessionContext, error) {
@@ -47,6 +48,17 @@ func (f *fakeHost) RunPrompt(ctx context.Context, _ *SessionContext, prompt stri
 	return RunResult{Reply: prompt}, nil
 }
 
+func (f *fakeHost) RunBackgroundEvent(ctx context.Context, _ *SessionContext, ev BackgroundEvent, _ RunPromptOpts) (RunResult, error) {
+	f.mu.Lock()
+	f.events = append(f.events, ev.JobID)
+	fn := f.runFn
+	f.mu.Unlock()
+	if fn != nil {
+		return fn(ctx, ev.JobID)
+	}
+	return RunResult{Reply: ev.JobID}, nil
+}
+
 func (f *fakeHost) closedCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -60,6 +72,7 @@ type recorder struct {
 	host *fakeHost
 
 	mu           sync.Mutex
+	started      int
 	turnDone     int
 	turnErrs     []error
 	dequeued     []string
@@ -71,6 +84,11 @@ type recorder struct {
 func newRecorder(h *fakeHost) *recorder { return &recorder{host: h, done: make(chan struct{})} }
 
 func (r *recorder) RunOpts() RunPromptOpts { return RunPromptOpts{} }
+func (r *recorder) OnStart(*SessionContext) {
+	r.mu.Lock()
+	r.started++
+	r.mu.Unlock()
+}
 func (r *recorder) TurnDone(RunResult) {
 	r.mu.Lock()
 	r.turnDone++
@@ -106,9 +124,9 @@ func (r *recorder) wait(t *testing.T) {
 func TestRunSchedulerIdleRunsImmediately(t *testing.T) {
 	h := &fakeHost{}
 	rec := newRecorder(h)
-	s := NewRunScheduler(h)
+	s := NewRunScheduler()
 
-	pos, err := s.Submit(context.Background(), "k", "", "hello", rec)
+	pos, err := s.Submit(context.Background(), "k", "", "hello", h, rec)
 	if err != nil {
 		t.Fatalf("submit: %v", err)
 	}
@@ -119,6 +137,9 @@ func TestRunSchedulerIdleRunsImmediately(t *testing.T) {
 
 	if got := h.prompts; len(got) != 1 || got[0] != "hello" {
 		t.Fatalf("prompts = %v, want [hello]", got)
+	}
+	if rec.started != 1 {
+		t.Fatalf("OnStart count = %d, want 1", rec.started)
 	}
 	if rec.turnDone != 1 || rec.doneErr != nil {
 		t.Fatalf("turnDone=%d doneErr=%v, want 1 and nil", rec.turnDone, rec.doneErr)
@@ -133,23 +154,23 @@ func TestRunSchedulerIdleRunsImmediately(t *testing.T) {
 
 func TestRunSchedulerQueuesWhileBusyAndDrainsInOrder(t *testing.T) {
 	block := make(chan struct{})
-	h := &fakeHost{runFn: func(ctx context.Context, prompt string) (RunResult, error) {
-		if prompt == "A" {
+	h := &fakeHost{runFn: func(ctx context.Context, label string) (RunResult, error) {
+		if label == "A" {
 			<-block // hold the first turn until B and C are queued
 		}
-		return RunResult{Reply: prompt}, nil
+		return RunResult{Reply: label}, nil
 	}}
 	rec := newRecorder(h)
-	s := NewRunScheduler(h)
+	s := NewRunScheduler()
 
-	if pos, _ := s.Submit(context.Background(), "k", "", "A", rec); pos != 0 {
+	if pos, _ := s.Submit(context.Background(), "k", "", "A", h, rec); pos != 0 {
 		t.Fatalf("first submit position = %d, want 0", pos)
 	}
 	// The slot is reserved synchronously, so these queue rather than start runs.
-	if pos, _ := s.Submit(context.Background(), "k", "", "B", rec); pos != 1 {
+	if pos, _ := s.Submit(context.Background(), "k", "", "B", h, rec); pos != 1 {
 		t.Fatalf("B position = %d, want 1", pos)
 	}
-	if pos, _ := s.Submit(context.Background(), "k", "", "C", rec); pos != 2 {
+	if pos, _ := s.Submit(context.Background(), "k", "", "C", h, rec); pos != 2 {
 		t.Fatalf("C position = %d, want 2", pos)
 	}
 	close(block)
@@ -171,19 +192,19 @@ func TestRunSchedulerQueuesWhileBusyAndDrainsInOrder(t *testing.T) {
 
 func TestRunSchedulerCancelDropsQueueAndStopsRun(t *testing.T) {
 	block := make(chan struct{})
-	h := &fakeHost{runFn: func(ctx context.Context, prompt string) (RunResult, error) {
+	h := &fakeHost{runFn: func(ctx context.Context, label string) (RunResult, error) {
 		select {
 		case <-ctx.Done():
 			return RunResult{}, ctx.Err()
 		case <-block:
-			return RunResult{Reply: prompt}, nil
+			return RunResult{Reply: label}, nil
 		}
 	}}
 	rec := newRecorder(h)
-	s := NewRunScheduler(h)
+	s := NewRunScheduler()
 
-	s.Submit(context.Background(), "k", "", "A", rec)
-	if pos, _ := s.Submit(context.Background(), "k", "", "B", rec); pos != 1 {
+	s.Submit(context.Background(), "k", "", "A", h, rec)
+	if pos, _ := s.Submit(context.Background(), "k", "", "B", h, rec); pos != 1 {
 		t.Fatalf("B position = %d, want 1", pos)
 	}
 	s.Cancel("k")
@@ -207,9 +228,9 @@ func TestRunSchedulerCancelDropsQueueAndStopsRun(t *testing.T) {
 func TestRunSchedulerClosesSessionBeforeDone(t *testing.T) {
 	h := &fakeHost{}
 	rec := newRecorder(h)
-	s := NewRunScheduler(h)
+	s := NewRunScheduler()
 
-	s.Submit(context.Background(), "k", "", "hello", rec)
+	s.Submit(context.Background(), "k", "", "hello", h, rec)
 	rec.wait(t)
 
 	if rec.closedAtDone < 1 {
@@ -220,9 +241,9 @@ func TestRunSchedulerClosesSessionBeforeDone(t *testing.T) {
 func TestRunSchedulerOpenSessionFailureReleasesSlot(t *testing.T) {
 	h := &fakeHost{openErr: errors.New("boom")}
 	rec := newRecorder(h)
-	s := NewRunScheduler(h)
+	s := NewRunScheduler()
 
-	pos, err := s.Submit(context.Background(), "k", "", "hello", rec)
+	pos, err := s.Submit(context.Background(), "k", "", "hello", h, rec)
 	if err == nil {
 		t.Fatal("expected error when OpenSession fails")
 	}
@@ -237,16 +258,73 @@ func TestRunSchedulerOpenSessionFailureReleasesSlot(t *testing.T) {
 func TestRunSchedulerAfterRunKeyIsReusable(t *testing.T) {
 	h := &fakeHost{}
 	rec1 := newRecorder(h)
-	s := NewRunScheduler(h)
-	s.Submit(context.Background(), "k", "", "first", rec1)
+	s := NewRunScheduler()
+	s.Submit(context.Background(), "k", "", "first", h, rec1)
 	rec1.wait(t)
 
 	rec2 := newRecorder(h)
-	if pos, err := s.Submit(context.Background(), "k", "", "second", rec2); err != nil || pos != 0 {
+	if pos, err := s.Submit(context.Background(), "k", "", "second", h, rec2); err != nil || pos != 0 {
 		t.Fatalf("second submit pos=%d err=%v, want 0 and nil", pos, err)
 	}
 	rec2.wait(t)
 	if h.opened != 2 {
 		t.Fatalf("opened = %d, want 2 (a session per run)", h.opened)
 	}
+}
+
+func TestRunSchedulerStartEventRunsThenDrainsPrompts(t *testing.T) {
+	h := &fakeHost{}
+	rec := newRecorder(h)
+	s := NewRunScheduler()
+
+	popped := false
+	pop := func() (BackgroundEvent, bool) {
+		popped = true
+		return BackgroundEvent{JobID: "job-1"}, true
+	}
+	started, err := s.StartEvent(context.Background(), "k", "sess", h, pop, rec)
+	if err != nil || !started {
+		t.Fatalf("StartEvent started=%v err=%v, want true and nil", started, err)
+	}
+	if !popped {
+		t.Fatal("pop was not called on an idle key")
+	}
+	rec.wait(t)
+
+	if got := h.events; len(got) != 1 || got[0] != "job-1" {
+		t.Fatalf("events = %v, want [job-1]", got)
+	}
+	if rec.started != 1 || rec.turnDone != 1 {
+		t.Fatalf("started=%d turnDone=%d, want 1 and 1", rec.started, rec.turnDone)
+	}
+}
+
+func TestRunSchedulerStartEventDeclinesAndDoesNotPopWhenBusy(t *testing.T) {
+	block := make(chan struct{})
+	h := &fakeHost{runFn: func(ctx context.Context, label string) (RunResult, error) {
+		<-block
+		return RunResult{Reply: label}, nil
+	}}
+	rec := newRecorder(h)
+	s := NewRunScheduler()
+
+	// Occupy the key with a foreground run.
+	s.Submit(context.Background(), "k", "", "A", h, rec)
+
+	popped := false
+	started, err := s.StartEvent(context.Background(), "k", "sess", h, func() (BackgroundEvent, bool) {
+		popped = true
+		return BackgroundEvent{JobID: "job-1"}, true
+	}, newRecorder(h))
+	if err != nil {
+		t.Fatalf("StartEvent err = %v", err)
+	}
+	if started {
+		t.Fatal("StartEvent started a second run on a busy key")
+	}
+	if popped {
+		t.Fatal("StartEvent popped the event on a busy key; it must be left parked")
+	}
+	close(block)
+	rec.wait(t)
 }
