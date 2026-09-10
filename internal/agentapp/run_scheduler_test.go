@@ -126,7 +126,7 @@ func TestRunSchedulerIdleRunsImmediately(t *testing.T) {
 	rec := newRecorder(h)
 	s := NewRunScheduler()
 
-	pos, err := s.Submit(context.Background(), "k", "", "hello", h, rec)
+	pos, err := s.Submit(context.Background(), "k", "", "hello", func() (RunHost, error) { return h, nil }, rec)
 	if err != nil {
 		t.Fatalf("submit: %v", err)
 	}
@@ -163,14 +163,14 @@ func TestRunSchedulerQueuesWhileBusyAndDrainsInOrder(t *testing.T) {
 	rec := newRecorder(h)
 	s := NewRunScheduler()
 
-	if pos, _ := s.Submit(context.Background(), "k", "", "A", h, rec); pos != 0 {
+	if pos, _ := s.Submit(context.Background(), "k", "", "A", func() (RunHost, error) { return h, nil }, rec); pos != 0 {
 		t.Fatalf("first submit position = %d, want 0", pos)
 	}
 	// The slot is reserved synchronously, so these queue rather than start runs.
-	if pos, _ := s.Submit(context.Background(), "k", "", "B", h, rec); pos != 1 {
+	if pos, _ := s.Submit(context.Background(), "k", "", "B", func() (RunHost, error) { return h, nil }, rec); pos != 1 {
 		t.Fatalf("B position = %d, want 1", pos)
 	}
-	if pos, _ := s.Submit(context.Background(), "k", "", "C", h, rec); pos != 2 {
+	if pos, _ := s.Submit(context.Background(), "k", "", "C", func() (RunHost, error) { return h, nil }, rec); pos != 2 {
 		t.Fatalf("C position = %d, want 2", pos)
 	}
 	close(block)
@@ -203,8 +203,8 @@ func TestRunSchedulerCancelDropsQueueAndStopsRun(t *testing.T) {
 	rec := newRecorder(h)
 	s := NewRunScheduler()
 
-	s.Submit(context.Background(), "k", "", "A", h, rec)
-	if pos, _ := s.Submit(context.Background(), "k", "", "B", h, rec); pos != 1 {
+	s.Submit(context.Background(), "k", "", "A", func() (RunHost, error) { return h, nil }, rec)
+	if pos, _ := s.Submit(context.Background(), "k", "", "B", func() (RunHost, error) { return h, nil }, rec); pos != 1 {
 		t.Fatalf("B position = %d, want 1", pos)
 	}
 	s.Cancel("k")
@@ -230,7 +230,7 @@ func TestRunSchedulerClosesSessionBeforeDone(t *testing.T) {
 	rec := newRecorder(h)
 	s := NewRunScheduler()
 
-	s.Submit(context.Background(), "k", "", "hello", h, rec)
+	s.Submit(context.Background(), "k", "", "hello", func() (RunHost, error) { return h, nil }, rec)
 	rec.wait(t)
 
 	if rec.closedAtDone < 1 {
@@ -243,7 +243,7 @@ func TestRunSchedulerOpenSessionFailureReleasesSlot(t *testing.T) {
 	rec := newRecorder(h)
 	s := NewRunScheduler()
 
-	pos, err := s.Submit(context.Background(), "k", "", "hello", h, rec)
+	pos, err := s.Submit(context.Background(), "k", "", "hello", func() (RunHost, error) { return h, nil }, rec)
 	if err == nil {
 		t.Fatal("expected error when OpenSession fails")
 	}
@@ -259,11 +259,11 @@ func TestRunSchedulerAfterRunKeyIsReusable(t *testing.T) {
 	h := &fakeHost{}
 	rec1 := newRecorder(h)
 	s := NewRunScheduler()
-	s.Submit(context.Background(), "k", "", "first", h, rec1)
+	s.Submit(context.Background(), "k", "", "first", func() (RunHost, error) { return h, nil }, rec1)
 	rec1.wait(t)
 
 	rec2 := newRecorder(h)
-	if pos, err := s.Submit(context.Background(), "k", "", "second", h, rec2); err != nil || pos != 0 {
+	if pos, err := s.Submit(context.Background(), "k", "", "second", func() (RunHost, error) { return h, nil }, rec2); err != nil || pos != 0 {
 		t.Fatalf("second submit pos=%d err=%v, want 0 and nil", pos, err)
 	}
 	rec2.wait(t)
@@ -282,7 +282,7 @@ func TestRunSchedulerStartEventRunsThenDrainsPrompts(t *testing.T) {
 		popped = true
 		return BackgroundEvent{JobID: "job-1"}, true
 	}
-	started, err := s.StartEvent(context.Background(), "k", "sess", h, pop, rec)
+	started, err := s.StartEvent(context.Background(), "k", "sess", func() (RunHost, error) { return h, nil }, pop, rec)
 	if err != nil || !started {
 		t.Fatalf("StartEvent started=%v err=%v, want true and nil", started, err)
 	}
@@ -309,10 +309,10 @@ func TestRunSchedulerStartEventDeclinesAndDoesNotPopWhenBusy(t *testing.T) {
 	s := NewRunScheduler()
 
 	// Occupy the key with a foreground run.
-	s.Submit(context.Background(), "k", "", "A", h, rec)
+	s.Submit(context.Background(), "k", "", "A", func() (RunHost, error) { return h, nil }, rec)
 
 	popped := false
-	started, err := s.StartEvent(context.Background(), "k", "sess", h, func() (BackgroundEvent, bool) {
+	started, err := s.StartEvent(context.Background(), "k", "sess", func() (RunHost, error) { return h, nil }, func() (BackgroundEvent, bool) {
 		popped = true
 		return BackgroundEvent{JobID: "job-1"}, true
 	}, newRecorder(h))

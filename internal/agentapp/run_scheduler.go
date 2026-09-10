@@ -8,16 +8,22 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 )
 
-// runHost is the slice of AgentApp the scheduler drives for one run. *AgentApp
+// RunHost is the slice of AgentApp the scheduler drives for one run. *AgentApp
 // satisfies it; a test supplies a fake to exercise scheduling without a model.
-// It is passed per run rather than held, because a surface may own several
+// It is resolved per run rather than held, because a surface may own several
 // AgentApps — Desktop keeps one per project — and each key runs against its own.
-type runHost interface {
+type RunHost interface {
 	OpenSession(sessionID string) (*SessionContext, error)
 	CloseSession(sess *SessionContext)
 	RunPrompt(ctx context.Context, sess *SessionContext, prompt string, opts RunPromptOpts) (RunResult, error)
 	RunBackgroundEvent(ctx context.Context, sess *SessionContext, ev BackgroundEvent, opts RunPromptOpts) (RunResult, error)
 }
+
+// HostFunc resolves the host a run should use. The scheduler calls it only when
+// it commits to starting a run — never on the path that queues behind a run
+// already in flight — so a surface can skip resolving a project it does not need
+// and report a resolution failure as the submit's own error.
+type HostFunc func() (RunHost, error)
 
 // RunLifecycle receives one scheduled run's progress. Every method is called on
 // the run's own goroutine, in order, and a surface adapts each to its event
@@ -80,39 +86,53 @@ func NewRunScheduler() *RunScheduler {
 	}
 }
 
-// Submit runs prompt for key against sessionID on host, or queues it behind the
-// key's in-flight run. It returns the prompt's 1-based queue position, or 0 when
-// it started a run. Cancellation of the run derives from parent.
-func (s *RunScheduler) Submit(parent context.Context, key, sessionID, prompt string, host runHost, lc RunLifecycle) (int, error) {
-	s.mu.Lock()
-	if _, busy := s.runs[key]; busy {
-		q := s.queueLocked(key)
-		s.mu.Unlock()
-		pos, err := q.Enqueue(prompt)
-		if err != nil {
-			return 0, fmt.Errorf("%w: %d messages are already waiting", err, q.Len())
+// Submit runs prompt for key against sessionID, or queues it behind the key's
+// in-flight run. It returns the prompt's 1-based queue position, or 0 when it
+// started a run. host is resolved only on the path that starts a run — a prompt
+// that queues resolves nothing — and its error is the submit's error.
+// Cancellation of the run derives from parent.
+func (s *RunScheduler) Submit(parent context.Context, key, sessionID, prompt string, host HostFunc, lc RunLifecycle) (int, error) {
+	if pos, queued, err := s.enqueueIfBusy(key, prompt); queued || err != nil {
+		return pos, err
+	}
+	// Not busy: resolve the host before reserving, so a resolution failure leaves
+	// no slot behind for a prompt racing this one to strand itself against.
+	h, err := host()
+	if err != nil {
+		return 0, err
+	}
+	runCtx, cancel, queue, started := s.reserve(parent, key)
+	if !started {
+		// A run began while the host resolved; the prompt joins its queue.
+		pos, qerr := queue.Enqueue(prompt)
+		if qerr != nil {
+			return 0, fmt.Errorf("%w: %d messages are already waiting", qerr, queue.Len())
 		}
 		return pos, nil
 	}
-	runCtx, cancel := context.WithCancel(parent)
-	queue := s.reserveLocked(key, cancel)
-	s.mu.Unlock()
-
 	opening := func(ctx context.Context, sess *SessionContext, opts RunPromptOpts) (RunResult, error) {
-		return host.RunPrompt(ctx, sess, prompt, opts)
+		return h.RunPrompt(ctx, sess, prompt, opts)
 	}
-	if err := s.start(runCtx, cancel, key, sessionID, host, opening, queue, lc); err != nil {
+	if err := s.start(runCtx, cancel, key, sessionID, h, opening, queue, lc); err != nil {
 		return 0, err
 	}
 	return 0, nil
 }
 
 // StartEvent runs a background event for key as its own turn, if the key is
-// idle. It reserves the run slot and then calls pop under the scheduler's lock,
-// so the event is consumed only when — and exactly when — the slot is won; a
-// pop returning false, or a busy key, starts nothing and returns false. This is
-// how a job delivery avoids double-running a parked event under a race.
-func (s *RunScheduler) StartEvent(parent context.Context, key, sessionID string, host runHost, pop func() (BackgroundEvent, bool), lc RunLifecycle) (bool, error) {
+// idle. It resolves the host, then reserves the slot and calls pop under the
+// scheduler's lock, so the event is consumed only when — and exactly when — the
+// slot is won; a pop returning false, or a busy key, starts nothing and returns
+// false. This is how a job delivery avoids double-running a parked event under a
+// race.
+func (s *RunScheduler) StartEvent(parent context.Context, key, sessionID string, host HostFunc, pop func() (BackgroundEvent, bool), lc RunLifecycle) (bool, error) {
+	if s.Busy(key) {
+		return false, nil
+	}
+	h, err := host()
+	if err != nil {
+		return false, err
+	}
 	s.mu.Lock()
 	if _, busy := s.runs[key]; busy {
 		s.mu.Unlock()
@@ -128,17 +148,47 @@ func (s *RunScheduler) StartEvent(parent context.Context, key, sessionID string,
 	s.mu.Unlock()
 
 	opening := func(ctx context.Context, sess *SessionContext, opts RunPromptOpts) (RunResult, error) {
-		return host.RunBackgroundEvent(ctx, sess, ev, opts)
+		return h.RunBackgroundEvent(ctx, sess, ev, opts)
 	}
-	if err := s.start(runCtx, cancel, key, sessionID, host, opening, queue, lc); err != nil {
+	if err := s.start(runCtx, cancel, key, sessionID, h, opening, queue, lc); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
+// enqueueIfBusy queues prompt when key already has a run in flight. queued is
+// false when the key was idle, and the caller goes on to start a run.
+func (s *RunScheduler) enqueueIfBusy(key, prompt string) (pos int, queued bool, err error) {
+	s.mu.Lock()
+	if _, busy := s.runs[key]; !busy {
+		s.mu.Unlock()
+		return 0, false, nil
+	}
+	q := s.queueLocked(key)
+	s.mu.Unlock()
+	pos, err = q.Enqueue(prompt)
+	if err != nil {
+		return 0, true, fmt.Errorf("%w: %d messages are already waiting", err, q.Len())
+	}
+	return pos, true, nil
+}
+
+// reserve marks key in flight and returns its run context and queue. started is
+// false when a run began between the caller's busy check and here, in which case
+// nothing is reserved and the returned queue is the running key's own.
+func (s *RunScheduler) reserve(parent context.Context, key string) (context.Context, context.CancelFunc, *agent.MessageQueue, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, busy := s.runs[key]; busy {
+		return nil, nil, s.queueLocked(key), false
+	}
+	runCtx, cancel := context.WithCancel(parent)
+	return runCtx, cancel, s.reserveLocked(key, cancel), true
+}
+
 // start opens the session and launches the run goroutine. On an open failure it
 // releases the reserved slot so the key is usable again.
-func (s *RunScheduler) start(runCtx context.Context, cancel context.CancelFunc, key, sessionID string, host runHost, opening openingTurn, queue *agent.MessageQueue, lc RunLifecycle) error {
+func (s *RunScheduler) start(runCtx context.Context, cancel context.CancelFunc, key, sessionID string, host RunHost, opening openingTurn, queue *agent.MessageQueue, lc RunLifecycle) error {
 	sess, err := host.OpenSession(sessionID)
 	if err != nil {
 		s.release(key)
@@ -155,7 +205,7 @@ func (s *RunScheduler) start(runCtx context.Context, cancel context.CancelFunc, 
 // iteration. Most queued prompts never reach the Dequeue below — the run itself
 // folds them in at its iteration boundary through RunPromptOpts.Pending; this
 // loop is the backstop for one queued after the run stopped reading.
-func (s *RunScheduler) run(ctx context.Context, cancel context.CancelFunc, key string, host runHost, sess *SessionContext, opening openingTurn, queue *agent.MessageQueue, opts RunPromptOpts, lc RunLifecycle) {
+func (s *RunScheduler) run(ctx context.Context, cancel context.CancelFunc, key string, host RunHost, sess *SessionContext, opening openingTurn, queue *agent.MessageQueue, opts RunPromptOpts, lc RunLifecycle) {
 	defer func() {
 		s.release(key)
 		cancel()
