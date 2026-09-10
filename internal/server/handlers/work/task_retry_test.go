@@ -164,7 +164,7 @@ func TestRetryTaskRefusesAWorkflowStep(t *testing.T) {
 		ID:            "wsr_1",
 		WorkflowRunID: "wr_1",
 		TaskID:        util.Ptr(retryTaskID),
-		Status:        coreworkflow.StepRunStatusFailed,
+		Status:        string(coreworkflow.StepRunStatusFailed),
 	}}})
 
 	rec := postRetry(t, mux)
