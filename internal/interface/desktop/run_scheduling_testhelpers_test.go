@@ -41,12 +41,12 @@ func (h *blockingHost) RunBackgroundEvent(ctx context.Context, s *agentapp.Sessi
 // noopLifecycle is a RunLifecycle that ignores every callback.
 type noopLifecycle struct{}
 
-func (noopLifecycle) RunOpts() agentapp.RunPromptOpts     { return agentapp.RunPromptOpts{} }
-func (noopLifecycle) OnStart(*agentapp.SessionContext)    {}
-func (noopLifecycle) TurnDone(agentapp.RunResult)         {}
-func (noopLifecycle) TurnError(error)                     {}
-func (noopLifecycle) Dequeued(string, []string)          {}
-func (noopLifecycle) Done(agentapp.RunResult, error)      {}
+func (noopLifecycle) RunOpts() agentapp.RunPromptOpts  { return agentapp.RunPromptOpts{} }
+func (noopLifecycle) OnStart(*agentapp.SessionContext) {}
+func (noopLifecycle) TurnDone(agentapp.RunResult)      {}
+func (noopLifecycle) TurnError(error)                  {}
+func (noopLifecycle) Dequeued(string, []string)        {}
+func (noopLifecycle) Done(agentapp.RunResult, error)   {}
 
 // occupyProject holds key's run slot busy with a blocking fake run and returns
 // that run's context plus a release func. The run is released at test cleanup if
