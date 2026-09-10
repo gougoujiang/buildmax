@@ -181,10 +181,7 @@ func TestDesktopParksRequestedDeliveries(t *testing.T) {
 	}
 
 	// While a run is in flight the parked event stays parked.
-	_, cancel := context.WithCancel(context.Background())
-	app.mu.Lock()
-	app.runCancels[projectID] = cancel
-	app.mu.Unlock()
+	_, release := occupyProject(t, app, projectID)
 	started, err := app.DeliverNextJobEvent(projectID, "sess-a")
 	if err != nil || started {
 		t.Fatalf("busy delivery = %v, %v; want false, nil", started, err)
@@ -192,10 +189,8 @@ func TestDesktopParksRequestedDeliveries(t *testing.T) {
 	if app.PendingJobDeliveries(projectID, "sess-a") != 1 {
 		t.Fatal("busy delivery consumed the parked event")
 	}
-	app.mu.Lock()
-	delete(app.runCancels, projectID)
-	app.mu.Unlock()
-	cancel()
+	release()
+	waitNotBusy(t, app, projectID)
 
 	// Idle delivery starts a turn. This test app has no model configured, so
 	// the turn fails — through the normal stream-error path — but the parked
@@ -210,19 +205,7 @@ func TestDesktopParksRequestedDeliveries(t *testing.T) {
 	if app.PendingJobDeliveries(projectID, "sess-a") != 0 {
 		t.Fatal("delivery not consumed")
 	}
-	deadline = time.Now().Add(15 * time.Second)
-	for {
-		app.mu.Lock()
-		_, busy := app.runCancels[projectID]
-		app.mu.Unlock()
-		if !busy {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("run slot never released")
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	waitNotBusy(t, app, projectID)
 	sawDelivery := false
 	for _, name := range rec.eventNames() {
 		if name == eventJobDelivery {

@@ -1,7 +1,6 @@
 package desktop
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -147,111 +146,54 @@ func (a *App) DeliverNextJobEvent(projectID, sessionID string) (bool, error) {
 	key := deliveryKey(projectID, sessionID)
 	a.mu.Lock()
 	ctx := a.ctx
-	busy := a.runCancels[projectID] != nil
 	pending := len(a.pendingJobEvents[key])
 	a.mu.Unlock()
 	if ctx == nil {
 		return false, fmt.Errorf("app not ready")
 	}
-	if busy || pending == 0 {
+	if pending == 0 {
 		return false, nil
 	}
-	ag, err := a.agentAppForProject(projectID)
-	if err != nil {
-		return false, err
-	}
-	sess, err := ag.OpenSession(sessionID)
-	if err != nil {
-		return false, fmt.Errorf("open session: %w", err)
-	}
-	// An open session holds the writer lock, and several checks below can
-	// decline the delivery. Ownership passes to the run goroutine only once
-	// there is one; until then this releases it however the function leaves,
-	// including through a check added later.
-	handOver := false
-	defer func() {
-		if !handOver {
-			ag.CloseSession(sess)
-		}
-	}()
 
-	a.mu.Lock()
-	// Re-check under the lock, and pop only once the run slot is ours.
-	if _, busy := a.runCancels[projectID]; busy {
-		a.mu.Unlock()
-		return false, nil
-	}
-	events := a.pendingJobEvents[key]
-	if len(events) == 0 {
-		a.mu.Unlock()
-		return false, nil
-	}
-	ev := events[0]
-	if len(events) == 1 {
-		delete(a.pendingJobEvents, key)
-	} else {
-		a.pendingJobEvents[key] = events[1:]
-	}
-	handler := a.approvalHandlers[projectID]
-	runCtx, cancel := context.WithCancel(ctx)
-	a.runCancels[projectID] = cancel
-	a.mu.Unlock()
-
-	queue := a.queueForProject(projectID)
-	sink := &desktopStreamSink{ctx: ctx, emit: a.emit}
-	evSink := desktopEventSink(a.emit, ctx, queue)
-	a.emit(ctx, eventJobDelivery, &JobDeliveryPayload{
-		ProjectID: projectID,
-		SessionID: sess.ID(),
-		JobID:     ev.JobID,
-		Source:    ev.Source,
-		Title:     ev.Title,
-	})
-	handOver = true
-	go func() {
-		defer func() {
-			a.mu.Lock()
-			delete(a.runCancels, projectID)
-			a.mu.Unlock()
-			cancel()
-			ag.CloseSession(sess)
-		}()
-		out, err := ag.RunBackgroundEvent(runCtx, sess, ev, agentapp.RunPromptOpts{
-			Stream:    sink,
-			Approval:  handler,
-			EventSink: evSink,
-			Pending:   queue,
-			Digest:    true,
-		})
-		if err != nil {
-			a.emit(ctx, eventStreamError, &StreamErrorPayload{Message: err.Error()})
-			return
+	// pop removes this session's oldest parked event. The scheduler calls it
+	// under its own lock and only once it has won the run slot, so the event is
+	// consumed exactly once even when two deliveries race — the reason the pop is
+	// the scheduler's to time rather than done up front here.
+	var delivered agentapp.BackgroundEvent
+	pop := func() (agentapp.BackgroundEvent, bool) {
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		events := a.pendingJobEvents[key]
+		if len(events) == 0 {
+			return agentapp.BackgroundEvent{}, false
 		}
-		a.emitTurnDigest(ctx, out)
-		// Prompts queued while the delivery ran drain exactly as after a user
-		// turn (see SendMessageStream); the backstop loop is the same shape.
-		for {
-			next, ok := queue.Dequeue()
-			if !ok {
-				a.emit(ctx, eventStreamDone, replyPayload(out))
-				return
-			}
-			a.emit(ctx, eventMessageDequeued, &MessageDequeuedPayload{Prompt: next, Queued: queue.Snapshot()})
-			out, err = ag.RunPrompt(runCtx, sess, next, agentapp.RunPromptOpts{
-				Stream:    sink,
-				Approval:  handler,
-				EventSink: evSink,
-				Pending:   queue,
-				Digest:    true,
+		delivered = events[0]
+		if len(events) == 1 {
+			delete(a.pendingJobEvents, key)
+		} else {
+			a.pendingJobEvents[key] = events[1:]
+		}
+		return delivered, true
+	}
+
+	// A job delivery differs from a user turn only here: it announces the
+	// delivery before its first output, and does not touch project recency,
+	// because the user did not reach for the project.
+	lc := &desktopRun{
+		app:       a,
+		ctx:       ctx,
+		projectID: projectID,
+		onStart: func(sess *agentapp.SessionContext) {
+			a.emit(ctx, eventJobDelivery, &JobDeliveryPayload{
+				ProjectID: projectID,
+				SessionID: sess.ID(),
+				JobID:     delivered.JobID,
+				Source:    delivered.Source,
+				Title:     delivered.Title,
 			})
-			if err != nil {
-				a.emit(ctx, eventStreamError, &StreamErrorPayload{Message: err.Error()})
-				return
-			}
-			a.emitTurnDigest(ctx, out)
-		}
-	}()
-	return true, nil
+		},
+	}
+	return a.scheduler.StartEvent(ctx, projectID, sessionID, a.hostForProject(projectID, lc), pop, lc)
 }
 
 // PendingJobDeliveries reports how many parked deliveries wait for a session.
