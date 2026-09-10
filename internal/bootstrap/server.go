@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -34,40 +33,6 @@ import (
 	"github.com/gougoujiang/buildmax/internal/service/quota"
 	secretsvc "github.com/gougoujiang/buildmax/internal/service/secret"
 )
-
-const taskTitlePrompt = `Generate a short task title (3-5 words) from this user request. Return ONLY the title, no quotes or punctuation.`
-
-// titleGenAdapter implements llm.TitleGenerator using an LLM client. It holds
-// the core interface, not a provider client, so the model router decides which
-// implementation generates titles.
-type titleGenAdapter struct {
-	client cllm.LLMClient
-}
-
-func (a *titleGenAdapter) GenerateTitle(ctx context.Context, input string) (string, int, int, error) {
-	if input == "" {
-		return "", 0, 0, nil
-	}
-	msgs := []cllm.Message{
-		{Role: "system", Content: taskTitlePrompt},
-		{Role: "user", Content: input},
-	}
-	completion, err := a.client.ChatCompletionBlocking(ctx, cllm.Request{Messages: msgs, Profile: cllm.ProfileTitle})
-	if err != nil {
-		return "", 0, 0, err
-	}
-	return cleanTaskTitle(completion.Content), completion.Usage.PromptTokens, completion.Usage.CompletionTokens, nil
-}
-
-func cleanTaskTitle(s string) string {
-	s = strings.TrimSpace(s)
-	for _, q := range []string{`"`, `'`, "`"} {
-		if len(s) >= 2 && strings.HasPrefix(s, q) && strings.HasSuffix(s, q) {
-			s = s[len(q) : len(s)-len(q)]
-		}
-	}
-	return strings.TrimSpace(s)
-}
 
 // RunServer loads server.yaml, resolves the listen port (flag overrides config),
 // opens the DB, builds blob storage, starts the scheduler, and runs the HTTP server.
@@ -690,7 +655,7 @@ func wireLLM(cfg *httpserver.Config, sc config.ServerConfig, st *db.Store, quota
 	if err != nil {
 		return fmt.Errorf("conversation model %q: %w", targetID, err)
 	}
-	cfg.Conv.TitleGenerator = &titleGenAdapter{client: routed.Client}
+	cfg.Conv.TitleGenerator = cllm.NewTitleGenerator(routed.Client)
 	cfg.Conv.ConversationLLMClient = routed.Client
 	return nil
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/agent"
@@ -463,12 +462,5 @@ func addSessionCost(sess *SessionContext, usage llm.Usage, pricing llm.Pricing) 
 }
 
 func cleanTitle(s string) string {
-	s = strings.TrimSpace(s)
-	for _, q := range []string{`"`, `'`, "`"} {
-		if len(s) >= 2 && strings.HasPrefix(s, q) && strings.HasSuffix(s, q) {
-			s = s[len(q) : len(s)-len(q)]
-		}
-	}
-	s = strings.TrimSpace(s)
-	return util.ClipRunes(s, 100)
+	return util.ClipRunes(llm.TrimTitle(s), 100)
 }
