@@ -14,6 +14,318 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.9] - 2026-09-10
+
+### Added
+
+- The admin account list can be filtered by whether an account is enabled,
+  whether it has set a password, whether it holds a system role, and the
+  platform it last signed in from — in Portal and on `GET /api/admin/users`
+  (`status`, `has_password`, `system_role`, `platform`) — so an operator can
+  work a specific set without paging through everyone.
+
+- `buildmax admin` gained `model list`, `model add`, `model enable`, and `model
+  disable`: managing the deployment's model catalog over the authenticated Admin
+  API, the automation peer of the Portal Models area. `model add` sends the
+  provider key in the request body only; it is stored encrypted and never read
+  back, and a deployment with no encryption key configured refuses a model that
+  carries one.
+
+- `buildmax admin` gained `user list`, `user create`, `user login-code`, `user
+  disable`, and `user enable`: managing deployment accounts over the
+  authenticated Admin API, the automation peer of the Portal Accounts area.
+  Creating an account and issuing a login code stay separate steps, and there is
+  no `set-password` — a login code lets the person choose their own password.
+
+- Added `POST /api/admin/llm/models`, so a System Administrator can add a
+  managed model through the admin API rather than only `buildmax-server model
+  add`. It takes the same fields, and `api_key` is write-only: accepted in the
+  request body, stored encrypted at rest, and returned by no read. Adding a
+  model that carries a credential requires a configured encryption key.
+
+- A System Administrator can list an account's live login sessions and revoke
+  one of them — signing a single device out while the account's other sessions
+  keep working — through `GET` and `DELETE /api/admin/users/{user_id}/sessions/
+  {session_id}`. The listing carries only safe metadata (session id, platform,
+  and timestamps), never a token.
+
+- `buildmax admin list`, `buildmax admin grant <email>`, and `buildmax admin
+  revoke <email>` manage deployment administrators from the signed-in CLI over
+  the same API the Portal uses, so routine administration no longer needs shell
+  access to the server's database (which `buildmax-server admin` still holds for
+  first-time and lockout recovery).
+
+- A background sweep reclaims checkpoint payloads that no checkpoint references
+  and that are older than a grace period — the bytes a worker uploaded when a
+  finalize failed or a worker died before committing the pointer — so orphaned
+  workspace-checkpoint objects no longer accumulate. The grace is set with
+  `storage.checkpoint_orphan_grace_days` (0, the default, reclaims on the next
+  hourly sweep).
+
+- The in-Portal help center now offers a Simplified Chinese translation of the
+  whole manual, with an EN / 中文 switch in the Help sidebar; the choice is
+  remembered per browser and defaults to the browser's language.
+
+- A `coordination` server setting shares live streaming, connection events, and
+  conversation turn serialization across replicas through Redis, so a deployment
+  can run more than one server replica correctly; `mode: local` (a single
+  replica) stays the default, and `mode: redis` fails closed when Redis is
+  unreachable.
+
+- The Portal Accounts list now pages through every account with Previous and
+  Next controls and a "1–50 of N" position, so a deployment with more than one
+  page of accounts is fully reachable rather than stopping at the first fifty.
+
+- Portal gains an Administrators section for managing who can operate the
+  deployment — list active grants (and revoked history), grant an account by
+  email, and revoke — and, for a confirmed administrator, Administration moves to
+  a first-level sidebar destination. The Overview now shows the caller's own
+  grant and a read-only view of the effective configuration.
+
+- The Portal has a built-in help center: a **Help** icon in the top bar (and the
+  user menu) opens an end-user manual covering getting started, the CLI and TUI,
+  models and tools, extending the agent, safety, and the Portal itself. The pages
+  are plain Markdown under the repository-root `help/` directory and are baked
+  into the portal image at build time, so the manual ships with the app and needs
+  no separate site.
+
+- The Portal admin Models area now has an "Add a model" form, so a System
+  Administrator can add a managed model without the server command line. The API
+  key is a password field, sent only in the request body, stored encrypted, and
+  never shown again; it is cleared as soon as the model is added. A deployment
+  with no encryption key configured reports that it cannot accept a credential.
+
+- Portal now shows a real not-found page for an unrecognized address instead
+  of silently opening Chat, and Agent, Workflow, Workflow Run, Task, and
+  Issue detail pages distinguish a deleted resource from one you don't have
+  access to.
+
+- A run's detail now shows the plugin releases it actually resolved and the
+  artifacts it published, both read from the same authoritative records a
+  retry and an issue's output list already use.
+
+- The Portal "Run details" view now shows what became of a run's workspace: a
+  Workspace section reports whether the run restored its base checkpoint and
+  whether its result checkpoint committed, with the bounded reason on a failure,
+  so an operator can see a run's continuity state without reading the database.
+
+- The Portal account detail now lists an account's live login sessions —
+  platform and timestamps — and an operator can revoke one of them, signing a
+  single device out while the account's other sessions keep working, alongside
+  the existing revoke-everything action.
+
+- Added a complete Simplified Chinese mirror of the design records, with
+  per-page language navigation and automatic synchronization checks.
+
+- A TaskRun's durable trace now records who or what started it and why
+  (created_by, created_by_type, trigger_source, retry_of_task_run_id) on its
+  run_start line, so a downloaded trace explains its own origin.
+
+### Changed
+
+- Portal task runs now execute in a single `workspace/` directory — the agent's
+  working directory, holding the space's files — instead of splitting them into
+  separate read and output directories. Files an agent means to keep are
+  published with `UploadArtifact`; the run's reply is still recorded as its
+  result.
+
+- The end-user manual now lives only in `help/`, the same pages the Portal
+  serves under **Help**; the duplicate copies under `docs/` (the old `guide/` and
+  `start/` directories and the CLI reference) are gone, so `docs/` is now
+  contributor, operator, and design material.
+
+- Issue owner and executor are now independent fields instead of one combined
+  assignee, so an issue can have an accountable person and a selected Agent or
+  Workflow at the same time. `owner_id` replaces the person case of the old
+  `assignee_kind`/`assignee_id` pair, and `executor_kind`/`executor_id`
+  replace the agent and workflow cases.
+
+- Working a space issue locally moved from the `buildmax --issue <id>` flag to
+  the `buildmax issue start <id>` subcommand, alongside `issue list`, `show`, and
+  `status`. It takes the same run flags as `buildmax` itself (`-p`, `--model`,
+  `--workspace`, and so on).
+
+- Expand `./make kind fixtures` with shared-space roles, invitations, assigned and nested issues, workflow states, files, artifacts, synthetic secrets, and pagination data. Add `--runs` for free-mock conversation and Task/Workflow history, and repair incomplete comment seeding without duplicating existing fixtures.
+
+- Managed-model provider credentials are now encrypted at rest, under the same
+  deployment key-encryption boundary that protects Space Secrets. Adding a model
+  that carries a credential (via `buildmax-server model add`) now requires a
+  configured encryption key (`secret.kek_file`); without one the credential is
+  refused rather than stored in the clear. Credential-free models (for example
+  an Ollama target) are unaffected. Existing plaintext credentials are not
+  migrated — re-add those models once an encryption key is configured.
+
+- Opening an account in the Portal admin area now puts it in the URL
+  (`#/admin/accounts/<id>`), so the detail panel survives a reload and can be
+  linked or shared rather than vanishing when the page is refreshed.
+
+- The Portal admin Accounts area can now filter accounts by last-login date
+  range ("signed in after" / "signed in before"), alongside the existing
+  status, password-state, role, and platform filters. Accounts that never
+  signed in are excluded by either bound.
+
+- Chat's Files tab, an Issue's Discussion panel, an Artifact's origin, and the
+  Marketplace plugin detail now link to Workspace Files, Space Plugins, or the
+  producing task instead of duplicating those surfaces or leaving a dead end;
+  Issue results and a run's plugin picker link out the same way.
+
+- Workspace Files now explains it holds mutable working state, distinct from
+  Artifacts' immutable published output, and the empty root folder points to
+  uploading or having an agent write there instead of just saying "(empty)".
+
+- Issue Detail is now organized into Overview, Discussion, Results, and Runs
+  tabs instead of ten stacked sections, and the assignee line reads "Owner" or
+  "Executor" depending on who or what it points to.
+
+- Creating an account in the Portal admin area now lands the operator on the new
+  account's detail, where the login code is issued, with a note that the account
+  cannot sign in until a code is issued. Create and issue-a-code remain separate
+  actions with separate audit events; the Portal only guides the operator from
+  one to the next.
+
+- Portal's browser tab title now names the current page and, for Space-scoped
+  pages, the Space, and the narrow compact header shows the same Space and
+  page cues as the desktop sidebar. Old flat addresses like `#/agents` or
+  `#/issue/<id>` are no longer recognized; every Space-owned link is now
+  `#/spaces/<space_id>/...`.
+
+- Removed the duplicate plugin catalog from Account settings. Browse published
+  plugins in Marketplace instead; the old `#/account/plugins` link redirects
+  there.
+
+- Portal's narrow-width shell (roughly a phone-sized window) now shows a
+  compact header with the current Space, page title, and a menu button that
+  opens the full navigation in an accessible overlay drawer, instead of
+  squeezing the sidebar into the page. Dialogs across Portal — including
+  side-tab forms, which now use a horizontal, arrow-key-navigable tab strip at
+  narrow widths — trap keyboard focus, restore it to the control that opened
+  them, and become full-height sheets on narrow screens. Chat, Issues, Issue
+  Detail, and Task Detail also reflow at narrow widths: the thread and
+  composer no longer lose most of their width to fixed side margins, a task's
+  header actions wrap under its title instead of clipping it, and primary
+  action buttons meet a 44px minimum touch target. Workspace Files now shows
+  either the current folder's contents or the selected file at narrow widths,
+  with a Back action, instead of squeezing a fixed-width folder tree beside
+  unreadably narrow content; Artifacts, admin lists (Administrators, Accounts,
+  Spaces, Models, Plugins), and Space membership rows reflow to a stacked
+  layout instead of wrapping into an ambiguous multi-item row; and a run's
+  tool paths and token counts scroll horizontally in their own row instead of
+  being cut off with an ellipsis.
+
+- Each session in the Portal account detail now shows its session id and when it
+  was last active alongside its platform and sign-in and expiry times, so an
+  operator can tell two sessions on the same platform apart before revoking one.
+
+- Portal's sidebar now groups Space navigation into Work, Reuse, Data, and
+  Manage, renames Home to Chat, adds a Workspace Files entry, and separates
+  deployment Administration from the Space-scoped groups.
+
+- Portal's Space-owned pages (Chat, Issues, Agents, Workflows, Workflow Runs,
+  Tasks, Workspace Files, Artifacts, Space settings) now use canonical
+  `#/spaces/{space_id}/...` URLs, so a copied or reloaded link always reopens
+  the same Space. Old links keep working during the migration.
+
+- The Workflow editor now presents each step as an Agent step instead of a
+  free-form type and editable id, and raw definition JSON moved behind an
+  explicit "Advanced" toggle instead of always showing beside the form.
+
+- Removed the per-run "output files" list. A task run's reply is still recorded
+  and shown as its result; files a run means to keep are published with
+  `UploadArtifact` and appear as the space's artifacts, and a Task's working
+  files are recovered through its workspace checkpoint rather than downloaded
+  file by file.
+
+- The end-user manual now lives under `manual/`, while Portal continues to
+  serve it from its existing **Help** route.
+
+- `buildmax whoami` is now `buildmax me`.
+
+- `buildmax-server` sheds two routine operations now that `buildmax admin`
+  covers them: `user set-password` is removed (issue a login code and let the
+  person choose their own password — the safer equivalent), and `admin list` is
+  removed (use `buildmax admin list`, or the Portal). Creating accounts and
+  issuing login codes, and granting or revoking administrators, stay on
+  `buildmax-server` as the break-glass path.
+
+- Kubernetes worker pods now carry an ephemeral-storage request and limit, and
+  each of their scratch volumes is capped at that limit, so a runaway workspace
+  is evicted cleanly instead of filling the node. A `k8s_job` deployment must add
+  `ephemeral_storage_request` and `ephemeral_storage_limit` under
+  `worker.k8s.resources`, which are now required alongside the CPU and memory
+  bounds.
+
+### Fixed
+
+- `buildmax init` now rejects a negative `--context-window` before writing
+  `settings.yaml`; zero continues to select the provider-appropriate default.
+
+- A signed-in CLI whose deployment rejects the stored credential with 401 (the
+  session was revoked, or the server no longer trusts the token) now reports the
+  login as expired and names `buildmax logout` to return to local mode, instead
+  of failing with a bare `list the models ... : server 401: unauthorized`.
+
+- Portal's Issue, Workflow, and Workflow Run breadcrumbs now show the loaded
+  title or name instead of the raw public ID.
+
+- Every Portal collection — Issues, Workflows, Agents, Conversations, Files,
+  the Space members, invitations, secrets, and audit trail, and the plugin
+  catalog on Marketplace, the Space Plugins tab, and the admin model catalog —
+  now distinguishes a request that failed from a genuinely empty list, offering
+  Retry instead of a calm "nothing here" screen; the Agents list in particular
+  no longer renders a load failure as "No agents yet". A failed refresh of an
+  already-loaded list keeps its data on screen with a warning rather than
+  wiping it.
+
+- Issue Detail now gives Save and Run their own error and success feedback,
+  explains why a Run button is disabled, and Run Agent opens the task it
+  started instead of leaving you on the form.
+
+- Failed row-level actions in Portal now show their error next to the specific
+  control that failed instead of a page-level banner that did not say which one
+  it was about: Space plugin activate/update/suspend, Space membership actions
+  (invite, remove, role change, ownership transfer, login code, revoke),
+  revision Restore on Workflow and Agent detail, Artifact Download and Delete,
+  and admin model retire/enable. Creating an Issue or Workflow now opens the
+  created object rather than returning to the list.
+
+- Portal's owner/admin-only controls (on Issues, Workflows, Agents, Space
+  secrets, and the Space audit trail) no longer treat a role lookup that is
+  still loading, or one that failed outright, the same as a confirmed denial:
+  each now says which of the three it is, and a failed lookup can be retried by
+  refreshing instead of silently staying read-only.
+
+- Portal no longer labels the current Space "My Space" while Space resolution
+  is still loading or has failed — that name is shown only for an actually
+  resolved personal Space — and the shell's pre-Space gate now distinguishes a
+  failed Space lookup (an error with Retry) from an account that genuinely
+  belongs to no Space yet (a create-Space prompt), instead of one "No space
+  available" catch-all.
+
+- Switching Space in Portal's sidebar now redirects away from every
+  Space-owned page, including Agent and Task detail, which previously kept
+  showing the Space you switched away from.
+
+- Task breadcrumbs now navigate to the Issue, Conversation, or Workflow run
+  that started the task, and each run's input is credited to who or what
+  actually triggered it instead of always showing "You".
+
+- Fixed the Space switcher's label losing its association with the dropdown
+  for an account in 2 or more Spaces at narrow widths: the persistent sidebar
+  and the narrow navigation drawer could both render the same hardcoded id at
+  once, and only one `<label>` can own it.
+
+- Deployment administrator authority is now safe under concurrency: grants can
+  no longer be duplicated by a race; two administrators can no longer revoke or
+  disable at the same time and leave the deployment with no one able to reach its
+  admin area; a disabled account no longer counts as a holder; and granting a
+  role to a disabled account is refused instead of stored as unusable authority.
+
+### Security
+
+- Request logs now redact credential-bearing query parameters, so a WebSocket
+  upgrade's `?token=` JWT and similar secrets no longer appear verbatim in logs
+  or in artifacts that capture them.
+
 ## [0.2.0-alpha.8] - 2026-09-06
 
 ### Added
@@ -2462,7 +2774,8 @@ its Portal image exists. This version replaces it.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.8...HEAD
+[Unreleased]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.9...HEAD
+[0.2.0-alpha.9]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.8...v0.2.0-alpha.9
 [0.2.0-alpha.8]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.7...v0.2.0-alpha.8
 [0.2.0-alpha.7]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.6...v0.2.0-alpha.7
 [0.2.0-alpha.6]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.4...v0.2.0-alpha.6
