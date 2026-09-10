@@ -28,6 +28,10 @@ so they are worth knowing exactly.
 | `Monitor` | Watch logs, files, or CI: each stdout line becomes a bounded event | `command`, `description`, `timeout`, `persistent`, `react` |
 | `Worktree` | Create, enter, leave, list, or remove a Git worktree, moving the session into it | `action`, `name`, `path`, `discard_changes` |
 | `LoadMcpTools` / `CallMcpTool` | Discover and invoke MCP server tools | see [MCP](mcp.md) |
+| `MemoryRead` | Open the bodies of project memories. Available on a local run with project memory. | `names` |
+| `MemoryWrite` | Create or replace a project memory. Available on a local run with project memory. | `name`, `description`, `type`, `content`, `verified_at` |
+| `GetIssue` | Read the issue this run is working. Available in --issue / worker-on-issue runs. | — |
+| `ReportToIssue` | Post a short statement on this run's issue. Available in --issue / worker-on-issue runs. | `summary`, `artifact_ids` |
 
 Run `/tools` in the TUI to see the set active for the current run — it varies
 with what is configured.
