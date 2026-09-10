@@ -17,9 +17,10 @@
 - roadmap_priority: `R0`
 - status: `in_progress` — hooks, durable traces, the Bash sandbox, process
   limits, Agent/Space sandbox tiers, worker baseline selection, and worker API
-  ingress isolation are implemented. Fail-closed treatment for worker stdio
-  MCP, candidate boundary evidence, and resolved policy presentation remain
-  open. Pod-wide egress and an outer runtime are conditional post-Beta hardening
+  ingress isolation are implemented. Candidate boundary evidence and resolved
+  policy presentation remain open. Pod-wide egress, an outer runtime, and stdio
+  MCP child containment are conditional post-Beta hardening tracked on the
+  ROADMAP's Beta readiness gate, not R0
 - follows: P0 Agent Core stability, P1 Local agent experience, and P2 Portal outcome surface — all complete; their plans were retired (see git history)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-05-23`
@@ -27,8 +28,8 @@
 ## 1. Purpose
 
 The completed P0 work made the shared Agent Core stable enough for CLI, Desktop,
-Portal, and worker task runs. The remaining R0 work closes the one known process
-path around the worker sandbox and makes the supported boundary verifiable.
+Portal, and worker task runs. The remaining R0 work qualifies the supported
+worker boundary in a candidate deployment and makes it legible to operators.
 
 This document intentionally stays at the product-capability level. It records
 the trust capabilities already delivered and the bounded work that remains.
@@ -262,7 +263,6 @@ Worker runs should:
 
 - fail closed when approval would be required
 - run with explicit sandbox boundaries
-- reject stdio MCP unless its child process can enter the declared boundary
 - record enough trace data for Portal diagnostics
 - load only the memory and instructions appropriate for the space/run scope
 - make denied actions understandable
@@ -305,12 +305,10 @@ selects it. Per-Space policy, alternate-DNS and direct-IP bypass qualification,
 and an outer runtime such as gVisor belong to the same conditional hardening
 decision, not the current R0.
 
-The immediate process-boundary problem is smaller and does remain in R0: stdio
-MCP servers start as direct worker child processes. The supported unattended
-worker profile must reject them unless BuildMax can launch them inside the
-declared sandbox boundary. Disabling an unsupported transport is sufficient for
-the first Beta; BuildMax does not need to create a general Pod-egress product in
-order to make that claim.
+Stdio MCP child processes launch outside the current worker command boundary;
+confining or disabling them under the supported profile is tracked on the
+ROADMAP as a Beta readiness gate rather than an R0 deliverable, so this design
+does not prescribe the shape.
 
 ## 4. Explicitly Out Of Scope For Now
 
@@ -336,11 +334,9 @@ write-back remain separate product questions and do not block R0.
 
 The remaining R0 implementation order is:
 
-1. Reject worker stdio MCP unless the child process can use the declared
-   sandbox boundary.
-2. Present the resolved sandbox and MCP treatment where an operator diagnoses a
+1. Present the resolved sandbox treatment where an operator diagnoses a
    TaskRun.
-3. Exercise the existing command, hook, resource, and worker API boundaries
+2. Exercise the existing command, hook, resource, and worker API boundaries
    with the candidate artifacts.
 
 Other trust-harness improvements follow demonstrated user or operator needs and
@@ -350,10 +346,8 @@ do not block the first private Beta.
 
 The remaining R0 trust-boundary work is successful when:
 
-- no stdio MCP child runs outside the boundary claimed by the supported worker
-  profile;
 - missing required enforcement stops the run before model execution;
-- an operator can see the resolved sandbox and MCP treatment for a TaskRun; and
+- an operator can see the resolved sandbox treatment for a TaskRun; and
 - candidate deployment evidence verifies the already-supported Bash, hook,
   process-limit, and worker API controls.
 
