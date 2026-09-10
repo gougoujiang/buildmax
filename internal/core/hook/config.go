@@ -46,13 +46,14 @@ const (
 	TypePrompt  = "prompt"   // single-turn LLM prompt
 )
 
-// DefaultType is the transport assumed when a Entry omits Type.
-// "command" preserves back-compat with pre-v2 settings.yaml files.
+// DefaultType is the transport assumed when an Entry omits Type. A hook that
+// names only a command is the common case, so command is the default and that
+// entry needs no Type field.
 const DefaultType = TypeCommand
 
 // Entry is one configured hook invocation. The Type discriminator
-// selects which transport-specific fields are read; entries with no Type
-// default to TypeCommand for back-compat with pre-v2 settings.
+// selects which transport-specific fields are read; an entry with no Type
+// defaults to TypeCommand, the common case.
 //
 // Matcher is a regular expression evaluated against the tool name for
 // PreToolUse / PostToolUse; an empty Matcher matches every invocation. For

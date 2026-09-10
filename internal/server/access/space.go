@@ -17,17 +17,10 @@ func (g *Guard) SpaceAction(w http.ResponseWriter, r *http.Request, userID, spac
 		httputil.WriteInternalError(w, err, "handler error", "handler", "authorize_space_action", "user_id", userID, "space_id", spaceID, "action", string(action))
 		return "", false
 	}
-	// EffectiveRole never answers "", so an empty role here means the loop
-	// found nobody: this caller is not in the space at all. A member row that
-	// never got a role is a member, which is the reading Guard.spaceRole has
-	// always used and now the only one.
-	role := ""
-	for i := range members {
-		if members[i].UserID == userID {
-			role = corespace.EffectiveRole(members[i].Role)
-			break
-		}
-	}
+	// EffectiveRoleOf answers "" only when the caller is not in the space at
+	// all: EffectiveRole reads a member row with no stored role as a member,
+	// never as "".
+	role := corespace.EffectiveRoleOf(members, userID)
 	if role == "" {
 		g.denied(r, userID, spaceID, string(action))
 		httputil.WriteJSONError(w, http.StatusForbidden, "forbidden")
@@ -56,10 +49,6 @@ func (g *Guard) MemberAllows(ctx context.Context, userID, spaceID string, action
 	if err != nil {
 		return false
 	}
-	for i := range members {
-		if members[i].UserID == userID {
-			return corespace.Allows(corespace.EffectiveRole(members[i].Role), action)
-		}
-	}
-	return false
+	role := corespace.EffectiveRoleOf(members, userID)
+	return role != "" && corespace.Allows(role, action)
 }

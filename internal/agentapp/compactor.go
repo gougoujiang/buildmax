@@ -60,11 +60,11 @@ func (c *LLMCompactor) Compact(ctx context.Context, msgs []llm.Message) (string,
 	return completion.Content, completion.Usage, err
 }
 
-// CompactResult is what one compaction the user asked for did to a session.
+// CompactionOutcome is what one compaction the user asked for did to a session.
 //
 // Summarized == 0 with no error means the pass found nothing worth replacing,
 // and Reason says why; the caller reports that rather than a failure.
-type CompactResult struct {
+type CompactionOutcome struct {
 	Summarized int
 	Kept       int
 	Reason     string
@@ -84,13 +84,13 @@ type CompactResult struct {
 // without the fill test, and it takes the session's turn lock for the same
 // reason a turn does: it rewrites the model-visible history, and doing that
 // under a running turn would race it.
-func (a *AgentApp) CompactSession(ctx context.Context, sess *SessionContext) (CompactResult, error) {
+func (a *AgentApp) CompactSession(ctx context.Context, sess *SessionContext) (CompactionOutcome, error) {
 	sess, modelName, client, err := a.resolveRunContext(sess)
 	if err != nil {
-		return CompactResult{}, err
+		return CompactionOutcome{}, err
 	}
 	if err := a.turns.begin(sess.ID()); err != nil {
-		return CompactResult{}, fmt.Errorf("session %s: %w", sess.ID(), err)
+		return CompactionOutcome{}, fmt.Errorf("session %s: %w", sess.ID(), err)
 	}
 	defer a.turns.end(sess.ID())
 
@@ -117,9 +117,9 @@ func (a *AgentApp) CompactSession(ctx context.Context, sess *SessionContext) (Co
 		slog.Warn("could not record what the compaction spent", "err", ferr)
 	}
 	if err != nil {
-		return CompactResult{}, fmt.Errorf("compact session: %w", err)
+		return CompactionOutcome{}, fmt.Errorf("compact session: %w", err)
 	}
-	return CompactResult{
+	return CompactionOutcome{
 		Summarized:   res.Summarized,
 		Kept:         res.Kept,
 		Reason:       res.Reason,

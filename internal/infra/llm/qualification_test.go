@@ -75,7 +75,7 @@ func qualifyFromEnv(t *testing.T) qualifyTarget {
 	return target
 }
 
-func (q qualifyTarget) client(t *testing.T, policy config.CacheControl) *LLMClient {
+func (q qualifyTarget) client(t *testing.T, policy config.CacheControl) *Client {
 	t.Helper()
 	client, err := NewClient(Config{
 		Provider:     q.provider,
@@ -133,7 +133,7 @@ func qualifyTurn(prefix, user string) []cllm.Message {
 }
 
 // call runs one agent turn and reports what the provider said about caching.
-func (q qualifyTarget) call(t *testing.T, client *LLMClient, messages []cllm.Message) cllm.Usage {
+func (q qualifyTarget) call(t *testing.T, client *Client, messages []cllm.Message) cllm.Usage {
 	t.Helper()
 	completion, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{
 		Messages: messages,

@@ -30,7 +30,7 @@ func start(t *testing.T, scenario mockllm.Scenario) *mockllm.Server {
 	return server
 }
 
-func client(t *testing.T, server *mockllm.Server, protocol string) *llm.LLMClient {
+func client(t *testing.T, server *mockllm.Server, protocol string) *llm.Client {
 	t.Helper()
 	c, err := llm.NewClient(llm.Config{
 		Provider: protocol,

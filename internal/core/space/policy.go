@@ -93,6 +93,19 @@ func EffectiveRole(role string) string {
 	return role
 }
 
+// EffectiveRoleOf returns the effective role of userID within members, or ""
+// when the roster has no membership for them. EffectiveRole never answers "",
+// so an empty result unambiguously means "not a member" rather than "a member
+// whose stored role is blank".
+func EffectiveRoleOf(members []Member, userID string) string {
+	for i := range members {
+		if members[i].UserID == userID {
+			return EffectiveRole(members[i].Role)
+		}
+	}
+	return ""
+}
+
 // Allows reports whether a member holding role may perform action.
 //
 // It answers about a stated role. An unknown role and an unknown action are

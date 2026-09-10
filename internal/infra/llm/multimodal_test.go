@@ -35,7 +35,7 @@ func imageToolHistory() []cllm.Message {
 	}
 }
 
-func newVisionClient(t *testing.T, provider, baseURL string) *LLMClient {
+func newVisionClient(t *testing.T, provider, baseURL string) *Client {
 	t.Helper()
 	client, err := NewClient(Config{
 		Provider: provider, APIKey: "test-key", BaseURL: baseURL,

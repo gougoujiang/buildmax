@@ -62,7 +62,7 @@ func TestBuildsADirectClient(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if _, ok := client.(*llm.LLMClient); !ok {
+	if _, ok := client.(*llm.Client); !ok {
 		t.Errorf("direct entry produced %T", client)
 	}
 }
@@ -98,7 +98,7 @@ func TestTheModeDecidesTheTransport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("local Get: %v", err)
 	}
-	if _, ok := local.(*llm.LLMClient); !ok {
+	if _, ok := local.(*llm.Client); !ok {
 		t.Errorf("local mode produced %T", local)
 	}
 
@@ -216,7 +216,7 @@ func TestRunScopedDirectEntryIsUnaffected(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if _, ok := client.(*llm.LLMClient); !ok {
+	if _, ok := client.(*llm.Client); !ok {
 		t.Errorf("direct entry produced %T", client)
 	}
 }
@@ -238,7 +238,7 @@ func TestBuildsALocalClientWithoutACredential(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if got := client.(*llm.LLMClient).Provider(); got != cllm.ProviderOllama {
+	if got := client.(*llm.Client).Provider(); got != cllm.ProviderOllama {
 		t.Errorf("provider = %q, want %q", got, cllm.ProviderOllama)
 	}
 

@@ -4,6 +4,24 @@ import (
 	"testing"
 )
 
+func TestEffectiveRoleOf(t *testing.T) {
+	members := []Member{
+		{UserID: "u-owner", Role: RoleOwner},
+		{UserID: "u-blank", Role: ""},
+	}
+	if got := EffectiveRoleOf(members, "u-owner"); got != RoleOwner {
+		t.Errorf("owner: got %q, want %q", got, RoleOwner)
+	}
+	// A member with a blank stored role is still a member.
+	if got := EffectiveRoleOf(members, "u-blank"); got != RoleMember {
+		t.Errorf("blank role: got %q, want %q", got, RoleMember)
+	}
+	// Only a non-member yields "".
+	if got := EffectiveRoleOf(members, "u-absent"); got != "" {
+		t.Errorf("non-member: got %q, want empty", got)
+	}
+}
+
 // TestAllowsMatrix is the whole rule, written out. A change to Allows that
 // nobody meant to make has to edit this table to pass, which is the point: the
 // two enforcers drive real requests and real commands, and neither of them can
