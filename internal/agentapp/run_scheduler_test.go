@@ -203,7 +203,9 @@ func TestRunSchedulerCancelDropsQueueAndStopsRun(t *testing.T) {
 	rec := newRecorder(h)
 	s := NewRunScheduler()
 
-	s.Submit(context.Background(), "k", "", "A", func() (RunHost, error) { return h, nil }, rec)
+	if _, err := s.Submit(context.Background(), "k", "", "A", func() (RunHost, error) { return h, nil }, rec); err != nil {
+		t.Fatalf("submit A: %v", err)
+	}
 	if pos, _ := s.Submit(context.Background(), "k", "", "B", func() (RunHost, error) { return h, nil }, rec); pos != 1 {
 		t.Fatalf("B position = %d, want 1", pos)
 	}
@@ -230,7 +232,9 @@ func TestRunSchedulerClosesSessionBeforeDone(t *testing.T) {
 	rec := newRecorder(h)
 	s := NewRunScheduler()
 
-	s.Submit(context.Background(), "k", "", "hello", func() (RunHost, error) { return h, nil }, rec)
+	if _, err := s.Submit(context.Background(), "k", "", "hello", func() (RunHost, error) { return h, nil }, rec); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
 	rec.wait(t)
 
 	if rec.closedAtDone < 1 {
@@ -259,7 +263,9 @@ func TestRunSchedulerAfterRunKeyIsReusable(t *testing.T) {
 	h := &fakeHost{}
 	rec1 := newRecorder(h)
 	s := NewRunScheduler()
-	s.Submit(context.Background(), "k", "", "first", func() (RunHost, error) { return h, nil }, rec1)
+	if _, err := s.Submit(context.Background(), "k", "", "first", func() (RunHost, error) { return h, nil }, rec1); err != nil {
+		t.Fatalf("submit first: %v", err)
+	}
 	rec1.wait(t)
 
 	rec2 := newRecorder(h)
@@ -309,7 +315,9 @@ func TestRunSchedulerStartEventDeclinesAndDoesNotPopWhenBusy(t *testing.T) {
 	s := NewRunScheduler()
 
 	// Occupy the key with a foreground run.
-	s.Submit(context.Background(), "k", "", "A", func() (RunHost, error) { return h, nil }, rec)
+	if _, err := s.Submit(context.Background(), "k", "", "A", func() (RunHost, error) { return h, nil }, rec); err != nil {
+		t.Fatalf("submit A: %v", err)
+	}
 
 	popped := false
 	started, err := s.StartEvent(context.Background(), "k", "sess", func() (RunHost, error) { return h, nil }, func() (BackgroundEvent, bool) {

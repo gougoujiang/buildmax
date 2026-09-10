@@ -206,9 +206,23 @@ func (s *RunScheduler) start(runCtx context.Context, cancel context.CancelFunc, 
 // folds them in at its iteration boundary through RunPromptOpts.Pending; this
 // loop is the backstop for one queued after the run stopped reading.
 func (s *RunScheduler) run(ctx context.Context, cancel context.CancelFunc, key string, host RunHost, sess *SessionContext, opening openingTurn, queue *agent.MessageQueue, opts RunPromptOpts, lc RunLifecycle) {
-	defer func() {
+	// releaseSlot frees the key and cancels this run's context. The normal path
+	// calls it before the final Done callback so a surface that resubmits the key
+	// the moment Done arrives finds it idle rather than busy. The deferred call is
+	// the backstop for a return before that (a panic), and the once-guard keeps it
+	// from clobbering a run that a resubmit on Done already started on this key. It
+	// is touched only from this goroutine, so it needs no lock of its own.
+	released := false
+	releaseSlot := func() {
+		if released {
+			return
+		}
+		released = true
 		s.release(key)
 		cancel()
+	}
+	defer func() {
+		releaseSlot()
 		// Idempotent: the queue-empty branch already closed the session on the
 		// normal path. This stands for the paths that return before it.
 		host.CloseSession(sess)
@@ -221,11 +235,13 @@ func (s *RunScheduler) run(ctx context.Context, cancel context.CancelFunc, key s
 		}
 		next, ok := queue.Dequeue()
 		if !ok {
-			// Release the session before the run's last callback. A surface that
-			// issues a rewind or fork the moment Done arrives would otherwise race
-			// the deferred close and be told the session is busy by the run that
-			// just finished — after a failure as much as after a success.
+			// Release the session and the slot before the run's last callback. A
+			// surface that issues a rewind, fork, or a fresh run the moment Done
+			// arrives would otherwise race the deferred cleanup and be told the key
+			// is still busy by the run that just finished — after a failure as much
+			// as after a success.
 			host.CloseSession(sess)
+			releaseSlot()
 			lc.Done(out, err)
 			return
 		}
