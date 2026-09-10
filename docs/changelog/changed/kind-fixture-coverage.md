@@ -1,1 +1,0 @@
-- Expand `./make kind fixtures` with shared-space roles, invitations, assigned and nested issues, workflow states, files, artifacts, synthetic secrets, and pagination data. Add `--runs` for free-mock conversation and Task/Workflow history, and repair incomplete comment seeding without duplicating existing fixtures.
