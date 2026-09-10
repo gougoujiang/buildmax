@@ -174,12 +174,9 @@ func (s *Service) seal(ctx context.Context, spaceID, id string, items map[string
 func (s *Service) scoped(ctx context.Context, spaceID, id string) (*coresecret.Secret, error) {
 	sec, err := s.Store.GetSecret(ctx, id)
 	if err != nil {
-		if errors.Is(err, apierr.ErrNotFound) {
-			return nil, ErrNotFound
-		}
 		return nil, err
 	}
-	if sec.SpaceID != spaceID {
+	if sec == nil || sec.SpaceID != spaceID {
 		return nil, ErrNotFound
 	}
 	return sec, nil
@@ -188,12 +185,14 @@ func (s *Service) scoped(ctx context.Context, spaceID, id string) (*coresecret.S
 func (s *Service) scopedSealed(ctx context.Context, spaceID, id string) (*coresecret.Secret, *coresecret.Sealed, error) {
 	sec, sealed, err := s.Store.GetSealed(ctx, id)
 	if err != nil {
+		// GetSealed refuses a destroyed Secret with ErrNotFound; the row may or
+		// may not exist, but either way the caller cannot have its material.
 		if errors.Is(err, apierr.ErrNotFound) {
 			return nil, nil, ErrNotFound
 		}
 		return nil, nil, err
 	}
-	if sec.SpaceID != spaceID {
+	if sec == nil || sec.SpaceID != spaceID {
 		return nil, nil, ErrNotFound
 	}
 	return sec, sealed, nil

@@ -16,7 +16,7 @@ func (f fakeSecrets) GetSecret(_ context.Context, id string) (*coresecret.Secret
 	if s, ok := f[id]; ok {
 		return s, nil
 	}
-	return nil, apierr.ErrNotFound
+	return nil, nil
 }
 
 func env(grants ...agentdef.SecretEnvGrant) agentdef.SecretConsumption {

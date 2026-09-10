@@ -45,7 +45,7 @@ func (m *memSecretStore) CreateSecret(_ context.Context, in coresecret.CreateInp
 func (m *memSecretStore) GetSecret(_ context.Context, id string) (*coresecret.Secret, error) {
 	s, ok := m.rows[id]
 	if !ok {
-		return nil, apierrNotFound()
+		return nil, nil
 	}
 	cp := *s
 	return &cp, nil
@@ -61,7 +61,10 @@ func (m *memSecretStore) ListSecretsBySpace(_ context.Context, spaceID string) (
 }
 func (m *memSecretStore) GetSealed(_ context.Context, id string) (*coresecret.Secret, *coresecret.Sealed, error) {
 	s, ok := m.rows[id]
-	if !ok || s.State == coresecret.StateDestroyed {
+	if !ok {
+		return nil, nil, nil
+	}
+	if s.State == coresecret.StateDestroyed {
 		return nil, nil, apierrNotFound()
 	}
 	cp := *s

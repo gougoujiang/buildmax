@@ -134,6 +134,28 @@ func TestSecretStore_UpdateItemsRewritesWhole(t *testing.T) {
 	}
 }
 
+// A miss is nil, not an error: GetSecret and GetSealed follow the getter
+// convention (a method that returns a value signals absence with a nil value,
+// not ErrNotFound). The destroyed-Secret refusal is exercised separately.
+func TestSecretStore_MissIsNil(t *testing.T) {
+	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
+	if dsn == "" {
+		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
+	}
+	ctx := context.Background()
+	s, err := New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if sec, err := s.GetSecret(ctx, "sec_does_not_exist"); err != nil || sec != nil {
+		t.Fatalf("GetSecret miss = %+v, %v; want nil, nil", sec, err)
+	}
+	sec, sealed, err := s.GetSealed(ctx, "sec_does_not_exist")
+	if err != nil || sec != nil || sealed != nil {
+		t.Fatalf("GetSealed miss = %+v, %+v, %v; want nil, nil, nil", sec, sealed, err)
+	}
+}
+
 func TestSecretStore_DestroyClearsMaterial(t *testing.T) {
 	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
 	if dsn == "" {

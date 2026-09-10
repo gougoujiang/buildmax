@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"errors"
 	"slices"
 
 	"github.com/gougoujiang/buildmax/internal/core/agentdef"
@@ -41,14 +40,11 @@ func (s *Service) validateConsumption(ctx context.Context, spaceID string, c age
 		}
 		sec, err := s.Secrets.GetSecret(ctx, g.Secret)
 		if err != nil {
-			if errors.Is(err, apierr.ErrNotFound) {
-				return notInSpace(g.Secret)
-			}
 			return err
 		}
-		// Not-found rather than forbidden for another space's Secret: the answer
-		// must not confirm that a Secret exists elsewhere.
-		if sec.SpaceID != spaceID {
+		// Not-found rather than forbidden for a missing or another space's
+		// Secret: the answer must not confirm that a Secret exists elsewhere.
+		if sec == nil || sec.SpaceID != spaceID {
 			return notInSpace(g.Secret)
 		}
 		if sec.State == coresecret.StateDestroyed {
