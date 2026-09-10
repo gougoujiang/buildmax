@@ -19,7 +19,10 @@ type usageResponse struct {
 	MaxStorageBytes *int64 `json:"max_storage_bytes,omitempty"`
 }
 
-// usageHandler keeps the legacy /api/usage route as a personal-space alias.
+// usageHandler serves GET /api/usage, a live convenience alias that reports
+// usage for the caller's personal space. Portal calls it for the common
+// single-space view so it need not resolve a space ID first; the space-scoped
+// GET /api/spaces/{space_id}/usage answers for any space.
 func (h *Handler) usageHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.guard().UserAndStore(w, r, h.cfg.Spaces, "spaces not configured")
 	if !ok {
