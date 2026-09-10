@@ -2,11 +2,11 @@
 
 > **英文原文：** [BuildMax Current State](../current-state.md)
 >
-> **读者：** 用户、运维人员与贡献者 · **状态：** 截至 2026-09-08 当前有效
+> **读者：** 用户、运维人员与贡献者 · **状态：** 截至 2026-09-10 当前有效
 >
 > 本文是英文原文的简体中文镜像；如有差异，以英文原文为准。
 
-本次评估对照了仓库 `29efe806` 的代码，描述已实现行为、测试覆盖和剩余限制。
+本次评估对照了仓库 `2041cbec` 的代码，描述已实现行为、测试覆盖和剩余限制。
 优先级与后续顺序由[路线图](ROADMAP.md)维护，本页不再另列一套优先级。
 设计记录解释决策；其中尚未勾选的清单不能证明代码尚未实现。
 
@@ -17,10 +17,11 @@ BuildMax 仍处于 Alpha。本地 Agent 执行与私有 Space 执行链路已经
 这些不等于已具备生产多租户服务能力，也不证明 Beta 候选版本已通过验证。
 [Beta 就绪记录](deploy/beta-readiness.md)仍未合格。
 
-MCP stdio 子进程目前不经过 Bash 沙箱；让受支持的 worker 配置约束或禁用它们
-作为 Beta 就绪门禁跟踪，不再是 R0 实现要求；整个 worker 的出站网络也是首个私有 Beta
-已记录并接受的类似限制。
-数据库写入对分布式租约 fencing token 的校验，以及候选版本的故障与恢复证据仍待完成。
+MCP stdio 子进程目前不经过 Bash 沙箱。受支持的 worker 配置必须在 Beta 前约束或
+禁用它们；这是剩余的 R0 工程规则，不只是资格验证清单。整个 worker 的出站网络是
+首个私有 Beta 已记录并接受的限制。
+数据库写入对分布式租约 fencing token 的校验、持久 Workflow 状态协调、轨迹保留，
+以及候选版本的故障与恢复证据仍待完成。
 共享 Redis 协调已经实现。
 worker API 已有独立监听器、TLS 支持和已交付的入站 NetworkPolicy；
 不能把这部分网络边界与尚未限制的 worker 出站网络混为一谈。
@@ -35,6 +36,10 @@ CLI/TUI、Desktop 与 worker 组装共享 Agent runtime。核心包含流式模�
 工具错误恢复、只读工具并行执行、权限、审批、压缩与检查点、hook、有界脱敏轨迹、
 用量统计、Session、笔记、待办、Project Memory、subagent、worktree 和后台任务。
 模型组装支持 OpenAI-compatible chat、OpenAI Responses、Anthropic 与 Ollama。
+
+Desktop 交互式回合现在使用 `agentapp.RunScheduler`：按 Session key 串行执行一个 Run、
+依序排队后续提示，并让排队的后台事件使用相同生命周期。Server TaskRun 调度器仍是
+另一项持久执行平面职责。
 
 本地检查已有 `buildmax info`、TUI `/info` 和 Desktop 记忆列表/读取功能。
 Desktop 记忆编辑、删除和启用控制仍未实现。
@@ -112,11 +117,12 @@ Linux Bash 封装将容器的 `/proc` 重新绑定为只读。
 剩余限制：
 
 - MCP stdio 服务通过 `exec.Command` 启动，未经过 Bash 沙箱
-  （[MCP transport](../../internal/infra/mcp/transport.go)）。Beta 就绪门禁要求
-  受支持的 worker 配置约束或拒绝它们；这项失败关闭处理尚未实现。
+  （[MCP transport](../../internal/infra/mcp/transport.go)）。受支持的 worker 配置必须
+  约束或拒绝它们；这项失败关闭处理尚未实现。
 - 即使 Bash 命令已隔离，`local_process` 仍与 Server 处于同一主机信任域。
-- `buildmax sandbox overrides` 未实现。Portal 可设置 Agent 层级和 Space 默认值，
-  但 Task 自身的 Run 详情展示中尚未呈现解析后的层级与插件固定版本。
+- `buildmax sandbox overrides` 未实现。Portal 可设置 Agent 层级和 Space 默认值；
+  Run Details 会显示轨迹记录的边界和解析后的 Plugin 固定版本，但不会把请求/解析后的
+  层级对或 stdio MCP 处理作为独立诊断字段展示。
 - Job 构建器未接入 worker RuntimeClass 选择。gVisor 是条件触发的 Beta 后加固，
   不是已交付且受支持的 worker 配置，也不是首个 Beta 要求。
 
@@ -178,17 +184,23 @@ CI 提供固定版本的 `mysql:8.0` 服务。默认测试在没有 DSN 时仍�
 | Task 领取、Run 转换、单个活跃 Run 及取消/报告竞争 | [concurrency_test.go](../../internal/infra/db/concurrency_test.go) |
 | Artifact 软删除、并发删除、过期、字节统计与清理生命周期 | [artifact_retention_test.go](../../internal/infra/db/artifact_retention_test.go) |
 | 检查点 head 推进与部分检查点保留 | [workspace_checkpoint_test.go](../../internal/infra/db/workspace_checkpoint_test.go) |
+| Workflow 受保护的 Run/步骤转换与原子失败收口 | [workflow_test.go](../../internal/infra/db/workflow_test.go) |
 | Workflow 初始修订与修订查询 | [revision_query_test.go](../../internal/infra/db/revision_query_test.go) |
 | Secret 的 Space 隔离与独立邀请 | [secret_test.go](../../internal/infra/db/secret_test.go)、[space_invitation_test.go](../../internal/infra/db/space_invitation_test.go) |
 
-这些不能穷尽证明跨 Space 存储行为，也不能完整证明编辑及并发下的 Workflow 修订推进。
-重启与外部依赖恢复仍需具体场景证据。已移除的结果投递队列不再有独立的重启恢复义务。
+受保护的转换会拒绝非法终态改写，并将失败步骤、后续步骤阻塞和 Run 失败收口原子化。
+它们尚未形成持久协调器：推进仍依赖 callback，因此重启与 callback 丢失后的恢复仍未完成。
+这些测试也不能穷尽证明跨 Space 存储行为或编辑及并发下的 Workflow 修订推进。
+外部依赖恢复仍需具体场景证据。已移除的结果投递队列不再有独立的重启恢复义务。
 
 **显式迁移列表已经不为空。** [migration.go](../../internal/infra/db/migration.go)
 包含 `system_grant_live_marker` 和 `llm_model_credential_encryption`。
 后者删除旧明文凭证列而不迁移其中的值；受影响的模型需要重新添加。
 迁移测试覆盖账本记录与第二次运行跳过。该测试或设计文档中的 N-1 策略，都不能证明
 旧模式升级与二进制回滚已实际演练。“迁移历史为空，无法建立 fixture”的旧理由已过时。
+
+每份轨迹都有字段与记录数量上限，但轨迹目录没有保留期清扫。长期运行的进程目前需要
+外部容量管理或手动删除；BuildMax 尚不能记录旧轨迹是因策略而被移除。
 
 ## 账号、Space 与扩展界面
 
@@ -228,10 +240,11 @@ Harbor 适配器均已实现。[evaluation/suite](../../evaluation/suite)包含�
 这个范围不能验证所有受支持界面。历史 oracle/canary 报告不是当前修订的基准结果；
 本次未运行真实模型评估或 Terminal-Bench 协议，不报告分数。
 
-Portal 有浏览器测试，包括独立 Task 线程和工作区状态。
-Desktop 有 bridge 测试及[浏览器 UI 测试](../../desktop/frontend/e2e)，
-但这些不测试打包后的原生窗口。Portal 路由采用直接导入，当前源码没有路由级懒加载。
-本次未重新测量 bundle 大小或吞吐量。
+Portal 浏览器测试现已覆盖独立 Task 线程、工作区、规范 Space 路由、加载/错误/权限状态、
+响应式布局、无障碍与运行来源。Desktop 有 bridge 与
+[浏览器 UI 测试](../../desktop/frontend/e2e)，并在 macOS 和 Windows CI 中运行打包应用
+启动冒烟。启动冒烟证明构建出的 bundle 能启动并短暂存活，但不会驱动或视觉检查原生窗口。
+Portal 路由仍采用直接导入，当前源码没有路由级懒加载。本次未重新测量 bundle 大小或吞吐量。
 
 部署冒烟包含重试、托管推理及调用账本、运行中 worker 的取消和 Bash 隔离探针。
 调度器单元测试覆盖失联 Run 处理和清理。
@@ -244,10 +257,10 @@ Compose、kind、生产 Kubernetes 清单、发布验证、SBOM、镜像扫描�
 ## 本次复核的验证
 
 本次是源码与测试复核，不是重新进行部署资格验证。
-通过 `./make test` 运行的定向测试已通过，覆盖配置、bootstrap、Server 监听器分离、
-Task/worker handler、调度器、Kubernetes Job 构建、插件激活、worker runtime 组装与
-客户端认证与共享协调（包括使用 miniredis 的双副本流测试）。`./make check docs` 和 `git diff --check` 已通过。
-文档检查覆盖链接与格式，不证明运行时行为。
+最新 `main` 在 `2041cbec` 上的 CI、CodeQL、Windows 与部署冒烟工作流均已通过。
+本次文档更新的本地定向测试覆盖 `internal/agentapp` 与 `internal/core/workflow`；
+`./make check docs` 和 `git diff --check` 也已通过。文档检查覆盖链接与格式，
+不证明运行时行为。
 
 本次未运行真实 MySQL 测试（未提供 `BUILDMAX_TEST_DSN`）、全量构建、
 前端/浏览器测试、Compose/kind 部署冒烟、外部恢复演练或付费模型评估。

@@ -58,6 +58,9 @@ operator and participants accepted all of these limits:
   server validates them at startup, so deliberately supply one invalid quantity
   and record that the candidate refuses to start and names the key, rather than
   coming up and scheduling an unbounded Job.
+- [ ] Record the trace retention and capacity policy. Until BuildMax supplies a
+  trace-directory retention sweep, keeping traces forever requires explicit
+  volume sizing, monitoring, and an operator cleanup procedure.
 - [ ] Confirm MySQL and S3 are external to the BuildMax cluster and reached over
   TLS with the same identities the candidate server and workers will use.
 - [ ] Take a coordinated database and bucket backup and record their identifiers

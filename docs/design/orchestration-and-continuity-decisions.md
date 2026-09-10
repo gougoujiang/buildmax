@@ -165,10 +165,10 @@ Tracked as separate, dedicated changes:
    deltas into the in-process hub; only the frontend does not subscribe). Ships
    for the single-replica deployment now; a shared pub/sub for multi-instance is
    the separate R1 work and is not a prerequisite.
-5. **The workspace-checkpoint implementation** — remains planned behind the
-   R0–R4 reliability work. It carries the session-restore visibility fix
-   (turning today's silent fail-open into a recorded, surfaced outcome) as part
-   of that implementation rather than as a standalone slice.
+5. **The workspace-checkpoint implementation** — shipped. Continue restores the
+   Task head, Retry restores the repeated run's base, and restore/checkpoint
+   outcomes are recorded and surfaced. Candidate restore qualification remains
+   in R2–R3 rather than reopening the implementation design.
 
 No action reintroduces a compatibility layer, per the Alpha change rules.
 

@@ -22,7 +22,8 @@
 
 This record defines how Portal navigation communicates scope and how URLs keep
 Space-owned resources in the correct Space. It is an independently deliverable
-R3 operator-journey improvement; it does not change roadmap priority.
+foundation for the R3 candidate operator journey; it does not change roadmap
+priority.
 
 ## Contents
 

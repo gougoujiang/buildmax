@@ -9,7 +9,7 @@
 > are built and pinned, and have run the oracle smoke and a one-task canary end
 > to end. No wider run exists, so there is no Terminal-Bench score yet
 >
-> **Accepted:** 2026-08-22 · **Roadmap:** P0.6
+> **Accepted:** 2026-08-22 · **Roadmap:** R4 post-Beta product-quality measurement
 
 Related: [roadmap](../ROADMAP.md), [product vision](product-vision.md),
 [surface positioning](surface-positioning.md), [trust harness](trust-harness.md),

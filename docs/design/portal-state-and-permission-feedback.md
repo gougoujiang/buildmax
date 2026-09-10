@@ -24,8 +24,8 @@
 > for these state paths.
 
 This record defines how Portal distinguishes loading, absence, failure, and
-authorization. It can be implemented page by page as an R3 operator-journey
-improvement without changing domain behavior or roadmap priority.
+authorization. It supports the R3 candidate operator journey and can be
+implemented page by page without changing domain behavior or roadmap priority.
 
 ## Contents
 
@@ -182,4 +182,3 @@ claim coverage.
 - [Space membership lifecycle](space-membership-lifecycle.md)
 - [Portal navigation and Space context](portal-navigation-and-space-context.md)
 - [Portal work and execution experience](portal-work-and-execution-experience.md)
-

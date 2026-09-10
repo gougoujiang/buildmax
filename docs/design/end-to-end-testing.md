@@ -20,7 +20,7 @@
 
 - roadmap_priority: `unscheduled` — contributor and agent productivity work,
   not yet placed in [../ROADMAP.md](../ROADMAP.md)
-- status: `in progress` — §9 steps 1, 2, 3, and 6 are done: the model harness of
+- status: `in progress` — §9 steps 1, 2, 3, 5, and 6 are done: the model harness of
   §4 is `internal/testsupport/mockllm` and serves the deployment smokes too; the
   CLI suite covers print mode, answers an approval on a pseudo-terminal, and
   resumes a session both by id and by `-c`, including the refusal a second
@@ -35,11 +35,10 @@
   conversation turn over the deployment's WebSocket, files, space settings, and
   the role matrix — and its deployment half landed retry and the space boundary
   in the smoke. Step 5 landed the Desktop bridge, including rewind and fork,
-  and CI now packages the desktop app on macOS and Windows — the prerequisite
-  the packaged-app smoke had and this record did not name. Open: the two
-  deployment paths §6.1 leaves for later, and the packaged-app smoke itself,
-  whose remaining unknown is whether a hosted runner gives a launched app a
-  usable GUI session
+  and CI now packages and launch-smokes the desktop app on macOS and Windows.
+  The smoke proves that the packaged process starts and stays alive briefly; it
+  does not drive or visually inspect the native window. Open: the two deployment
+  paths §6.1 leaves for later
 - depends on: [tool-permissions.md](./tool-permissions.md), whose approval gate
   the CLI and Desktop paths exist to drive, and which decides what a surface
   with no human attached does with an `Ask`;
@@ -481,7 +480,7 @@ rather than discovered later.
    matrix. Keep the original API smoke focused on deployment behavior, and give
    the server and worker paths the deployment-level assertions in §6.1.
 5. **Add the Wails bridge suite**, then a small native packaged-app smoke on
-   supported platform runners. The bridge suite has landed as
+   supported platform runners. **Done.** The bridge suite landed as
    `TestBridge*` in `internal/interface/desktop`, run by `./make e2e desktop`.
 
    A second suite, `./make e2e desktop-ui`, has landed since: it drives
@@ -492,7 +491,12 @@ rather than discovered later.
    it says nothing about how the native window renders that same page, and
    nothing about the signed, packaged build. `wails dev` opens a native window
    too, as a side effect of starting, but the suite makes no assertion about
-   it. The native-window and packaged-build smoke is still open work.
+   it.
+
+   The packaged-build launch smoke now runs as `./make e2e desktop-launch`
+   after `./make build desktop` on macOS and Windows CI. It proves that the
+   packaged process starts and remains alive for a short dwell; it does not
+   drive the window or assert its rendered contents.
 
    That step turned out to have a prerequisite this record did not name. Until
    `desktop-package.yml`, **no CI job produced a packaged app at all**:
@@ -511,9 +515,9 @@ rather than discovered later.
    the app out, and why the build job publishes no artifact — and they do not
    gate a smoke.
 
-   What is genuinely unproven is whether a hosted runner gives a launched app a
-   usable GUI session. That is the question the smoke has to answer first, and
-   it can now be answered against a real build.
+   The hosted macOS and Windows jobs now answer the launch question. Visual
+   native-window interaction remains a different, higher-cost test and is not
+   implied by this smoke.
 6. **Publish the contributor and agent runbook** in `docs/contribute/`,
    including suite selection, prerequisite checks, artifact locations, and a
    release-time full-matrix command. Landed as

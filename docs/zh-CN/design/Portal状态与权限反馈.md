@@ -17,8 +17,8 @@
 > 里独立的 `ResourceUnavailable` 组件提供，本文不再叠加一套竞争的详情页方案。剩余：
 > Issue 详情页 per-task Retry/Stop 的逐行错误，以及这些状态路径的 Playwright 测试。
 
-本文定义 Portal 如何区分加载、缺失、失败与授权。它可以作为 R3 运维者路径改进逐页
-实施，不改变 domain 行为或路线图优先级。
+本文定义 Portal 如何区分加载、缺失、失败与授权。它支持 R3 候选版本运维流程，且可以
+逐页实施，不改变 domain 行为或路线图优先级。
 
 ## 目录
 
@@ -145,4 +145,3 @@ not-found 语义，Portal 遵循该 API 契约，不推断对象存在。
 - [Space 成员生命周期](Space成员生命周期.md)
 - [Portal 导航与 Space 上下文](Portal导航与Space上下文.md)
 - [Portal 工作与执行体验](Portal工作与执行体验.md)
-

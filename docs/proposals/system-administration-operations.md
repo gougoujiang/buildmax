@@ -248,7 +248,7 @@ Advantages:
 - reuses the grant, audit, API package, and Portal area already shipped;
 - preserves the Space content boundary;
 - breaks into reviewable changes with independent acceptance criteria;
-- aligns with roadmap R3 account and Space operations and the wider operational
+- aligns with roadmap R3 candidate qualification and the wider operational
   trust milestone.
 
 Costs:
@@ -951,7 +951,7 @@ Acceptance should not create a parallel System Administration design. Instead:
 - add grant correctness and the chosen operator-surface decisions to
   `docs/design/system-administration.md`;
 - place the agreed sequencing in `docs/ROADMAP.md`, with the early phases
-  naturally supporting R3 account and Space operations;
+  naturally supporting the R3 candidate operator journey;
 - create focused implementation Issues or pull requests for each phase;
 - keep enterprise identity decisions in their own proposal and later design;
 - delete this proposal once its durable decisions have moved.

@@ -28,8 +28,9 @@
 
 ## Status
 
-- roadmap_priority: post-Beta hardening for the credential debt in §13, and
-  [`R3`](../ROADMAP.md) for the space-facing surface. It answers Phase D3 of
+- roadmap_priority: post-Beta hardening for the credential debt in §13; the
+  space-facing surface is implemented foundation for [`R3`](../ROADMAP.md)
+  candidate qualification. It answers Phase D3 of
   [plugin-space-distribution.md](plugin-space-distribution.md), which deferred
   secret delivery to a follow-on record.
 - status: `Phase 1 complete` — a Space owner stores a Secret (encrypted,
