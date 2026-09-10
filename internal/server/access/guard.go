@@ -194,12 +194,9 @@ func (g *Guard) spaceRole(w http.ResponseWriter, r *http.Request, userID, spaceI
 		httputil.WriteInternalError(w, err, "handler error", "handler", "resolve_resource_space", "user_id", userID)
 		return "", false
 	}
-	for _, member := range members {
-		if member.UserID == userID {
-			return corespace.EffectiveRole(member.Role), true
-		}
-	}
-	return "", true
+	// "" here means the caller is not a member; the bool reports only that the
+	// roster read succeeded.
+	return corespace.EffectiveRoleOf(members, userID), true
 }
 
 // SystemAdmin authorizes a deployment-scoped route.

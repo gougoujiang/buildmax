@@ -538,12 +538,8 @@ func countOwners(members []corespace.Member) int {
 }
 
 func allows(members []corespace.Member, userID string, action corespace.Action) bool {
-	for i := range members {
-		if members[i].UserID == userID {
-			return corespace.Allows(corespace.EffectiveRole(members[i].Role), action)
-		}
-	}
-	return false
+	role := corespace.EffectiveRoleOf(members, userID)
+	return role != "" && corespace.Allows(role, action)
 }
 
 // roleOf returns the stored role for userID, or "" when the roster has no
