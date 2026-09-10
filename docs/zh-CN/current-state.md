@@ -17,8 +17,9 @@ BuildMax 仍处于 Alpha。本地 Agent 执行与私有 Space 执行链路已经
 这些不等于已具备生产多租户服务能力，也不证明 Beta 候选版本已通过验证。
 [Beta 就绪记录](deploy/beta-readiness.md)仍未合格。
 
-R0 仅剩的工程边界是未纳入 Bash 沙箱的 MCP stdio 子进程。整个 worker 的出站网络
-是首个私有 Beta 已记录并接受的限制，不再是 R0 实现要求。
+MCP stdio 子进程目前不经过 Bash 沙箱；让受支持的 worker 配置约束或禁用它们
+作为 Beta 就绪门禁跟踪，不再是 R0 实现要求；整个 worker 的出站网络也是首个私有 Beta
+已记录并接受的类似限制。
 数据库写入对分布式租约 fencing token 的校验，以及候选版本的故障与恢复证据仍待完成。
 共享 Redis 协调已经实现。
 worker API 已有独立监听器、TLS 支持和已交付的入站 NetworkPolicy；
@@ -111,8 +112,8 @@ Linux Bash 封装将容器的 `/proc` 重新绑定为只读。
 剩余限制：
 
 - MCP stdio 服务通过 `exec.Command` 启动，未经过 Bash 沙箱
-  （[MCP transport](../../internal/infra/mcp/transport.go)）。受支持的 Beta worker 配置
-  必须在能够约束它之前拒绝 stdio MCP；这项失败关闭处理尚未实现。
+  （[MCP transport](../../internal/infra/mcp/transport.go)）。Beta 就绪门禁要求
+  受支持的 worker 配置约束或拒绝它们；这项失败关闭处理尚未实现。
 - 即使 Bash 命令已隔离，`local_process` 仍与 Server 处于同一主机信任域。
 - `buildmax sandbox overrides` 未实现。Portal 可设置 Agent 层级和 Space 默认值，
   但 Task 自身的 Run 详情展示中尚未呈现解析后的层级与插件固定版本。

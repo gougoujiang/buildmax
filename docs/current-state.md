@@ -18,11 +18,12 @@ checkpoints, managed inference, and operator administration. This is not yet
 proof of production multi-tenant readiness or of a qualified Beta candidate.
 The [Beta readiness record](deploy/beta-readiness.md) remains unqualified.
 
-The one remaining R0 engineering boundary is MCP stdio child processes outside
-the Bash sandbox. Worker-wide network egress is a documented, accepted limit for
-the first private Beta rather than an R0 implementation requirement. Distributed
-lease fencing at database writes and candidate failure/recovery evidence also
-remain open. Shared Redis coordination is implemented. The worker API already
+MCP stdio child processes run outside the Bash sandbox today; confining or
+disabling them under the supported worker profile is tracked as a Beta
+readiness gate rather than an R0 implementation requirement, and worker-wide
+network egress is a similar documented, accepted limit for the first private
+Beta. Distributed lease fencing at database writes and candidate
+failure/recovery evidence also remain open. Shared Redis coordination is implemented. The worker API already
 has a separate listener, TLS support, and a shipped ingress NetworkPolicy; that
 bounded network slice must not be confused with unrestricted worker egress.
 
@@ -132,8 +133,8 @@ Remaining limits:
 
 - MCP stdio servers launch with `exec.Command` and do not pass through the Bash
   sandbox ([`internal/infra/mcp/transport.go`](../internal/infra/mcp/transport.go)).
-  The supported Beta worker profile must reject them until it can confine them;
-  that fail-closed treatment is not implemented yet.
+  The Beta readiness gate requires the supported worker profile to confine or
+  refuse them; that fail-closed treatment is not implemented yet.
 - `local_process` remains in the Server's host trust domain even when its Bash
   commands are sandboxed.
 - `buildmax sandbox overrides` is not implemented. Portal exposes Agent tiers

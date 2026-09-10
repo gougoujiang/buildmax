@@ -36,25 +36,26 @@ correctness and recovery, which every Server deployment needs. R3–R4 complete
 the operating and qualification evidence. These are priorities, not claims that
 someone is currently assigned to every item.
 
-### R0. Close The Worker Process-Boundary Bypass
+### R0. Verify The Supported Worker Boundary
 
-**One engineering gap remains.** Official worker images select and probe the
-worker sandbox baseline; Bash confinement, process limits, hook transport
-policy, and worker API isolation are implemented and exercised by deployment
-smoke. MCP stdio servers still launch as direct child processes outside that
-command boundary.
+**Engineering surface implemented; qualification and operator visibility
+remain.** Official worker images select and probe the worker sandbox baseline;
+Bash confinement, process limits, hook transport policy, and worker API
+isolation are implemented and exercised by deployment smoke. What remains is
+proving those controls in a real candidate deployment and making the resolved
+boundary legible where an operator diagnoses a TaskRun.
 
-**Next:** make the supported unattended-worker profile reject stdio MCP unless
-the child can be launched inside its declared sandbox boundary. Verify the
-existing Bash, process-limit, hook, and worker API controls with the candidate
-artifacts, and show the resolved sandbox and MCP treatment in the operator
-surface used to diagnose a TaskRun.
+**Next:** verify the existing Bash, process-limit, hook, and worker API
+controls with the candidate artifacts, and show the resolved sandbox treatment
+in the operator surface used to diagnose a TaskRun.
 
-**Done when:** no stdio MCP child runs outside the boundary claimed by the
-supported worker profile; unavailable required enforcement fails closed; the
-actual boundary is visible; and candidate deployment evidence covers those
-claims. Pod-wide destination control and an outer runtime sandbox are not part
-of R0 or the first private Beta gate.
+**Done when:** unavailable required enforcement fails closed; the actual
+boundary is visible in TaskRun diagnostics; and candidate deployment evidence
+covers those claims. Pod-wide destination control, an outer runtime sandbox,
+and stdio MCP child-process containment are not part of R0. Confining or
+disabling stdio MCP under the supported worker profile is tracked as a Beta
+readiness gate below (execution boundary and topology), not an R0 engineering
+deliverable.
 
 Design: [trust harness](design/trust-harness.md),
 [worker API network boundary](design/worker-api-network-boundary.md), and
