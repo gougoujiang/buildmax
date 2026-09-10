@@ -1,12 +1,21 @@
 # Agent-Autonomous End-to-End Verification Assessment
 
-> **Audience:** contributors and code-changing agents · **Status:** current — field assessment on 2026-09-09
+> **Audience:** contributors and code-changing agents · **Status:** historical field assessment — measured on 2026-09-09; remediation has since landed
 
 This document assesses whether a code-changing Agent can independently select,
 run, interpret, and preserve trustworthy end-to-end evidence for the CLI,
 Desktop, Portal, and the local kind deployment. It is a point-in-time assessment,
 not a second testing reference or roadmap. Use [testing.md](testing.md) for the
 commands that exist today and [ROADMAP.md](../ROADMAP.md) for committed work.
+
+Several highest-impact findings below were fixed after the measurement: kind
+deployments are stamped and checked against the source commit, tasks may own an
+ephemeral kind cluster, the database preflight checks readiness, Portal failure
+states and selectors were hardened, request logging redacts credential-bearing
+query parameters, and macOS/Windows CI now launch-smokes the packaged Desktop
+application. The scores and live-cluster counts remain the evidence recorded on
+2026-09-09; they are not a current score recalculated without rerunning the same
+field exercise.
 
 ## Outcome
 

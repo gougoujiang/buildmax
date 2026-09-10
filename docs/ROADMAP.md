@@ -31,105 +31,124 @@ historical capability groupings; the R0–R5 order below governs current work.
 
 ## Active Priority Order
 
-R0 closes one known execution-boundary bypass. R1–R2 then address state
-correctness and recovery, which every Server deployment needs. R3–R4 complete
-the operating and qualification evidence. These are priorities, not claims that
-someone is currently assigned to every item.
+R0–R2 close the remaining release-blocking engineering gaps: the supported
+worker contract, durable state correctness, and long-running recovery. R3 then
+qualifies one immutable candidate through the documented operator journey.
+R4–R5 are post-Beta, evidence-led work rather than prerequisites hidden inside
+the release path. These are priorities, not claims that someone is currently
+assigned to every item.
 
-### R0. Verify The Supported Worker Boundary
+### R0. Close The Supported Worker Contract
 
-**Engineering surface implemented; qualification and operator visibility
-remain.** Official worker images select and probe the worker sandbox baseline;
-Bash confinement, process limits, hook transport policy, and worker API
-isolation are implemented and exercised by deployment smoke. What remains is
-proving those controls in a real candidate deployment and making the resolved
-boundary legible where an operator diagnoses a TaskRun.
+**One engineering rule and candidate proof remain.** Official worker images
+select and probe the worker sandbox baseline; Bash confinement, process limits,
+hook transport policy, worker API isolation, trace boundary presentation, and
+resolved plugin presentation are implemented. Stdio MCP servers still launch as
+direct worker child processes outside the Bash boundary even though the Beta
+gate requires the supported worker profile to confine or disable them.
 
-**Next:** verify the existing Bash, process-limit, hook, and worker API
-controls with the candidate artifacts, and show the resolved sandbox treatment
-in the operator surface used to diagnose a TaskRun.
+**Next:** make the supported unattended-worker profile reject stdio MCP unless
+the child enters its declared boundary, expose that treatment beside the
+already-visible run boundary, and verify the Bash, process-limit, hook, MCP, and
+worker API controls with the candidate artifacts.
 
-**Done when:** unavailable required enforcement fails closed; the actual
-boundary is visible in TaskRun diagnostics; and candidate deployment evidence
-covers those claims. Pod-wide destination control, an outer runtime sandbox,
-and stdio MCP child-process containment are not part of R0. Confining or
-disabling stdio MCP under the supported worker profile is tracked as a Beta
-readiness gate below (execution boundary and topology), not an R0 engineering
-deliverable.
+**Done when:** no stdio MCP child runs outside the boundary claimed by the
+supported worker profile; unavailable required enforcement fails closed; the
+actual boundary and MCP treatment are legible in TaskRun diagnostics; and
+candidate deployment evidence covers those claims. Pod-wide destination
+control and an outer runtime sandbox remain accepted first-Beta limits.
 
 Design: [trust harness](design/trust-harness.md),
 [worker API network boundary](design/worker-api-network-boundary.md), and
 [sandbox boundaries](design/sandbox-boundaries.md).
 
-### R1. Qualify Shared Server Coordination
+### R1. Close Durable State Correctness
 
-**Mechanism implemented; qualification open.** Local mode supports one Server;
-Redis mode supplies shared streams, connection events, and Conversation turn
-leases. Basic/kind and production manifests now use Redis with two replicas,
-and architecture tests reject multiple replicas without coordination.
+**Core mechanisms implemented; three correctness windows remain.** Redis mode
+supplies shared streams, connection events, and Conversation turn leases, and
+the reference manifests run two coordinated Server replicas. Workflow run and
+step-run transitions now use guarded compare-and-set writes, with failed-step
+finalization made atomic. Message writes do not yet enforce lease fencing;
+Workflow progress still depends on callbacks rather than durable reconciliation;
+and a title-token quota refusal can still leave an
+[orphan Conversation](https://github.com/gougoujiang/buildmax/issues/278).
 
-**Next:** enforce lease fencing tokens in message-history writes and exercise
-worker updates, reconnects, concurrent turns, and Redis failures in a deployed
-candidate. Do not count an in-process two-replica test as a cluster exercise.
+**Next:** fence Conversation message-history writes, make the linear Workflow
+precursor recover after a lost callback or restart, close the orphan-Conversation
+window, and prove their races against real MySQL. Then exercise worker updates,
+reconnects, concurrent turns, and Redis failure in the candidate topology. Do
+not count an in-process two-replica test as a cluster exercise.
 
-**Done when:** the supported topology has candidate evidence for live delivery,
-turn serialization, stale-writer protection, and recovery under failure.
+**Done when:** stale writers cannot commit, persisted work converges after a
+process interruption without duplicate execution, refused work leaves no
+orphan record, and the supported topology has candidate evidence for delivery,
+serialization, and recovery.
 
 Design: [Server coordination](design/server-coordination.md).
 
-### R2. Widen Real-Database And Recovery Evidence
+### R2. Bound Long-Running Operation And Recovery
 
-**Partly implemented.** A MySQL integration scope runs on pull requests and
-covers critical authorization and TaskRun transitions, including contention.
-The remaining work is case coverage, not introducing the CI gate.
+**Test infrastructure implemented; lifecycle evidence remains.** The MySQL
+scope runs on pull requests and covers critical authorization, TaskRun state,
+checkpoint, Artifact, and Workflow transition behavior. Deployment smoke covers
+ordinary execution and cancellation. Trace files have no retention lifecycle,
+and no candidate has proved hard worker loss, dependency denial, paired restore,
+schema upgrade, binary rollback, or credential rotation.
 
-**Next:** extend the existing retry, checkpoint, Artifact retention, and
-Space-isolation tests with remaining Workflow revision advancement, restart
-recovery, and cross-Space scenarios. Retry lineage and Artifact tombstoning
-already have real-database tests. Retire test plans for removed mechanisms, including the old
-result-delivery queue, rather than recreate them for a checklist.
+**Next:** add [trace retention](https://github.com/gougoujiang/buildmax/issues/140)
+with an explicit keep-forever default and visible prune evidence; extend
+real-MySQL coverage for Workflow revision advancement,
+[quota windows](https://github.com/gougoujiang/buildmax/issues/498), and
+cross-Space scenarios; and make the failure and recovery
+drills in the Beta readiness record executable. Retire plans for removed
+mechanisms, including the old result-delivery queue, rather than recreate them
+for a checklist.
 
-**Done when:** the critical persistence and recovery paths have real-database
-regression tests and deployment failure evidence. Schema upgrade and rollback
-proof must exercise the existing migrations against an older schema and verify
-the candidate’s rollback limits; the migration list is no longer empty.
+**Done when:** a long-lived deployment has bounded or explicitly capacity-planned
+trace storage, critical persistence paths have real-database regression tests,
+and the candidate has durable evidence for failure, restore, upgrade, rollback,
+and rotation behavior.
 
 Design: [verification program](design/verification-program.md) and
 [end-to-end testing](design/end-to-end-testing.md).
 
-### R3. Validate Account And Space Operator Journeys
+### R3. Qualify One Private-Deployment Candidate
 
-**Core lifecycle implemented; operating evidence open.** Account bootstrap,
-login-code recovery, Space invitations, role changes, ownership transfer, and
-member-scoped recovery exist. Creating an account remains a system administrator
-authority. Space approval workflows are intentionally out of scope.
+**Product path implemented; the evidence record is empty.** Account bootstrap,
+login-code recovery, Space membership, managed models, Agent and Workflow runs,
+artifacts, traces, usage, audit, Compose/kind, and the production reference all
+exist. None of that substitutes for exercising the immutable Server, worker,
+and Portal artifacts proposed for release with external dependencies.
 
-**Next:** have an operator exercise these journeys through the documented UI
-and CLI, identify friction or missing audit evidence, and fix demonstrated gaps. Track
-transactional authority audit, admin CLI Session parity, quota-tier assignment,
-and runtime diagnosis metadata in the
-[administration operations proposal](proposals/system-administration-operations.md).
+**Next:** pin the candidate image digests and have an operator who did not build
+the features perform the documented account, Space, execution, diagnosis,
+failure, restore, upgrade, rollback, and rotation journeys. Fix only gaps that
+the journey demonstrates. Transactional authority audit, admin CLI Session
+parity, quota-tier assignment, and richer runtime metadata remain proposal work
+unless they block this outcome.
 
-**Done when:** an operator can onboard people, manage membership, transfer
-ownership, and recover access without reading code or bypassing authorization.
-Reopen account policy or approval workflow decisions only for a concrete need.
+**Done when:** every required row in the Beta readiness record has durable
+evidence, failures and accepted limits are explicit, and the qualification
+operator, engineering owner, and release owner sign the decision.
 
 Design: [Space membership lifecycle](design/space-membership-lifecycle.md) and
 [Space governance](design/space-governance.md).
 
-### R4. Expand Qualification Breadth
+### R4. Measure Product Quality Beyond The Beta Gate
 
-**Framework implemented; coverage limited.** Three BuildMax-owned tasks and a
-one-task external canary establish the evaluation path, not platform-wide
-reliability or a Terminal-Bench score.
+**Post-Beta; framework implemented and coverage limited.** Three
+BuildMax-owned tasks and a one-task external canary establish the evaluation
+path, not platform-wide reliability or a Terminal-Bench score. Public benchmark
+breadth is not a prerequisite for qualifying the private-deployment contract.
 
-**Next:** expand representative local, worker, Conversation, trust-boundary,
-failure-recovery, and deployment scenarios. Collect performance and soak
+**Next:** expand product-owned local, worker, Conversation, trust-boundary, and
+deployment scenarios from observed failures. Collect performance and soak
 evidence separately. Run the pinned Harbor canary before the full benchmark
 protocol; publish a score only with the completed protocol and its conditions.
 
-**Done when:** a release candidate has representative, reproducible results
-across the supported surfaces, with failures and limits reported explicitly.
+**Done when:** product changes can be compared across representative,
+reproducible scenarios, with uncertainty, failures, and limits reported
+explicitly.
 
 Design: [evaluation system](design/evaluation-system.md).
 
@@ -172,10 +191,10 @@ Server, worker, and Portal artifacts proposed for release.
 | Operator journey | An operator who did not implement the feature can sign in, execute and retry work with a managed model, and diagnose results from TaskRun, Artifacts, traces, usage, and audit history. |
 | Release verification | Attach current CI, direct and managed Compose/kind smoke, Portal browser E2E, archive verification, image scans, SBOMs, and provenance. |
 
-Engineering closes the narrow process-boundary bypass first, then prioritizes
-coordination, persistence, and negative deployment tests. External candidate
-qualification follows, ending with a signed readiness record. Account journeys
-and evaluation coverage can progress alongside this work.
+Engineering closes the supported worker contract first, then the remaining
+state-correctness and long-running recovery gaps. External candidate
+qualification follows and ends with a signed readiness record. Broader model
+evaluation and public benchmarks do not block that decision.
 
 The [Beta readiness record](deploy/beta-readiness.md) holds the detailed
 procedure and evidence. Passing unit tests or local smoke does not replace

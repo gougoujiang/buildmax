@@ -21,7 +21,7 @@
 
 ## Status
 
-- roadmap_priority: `P4` (roadmap R3, "Close Account And Space Operations")
+- roadmap_priority: implemented foundation for roadmap R3 candidate qualification
 - status: `implemented` — §5.1 (invitation), §5.2 (role change), §5.3
   (ownership transfer), and §5.4 (space-scoped access recovery) are shipped
   end to end: `internal/core/space`, `internal/service/space`,

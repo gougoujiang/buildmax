@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Workflow运行时.md)
 
-> **Audience:** contributors, product reviewers, and operators · **Status:** planned — the direction is accepted; the current implementation remains a linear, callback-driven precursor
+> **Audience:** contributors, product reviewers, and operators · **Status:** planned — the direction is accepted; the current implementation remains a linear, callback-driven precursor. Guarded compare-and-set run/step transitions and atomic failed-step finalization have shipped; durable reconciliation and restart recovery remain open
 
 Related: [roadmap](../ROADMAP.md),
 [product vision](product-vision.md),
@@ -100,10 +100,10 @@ through the shared runtime.
 
 This record accepts the architecture, not immediate breadth. The reliability
 foundation belongs before new Workflow control flow. Static graph execution is
-an R5 capability selected after the R0-R4 operating and qualification evidence,
-or earlier only when a concrete deployment supplies the evidence and priority.
-Dynamic expansion, human waits, schedules, and inbound events remain later
-slices.
+an R5 capability selected after the R0–R3 Beta evidence and later product
+evidence justify it, or earlier only when a concrete deployment supplies the
+need and priority. Dynamic expansion, human waits, schedules, and inbound events
+remain later slices.
 
 ## 2. Problem And Design Principles
 
@@ -1134,7 +1134,9 @@ idempotent tools or an accepted duplication risk.
 
 ### Phase 1: Make The Linear Precursor Durable
 
-- Introduce expected-state Workflow and step transitions.
+- Introduce expected-state Workflow and step transitions. **Shipped:** run and
+  step statuses are typed, terminal states are immutable, transitions use
+  compare-and-set, and failed-step/run finalization is atomic.
 - Add idempotent Task and TaskRun admission for Workflow ownership.
 - Add `Reconcile`, due-run scanning, and restart recovery.
 - Make callbacks wake reconciliation only.

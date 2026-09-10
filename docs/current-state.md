@@ -2,9 +2,9 @@
 
 > **简体中文：** [阅读中文镜像](zh-CN/current-state.md)
 >
-> **Audience:** users, operators, and contributors · **Status:** current as of 2026-09-08
+> **Audience:** users, operators, and contributors · **Status:** current as of 2026-09-10
 
-This assessment was checked against repository code at `29efe806`. It describes
+This assessment was checked against repository code at `2041cbec`. It describes
 implemented behavior, test coverage, and remaining limits. Priority and future
 sequencing belong in the [roadmap](ROADMAP.md), not in a second priority list
 here. Design records explain decisions; their unfinished checklists are not
@@ -18,12 +18,13 @@ checkpoints, managed inference, and operator administration. This is not yet
 proof of production multi-tenant readiness or of a qualified Beta candidate.
 The [Beta readiness record](deploy/beta-readiness.md) remains unqualified.
 
-MCP stdio child processes run outside the Bash sandbox today; confining or
-disabling them under the supported worker profile is tracked as a Beta
-readiness gate rather than an R0 implementation requirement, and worker-wide
-network egress is a similar documented, accepted limit for the first private
-Beta. Distributed lease fencing at database writes and candidate
-failure/recovery evidence also remain open. Shared Redis coordination is implemented. The worker API already
+MCP stdio child processes run outside the Bash sandbox today. The supported
+worker profile must confine or disable them before Beta; this is the remaining
+R0 engineering rule, not merely a qualification checkbox. Worker-wide network
+egress is a documented, accepted limit for the first private Beta. Distributed
+lease fencing at database writes, durable Workflow reconciliation, trace
+retention, and candidate failure/recovery evidence also remain open. Shared
+Redis coordination is implemented. The worker API already
 has a separate listener, TLS support, and a shipped ingress NetworkPolicy; that
 bounded network slice must not be confused with unrestricted worker egress.
 
@@ -42,6 +43,11 @@ permissions, approvals, compaction and checkpoints, hooks, bounded redacted
 traces, usage statistics, sessions, notes, todos, Project Memory, subagents,
 worktrees, and background jobs. Model assembly supports OpenAI-compatible chat,
 OpenAI Responses, Anthropic, and Ollama.
+
+Interactive Desktop turns now use `agentapp.RunScheduler`, which serializes one
+run per session key, queues later prompts in order, and gives queued background
+events the same lifecycle. The Server TaskRun scheduler remains a separate
+durable execution-plane concern.
 
 Local inspection includes `buildmax info`, TUI `/info`, and Desktop memory
 listing/reading. Desktop memory editing, deletion, and enable controls remain
@@ -133,13 +139,14 @@ Remaining limits:
 
 - MCP stdio servers launch with `exec.Command` and do not pass through the Bash
   sandbox ([`internal/infra/mcp/transport.go`](../internal/infra/mcp/transport.go)).
-  The Beta readiness gate requires the supported worker profile to confine or
-  refuse them; that fail-closed treatment is not implemented yet.
+  The supported worker profile must confine or refuse them; that fail-closed
+  treatment is not implemented yet.
 - `local_process` remains in the Server's host trust domain even when its Bash
   commands are sandboxed.
 - `buildmax sandbox overrides` is not implemented. Portal exposes Agent tiers
-  and Space defaults, but not resolved tiers and plugin pins in the Task's own
-  run detail presentation.
+  and Space defaults. Run Details shows the boundary recorded by the trace and
+  the resolved plugin pins, but not the requested/resolved tier pair or stdio
+  MCP treatment as distinct diagnostic fields.
 - No worker RuntimeClass selection is wired in the Job builder. gVisor remains
   conditional post-Beta hardening, not a shipped supported worker profile or a
   first-Beta requirement.
@@ -211,13 +218,18 @@ The database coverage is broader than the previous assessment reported:
 | Task claiming, run transitions, one active run, and cancellation/report races | [concurrency_test.go](../internal/infra/db/concurrency_test.go) |
 | Artifact soft deletion, concurrent deletion, expiry, byte accounting, and purge lifecycle | [artifact_retention_test.go](../internal/infra/db/artifact_retention_test.go) |
 | Checkpoint head advancement and partial checkpoint retention | [workspace_checkpoint_test.go](../internal/infra/db/workspace_checkpoint_test.go) |
+| Workflow guarded run/step transitions and atomic failure finalization | [workflow_test.go](../internal/infra/db/workflow_test.go) |
 | Workflow initial revision and revision queries | [revision_query_test.go](../internal/infra/db/revision_query_test.go) |
 | Space isolation for secrets and independent invitations | [secret_test.go](../internal/infra/db/secret_test.go), [space_invitation_test.go](../internal/infra/db/space_invitation_test.go) |
 
-This is not exhaustive proof of cross-Space store behavior or Workflow revision
-advancement under edits and contention. Restart and external dependency recovery
-also need scenario-specific evidence. The removed result-delivery queue has no
-remaining restart-recovery obligation of its own.
+The guarded transitions prevent illegal terminal rewrites and make failed-step,
+later-step blocking, and failed-run finalization atomic. They do not yet create
+a durable reconciler: progress still depends on callbacks, so restart and lost-
+callback recovery remain open. This is also not exhaustive proof of cross-Space
+store behavior or Workflow revision advancement under edits and contention.
+External dependency recovery still needs scenario-specific evidence. The
+removed result-delivery queue has no remaining restart-recovery obligation of
+its own.
 
 **The explicit migration list is no longer empty.**
 [`internal/infra/db/migration.go`](../internal/infra/db/migration.go) contains
@@ -228,6 +240,11 @@ recording and skipping on a second run. Neither that test nor an N-1 policy in
 a design document establishes an exercised old-schema upgrade and binary
 rollback. The old explanation that a fixture is blocked by an empty migration
 history is obsolete.
+
+Each trace is bounded by field and record caps, but the traces directory has no
+retention sweep. A long-lived process therefore needs external capacity
+management or manual deletion today; BuildMax cannot yet record that old traces
+were removed by policy.
 
 ## Account, Space, And Extension Surfaces
 
@@ -279,12 +296,15 @@ That scope cannot qualify all supported surfaces. Historical oracle/canary
 reports are not a benchmark result for this revision; this review ran neither
 real-model evaluation nor a Terminal-Bench protocol and reports no score.
 
-Portal has browser tests, including direct Task threads and workspace state.
-Desktop has bridge tests and browser-based UI suites under
-[`desktop/frontend/e2e`](../desktop/frontend/e2e); these do not exercise a
-packaged native window. Portal routes are eagerly imported, with no route-level
-lazy loading in the current source. No fresh bundle size or throughput number
-was measured in this review.
+Portal browser tests now cover direct Task threads, workspaces, canonical Space
+routes, loading/error/permission states, responsive layouts, accessibility, and
+run provenance. Desktop has bridge and browser-based UI suites under
+[`desktop/frontend/e2e`](../desktop/frontend/e2e), plus a packaged-application
+launch smoke on macOS and Windows CI. The launch smoke proves that the built
+bundle starts and stays alive briefly; it does not drive or visually inspect the
+native window. Portal routes remain eagerly imported, with no route-level lazy
+loading in the current source. No fresh bundle size or throughput number was
+measured in this review.
 
 Deployment smoke includes retry, managed inference and its call ledger,
 cancellation of a running worker, and the Bash confinement probe. Scheduler
@@ -299,12 +319,11 @@ the unsigned [Beta readiness record](deploy/beta-readiness.md).
 ## Verification For This Review
 
 This is a source-and-tests reassessment, not a fresh deployment qualification.
-Focused `./make test` runs passed for configuration, bootstrap, Server listener
-separation, Task/worker handlers, scheduler, Kubernetes Job construction, plugin
-activation, worker runtime assembly, client authentication, and shared
-coordination (including two-replica streaming against miniredis).
-`./make check docs` and `git diff --check` passed. Documentation checks cover
-links and formatting; they do not prove runtime behavior.
+The latest `main` CI, CodeQL, Windows, and deployment-smoke workflows passed for
+`2041cbec`. For this documentation update, focused local tests covered
+`internal/agentapp` and `internal/core/workflow`; `./make check docs` and
+`git diff --check` also passed. Documentation checks cover links and formatting;
+they do not prove runtime behavior.
 
 The review did not run the real-MySQL scope (no `BUILDMAX_TEST_DSN` was supplied),
 full builds, frontend/browser suites, Compose/kind deployment smoke, external

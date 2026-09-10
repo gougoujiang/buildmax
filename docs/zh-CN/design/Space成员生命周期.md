@@ -21,7 +21,7 @@
 
 ## 状态
 
-- roadmap_priority：`P4`（路线图 R3，"关闭账户与 Space 操作"）
+- roadmap_priority：路线图 R3 候选版本资格验证的已实现基础
 - status：`implemented` —— §5.1（邀请）、§5.2（角色变更）、§5.3（所有权转让）和 §5.4（Space 范围的访问恢复）均已端到端交付：`internal/core/space`、`internal/service/space`、`internal/server/handlers/space`、`internal/infra/db`，以及 §9 中的 Portal 界面（Space → Members：邀请、待处理列表、角色选择器、转让确认、登录码；Account → Invitations：列表与接受）。§12 的四个开放问题均已决定
 - follows：[space-governance.md](./Space治理.md)、[system-administration.md](./系统管理.md)
 - roadmap：[../ROADMAP.md](../ROADMAP.md)

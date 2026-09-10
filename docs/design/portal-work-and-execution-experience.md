@@ -6,8 +6,9 @@
 > against a real MySQL.
 
 This record defines the Portal experience from an Issue through Agent execution
-to a durable result. It is an independently deliverable R3 operator-journey
-improvement; it does not replace the execution model or reorder the roadmap.
+to a durable result. It is an implemented foundation for the R3 candidate
+operator journey; it does not replace the execution model or reorder the
+roadmap.
 
 ## Contents
 

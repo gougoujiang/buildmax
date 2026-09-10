@@ -45,10 +45,10 @@
   hardcoded strictest tier, since a hardcoded default would bypass the space
   default this same section adds; space settings gets a "Sandbox defaults"
   section on the Plugins tab, the closest existing precedent for "what this
-  space's background runs may use." Resolved tiers are not yet surfaced in a
-  task run's own detail view in Portal -- neither are plugin pins, so that
-  gap was pre-existing, not introduced here. The k8s pod/`bwrap` interaction
-  is now verified against a real pod carrying the worker's exact security
+  space's background runs may use." Run Details now shows the boundary recorded
+  by the trace and the run's resolved plugin pins. It does not separately show
+  the requested/resolved tier pair or stdio MCP treatment. The k8s pod/`bwrap`
+  interaction is now verified against a real pod carrying the worker's exact security
   context and by an organic end-to-end run the deployment smoke performs
   automatically — see [`deployment/seccomp/README.md`](../../deployment/seccomp/README.md)
   — but Pod-wide destination enforcement remains the conditional hardening
@@ -445,12 +445,10 @@ picker.)
   member and editable by owner/admin — shipped as `SpaceSandboxDefaults`
   (`portal/src/features/spaceSandbox/`) on the Plugins settings tab, beside
   plugin curation.
-- Task-run detail view: surface the resolved tiers the way plugin pins would
-  be shown, so a reader can see what boundary a specific run had without
-  reading the trace file -- not started. Plugin pins are not actually shown
-  there today either (`plugin_pins`/`agent_revision` are recorded but Portal
-  has no run detail view that reads them), so this is a pre-existing gap this
-  document does not close.
+- Task-run detail view: the Run Details modal now surfaces the boundary recorded
+  by the trace and the resolved plugin pins. Showing the requested/resolved tier
+  pair and stdio MCP treatment as distinct fields remains open; the actual
+  boundary no longer requires reading the trace file directly.
 
 ## 11. Validation
 
