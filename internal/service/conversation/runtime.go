@@ -71,7 +71,7 @@ func buildConversationTools(in turnRunInput, sourceMessageID *string) []llm.Tool
 	if r := newListTasksStoreRunner(svc.Tasks); r != nil {
 		tools = append(tools, newListTasksTool(in.ConversationID, r))
 	}
-	if r := newGetTaskStoreRunner(svc.Tasks); r != nil {
+	if r := newGetTaskServiceRunner(svc); r != nil {
 		tools = append(tools, newGetTaskTool(in.ConversationID, r))
 	}
 	if r := newContinueTaskServiceRunner(svc, sourceMessageID); r != nil {

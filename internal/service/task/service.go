@@ -145,6 +145,25 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCmd) (*coretask.
 	return s.Tasks.CreateTask(ctx, create)
 }
 
+// GetTaskInConversation reads a task and confirms it belongs to conversationID.
+// A task in another conversation is reported as not found, because a
+// conversation may only see its own tasks. This is the one place that scoping
+// is decided, so a caller that already holds the Service does not reach past it
+// into the store to re-check ConversationID.
+func (s *Service) GetTaskInConversation(ctx context.Context, conversationID, taskID string) (*coretask.Task, error) {
+	if s.Tasks == nil {
+		return nil, fmt.Errorf("tasks not configured")
+	}
+	t, err := s.Tasks.GetTask(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if t == nil || t.ConversationID != conversationID {
+		return nil, fmt.Errorf("task not found or not in this conversation")
+	}
+	return t, nil
+}
+
 // CreateRun enforces basic run creation rules and delegates to TaskRunStore.
 func (s *Service) CreateRun(ctx context.Context, cmd CreateRunCmd) (*coretask.Run, error) {
 	if s.TaskRuns == nil {

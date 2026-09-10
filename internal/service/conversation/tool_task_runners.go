@@ -32,11 +32,11 @@ func newListTasksStoreRunner(tasks coretask.Store) listTasksRunner {
 	return &listTasksStoreRunner{tasks: tasks}
 }
 
-func newGetTaskStoreRunner(tasks coretask.Store) getTaskRunner {
-	if tasks == nil {
+func newGetTaskServiceRunner(taskService *task.Service) getTaskRunner {
+	if taskService == nil || taskService.Tasks == nil {
 		return nil
 	}
-	return &getTaskStoreRunner{tasks: tasks}
+	return &getTaskServiceRunner{taskService: taskService}
 }
 
 // sourceMessageID is bound per turn for the same reason as StartTask: each
@@ -100,17 +100,14 @@ func (r *listTasksStoreRunner) ListTasks(ctx context.Context, conversationID str
 	return strings.Join(lines, "\n"), nil
 }
 
-type getTaskStoreRunner struct {
-	tasks coretask.Store
+type getTaskServiceRunner struct {
+	taskService *task.Service
 }
 
-func (r *getTaskStoreRunner) GetTask(ctx context.Context, conversationID, taskID string) (string, error) {
-	taskItem, err := r.tasks.GetTask(ctx, taskID)
+func (r *getTaskServiceRunner) GetTask(ctx context.Context, conversationID, taskID string) (string, error) {
+	taskItem, err := r.taskService.GetTaskInConversation(ctx, conversationID, taskID)
 	if err != nil {
 		return "", err
-	}
-	if taskItem == nil || taskItem.ConversationID != conversationID {
-		return "", fmt.Errorf("task not found or not in this conversation")
 	}
 	inputTrunc := util.TruncateRunes(taskItem.Input, 500)
 	outputLine := ""
@@ -131,15 +128,8 @@ type continueTaskServiceRunner struct {
 }
 
 func (r *continueTaskServiceRunner) ContinueTask(ctx context.Context, conversationID, userID, taskID, input string) (runID string, err error) {
-	if r.taskService.Tasks == nil {
-		return "", fmt.Errorf("tasks not configured")
-	}
-	taskItem, err := r.taskService.Tasks.GetTask(ctx, taskID)
-	if err != nil {
+	if _, err := r.taskService.GetTaskInConversation(ctx, conversationID, taskID); err != nil {
 		return "", err
-	}
-	if taskItem == nil || taskItem.ConversationID != conversationID {
-		return "", fmt.Errorf("task not found or not in this conversation")
 	}
 	run, err := r.taskService.CreateRun(ctx, task.CreateRunCmd{
 		UserID:          userID,
