@@ -39,7 +39,7 @@ func (m *memStore) CreateSecret(_ context.Context, in coresecret.CreateInput) (*
 func (m *memStore) GetSecret(_ context.Context, id string) (*coresecret.Secret, error) {
 	s, ok := m.byID[id]
 	if !ok {
-		return nil, coresecretNotFound()
+		return nil, nil
 	}
 	cp := s.meta
 	return &cp, nil
@@ -57,7 +57,10 @@ func (m *memStore) ListSecretsBySpace(_ context.Context, spaceID string) ([]core
 
 func (m *memStore) GetSealed(_ context.Context, id string) (*coresecret.Secret, *coresecret.Sealed, error) {
 	s, ok := m.byID[id]
-	if !ok || s.meta.State == coresecret.StateDestroyed {
+	if !ok {
+		return nil, nil, nil
+	}
+	if s.meta.State == coresecret.StateDestroyed {
 		return nil, nil, coresecretNotFound()
 	}
 	meta, sealed := s.meta, s.sealed

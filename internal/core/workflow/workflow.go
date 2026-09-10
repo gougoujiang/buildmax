@@ -10,21 +10,88 @@ const (
 	StatusPublished = "published"
 	StatusArchived  = "archived"
 
-	RunStatusPending   = "pending"
-	RunStatusRunning   = "running"
-	RunStatusSucceeded = "succeeded"
-	RunStatusFailed    = "failed"
-	RunStatusCanceled  = "canceled"
-
 	StepTypeAgentTask = "agent_task"
-
-	StepRunStatusPending   = "pending"
-	StepRunStatusRunning   = "running"
-	StepRunStatusSucceeded = "succeeded"
-	StepRunStatusFailed    = "failed"
-	StepRunStatusCanceled  = "canceled"
-	StepRunStatusBlocked   = "blocked"
 )
+
+// RunStatus is the lifecycle status of one workflow run. StepRunStatus is one
+// step's status within that run. Both are the canonical execution-plane state
+// machine for workflows, the analog of coretask.RunStatus, and every move
+// between their values goes through the transition helpers below so an illegal
+// or concurrent change is refused at the store rather than silently written.
+type RunStatus string
+
+type StepRunStatus string
+
+const (
+	RunStatusPending   RunStatus = "pending"
+	RunStatusRunning   RunStatus = "running"
+	RunStatusSucceeded RunStatus = "succeeded"
+	RunStatusFailed    RunStatus = "failed"
+	RunStatusCanceled  RunStatus = "canceled"
+)
+
+const (
+	StepRunStatusPending   StepRunStatus = "pending"
+	StepRunStatusRunning   StepRunStatus = "running"
+	StepRunStatusSucceeded StepRunStatus = "succeeded"
+	StepRunStatusFailed    StepRunStatus = "failed"
+	StepRunStatusCanceled  StepRunStatus = "canceled"
+	// StepRunStatusBlocked is terminal: an earlier step ended badly, so this
+	// still-pending step will never run.
+	StepRunStatusBlocked StepRunStatus = "blocked"
+)
+
+// RunStatusTerminal reports whether a run in this status has finished; a
+// terminal run never changes again.
+func RunStatusTerminal(s RunStatus) bool {
+	switch s {
+	case RunStatusSucceeded, RunStatusFailed, RunStatusCanceled:
+		return true
+	default:
+		return false
+	}
+}
+
+// StepRunStatusTerminal reports whether a step run has finished. Blocked is
+// terminal alongside the three natural ends: a blocked step is never revisited.
+func StepRunStatusTerminal(s StepRunStatus) bool {
+	switch s {
+	case StepRunStatusSucceeded, StepRunStatusFailed, StepRunStatusCanceled, StepRunStatusBlocked:
+		return true
+	default:
+		return false
+	}
+}
+
+// ValidRunStatusTransition reports whether a run may move directly from one
+// status to another. Terminal statuses are immutable. Runs are created running;
+// pending is reserved for a run that has not yet been dispatched.
+func ValidRunStatusTransition(from, to RunStatus) bool {
+	switch from {
+	case RunStatusPending:
+		return to == RunStatusRunning || to == RunStatusFailed || to == RunStatusCanceled
+	case RunStatusRunning:
+		return to == RunStatusSucceeded || to == RunStatusFailed || to == RunStatusCanceled
+	default:
+		return false
+	}
+}
+
+// ValidStepRunTransition reports whether a step run may move directly from one
+// status to another. A pending step may start (running), be blocked by an
+// earlier failure, or fail outright when its task cannot be created; a running
+// step ends succeeded, failed, or canceled. Terminal statuses are immutable.
+func ValidStepRunTransition(from, to StepRunStatus) bool {
+	switch from {
+	case StepRunStatusPending:
+		return to == StepRunStatusRunning || to == StepRunStatusBlocked ||
+			to == StepRunStatusFailed || to == StepRunStatusCanceled
+	case StepRunStatusRunning:
+		return to == StepRunStatusSucceeded || to == StepRunStatusFailed || to == StepRunStatusCanceled
+	default:
+		return false
+	}
+}
 
 // Workflow is a reusable space-scoped execution plan.
 type Workflow struct {
@@ -144,18 +211,48 @@ type CreateStepRunInput struct {
 	Status            string
 }
 
-type UpdateRunInput struct {
-	Status       string
-	StartedAt    *time.Time
-	EndedAt      *time.Time
-	ErrorMessage *string
+// TransitionRunInput atomically moves a run from ExpectedStatus to NewStatus.
+// The store writes nothing unless the run's current status is ExpectedStatus
+// and the move is a ValidRunStatusTransition.
+type TransitionRunInput struct {
+	WorkflowRunID  string
+	ExpectedStatus RunStatus
+	NewStatus      RunStatus
+	StartedAt      *time.Time
+	EndedAt        *time.Time
+	ErrorMessage   *string
 }
 
-type UpdateStepRunInput struct {
-	Status        *string
-	TaskID        *string
+// TransitionStepRunInput atomically moves a step run from ExpectedStatus to
+// NewStatus, carrying the fields that land with a status change. The store
+// writes nothing unless the step's current status is ExpectedStatus and the
+// move is a ValidStepRunTransition.
+type TransitionStepRunInput struct {
+	StepRunID      string
+	ExpectedStatus StepRunStatus
+	NewStatus      StepRunStatus
+	TaskID         *string
+	TaskRunID      *string
+	OutputSummary  *string
+	ErrorMessage   *string
+	StartedAt      *time.Time
+	EndedAt        *time.Time
+}
+
+// FinalizeFailedRunInput ends a run because one step ended badly. In one
+// transaction the store moves the step to StepStatus (failed or canceled),
+// blocks every later step still pending, and moves the run to RunStatus. Both
+// moves are guarded: nothing is written unless the step is at StepExpected and
+// both transitions are valid.
+type FinalizeFailedRunInput struct {
+	WorkflowRunID string
+	StepRunID     string
+	StepIndex     int
+	StepExpected  StepRunStatus
+	StepStatus    StepRunStatus
+	RunExpected   RunStatus
+	RunStatus     RunStatus
 	TaskRunID     *string
-	OutputSummary *string
 	ErrorMessage  *string
 	StartedAt     *time.Time
 	EndedAt       *time.Time
@@ -173,8 +270,13 @@ type Store interface {
 	GetWorkflowRun(ctx context.Context, workflowRunID string) (*Run, error)
 	ListWorkflowStepRuns(ctx context.Context, workflowRunID string) ([]StepRun, error)
 	CreateWorkflowStepRuns(ctx context.Context, workflowRunID string, steps []CreateStepRunInput) ([]StepRun, error)
-	UpdateWorkflowRun(ctx context.Context, workflowRunID string, in UpdateRunInput) (*Run, error)
-	UpdateWorkflowStepRun(ctx context.Context, stepRunID string, in UpdateStepRunInput) (*StepRun, error)
+	// TransitionWorkflowRun and TransitionWorkflowStepRun apply one guarded
+	// status change each; a false result means the row was not at the expected
+	// status, so another actor won the transition. FinalizeFailedWorkflowRun
+	// ends a run and blocks its remaining steps in one transaction.
+	TransitionWorkflowRun(ctx context.Context, in TransitionRunInput) (bool, error)
+	TransitionWorkflowStepRun(ctx context.Context, in TransitionStepRunInput) (bool, error)
+	FinalizeFailedWorkflowRun(ctx context.Context, in FinalizeFailedRunInput) (bool, error)
 	GetWorkflowStepRunByTaskID(ctx context.Context, taskID string) (*StepRun, error)
 	GetWorkflowStepRunByTaskRunID(ctx context.Context, taskRunID string) (*StepRun, error)
 	// ListWorkflowRevisions returns a workflow's revisions, newest first, with

@@ -70,13 +70,13 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartWorkflowRun: %v", err)
 	}
-	if run.Status != coreworkflow.RunStatusRunning {
+	if run.Status != string(coreworkflow.RunStatusRunning) {
 		t.Fatalf("run status = %q, want running", run.Status)
 	}
 	if len(steps) != 2 {
 		t.Fatalf("steps len = %d, want 2", len(steps))
 	}
-	if steps[0].Status != coreworkflow.StepRunStatusRunning {
+	if steps[0].Status != string(coreworkflow.StepRunStatusRunning) {
 		t.Fatalf("step[0] status = %q, want running", steps[0].Status)
 	}
 	if steps[0].TaskRunID == nil {
@@ -97,10 +97,10 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListWorkflowStepRuns: %v", err)
 	}
-	if updatedSteps[0].Status != coreworkflow.StepRunStatusSucceeded {
+	if updatedSteps[0].Status != string(coreworkflow.StepRunStatusSucceeded) {
 		t.Fatalf("step[0] status = %q, want succeeded", updatedSteps[0].Status)
 	}
-	if updatedSteps[1].Status != coreworkflow.StepRunStatusRunning {
+	if updatedSteps[1].Status != string(coreworkflow.StepRunStatusRunning) {
 		t.Fatalf("step[1] status = %q, want running", updatedSteps[1].Status)
 	}
 }
@@ -172,7 +172,7 @@ func TestStartWorkflowRun_StepsUseAgentSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListWorkflowStepRuns: %v", err)
 	}
-	if updated[1].Status != coreworkflow.StepRunStatusRunning {
+	if updated[1].Status != string(coreworkflow.StepRunStatusRunning) {
 		t.Fatalf("step[1] status = %q, want running", updated[1].Status)
 	}
 	if len(taskStore.List) != 2 {
@@ -342,7 +342,7 @@ func TestDeletedAgent_RunFinishesButNextStepIsRefused(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListWorkflowStepRuns: %v", err)
 	}
-	if updated[1].Status != coreworkflow.StepRunStatusFailed {
+	if updated[1].Status != string(coreworkflow.StepRunStatusFailed) {
 		t.Fatalf("step[1] status = %q, want failed after admission refusal", updated[1].Status)
 	}
 	if len(taskStore.List) != 1 {
@@ -447,17 +447,17 @@ func TestHandleTaskRunTerminal_CancelStopsTheRunWithoutFailingIt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListWorkflowStepRuns: %v", err)
 	}
-	if updatedSteps[0].Status != coreworkflow.StepRunStatusCanceled {
+	if updatedSteps[0].Status != string(coreworkflow.StepRunStatusCanceled) {
 		t.Errorf("step[0] status = %q, want canceled", updatedSteps[0].Status)
 	}
-	if updatedSteps[1].Status != coreworkflow.StepRunStatusBlocked {
+	if updatedSteps[1].Status != string(coreworkflow.StepRunStatusBlocked) {
 		t.Errorf("step[1] status = %q, want blocked — a canceled step must not start the next one", updatedSteps[1].Status)
 	}
 	updatedRun, err := workflowStore.GetWorkflowRun(context.Background(), run.ID)
 	if err != nil {
 		t.Fatalf("GetWorkflowRun: %v", err)
 	}
-	if updatedRun.Status != coreworkflow.RunStatusCanceled {
+	if updatedRun.Status != string(coreworkflow.RunStatusCanceled) {
 		t.Errorf("run status = %q, want canceled", updatedRun.Status)
 	}
 }

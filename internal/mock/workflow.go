@@ -212,12 +212,18 @@ func (m *MockWorkflowStore) CreateWorkflowStepRuns(_ context.Context, workflowRu
 	return out, nil
 }
 
-func (m *MockWorkflowStore) UpdateWorkflowRun(_ context.Context, workflowRunID string, in coreworkflow.UpdateRunInput) (*coreworkflow.Run, error) {
+func (m *MockWorkflowStore) TransitionWorkflowRun(_ context.Context, in coreworkflow.TransitionRunInput) (bool, error) {
+	if !coreworkflow.ValidRunStatusTransition(in.ExpectedStatus, in.NewStatus) {
+		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidRunTransition, in.ExpectedStatus, in.NewStatus)
+	}
 	for i := range m.Runs {
-		if m.Runs[i].ID != workflowRunID {
+		if m.Runs[i].ID != in.WorkflowRunID {
 			continue
 		}
-		m.Runs[i].Status = in.Status
+		if m.Runs[i].Status != string(in.ExpectedStatus) {
+			return false, nil
+		}
+		m.Runs[i].Status = string(in.NewStatus)
 		if in.StartedAt != nil {
 			m.Runs[i].StartedAt = in.StartedAt
 		}
@@ -227,19 +233,23 @@ func (m *MockWorkflowStore) UpdateWorkflowRun(_ context.Context, workflowRunID s
 		if in.ErrorMessage != nil {
 			m.Runs[i].ErrorMessage = in.ErrorMessage
 		}
-		return &m.Runs[i], nil
+		return true, nil
 	}
-	return nil, nil
+	return false, nil
 }
 
-func (m *MockWorkflowStore) UpdateWorkflowStepRun(_ context.Context, stepRunID string, in coreworkflow.UpdateStepRunInput) (*coreworkflow.StepRun, error) {
+func (m *MockWorkflowStore) TransitionWorkflowStepRun(_ context.Context, in coreworkflow.TransitionStepRunInput) (bool, error) {
+	if !coreworkflow.ValidStepRunTransition(in.ExpectedStatus, in.NewStatus) {
+		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidStepRunTransition, in.ExpectedStatus, in.NewStatus)
+	}
 	for i := range m.StepRuns {
-		if m.StepRuns[i].ID != stepRunID {
+		if m.StepRuns[i].ID != in.StepRunID {
 			continue
 		}
-		if in.Status != nil {
-			m.StepRuns[i].Status = *in.Status
+		if m.StepRuns[i].Status != string(in.ExpectedStatus) {
+			return false, nil
 		}
+		m.StepRuns[i].Status = string(in.NewStatus)
 		if in.TaskID != nil {
 			if *in.TaskID == "" {
 				m.StepRuns[i].TaskID = nil
@@ -274,9 +284,68 @@ func (m *MockWorkflowStore) UpdateWorkflowStepRun(_ context.Context, stepRunID s
 		if in.EndedAt != nil {
 			m.StepRuns[i].EndedAt = in.EndedAt
 		}
-		return &m.StepRuns[i], nil
+		return true, nil
 	}
-	return nil, nil
+	return false, nil
+}
+
+func (m *MockWorkflowStore) FinalizeFailedWorkflowRun(_ context.Context, in coreworkflow.FinalizeFailedRunInput) (bool, error) {
+	if !coreworkflow.ValidStepRunTransition(in.StepExpected, in.StepStatus) {
+		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidStepRunTransition, in.StepExpected, in.StepStatus)
+	}
+	if !coreworkflow.ValidRunStatusTransition(in.RunExpected, in.RunStatus) {
+		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidRunTransition, in.RunExpected, in.RunStatus)
+	}
+	stepApplied := false
+	for i := range m.StepRuns {
+		if m.StepRuns[i].ID != in.StepRunID {
+			continue
+		}
+		if m.StepRuns[i].Status != string(in.StepExpected) {
+			return false, nil
+		}
+		m.StepRuns[i].Status = string(in.StepStatus)
+		if in.TaskRunID != nil && *in.TaskRunID != "" {
+			m.StepRuns[i].TaskRunID = in.TaskRunID
+		}
+		if in.ErrorMessage != nil {
+			m.StepRuns[i].ErrorMessage = in.ErrorMessage
+		}
+		if in.StartedAt != nil {
+			m.StepRuns[i].StartedAt = in.StartedAt
+		}
+		if in.EndedAt != nil {
+			m.StepRuns[i].EndedAt = in.EndedAt
+		}
+		stepApplied = true
+		break
+	}
+	if !stepApplied {
+		return false, nil
+	}
+	for i := range m.StepRuns {
+		if m.StepRuns[i].WorkflowRunID == in.WorkflowRunID &&
+			m.StepRuns[i].StepIndex > in.StepIndex &&
+			m.StepRuns[i].Status == string(coreworkflow.StepRunStatusPending) {
+			m.StepRuns[i].Status = string(coreworkflow.StepRunStatusBlocked)
+		}
+	}
+	for i := range m.Runs {
+		if m.Runs[i].ID != in.WorkflowRunID {
+			continue
+		}
+		if m.Runs[i].Status == string(in.RunExpected) {
+			m.Runs[i].Status = string(in.RunStatus)
+			if in.EndedAt != nil {
+				m.Runs[i].EndedAt = in.EndedAt
+			}
+			if in.ErrorMessage != nil {
+				m.Runs[i].ErrorMessage = in.ErrorMessage
+			}
+		}
+		break
+	}
+	return true, nil
 }
 
 func (m *MockWorkflowStore) GetWorkflowStepRunByTaskID(_ context.Context, taskID string) (*coreworkflow.StepRun, error) {

@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
@@ -642,39 +643,32 @@ func (s *Store) CreateWorkflowStepRuns(ctx context.Context, workflowRunID string
 	return out, nil
 }
 
-func (s *Store) UpdateWorkflowRun(ctx context.Context, workflowRunID string, in coreworkflow.UpdateRunInput) (*coreworkflow.Run, error) {
-	updates := map[string]interface{}{
-		"status": in.Status,
+// runStatusUpdates builds the column writes a run transition lands. status is
+// always written; the rest only when supplied.
+func runStatusUpdates(status coreworkflow.RunStatus, startedAt, endedAt *time.Time, errorMessage *string) map[string]interface{} {
+	updates := map[string]interface{}{"status": string(status)}
+	if startedAt != nil {
+		updates["started_at"] = *startedAt
 	}
-	if in.StartedAt != nil {
-		updates["started_at"] = *in.StartedAt
+	if endedAt != nil {
+		updates["ended_at"] = *endedAt
 	}
-	if in.EndedAt != nil {
-		updates["ended_at"] = *in.EndedAt
+	if errorMessage != nil {
+		updates["error_message"] = *errorMessage
 	}
-	if in.ErrorMessage != nil {
-		updates["error_message"] = *in.ErrorMessage
-	}
-	id, ok := util.CanonicalPublicID(workflowRunID)
-	if !ok {
-		return nil, nil
-	}
-	if err := s.db.WithContext(ctx).Model(&workflowRunRow{}).Where("public_id = ?", id).Updates(updates).Error; err != nil {
-		return nil, err
-	}
-	return s.GetWorkflowRun(ctx, workflowRunID)
+	return updates
 }
 
-func (s *Store) UpdateWorkflowStepRun(ctx context.Context, stepRunID string, in coreworkflow.UpdateStepRunInput) (*coreworkflow.StepRun, error) {
-	updates := map[string]interface{}{}
-	if in.Status != nil {
-		updates["status"] = *in.Status
-	}
+// stepTransitionUpdates builds the column writes a step transition lands,
+// resolving the task and task-run handles to their row keys. An empty string
+// clears a handle; nil leaves it untouched.
+func stepTransitionUpdates(ctx context.Context, tx *gorm.DB, in coreworkflow.TransitionStepRunInput) (map[string]interface{}, error) {
+	updates := map[string]interface{}{"status": string(in.NewStatus)}
 	if in.TaskID != nil {
 		if *in.TaskID == "" {
 			updates["task_id"] = nil
 		} else {
-			key, err := lookupKey(ctx, s.db, "task", *in.TaskID)
+			key, err := lookupKey(ctx, tx, "task", *in.TaskID)
 			if err != nil {
 				return nil, err
 			}
@@ -685,7 +679,7 @@ func (s *Store) UpdateWorkflowStepRun(ctx context.Context, stepRunID string, in 
 		if *in.TaskRunID == "" {
 			updates["task_run_id"] = nil
 		} else {
-			key, err := lookupKey(ctx, s.db, "task_run", *in.TaskRunID)
+			key, err := lookupKey(ctx, tx, "task_run", *in.TaskRunID)
 			if err != nil {
 				return nil, err
 			}
@@ -712,17 +706,129 @@ func (s *Store) UpdateWorkflowStepRun(ctx context.Context, stepRunID string, in 
 	if in.EndedAt != nil {
 		updates["ended_at"] = *in.EndedAt
 	}
-	if len(updates) == 0 {
-		return s.getWorkflowStepRun(ctx, stepRunID)
+	return updates, nil
+}
+
+func (s *Store) TransitionWorkflowRun(ctx context.Context, in coreworkflow.TransitionRunInput) (bool, error) {
+	if !coreworkflow.ValidRunStatusTransition(in.ExpectedStatus, in.NewStatus) {
+		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidRunTransition, in.ExpectedStatus, in.NewStatus)
 	}
-	id, ok := util.CanonicalPublicID(stepRunID)
+	id, ok := util.CanonicalPublicID(in.WorkflowRunID)
 	if !ok {
-		return nil, nil
+		return false, nil
 	}
-	if err := s.db.WithContext(ctx).Model(&workflowStepRunRow{}).Where("public_id = ?", id).Updates(updates).Error; err != nil {
-		return nil, err
+	res := s.db.WithContext(ctx).Model(&workflowRunRow{}).
+		Where("public_id = ? AND status = ?", id, string(in.ExpectedStatus)).
+		Updates(runStatusUpdates(in.NewStatus, in.StartedAt, in.EndedAt, in.ErrorMessage))
+	if res.Error != nil {
+		return false, res.Error
 	}
-	return s.getWorkflowStepRun(ctx, stepRunID)
+	return res.RowsAffected > 0, nil
+}
+
+func (s *Store) TransitionWorkflowStepRun(ctx context.Context, in coreworkflow.TransitionStepRunInput) (bool, error) {
+	if !coreworkflow.ValidStepRunTransition(in.ExpectedStatus, in.NewStatus) {
+		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidStepRunTransition, in.ExpectedStatus, in.NewStatus)
+	}
+	id, ok := util.CanonicalPublicID(in.StepRunID)
+	if !ok {
+		return false, nil
+	}
+	updated := false
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		updates, err := stepTransitionUpdates(ctx, tx, in)
+		if err != nil {
+			return err
+		}
+		res := tx.Model(&workflowStepRunRow{}).
+			Where("public_id = ? AND status = ?", id, string(in.ExpectedStatus)).
+			Updates(updates)
+		if res.Error != nil {
+			return res.Error
+		}
+		updated = res.RowsAffected > 0
+		return nil
+	})
+	return updated, err
+}
+
+// FinalizeFailedWorkflowRun ends a run because one step ended badly. In one
+// transaction it moves the step to its terminal status, blocks every later step
+// still pending, and moves the run to its terminal status. The step move is a
+// guarded CAS: a false result means the step was no longer at its expected
+// status, so another actor finished it first and nothing is written. The run
+// move is guarded too, so a run a concurrent cancel already finalized keeps that
+// outcome.
+func (s *Store) FinalizeFailedWorkflowRun(ctx context.Context, in coreworkflow.FinalizeFailedRunInput) (bool, error) {
+	if !coreworkflow.ValidStepRunTransition(in.StepExpected, in.StepStatus) {
+		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidStepRunTransition, in.StepExpected, in.StepStatus)
+	}
+	if !coreworkflow.ValidRunStatusTransition(in.RunExpected, in.RunStatus) {
+		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidRunTransition, in.RunExpected, in.RunStatus)
+	}
+	stepID, ok := util.CanonicalPublicID(in.StepRunID)
+	if !ok {
+		return false, nil
+	}
+	runID, ok := util.CanonicalPublicID(in.WorkflowRunID)
+	if !ok {
+		return false, nil
+	}
+	stepApplied := false
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		stepUpdates := map[string]interface{}{"status": string(in.StepStatus)}
+		if in.TaskRunID != nil && *in.TaskRunID != "" {
+			key, err := lookupKey(ctx, tx, "task_run", *in.TaskRunID)
+			if err != nil {
+				return err
+			}
+			stepUpdates["task_run_id"] = key
+		}
+		if in.ErrorMessage != nil {
+			stepUpdates["error_message"] = *in.ErrorMessage
+		}
+		if in.StartedAt != nil {
+			stepUpdates["started_at"] = *in.StartedAt
+		}
+		if in.EndedAt != nil {
+			stepUpdates["ended_at"] = *in.EndedAt
+		}
+		res := tx.Model(&workflowStepRunRow{}).
+			Where("public_id = ? AND status = ?", stepID, string(in.StepExpected)).
+			Updates(stepUpdates)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return nil // lost the race; leave the already-terminal step and run alone
+		}
+		stepApplied = true
+
+		runKey, err := lookupKey(ctx, tx, "workflow_run", in.WorkflowRunID)
+		if err != nil {
+			return err
+		}
+		// Block every later step still pending. The status filter makes this a
+		// guarded bulk pending -> blocked, which is a valid transition.
+		if err := tx.Model(&workflowStepRunRow{}).
+			Where("workflow_run_id = ? AND step_index > ? AND status = ?",
+				runKey, in.StepIndex, string(coreworkflow.StepRunStatusPending)).
+			Update("status", string(coreworkflow.StepRunStatusBlocked)).Error; err != nil {
+			return err
+		}
+
+		runUpdates := map[string]interface{}{"status": string(in.RunStatus)}
+		if in.EndedAt != nil {
+			runUpdates["ended_at"] = *in.EndedAt
+		}
+		if in.ErrorMessage != nil {
+			runUpdates["error_message"] = *in.ErrorMessage
+		}
+		return tx.Model(&workflowRunRow{}).
+			Where("public_id = ? AND status = ?", runID, string(in.RunExpected)).
+			Updates(runUpdates).Error
+	})
+	return stepApplied, err
 }
 
 func (s *Store) GetWorkflowStepRunByTaskID(ctx context.Context, taskID string) (*coreworkflow.StepRun, error) {
@@ -747,22 +853,6 @@ func (s *Store) getWorkflowStepRunByOwner(ctx context.Context, table, col, publi
 	}
 	var step workflowStepRunReadRow
 	err = s.workflowStepRunSelect(ctx).Where(col+" = ?", key).Take(&step).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return toWorkflowStepRun(&step), nil
-}
-
-func (s *Store) getWorkflowStepRun(ctx context.Context, stepRunID string) (*coreworkflow.StepRun, error) {
-	id, ok := util.CanonicalPublicID(stepRunID)
-	if !ok {
-		return nil, nil
-	}
-	var step workflowStepRunReadRow
-	err := s.workflowStepRunSelect(ctx).Where("workflow_step_run.public_id = ?", id).Take(&step).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil

@@ -209,12 +209,12 @@ func TestIssueFlowOutputs_WorkflowStepProvenance(t *testing.T) {
 	fx.workflows.Runs = []coreworkflow.Run{{
 		ID: workflowRunID, WorkflowID: wfID,
 		IssueID: util.Ptr("i_1"),
-		Status:  coreworkflow.RunStatusSucceeded, CreatedBy: "u1", CreatedAt: time.Unix(300, 0).UTC(),
+		Status:  string(coreworkflow.RunStatusSucceeded), CreatedBy: "u1", CreatedAt: time.Unix(300, 0).UTC(),
 	}}
 	fx.workflows.StepRuns = []coreworkflow.StepRun{{
 		ID: stepRunID, WorkflowRunID: workflowRunID,
 		StepID: stepID, StepIndex: 0, StepType: coreworkflow.StepTypeAgentTask,
-		Status: coreworkflow.StepRunStatusSucceeded,
+		Status: string(coreworkflow.StepRunStatusSucceeded),
 		TaskID: &taskID, TaskRunID: &runID, CreatedAt: time.Unix(305, 0).UTC(),
 	}}
 	fx.tasks.List = []coretask.Task{{

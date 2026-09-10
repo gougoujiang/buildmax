@@ -128,12 +128,13 @@ func (s *Store) CreateSecret(ctx context.Context, in coresecret.CreateInput) (*c
 	return s.GetSecret(ctx, row.PublicID)
 }
 
-// GetSecret returns one Secret's metadata. It never carries the sealed bytes.
+// GetSecret returns one Secret's metadata, or nil when no such Secret exists.
+// It never carries the sealed bytes.
 func (s *Store) GetSecret(ctx context.Context, id string) (*coresecret.Secret, error) {
 	var r secretReadRow
 	err := s.secretSelect(ctx).Where("secret.public_id = ?", id).Take(&r).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, apierr.ErrNotFound
+		return nil, nil
 	}
 	if err != nil {
 		return nil, err
@@ -160,13 +161,15 @@ func (s *Store) ListSecretsBySpace(ctx context.Context, spaceID string) ([]cores
 }
 
 // GetSealed returns a Secret's metadata and its sealed items, for
-// materialization or a KEK rewrap. A destroyed Secret is refused: its material
-// is gone.
+// materialization or a KEK rewrap. A missing Secret yields nil; a destroyed one
+// is refused with ErrNotFound -- the row still exists for audit, but its
+// material is cryptographically gone, so this is a deliberate state refusal
+// rather than a missing row.
 func (s *Store) GetSealed(ctx context.Context, id string) (*coresecret.Secret, *coresecret.Sealed, error) {
 	var r secretReadRow
 	err := s.secretSelect(ctx).Where("secret.public_id = ?", id).Take(&r).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, nil, apierr.ErrNotFound
+		return nil, nil, nil
 	}
 	if err != nil {
 		return nil, nil, err

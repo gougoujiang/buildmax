@@ -290,7 +290,7 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 		WorkflowID:       workflow.ID,
 		WorkflowRevision: workflow.Revision,
 		IssueID:          cmd.IssueID,
-		Status:           coreworkflow.RunStatusRunning,
+		Status:           string(coreworkflow.RunStatusRunning),
 		CreatedBy:        cmd.UserID,
 		StartedAt:        &now,
 	})
@@ -311,7 +311,7 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 			AgentInstructions: agent.Instructions,
 			AgentRevision:     agent.Revision,
 			Prompt:            def.Steps[i].Prompt,
-			Status:            coreworkflow.StepRunStatusPending,
+			Status:            string(coreworkflow.StepRunStatusPending),
 		}
 	}
 	stepRuns, err := s.Workflows.CreateWorkflowStepRuns(ctx, run.ID, stepsIn)
@@ -356,14 +356,21 @@ func (s *Service) HandleTaskRunTerminal(ctx context.Context, info coretask.RunTe
 	now := time.Now().UTC()
 	if info.Status == string(coretask.RunStatusSucceeded) {
 		summary := summarizeOutput(info.Output)
-		status := coreworkflow.StepRunStatusSucceeded
-		if _, err := s.Workflows.UpdateWorkflowStepRun(ctx, stepRun.ID, coreworkflow.UpdateStepRunInput{
-			Status:        &status,
-			TaskRunID:     &info.TaskRunID,
-			OutputSummary: summary,
-			EndedAt:       &now,
-		}); err != nil {
+		applied, err := s.Workflows.TransitionWorkflowStepRun(ctx, coreworkflow.TransitionStepRunInput{
+			StepRunID:      stepRun.ID,
+			ExpectedStatus: coreworkflow.StepRunStatusRunning,
+			NewStatus:      coreworkflow.StepRunStatusSucceeded,
+			TaskRunID:      &info.TaskRunID,
+			OutputSummary:  summary,
+			EndedAt:        &now,
+		})
+		if err != nil {
 			return err
+		}
+		if !applied {
+			// The step was no longer running -- a concurrent cancel already
+			// finished it and the run. Nothing more to dispatch.
+			return nil
 		}
 		steps, err := s.Workflows.ListWorkflowStepRuns(ctx, run.ID)
 		if err != nil {
@@ -384,37 +391,27 @@ func (s *Service) HandleTaskRunTerminal(ctx context.Context, info coretask.RunTe
 		stepStatus = coreworkflow.StepRunStatusCanceled
 		runStatus = coreworkflow.RunStatusCanceled
 	}
-	if _, err := s.Workflows.UpdateWorkflowStepRun(ctx, stepRun.ID, coreworkflow.UpdateStepRunInput{
-		Status:       &stepStatus,
-		TaskRunID:    &info.TaskRunID,
-		ErrorMessage: info.ErrorMessage,
-		EndedAt:      &now,
-	}); err != nil {
-		return err
-	}
-	steps, err := s.Workflows.ListWorkflowStepRuns(ctx, run.ID)
-	if err != nil {
-		return err
-	}
-	blocked := coreworkflow.StepRunStatusBlocked
-	for i := range steps {
-		if steps[i].StepIndex > stepRun.StepIndex && steps[i].Status == coreworkflow.StepRunStatusPending {
-			if _, err := s.Workflows.UpdateWorkflowStepRun(ctx, steps[i].ID, coreworkflow.UpdateStepRunInput{Status: &blocked}); err != nil {
-				return err
-			}
-		}
-	}
-	_, err = s.Workflows.UpdateWorkflowRun(ctx, run.ID, coreworkflow.UpdateRunInput{
-		Status:       runStatus,
-		EndedAt:      &now,
-		ErrorMessage: info.ErrorMessage,
+	// One transaction ends the run: the step goes terminal, every later step
+	// still pending is blocked, and the run goes terminal -- so a crash cannot
+	// leave a failed step under a run that still reads as running.
+	_, err = s.Workflows.FinalizeFailedWorkflowRun(ctx, coreworkflow.FinalizeFailedRunInput{
+		WorkflowRunID: run.ID,
+		StepRunID:     stepRun.ID,
+		StepIndex:     stepRun.StepIndex,
+		StepExpected:  coreworkflow.StepRunStatusRunning,
+		StepStatus:    stepStatus,
+		RunExpected:   coreworkflow.RunStatusRunning,
+		RunStatus:     runStatus,
+		TaskRunID:     &info.TaskRunID,
+		ErrorMessage:  info.ErrorMessage,
+		EndedAt:       &now,
 	})
 	return err
 }
 
 func (s *Service) dispatchNextStep(ctx context.Context, spaceID, userID string, run *coreworkflow.Run, steps []coreworkflow.StepRun) (*coreworkflow.StepRun, error) {
 	for i := range steps {
-		if steps[i].Status != coreworkflow.StepRunStatusPending {
+		if steps[i].Status != string(coreworkflow.StepRunStatusPending) {
 			continue
 		}
 		if spaceID == "" {
@@ -428,42 +425,47 @@ func (s *Service) dispatchNextStep(ctx context.Context, spaceID, userID string, 
 			spaceID = workflow.SpaceID
 		}
 		startedAt := time.Now().UTC()
-		running := coreworkflow.StepRunStatusRunning
 		taskItem, taskRunID, err := s.createStepTask(ctx, spaceID, userID, steps[i])
 		if err != nil {
-			failed := coreworkflow.RunStatusFailed
-			_, _ = s.Workflows.UpdateWorkflowRun(ctx, run.ID, coreworkflow.UpdateRunInput{
-				Status:       failed,
-				EndedAt:      &startedAt,
-				ErrorMessage: ptrError(err),
-			})
-			stepFailed := coreworkflow.StepRunStatusFailed
-			_, _ = s.Workflows.UpdateWorkflowStepRun(ctx, steps[i].ID, coreworkflow.UpdateStepRunInput{
-				Status:       &stepFailed,
-				ErrorMessage: ptrError(err),
-				StartedAt:    &startedAt,
-				EndedAt:      &startedAt,
+			// The step never started, so it fails from pending and the run ends
+			// with it -- one transaction, the same path a running step's failure
+			// takes.
+			_, _ = s.Workflows.FinalizeFailedWorkflowRun(ctx, coreworkflow.FinalizeFailedRunInput{
+				WorkflowRunID: run.ID,
+				StepRunID:     steps[i].ID,
+				StepIndex:     steps[i].StepIndex,
+				StepExpected:  coreworkflow.StepRunStatusPending,
+				StepStatus:    coreworkflow.StepRunStatusFailed,
+				RunExpected:   coreworkflow.RunStatusRunning,
+				RunStatus:     coreworkflow.RunStatusFailed,
+				ErrorMessage:  ptrError(err),
+				StartedAt:     &startedAt,
+				EndedAt:       &startedAt,
 			})
 			return nil, err
 		}
-		_, err = s.Workflows.UpdateWorkflowStepRun(ctx, steps[i].ID, coreworkflow.UpdateStepRunInput{
-			Status:    &running,
-			TaskID:    &taskItem.ID,
-			TaskRunID: &taskRunID,
-			StartedAt: &startedAt,
-		})
-		if err != nil {
+		if _, err := s.Workflows.TransitionWorkflowStepRun(ctx, coreworkflow.TransitionStepRunInput{
+			StepRunID:      steps[i].ID,
+			ExpectedStatus: coreworkflow.StepRunStatusPending,
+			NewStatus:      coreworkflow.StepRunStatusRunning,
+			TaskID:         &taskItem.ID,
+			TaskRunID:      &taskRunID,
+			StartedAt:      &startedAt,
+		}); err != nil {
 			return nil, err
 		}
 		return &steps[i], nil
 	}
 	endedAt := time.Now().UTC()
-	status := coreworkflow.RunStatusSucceeded
-	_, err := s.Workflows.UpdateWorkflowRun(ctx, run.ID, coreworkflow.UpdateRunInput{
-		Status:  status,
-		EndedAt: &endedAt,
-	})
-	return nil, err
+	if _, err := s.Workflows.TransitionWorkflowRun(ctx, coreworkflow.TransitionRunInput{
+		WorkflowRunID:  run.ID,
+		ExpectedStatus: coreworkflow.RunStatusRunning,
+		NewStatus:      coreworkflow.RunStatusSucceeded,
+		EndedAt:        &endedAt,
+	}); err != nil {
+		return nil, err
+	}
+	return nil, nil
 }
 
 // stepAgent returns the agent definition a step must run with. Steps recorded since
