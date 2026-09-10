@@ -41,7 +41,7 @@ func TestBusyHintNamesCompaction(t *testing.T) {
 }
 
 func TestRenderCompacted(t *testing.T) {
-	got := renderCompacted(agentapp.CompactResult{
+	got := renderCompacted(agentapp.CompactionOutcome{
 		Summarized:   12,
 		Kept:         3,
 		BeforeTokens: 90_000,
@@ -53,7 +53,7 @@ func TestRenderCompacted(t *testing.T) {
 		}
 	}
 
-	skipped := renderCompacted(agentapp.CompactResult{Reason: "blocked by a PreCompact hook"})
+	skipped := renderCompacted(agentapp.CompactionOutcome{Reason: "blocked by a PreCompact hook"})
 	if !strings.Contains(skipped, "blocked by a PreCompact hook") {
 		t.Errorf("report = %q, want the reason nothing was compacted", skipped)
 	}

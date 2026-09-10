@@ -12,7 +12,7 @@ import (
 
 // compactDoneMsg is sent when a compaction the user asked for finishes.
 type compactDoneMsg struct {
-	Result agentapp.CompactResult
+	Result agentapp.CompactionOutcome
 	Err    error
 }
 
@@ -72,7 +72,7 @@ func handleCompactDone(m *Model, msg compactDoneMsg) (tea.Model, tea.Cmd) {
 // It reports the messages, not just the tokens: what the model can still quote
 // verbatim is the part that changed, and a line about freed context alone would
 // leave the user believing the conversation is intact.
-func renderCompacted(r agentapp.CompactResult) string {
+func renderCompacted(r agentapp.CompactionOutcome) string {
 	if r.Summarized == 0 {
 		reason := r.Reason
 		if reason == "" {
