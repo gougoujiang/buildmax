@@ -48,16 +48,9 @@ func TestApp_CancelRun_no_inflight_run_is_noop(t *testing.T) {
 
 func TestApp_CancelRun_cancels_registered_context(t *testing.T) {
 	app := NewApp()
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
 
-	// Simulate an in-flight run by registering a cancel func, then verify
-	// CancelRun fires it and clears the entry. This mirrors what
-	// SendMessageStream does without spinning up an AgentApp.
-	runCtx, runCancel := context.WithCancel(ctx)
-	app.mu.Lock()
-	app.runCancels["p_test"] = runCancel
-	app.mu.Unlock()
+	// Hold a run in flight, then verify CancelRun cancels its context.
+	runCtx, _ := occupyProject(t, app, "p_test")
 
 	if err := app.CancelRun("p_test"); err != nil {
 		t.Fatalf("CancelRun: %v", err)
@@ -66,28 +59,22 @@ func TestApp_CancelRun_cancels_registered_context(t *testing.T) {
 		t.Fatal("run context not cancelled after CancelRun")
 	}
 
-	// CancelRun does not remove the entry — the run goroutine's defer does.
-	// Verify a second CancelRun on the still-registered entry remains a no-op
-	// (idempotent) by simply not panicking and returning nil.
+	// A second CancelRun, once the run has drained, is a no-op rather than an
+	// error or a panic.
+	waitNotBusy(t, app, "p_test")
 	if err := app.CancelRun("p_test"); err != nil {
 		t.Fatalf("second CancelRun: %v", err)
 	}
 }
 
-// A prompt sent while a run is in flight is queued rather than rejected. The run is
-// simulated the same way the cancel tests do it: registering a cancel func is what
-// "busy" means to SendMessageStream.
+// A prompt sent while a run is in flight is queued rather than rejected.
 func TestApp_SendMessageStream_queues_while_busy(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("BUILDMAX_HOME", dir)
 	app := NewApp()
 	app.Startup(context.Background())
 
-	_, runCancel := context.WithCancel(context.Background())
-	t.Cleanup(runCancel)
-	app.mu.Lock()
-	app.runCancels["p_busy"] = runCancel
-	app.mu.Unlock()
+	occupyProject(t, app, "p_busy")
 
 	pos, err := app.SendMessageStream("p_busy", "", "follow-up")
 	if err != nil {
@@ -124,11 +111,7 @@ func TestApp_CancelRun_drops_queued_messages(t *testing.T) {
 	app := NewApp()
 	app.Startup(context.Background())
 
-	_, runCancel := context.WithCancel(context.Background())
-	t.Cleanup(runCancel)
-	app.mu.Lock()
-	app.runCancels["p_busy"] = runCancel
-	app.mu.Unlock()
+	occupyProject(t, app, "p_busy")
 
 	if _, err := app.SendMessageStream("p_busy", "", "queued behind the run"); err != nil {
 		t.Fatalf("SendMessageStream while busy: %v", err)
@@ -147,11 +130,7 @@ func TestApp_SendMessageStream_queue_has_a_cap(t *testing.T) {
 	app := NewApp()
 	app.Startup(context.Background())
 
-	_, runCancel := context.WithCancel(context.Background())
-	t.Cleanup(runCancel)
-	app.mu.Lock()
-	app.runCancels["p_busy"] = runCancel
-	app.mu.Unlock()
+	occupyProject(t, app, "p_busy")
 
 	for i := 0; i < agent.DefaultMaxQueuedMessages; i++ {
 		if _, err := app.SendMessageStream("p_busy", "", "filler"); err != nil {

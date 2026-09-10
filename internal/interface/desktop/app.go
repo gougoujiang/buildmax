@@ -150,12 +150,10 @@ type App struct {
 	mu               sync.Mutex
 	agentApps        map[string]*agentapp.AgentApp      // keyed by project ID
 	approvalHandlers map[string]*DesktopApprovalHandler // keyed by project ID
-	// runCancels holds cancel funcs for in-flight runs, keyed by project ID.
-	// At most one run is permitted per project at a time (see SendMessageStream).
-	runCancels map[string]context.CancelFunc
-	// queues hold prompts submitted while that project's run was in flight, keyed
-	// by project ID. They are drained one prompt per turn by the run goroutine.
-	queues map[string]*agent.MessageQueue
+	// scheduler serializes runs per project: one run in flight at a time,
+	// prompts submitted meanwhile queued and drained as their own turns, the
+	// session held for a run's life, and cancellation that discards the queue.
+	scheduler *agentapp.RunScheduler
 	// pendingJobEvents park requested background deliveries per
 	// project+session (see deliveryKey) until the frontend pulls them with
 	// DeliverNextJobEvent. Lazily initialized.
@@ -169,8 +167,7 @@ func NewApp() *App {
 	return &App{
 		agentApps:        make(map[string]*agentapp.AgentApp),
 		approvalHandlers: make(map[string]*DesktopApprovalHandler),
-		runCancels:       make(map[string]context.CancelFunc),
-		queues:           make(map[string]*agent.MessageQueue),
+		scheduler:        agentapp.NewRunScheduler(),
 		emit:             wailsEmit,
 	}
 }
@@ -186,16 +183,15 @@ func (a *App) Startup(ctx context.Context) {
 
 // Shutdown closes all per-project AgentApp instances and cancels any in-flight runs.
 func (a *App) Shutdown(_ context.Context) {
+	// Cancel every in-flight run before taking a.mu: the scheduler holds its own
+	// lock, and a StartEvent pop callback takes a.mu under it, so a.mu must never
+	// be held while calling into the scheduler.
+	a.scheduler.CancelAll()
 	a.mu.Lock()
 	apps := a.agentApps
-	cancels := a.runCancels
 	a.agentApps = make(map[string]*agentapp.AgentApp)
 	a.approvalHandlers = make(map[string]*DesktopApprovalHandler)
-	a.runCancels = make(map[string]context.CancelFunc)
 	a.mu.Unlock()
-	for _, cancel := range cancels {
-		cancel()
-	}
 	for _, ag := range apps {
 		_ = ag.Close()
 	}
@@ -783,9 +779,9 @@ func (s *desktopStreamSink) OnDelta(delta string) {
 }
 
 // desktopEventSink returns an agent.EventSink that forwards tool events to the frontend via Wails events.
-// queue is the project's pending-prompt queue, read when a queued prompt joins the
-// running turn so the frontend can show what is still waiting.
-func desktopEventSink(emit uiEmitter, ctx context.Context, queue *agent.MessageQueue) func(agent.Event) {
+// queued reports the prompts still waiting behind the running turn, read when a
+// queued prompt joins it so the frontend can show what remains.
+func desktopEventSink(emit uiEmitter, ctx context.Context, queued func() []string) func(agent.Event) {
 	return func(e agent.Event) {
 		switch e.Kind {
 		case agent.EventLLMStart:
@@ -818,29 +814,17 @@ func desktopEventSink(emit uiEmitter, ctx context.Context, queue *agent.MessageQ
 			emit(ctx, eventToolEnd, &ToolEndPayload{ToolCallID: e.ToolCallID, ToolName: e.ToolName, IsError: true, Denied: true, Reason: e.DenyReason})
 		case agent.EventUserInput:
 			// A queued prompt joined the running turn: it is sent now, not waiting.
-			emit(ctx, eventMessageDequeued, &MessageDequeuedPayload{Prompt: e.Content, Queued: queue.Snapshot()})
+			emit(ctx, eventMessageDequeued, &MessageDequeuedPayload{Prompt: e.Content, Queued: queued()})
 		case agent.EventUserInputBlocked:
 			// Its own event, not stream-error: the run is still going, and the
 			// frontend ends the run on stream-error.
 			emit(ctx, eventMessageBlocked, &MessageBlockedPayload{
 				Prompt: e.Content,
 				Reason: e.DenyReason,
-				Queued: queue.Snapshot(),
+				Queued: queued(),
 			})
 		}
 	}
-}
-
-// queueForProject returns the project's pending-prompt queue, allocating on first use.
-func (a *App) queueForProject(projectID string) *agent.MessageQueue {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	q, ok := a.queues[projectID]
-	if !ok {
-		q = agent.NewMessageQueue(agent.DefaultMaxQueuedMessages)
-		a.queues[projectID] = q
-	}
-	return q
 }
 
 // QueuedMessages returns the prompts waiting behind the project's in-flight run,
@@ -850,7 +834,7 @@ func (a *App) QueuedMessages(projectID string) []string {
 	if projectID == "" {
 		return nil
 	}
-	return a.queueForProject(projectID).Snapshot()
+	return a.scheduler.Queued(projectID)
 }
 
 // SendMessageStream runs a prompt in the given project and session with streaming.
@@ -871,125 +855,31 @@ func (a *App) SendMessageStream(projectID, sessionID, prompt string) (int, error
 	}
 	a.mu.Lock()
 	ctx := a.ctx
-	busy := a.runCancels[projectID] != nil
 	a.mu.Unlock()
 	if ctx == nil {
 		return 0, fmt.Errorf("app not ready")
 	}
-	// The busy check comes before resolving the project: a project with a run in
-	// flight is already resolved, and a queued prompt needs nothing else.
-	if busy {
-		return a.queuePrompt(projectID, prompt)
-	}
-	ag, err := a.agentAppForProject(projectID)
-	if err != nil {
-		return 0, err
-	}
-	sess, err := ag.OpenSession(sessionID)
-	if err != nil {
-		return 0, fmt.Errorf("open session: %w", err)
-	}
-	// An open session holds the writer lock, and the re-check below can decide
-	// to queue this prompt instead of running it. Ownership passes to the run
-	// goroutine only once there is one; until then this releases it however
-	// the function leaves, including through a check added later.
-	handOver := false
-	defer func() {
-		if !handOver {
-			ag.CloseSession(sess)
-		}
-	}()
-	a.mu.Lock()
-	// Re-check under the lock: the run this prompt raced with may have started
-	// between the read above and here.
-	if _, busy := a.runCancels[projectID]; busy {
-		a.mu.Unlock()
-		return a.queuePrompt(projectID, prompt)
-	}
-	handler := a.approvalHandlers[projectID]
-	runCtx, cancel := context.WithCancel(ctx)
-	a.runCancels[projectID] = cancel
-	a.mu.Unlock()
-
-	queue := a.queueForProject(projectID)
-	sink := &desktopStreamSink{ctx: ctx, emit: a.emit}
-	evSink := desktopEventSink(a.emit, ctx, queue)
-	handOver = true
-	go func() {
-		defer func() {
-			a.mu.Lock()
-			delete(a.runCancels, projectID)
-			a.mu.Unlock()
-			cancel()
-			// The run owns the session for its whole life, queued prompts
-			// included, and releases it here. Leaving it open would hold the
-			// writer lock for the lifetime of the window.
-			ag.CloseSession(sess)
-		}()
-		// One turn per iteration. Most queued prompts never reach this loop — the
-		// run itself drains them at its next iteration boundary (RunPromptOpts.Pending).
-		// This is the backstop for one queued after the run stopped reading.
-		for current := prompt; ; {
-			out, err := ag.RunPrompt(runCtx, sess, current, agentapp.RunPromptOpts{
-				Stream:    sink,
-				Approval:  handler,
-				EventSink: evSink,
-				Pending:   queue,
-				Digest:    true,
-			})
-			if err == nil {
-				// Per turn, where the turn ended, rather than beside stream-done
-				// below: a run draining a queue runs several turns and reports
-				// done once, and each recap describes only its own turn. It goes
-				// out while the session is still held, as the mid-queue error
-				// emit already does — the frontend only reads a digest, so there
-				// is nothing here to race the close.
-				a.emitTurnDigest(ctx, out)
-				// Advance last_used_at so the sidebar orders by recency.
-				// Best-effort: a recency stamp is not worth interrupting a
-				// reply over.
-				touchProjectLastUsed(projectID)
-			}
-			next, ok := queue.Dequeue()
-			if !ok {
-				// Release the session before the run's last event, whichever it
-				// is. The frontend acts on these, and a rewind or fork issued
-				// the moment one arrives would otherwise race the deferred close
-				// and be told the session is busy by the run that just finished
-				// — after a failure as much as after a success. The deferred
-				// close below stands and does nothing.
-				ag.CloseSession(sess)
-				if err != nil {
-					a.emit(ctx, eventStreamError, &StreamErrorPayload{Message: err.Error()})
-				} else {
-					a.emit(ctx, eventStreamDone, replyPayload(out))
-				}
-				return
-			}
-			// A turn that failed with more still queued reports it now, so the
-			// error and the prompt it belongs to stay in order.
-			if err != nil {
-				a.emit(ctx, eventStreamError, &StreamErrorPayload{Message: err.Error()})
-			}
-			// A failed turn still drains: the queue holds what the user asked for,
-			// and stranding it with no run to release it is worse than letting it
-			// fail on its own turn.
-			a.emit(ctx, eventMessageDequeued, &MessageDequeuedPayload{Prompt: next, Queued: queue.Snapshot()})
-			current = next
-		}
-	}()
-	return 0, nil
+	lc := &desktopRun{app: a, ctx: ctx, projectID: projectID, touchLastUsed: true}
+	// The scheduler resolves the host only if it commits to a run; a prompt that
+	// queues behind an in-flight run resolves nothing, preserving the old
+	// "queue without re-resolving the project" behaviour. A resolution failure —
+	// project or AgentApp — is reported as this call's error.
+	return a.scheduler.Submit(ctx, projectID, sessionID, prompt, a.hostForProject(projectID, lc), lc)
 }
 
-// queuePrompt parks a prompt behind the project's in-flight run and reports its
-// 1-based position.
-func (a *App) queuePrompt(projectID, prompt string) (int, error) {
-	q := a.queueForProject(projectID)
-	pos, err := q.Enqueue(prompt)
-	if err != nil {
-		return 0, fmt.Errorf("%w: %d messages are already waiting", err, q.Len())
+// hostForProject resolves the project's AgentApp and binds its approval handler
+// to lc, for the scheduler to call when it starts a run.
+func (a *App) hostForProject(projectID string, lc *desktopRun) agentapp.HostFunc {
+	return func() (agentapp.RunHost, error) {
+		ag, err := a.agentAppForProject(projectID)
+		if err != nil {
+			return nil, err
+		}
+		a.mu.Lock()
+		lc.handler = a.approvalHandlers[projectID]
+		a.mu.Unlock()
+		return ag, nil
 	}
-	return pos, nil
 }
 
 // emitTurnDigest sends the finished turn's recap and suggestion, if it produced
@@ -1034,12 +924,6 @@ func (a *App) CancelRun(projectID string) error {
 	if projectID == "" {
 		return fmt.Errorf("project ID required")
 	}
-	a.mu.Lock()
-	cancel := a.runCancels[projectID]
-	a.mu.Unlock()
-	a.queueForProject(projectID).Drop()
-	if cancel != nil {
-		cancel()
-	}
+	a.scheduler.Cancel(projectID)
 	return nil
 }
