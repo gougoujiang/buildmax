@@ -49,11 +49,13 @@ run per session key, queues later prompts in order, and gives queued background
 events the same lifecycle. The Server TaskRun scheduler remains a separate
 durable execution-plane concern.
 
-Local inspection includes `buildmax info`, TUI `/info`, and Desktop memory
-listing/reading. Desktop is intentionally read-only for memory: users edit the
-Markdown files directly, delete or clear with `buildmax project forget`, and
-disable memory for one run with `--no-project-memory`; separate Desktop
-edit/delete/enable controls are not planned.
+Local inspection includes `buildmax info`, TUI `/info`, and the Desktop `/info`
+panel for one session; `buildmax usage` sums token and cost totals across
+sessions, grouped by day, workspace, or model. Desktop is intentionally
+read-only for memory: users edit the Markdown files directly, delete or clear
+with `buildmax project forget`, and disable memory for one run with
+`--no-project-memory`; separate Desktop edit/delete/enable controls are not
+planned.
 
 Local execution does not require a Server. Signed-in clients can use the managed
 model catalog; a server-rejected credential is treated as an expired login, and

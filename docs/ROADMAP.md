@@ -179,18 +179,15 @@ ordered place here is not permission to skip a proposal's acceptance decision.
    Phase 1 contract, then complete the durable Issue-to-Session link and local
    result projection if accepted. Evaluate its decomposition and governance
    phases only after the receive/work/return path has adoption evidence.
-2. Complete [Session usage stats](design/session-usage-stats.md) with
-   cross-session aggregation, per-turn source records, and the Desktop binding.
-   Add retention or cache diagnostics only from authoritative recorded data.
-3. Add [Space Secret](design/space-secrets.md) credential-file delivery before
+2. Add [Space Secret](design/space-secrets.md) credential-file delivery before
    widening plugins that commonly need credential files.
-4. Add [executable Space plugin content](design/plugin-space-distribution.md)
+3. Add [executable Space plugin content](design/plugin-space-distribution.md)
    only after R0 has a supported hook/MCP process and network boundary; preserve
    release eligibility, exact pins, and run-scoped materialization.
-5. Add Task-scoped autonomous plugin acquisition only after fixed plugin
+4. Add Task-scoped autonomous plugin acquisition only after fixed plugin
    environments and executable distribution are proven. It creates a later
    TaskRun and never hot-loads a running process.
-6. Consider short-lived credential exchange, external Secret providers, and
+5. Consider short-lived credential exchange, external Secret providers, and
    workload identity in that order, and only for a concrete provider and
    operator journey.
 

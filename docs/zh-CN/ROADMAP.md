@@ -144,16 +144,14 @@ Beta 门槛通过后，按以下顺序评估并交付此前尚未排期的本地
 1. 决定[本地 Issue 工作桥接](proposals/local-issue-work-bridge.md)剩余的 Phase 1
    契约；若被接受，再完成持久的 Issue-to-Session 关联和本地结果投影。只有在
    receive/work/return 路径取得采用证据后，才评估其拆解与治理阶段。
-2. 完成[会话用量统计](design/会话用量统计.md)的跨 Session 汇总、逐轮来源记录和
-   Desktop 绑定。保留策略或缓存诊断只能基于权威的已记录数据加入。
-3. 在扩展通常需要凭证文件的插件之前，先加入 [Space Secret](design/Space密钥.md)
+2. 在扩展通常需要凭证文件的插件之前，先加入 [Space Secret](design/Space密钥.md)
    的凭证文件交付。
-4. 只有在 R0 具备受支持的 hook/MCP 进程与网络边界后，才加入
+3. 只有在 R0 具备受支持的 hook/MCP 进程与网络边界后，才加入
    [可执行 Space 插件内容](design/Space插件分发.md)；保留版本资格、精确 pin 和
    Run 范围物化机制。
-5. 只有在固定的插件环境和可执行插件分发得到验证后，才加入 Task 范围的插件自主获取。
+4. 只有在固定的插件环境和可执行插件分发得到验证后，才加入 Task 范围的插件自主获取。
    它创建后续 TaskRun，绝不热加载正在运行的进程。
-6. 按短期凭证交换、外部 Secret 提供方、workload identity 的顺序考虑后续能力，
+5. 按短期凭证交换、外部 Secret 提供方、workload identity 的顺序考虑后续能力，
    并且只为具体的提供方和运维流程实施。
 
 Workflow 扩展先做状态协调与类型化数据流，再扩展图结构。

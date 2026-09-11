@@ -36,6 +36,11 @@ type SessionStats struct {
 	// understates it rather than covering it.
 	CostIncomplete bool `json:"cost_incomplete,omitempty"`
 
+	// Turns is the per-turn breakdown recorded in the session file: one entry
+	// per metered update, summing to Usage and Cost. It is reported in the JSON
+	// output only; the table surfaces read the totals above, not this journal.
+	Turns []session.TurnStat `json:"turns,omitempty"`
+
 	// Conversation is the shape of the stored history.
 	Conversation session.ConversationStats `json:"conversation"`
 	// Runs is the fold over this session's traces. Runs.Runs == 0 means no
@@ -75,6 +80,7 @@ func NewSessionStats(loaded session.Loaded, sessionsDir string) (SessionStats, e
 		Usage:          m.Usage(),
 		Cost:           m.Cost,
 		CostIncomplete: m.CostIncomplete,
+		Turns:          m.Turns,
 		Conversation:   session.Stats(loaded.State),
 	}
 	// A trace read that fails leaves the run fold empty rather than failing

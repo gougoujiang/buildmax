@@ -40,7 +40,8 @@ Desktop 交互式回合现在使用 `agentapp.RunScheduler`：按 Session key �
 依序排队后续提示，并让排队的后台事件使用相同生命周期。Server TaskRun 调度器仍是
 另一项持久执行平面职责。
 
-本地检查已有 `buildmax info`、TUI `/info` 和 Desktop 记忆列表/读取功能。
+本地检查已有 `buildmax info`、TUI `/info` 和面向单个会话的 Desktop `/info` 面板；
+`buildmax usage` 跨会话汇总 token 与成本总额，可按天、工作区或模型分组。
 Desktop 的 Memory 界面有意保持只读：用户直接编辑 Markdown 文件，用
 `buildmax project forget` 删除或清空，并用 `--no-project-memory` 为单次运行禁用；
 不再计划单独的 Desktop 编辑/删除/启用控件。

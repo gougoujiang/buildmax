@@ -22,6 +22,7 @@ buildmax <command> [flags]
 | `buildmax models` | List the models the current mode uses and their prompt destination; `--local` also lists what a local Ollama daemon holds |
 | `buildmax tools status` | Inspect the tools currently available to the agent |
 | `buildmax info [session-id]` | Show what a session spent and did, and what its project remembers; `--json` for the full record |
+| `buildmax usage` | Sum token and cost totals across local sessions, grouped by `--group-by day\|workspace\|model`, narrowed by `--since`; `--json` for the report |
 | `buildmax project list` | List the local projects and mark the ones whose locator no longer resolves |
 | `buildmax project relink <project-id>` | Point an existing project, and the memory and sessions on it, at this directory |
 | `buildmax project forget <name>` / `--all` | Delete one of this project's memories, or all of them; sessions are untouched |
@@ -368,8 +369,10 @@ so you can open one, and files that could not be parsed are named, since such a
 memory is silently absent from every run until it is repaired.
 
 `--json` emits the whole record under `stats` and `project_memory`, including
-the tools the table truncates. Bodies stay out of it for the same reason they
-stay out of the table.
+the tools the table truncates and, under `stats.turns`, the per-turn breakdown
+recorded in the session file — one entry per metered turn, summing to the
+totals. The table surfaces read the totals, not this journal. Bodies stay out of
+it for the same reason they stay out of the table.
 
 In the TUI, `/info` shows both halves as tabs — `tab` and `←`/`→` switch, and on
 the memory tab `enter` opens a body. The statistics tab folds the **live**
@@ -377,6 +380,37 @@ session rather than the file — a session is persisted after each assistant
 reply, so reading it back would answer about the turn before the one you are
 looking at — and both halves are a snapshot taken when the panel opens, not live
 counters.
+
+### `buildmax usage`
+
+Where `info` answers for one session, `usage` answers for many: what a week of
+sessions cost, in one figure instead of one session at a time. It reads the
+session index — the same projection the picker lists from — so the report costs
+one file read no matter how many sessions it covers, and never re-opens a
+session to build a number.
+
+Group the report to ask a different question of the same sessions:
+
+- `--group-by day` (the default) — when the spend happened, one row per calendar
+  day in your local zone, oldest first.
+- `--group-by workspace` — where it happened, heaviest first.
+- `--group-by model` — which model it went to, by each session's selected model,
+  heaviest first.
+
+`--since` narrows the report to sessions that **started** within a window: a Go
+duration (`72h`), a day or week count (`7d`, `2w`), or a date (`2026-09-01`). A
+session belongs to its start day, so the same instant scopes the window and keys
+the `day` grouping.
+
+The numbers are each session's own running totals, accumulated at the rates in
+force when they ran; nothing is repriced on read. A session no model priced
+still counts its tokens, and the row and total say `not priced` or `(partial)`
+and warn that the money understates the real spend, rather than showing a zero
+that reads as free. `--json` emits the grouped report and its total.
+
+Only your own sessions are counted; a subagent's private session never reaches
+the index, and worker runs keep their own run-scoped home, so their spend is the
+managed ledger's concern rather than this local view's.
 
 ## TUI slash commands
 

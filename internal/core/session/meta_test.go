@@ -86,6 +86,66 @@ func TestApplyMetaUpdateSumsCostAndFlagsMismatchedCurrency(t *testing.T) {
 	}
 }
 
+func TestApplyMetaUpdateRecordsUsageBearingTurns(t *testing.T) {
+	m := NewMeta("s1", KindUser, testTime)
+	t1 := testTime.Add(time.Minute)
+	t2 := testTime.Add(2 * time.Minute)
+
+	m = ApplyMetaUpdate(m, MetaUpdate{
+		AddPromptTokens: 100, AddCompletionTokens: 20,
+		AddCost: &llm.Cost{Currency: "USD", Total: 30},
+	}, t1)
+	m = ApplyMetaUpdate(m, MetaUpdate{AddPromptTokens: 50, AddCompletionTokens: 5}, t2)
+
+	if len(m.Turns) != 2 {
+		t.Fatalf("turns = %d, want 2", len(m.Turns))
+	}
+	if !m.Turns[0].At.Equal(t1) || m.Turns[0].PromptTokens != 100 || m.Turns[0].CompletionTokens != 20 {
+		t.Errorf("first turn = %+v", m.Turns[0])
+	}
+	if m.Turns[0].Cost == nil || m.Turns[0].Cost.Total != 30 {
+		t.Errorf("first turn cost = %+v", m.Turns[0].Cost)
+	}
+	if m.Turns[1].Cost != nil {
+		t.Errorf("second turn recorded a cost it did not carry: %+v", m.Turns[1].Cost)
+	}
+
+	// The invariant the breakdown exists to hold: summing the per-turn deltas
+	// reproduces the running totals.
+	var sumPrompt, sumCompletion int
+	for _, tn := range m.Turns {
+		sumPrompt += tn.PromptTokens
+		sumCompletion += tn.CompletionTokens
+	}
+	if sumPrompt != m.PromptTokens || sumCompletion != m.CompletionTokens {
+		t.Errorf("turn deltas %d/%d do not sum to totals %d/%d",
+			sumPrompt, sumCompletion, m.PromptTokens, m.CompletionTokens)
+	}
+}
+
+func TestApplyMetaUpdateRecordsNoTurnWithoutUsage(t *testing.T) {
+	m := NewMeta("s1", KindUser, testTime)
+	title, model := "renamed", "gpt"
+	m = ApplyMetaUpdate(m, MetaUpdate{Title: &title, SelectedModel: &model}, testTime)
+	if len(m.Turns) != 0 {
+		t.Errorf("a metadata-only change recorded %d turns, want 0", len(m.Turns))
+	}
+}
+
+func TestApplyMetaUpdateDoesNotMutateTurns(t *testing.T) {
+	m := NewMeta("s1", KindUser, testTime)
+	m = ApplyMetaUpdate(m, MetaUpdate{AddPromptTokens: 1}, testTime)
+	before := m // shares the Turns backing array
+
+	got := ApplyMetaUpdate(m, MetaUpdate{AddPromptTokens: 1}, testTime)
+	if len(before.Turns) != 1 {
+		t.Errorf("input's Turns grew to %d; ApplyMetaUpdate mutated its argument", len(before.Turns))
+	}
+	if len(got.Turns) != 2 {
+		t.Errorf("result Turns = %d, want 2", len(got.Turns))
+	}
+}
+
 func TestApplyMetaUpdatePreservesLineageAndForkedFrom(t *testing.T) {
 	// MetaUpdate has no field for these, so this is really a compile-time
 	// guarantee; the test documents the intent for a reader who might be
