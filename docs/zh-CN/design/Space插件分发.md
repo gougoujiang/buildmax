@@ -2,7 +2,7 @@
 
 > **翻译说明：** 本文是[英文原文](../../design/plugin-space-distribution.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
-> **读者：** 贡献者和运维人员 · **状态：** 部分实现。D1 已端到端运行，包括 Portal 激活管理和 Agent 插件选择。D2 可执行内容未实现。D3 由 Space Secrets 跟踪，其环境变量交付已完成，后续交付模式仍待实现。
+> **读者：** 贡献者和运维人员 · **状态：** 部分实现。D1 已端到端运行，包括 Portal 激活管理和 Agent 插件选择。D2 可执行内容未实现。D3 由 Space Secrets 跟踪，其环境变量交付已完成，后续交付模式仍待实现。路线图 R5 将 D2 排为第 4 项、Task 范围自主获取排为第 5 项，并把 D3 后续分别排在第 3 和第 6 项。
 >
 > 承接 [Plugin 市场](插件市场.md) §12 阶段 D 所引入的分发边界。
 
@@ -29,8 +29,8 @@
 
 ## 状态
 
-- roadmap_priority: `post-Beta, after the Marketplace`
-- status: `partially_implemented` — D1 已实现激活、Agent 选择、领取时服务端解析、固定版本的 worker 物化，以及 Portal 激活管理和 Agent 插件选择器。D2 可执行内容和 §16 Task 范围的自主获取尚未实现。D3 见 [Space 密钥](Space密钥.md)：Phase 1 环境变量交付已完成，文件交付及后续阶段仍待实现。
+- roadmap_priority: Beta 门槛之后的 `R5` 第 3–6 项
+- status: `partially_implemented` — D1 已实现激活、Agent 选择、领取时服务端解析、固定版本的 worker 物化，以及 Portal 激活管理和 Agent 插件选择器。D2 可执行内容和 §16 Task 范围的自主获取尚未实现，分别排在 R5 第 4 和第 5 项。D3 见 [Space 密钥](Space密钥.md)：Phase 1 环境变量交付已完成，文件交付和后续阶段分别排在 R5 第 3 和第 6 项。
 - 承接：[Plugin 市场](./插件市场.md)
 - depends_on: 没有尚未实现的依赖。早期草案要求可执行内容等待 Worker
   沙箱界面接通；第 9 节已取消这一前提，因为 Bash 沙箱从未约束这里涉及的进程。

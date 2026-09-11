@@ -2,11 +2,15 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/本地项目记忆.md)
 
-> **Audience:** contributors and security reviewers · **Status:** phase 1
-> implemented; phase 2 implemented except the user-invoked session review
-> command of §17, which is not built; phase 3 not started.
+> **Audience:** contributors and security reviewers · **Status:** implemented.
+> Shared Project identity, bounded Project Memory, Agent read/write tools,
+> CLI/TUI/Desktop inspection, CLI deletion and clearing, and per-run disablement
+> have shipped. The user-invoked session-review command, dedicated Desktop
+> edit/delete/enable controls, telemetry-driven tuning, automatic promotion,
+> and wider memory scopes are deliberately not planned; §17 and §20 record the
+> closed scope.
 >
-> Roadmap priority: P0.5 local follow-on. CLI/TUI and Desktop are in scope;
+> Former roadmap priority: P0.5 local follow-on. CLI/TUI and Desktop are in scope;
 > Portal, worker task runs, and space memory are not.
 >
 > One thing landed differently from §9.1. A memory file left unusable by a
@@ -21,10 +25,11 @@
 > Two more, smaller. Desktop keys its runtime cache by Project alone (§11.5),
 > because it opens a Project at its default workspace and so has exactly one
 > root per Project; the wider keying is needed only once Desktop can enter a
-> worktree. And of §11.5's Desktop surface, the list and the one-at-a-time
-> reader are built; the editor, per-memory delete, and the enable toggle are
-> not, so editing still means opening the Markdown file. `buildmax info` and the
-> TUI `/info` memory tab list the same thing on the other surfaces.
+> worktree. The Desktop surface is intentionally read-only: it lists memories
+> and opens one body at a time, while editing remains direct Markdown editing,
+> deletion and clearing use `buildmax project forget`, and one-run disablement
+> uses `--no-project-memory`. `buildmax info` and the TUI `/info` memory tab list
+> the same thing on the other surfaces.
 
 Related: [context durability](context-durability.md),
 [local session storage](local-session-storage.md),
@@ -38,7 +43,7 @@ Related: [context durability](context-durability.md),
 
 - [1. Decision](#1-decision)
 - [2. Why These Concepts Must Stay Separate](#2-why-these-concepts-must-stay-separate)
-- [3. Current State And The Gap](#3-current-state-and-the-gap)
+- [3. Baseline Before This Design](#3-baseline-before-this-design)
 - [4. Lessons From Existing Local Layouts](#4-lessons-from-existing-local-layouts)
 - [5. Goals And Non-Goals](#5-goals-and-non-goals)
 - [6. Domain Model And Invariants](#6-domain-model-and-invariants)
@@ -55,7 +60,7 @@ Related: [context durability](context-durability.md),
 - [17. Delivery Phases](#17-delivery-phases)
 - [18. Acceptance](#18-acceptance)
 - [19. Alternatives Rejected](#19-alternatives-rejected)
-- [20. Open Questions](#20-open-questions)
+- [20. Closed Follow-Ups](#20-closed-follow-ups)
 
 ## 1. Decision
 
@@ -101,7 +106,7 @@ index over them. Only the index is rendered on every model call, as a
 lower-authority context block rather than a system-prompt instruction layer.
 The Agent reads a memory's body when the index line suggests it is relevant,
 and writes one memory at a time. Users can inspect, edit, delete, clear, or
-disable them. No automatic extraction pass ships in the first implementation.
+disable them. No automatic extraction pass is part of the completed contract.
 
 ## 2. Why These Concepts Must Stay Separate
 
@@ -143,14 +148,15 @@ forgettable.
 
 BuildMax has two memory lifetimes after this design:
 
-| Lifetime | Existing or planned state | Purpose |
+| Lifetime | State | Purpose |
 |---|---|---|
 | Working/session memory | Existing notes and todos | Keep current decisions, constraints, and work state across trimming and compaction inside one session |
-| Project memory | Planned per-Project memory files | Carry stable, project-specific knowledge across CLI/Desktop sessions and related Git worktrees |
+| Project memory | Implemented per-Project memory files | Carry stable, project-specific knowledge across CLI/Desktop sessions and related Git worktrees |
 
-Global user memory, space memory, and reusable Agent memory remain separate
-future scopes. A global mandatory preference can already be an instruction in
-`<BUILDMAX_HOME>/AGENTS.md`; that does not make it user Memory.
+Global user memory, space memory, and reusable Agent memory remain separate,
+out-of-scope concepts and are not planned by this record. A global mandatory
+preference can already be an instruction in `<BUILDMAX_HOME>/AGENTS.md`; that
+does not make it user Memory.
 
 What separates the two is not scope but origin. A preference the user **stated**
 is normative and belongs in an instruction layer, where the user authored it and
@@ -194,9 +200,9 @@ When these sources disagree, BuildMax uses these semantic rules:
 These are meaning-level rules, not a new model-role hierarchy. The prompt text
 must state them because provider protocols do not know BuildMax's taxonomy.
 
-## 3. Current State And The Gap
+## 3. Baseline Before This Design
 
-### 3.1 What already works
+### 3.1 What already worked
 
 BuildMax already has the session-local half:
 
@@ -219,7 +225,7 @@ The durable session shape is already sound:
     writer.lock
 ```
 
-### 3.2 What is missing
+### 3.2 What was missing
 
 There is nowhere for an Agent to retain a project-specific fact after the
 session that learned it ends. Users can put such a fact in `AGENTS.md`, but
@@ -244,14 +250,15 @@ Examples that do not belong there are:
 - a fact recoverable cheaply and unambiguously from current source; or
 - a credential, access token, private key, or copied confidential payload.
 
-### 3.3 Project and session identity are split today
+### 3.3 Project and session identity were split
 
-Desktop currently owns a private `Project` record with a name and one folder,
-stored in `<BUILDMAX_HOME>/projects/projects.json`. CLI does not resolve or
-record that Project. Both surfaces store sessions in the one global sessions
-directory, and `session.Meta` records a workspace path but no Project ID.
+Before the implementation, Desktop owned a private `Project` record with a name
+and one folder, stored in `<BUILDMAX_HOME>/projects/projects.json`. CLI did not
+resolve or record that Project. Both surfaces stored sessions in the one global
+sessions directory, and `session.Meta` recorded a workspace path but no Project
+ID.
 
-That causes visible inconsistencies already:
+That caused visible inconsistencies:
 
 - CLI `--continue` chooses the newest session globally, not the newest session
   for the current repository;
@@ -260,7 +267,7 @@ That causes visible inconsistencies already:
 - a main checkout and its linked worktree look like different folders even
   though the existing Worktree capability treats them as one repository.
 
-Adding memory to the current Desktop Project would make the split permanent:
+Adding memory to that Desktop Project would have made the split permanent:
 Desktop and CLI could run against the same repository while reading different
 memory or while CLI reads none. Shared Project identity therefore lands before
 shared Project Memory.
@@ -674,8 +681,9 @@ must delete an old memory to admit a new one; here, growth costs one index
 line, and pressure falls on the count and on writing a description worth its
 line rather than on the knowledge itself.
 
-Twenty is a starting bound chosen to be raised on evidence rather than lowered
-after users have filled it. Phase 3 measures observed counts and sizes.
+Twenty is the fixed v1 bound. Changing it requires a concrete user outcome and
+a new design decision; this completed scope does not collect product telemetry
+to tune it automatically.
 
 If a direct filesystem edit makes a file invalid UTF-8 or over budget, that
 memory is reported and skipped (§8.3). If the store as a whole cannot be read
@@ -1004,11 +1012,10 @@ overwrite. That is one extra tool call on the path that changes durable shared
 state, and none on the path that adds a new one.
 
 Unlike session notes, Project Memory does not get a mandatory pre-compaction
-checkpoint in v1. Promoting session detail across every future session is a
+checkpoint. Promoting session detail across every future session is a
 higher-risk decision than preserving it inside the current session. A missed
 memory costs convenience; a false or sensitive durable memory can mislead many
-future runs. Usage evidence should decide whether a later extraction checkpoint
-is worth that trade-off and model-call cost.
+future runs. No extraction checkpoint is planned in this completed scope.
 
 ### 11.5 Desktop
 
@@ -1023,12 +1030,15 @@ an open session. Project-level pending-message and one-run-at-a-time policy may
 remain keyed by Project in the first phase; changing concurrency is not needed
 to share identity or memory.
 
-Desktop initially needs a list of memories — slug, description, type, and when
-each was last written — an editor for one at a time, per-memory delete, and an
-enable toggle. The editor uses the same digest-checked store as the Agent
-tool. It must label memory as fallible recall and keep `AGENTS.md` in the
-instructions surface rather than presenting both as one list; the `feedback`
-type makes that separation easy to blur and §9.2 is what the surface follows.
+Desktop provides a read-only list of memories — slug, description, type, when
+each was last written, and one body at a time. It labels memory as fallible
+recall and keeps `AGENTS.md` in the instructions surface rather than presenting
+both as one list; the `feedback` type makes that separation easy to blur and
+§9.2 is what the surface follows. A dedicated Desktop editor, per-memory
+delete, and enable toggle are not planned: direct Markdown editing preserves
+the readable-file contract, `buildmax project forget` owns deletion and
+clearing, and `--no-project-memory` owns one-run disablement without adding a
+second control path.
 
 ## 12. Visibility, Trace, And Diagnostics
 
@@ -1066,7 +1076,7 @@ This replaces the current tendency to call every context source "memory". Raw
 content stays out of the bounded trace because the session and Project stores
 already own it and trace redaction is fail-open.
 
-`buildmax doctor` should report, without content:
+`buildmax doctor` reports, without content:
 
 - the resolved Project ID and kind;
 - the Workspace and, for Git, its common-directory locator;
@@ -1104,9 +1114,8 @@ a run without deleting it. Clearing sessions does not clear Project Memory.
 
 ## 14. Ownership And Architecture
 
-This is an explicit ownership change. The current architecture calls Desktop
-Project local UI state; after implementation, Local Project becomes a shared
-CLI/Desktop runtime concept.
+This was an explicit ownership change. Local Project is now a shared
+CLI/Desktop runtime concept rather than Desktop-local UI state.
 
 | Responsibility | Owner |
 |---|---|
@@ -1125,10 +1134,9 @@ lives beside its core model and is implemented by infra, following the session
 storage boundary. `agentapp` remains the only runtime assembler shared by CLI
 and Desktop.
 
-When this lands, the architecture documents for Desktop, CLI, Session, Agent
-Loop, and repository layout change in the same ownership-moving commit. The
-old Desktop `Project`, readers, and writers are deleted rather than kept as a
-compatibility layer.
+The architecture documents for Desktop, CLI, Session, Agent Loop, and repository
+layout changed with the ownership move. The old Desktop `Project`, readers, and
+writers were deleted rather than kept as a compatibility layer.
 
 ## 15. Deletion And Lifecycle
 
@@ -1174,7 +1182,7 @@ explicit command and is deleted before the format is treated as current.
 
 ## 17. Delivery Phases
 
-### Phase 1 — shared Local Project identity
+### Phase 1 — shared Local Project identity (complete)
 
 1. Add the core Project contract and JSON bundle store.
 2. Add Git common-directory and non-Git root resolution.
@@ -1187,7 +1195,7 @@ explicit command and is deleted before the format is treated as current.
 Phase 1 changes no model context. It establishes the ownership boundary memory
 needs and is independently testable.
 
-### Phase 2 — bounded Project Memory
+### Phase 2 — bounded Project Memory (complete)
 
 1. Add the memory files, frontmatter parsing, lock, digests, atomic
    single-memory replacement, and the generated `MEMORY.md` index.
@@ -1195,27 +1203,27 @@ needs and is independently testable.
 3. Register `MemoryRead` and `MemoryWrite` only on enabled local
    primary runs, and render the index on those runs only — subagents receive
    neither tool nor block.
-4. Add a user-invoked command that reviews the current session for material
-   worth remembering and proposes a replacement the user accepts or discards.
-   The trigger is a person, never a turn boundary or a background pass, which
-   is what separates it from the automatic extraction §19.7 rejects. Its exact
-   surface, output, and whether it writes directly or only proposes are
-   settled during this phase.
+4. A user-invoked session-review command was considered and is not part of the
+   completed scope. Explicit `MemoryWrite` during ordinary work, direct
+   Markdown editing, and the inspection surfaces provide one write path and one
+   visible source of truth without adding a second model pass or proposal UI.
 5. Add trace source metadata and diagnostic checks.
 6. Document inspect/edit/clear/disable behavior for CLI/TUI and Desktop.
 
-### Phase 3 — surface controls and evidence
+### Phase 3 — surface controls (complete at the accepted scope)
 
-1. Add the Desktop memory list/editor and the TUI/CLI inspection command.
-2. Measure memory count, body sizes, write frequency, how often a rendered
-   index line is followed by a read, conflict rate, and how often users
-   correct or delete memories — without recording raw content.
-3. Decide from evidence whether the count bound should rise, whether the index
-   needs grouping or ranking once it is full, and whether an automatic
-   promotion checkpoint is justified.
+1. Desktop lists memories and opens one body at a time; TUI `/info` and
+   `buildmax info` inspect the same store. `buildmax project forget` deletes or
+   clears memory, and `--no-project-memory` disables it for one run.
+2. Dedicated Desktop editing, deletion, and enable controls are not planned;
+   the existing file, CLI, and run-flag controls remain authoritative.
+3. Product telemetry for memory hits, writes, conflicts, or corrections is not
+   collected. The fixed count and index bounds remain the v1 contract, and no
+   automatic promotion checkpoint is planned.
 
-Phases 1 and 2 are the feature. Phase 3 supplies the user-control acceptance
-criteria and the evidence needed before making memory more automatic.
+Phases 1 and 2 are the feature. Phase 3 supplies the smallest controls needed
+to inspect, correct, forget, or disable it without multiplying write paths.
+The feature is complete at this scope.
 
 ## 18. Acceptance
 
@@ -1268,8 +1276,9 @@ criteria and the evidence needed before making memory more automatic.
   gone.
 - Traces identify Project, Workspace, instruction layers, memory count and
   index size, and compaction presence without storing their raw text.
-- Users can inspect, edit, delete, clear, and disable Project Memory
-  independently of sessions.
+- Users can inspect Project Memory on CLI/TUI/Desktop, edit its readable
+  Markdown files, delete or clear it with `buildmax project forget`, and
+  disable it for a run with `--no-project-memory`, independently of sessions.
 - Project/session deletion never cascades by path coincidence.
 
 ## 19. Alternatives Rejected
@@ -1311,8 +1320,9 @@ directory is the exact local relation shared by linked worktrees and no wider.
 An index the model reads and chooses from is retrieval enough at this scale,
 and it is inspectable, provider-neutral, and deterministic. Embedding
 infrastructure adds chunking, ranking, model compatibility, deletion, and
-explanation problems before there is enough data to require it. The index does
-not become a ranking problem until it is full, which §17 Phase 3 measures.
+explanation problems before there is enough data to require it. Only a
+demonstrated problem with the fixed bound would justify reopening ranking; the
+completed design collects no product telemetry for it.
 
 ### 19.7 Automatically extract memory every turn
 
@@ -1321,10 +1331,9 @@ surprising content, and makes false memory common before user controls are
 proven. Explicit Agent writes plus direct user edits are the safer first
 instrumented path.
 
-What Phase 2 ships instead is a command the user invokes. That keeps the cost
-and the surprise where a person asked for them, and it is the reason rejecting
-automatic extraction does not also mean waiting for the Agent to volunteer
-every memory it should have written.
+What ships instead is explicit `MemoryWrite` during ordinary work plus direct
+user inspection and editing. A separate review command would add another model
+pass and write workflow without a requirement the existing path cannot meet.
 
 ### 19.8 One bounded always-loaded document
 
@@ -1345,41 +1354,29 @@ The index-plus-files shape costs one extra tool call on the update path and a
 read before a body can be used. That is the price of the three properties
 above, and it is small because most memories are never read in a given turn.
 
-## 20. Open Questions
+## 20. Closed Follow-Ups
 
-- Are 20 memories and a ~3,200-character index the right always-loaded bound
-  in real repositories, and what happens at the moment the store fills — does
-  the index need grouping, or is deleting the weakest memory the right
-  pressure?
-- How often does a rendered index line actually lead to a read? A line that is
-  never followed is either a description doing the whole job, which is fine,
-  or a memory nobody needs, which is not, and the two are told apart by
-  whether users correct the Agent afterwards.
-- Does withholding memory from local subagents (§9.4) cost anything
-  observable, or does a parent's delegated task already carry what a subagent
-  needs?
-- What shape should the Phase 2 session-review command take, and should it
-  write directly or only propose? It ships in Phase 2 because Phase 3 measures
-  write frequency and a near-zero count is uninterpretable on its own — it
-  cannot distinguish memory being useless from the model never considering a
-  write, and a user-invoked path produces the contrast that makes the
-  measurement mean something.
-- Is explicit relink sufficient after repository moves, or does usage justify
-  an opt-in marker inside the Git common directory?
-- Does one-run-at-a-time per Desktop Project remain the right concurrency rule
-  once one Project can have several worktrees?
-- Is a user-level scope worth adding, and what is the evidence? The signal is
-  **the same correction recurring across sessions in unrelated Projects** —
-  not the same fact duplicated across Projects, which only measures storage
-  redundancy. Working agreements are the one memory class whose hit rate
-  approaches every turn, so the resident-cost argument that keeps other global
-  facts out does not apply to them; what does apply is that they are the least
-  verifiable class in the store (§9.2). If the scope is added it is a `scope`
-  field on the same files and the same tools, not a second store, and its
-  writes should go through the Phase 2 user-invoked review rather than
-  landing silently — confirmation is what makes an inference about a person
-  auditable. Who authorizes a promotion from Project to user scope is part of
-  the same question.
+The implementation closes this record with the following scope decisions:
 
-None blocks phases 1 or 2. Each has an observable signal and should be decided
-from local use rather than by adding storage or automation speculatively.
+- The v1 limit remains 20 memories and an approximately 3,200-character index.
+  A concrete failure can justify a new design; this record adds no grouping,
+  ranking, or adaptive capacity.
+- BuildMax does not collect product telemetry for index-to-read conversion,
+  write frequency, conflicts, or user corrections. Tool calls and traces remain
+  diagnostic evidence for an individual local run, not an analytics pipeline.
+- Local subagents continue to receive neither the memory index nor its tools.
+  The parent supplies relevant context explicitly in the delegated task.
+- There is no user-invoked session-review command. The Agent writes explicitly
+  during ordinary work, and the user can inspect or edit the Markdown files.
+- Explicit `buildmax project relink` remains the recovery mechanism after a
+  repository move; no marker is written into the Git common directory.
+- Desktop retains one-run-at-a-time coordination per Project. Supporting
+  Desktop worktree entry or different concurrency would require its own user
+  outcome and design rather than extending Memory.
+- Project is the only cross-session Memory scope. Global user, Space, and
+  reusable Agent memory are not planned here and must not be inferred from this
+  file format.
+
+These are scope boundaries, not an implementation backlog. Reopen one only for
+a demonstrated user outcome that the completed Project Memory contract cannot
+satisfy.

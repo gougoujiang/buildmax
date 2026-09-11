@@ -41,7 +41,9 @@ Desktop 交互式回合现在使用 `agentapp.RunScheduler`：按 Session key �
 另一项持久执行平面职责。
 
 本地检查已有 `buildmax info`、TUI `/info` 和 Desktop 记忆列表/读取功能。
-Desktop 记忆编辑、删除和启用控制仍未实现。
+Desktop 的 Memory 界面有意保持只读：用户直接编辑 Markdown 文件，用
+`buildmax project forget` 删除或清空，并用 `--no-project-memory` 为单次运行禁用；
+不再计划单独的 Desktop 编辑/删除/启用控件。
 
 本地执行不需要 Server。已登录客户端可使用托管模型目录；Server 拒绝凭证时，
 客户端将其视为登录过期，执行 `buildmax logout` 可回到本地模式。

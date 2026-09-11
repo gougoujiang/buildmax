@@ -49,8 +49,10 @@ The likely direction is:
 > on an Issue, but they retain distinct identity, lifecycle, authority, and
 > execution boundaries.
 
-This is not an accepted roadmap commitment. It makes the product boundary and
-the minimum useful bridge concrete enough to accept, change, or reject.
+Roadmap R5 item 1 schedules this decision and, if accepted, its remaining first
+slice. That is not acceptance of the capability: this proposal makes the
+product boundary and minimum useful bridge concrete enough to accept, change,
+or reject before implementation continues.
 
 ## Problem And Current Context
 
@@ -511,7 +513,8 @@ If the direction is accepted:
 
 1. update [surface positioning](../design/surface-positioning.md) so contextual
    Issue work is a committed CLI/Desktop bridge, not only an optional inbox;
-2. put the prioritized delivery phase in [ROADMAP.md](../ROADMAP.md);
+2. replace R5's decision placeholder in [ROADMAP.md](../ROADMAP.md) with the
+   accepted delivery scope;
 3. align with the durable Agent sessions decision on identity and relations;
 4. create focused Issues for the authenticated Issue client, local link,
    Desktop and CLI surfaces, result relations, and policy work;

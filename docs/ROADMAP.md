@@ -171,6 +171,29 @@ untrusted repositories, or workers holding high-value credentials; do not make
 a particular CNI or proxy an unconditional BuildMax dependency without that
 evidence.
 
+After the Beta gate, evaluate and deliver the previously unplanned local and
+plugin follow-ons in this order. Each step still needs its stated evidence; an
+ordered place here is not permission to skip a proposal's acceptance decision.
+
+1. Decide the remaining [Local Issue work bridge](proposals/local-issue-work-bridge.md)
+   Phase 1 contract, then complete the durable Issue-to-Session link and local
+   result projection if accepted. Evaluate its decomposition and governance
+   phases only after the receive/work/return path has adoption evidence.
+2. Complete [Session usage stats](design/session-usage-stats.md) with
+   cross-session aggregation, per-turn source records, and the Desktop binding.
+   Add retention or cache diagnostics only from authoritative recorded data.
+3. Add [Space Secret](design/space-secrets.md) credential-file delivery before
+   widening plugins that commonly need credential files.
+4. Add [executable Space plugin content](design/plugin-space-distribution.md)
+   only after R0 has a supported hook/MCP process and network boundary; preserve
+   release eligibility, exact pins, and run-scoped materialization.
+5. Add Task-scoped autonomous plugin acquisition only after fixed plugin
+   environments and executable distribution are proven. It creates a later
+   TaskRun and never hot-loads a running process.
+6. Consider short-lived credential exchange, external Secret providers, and
+   workload identity in that order, and only for a concrete provider and
+   operator journey.
+
 Workflow expansion starts with reconciliation and typed dataflow before graph
 breadth. A provider-neutral structured-output contract in the shared runtime is
 a prerequisite for typed routes, planners, evaluators, and richer Task results.
@@ -178,6 +201,8 @@ Channel names or partial adapters do not count as delivered integrations.
 
 Design: [Workflow runtime](design/workflow-runtime.md) and
 [orchestration and continuity decisions](design/orchestration-and-continuity-decisions.md).
+The ordered follow-ons above are specified by the linked records rather than
+being duplicated here.
 
 ## Beta Gate
 
