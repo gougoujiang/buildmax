@@ -259,6 +259,7 @@ func (h *Handler) buildWorkHandler() *work.Handler {
 		Tasks:           h.cfg.TaskStore,
 		TaskRuns:        h.cfg.TaskRunStore,
 		Agents:          h.cfg.AgentStore,
+		Schedules:       h.cfg.ScheduleStore,
 		Spaces:          h.cfg.SpaceStore,
 		Conversations:   h.cfg.ConversationStore,
 		Messages:        h.cfg.ConversationMessageStore,

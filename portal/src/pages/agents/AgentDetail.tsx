@@ -16,6 +16,7 @@ import {
   type AgentDefinitionInput,
 } from "../../features/agents"
 import { createAgentTask, listAgentTasks } from "../../features/tasks"
+import { SchedulesSection } from "../../features/schedules/SchedulesSection"
 import { listSecrets } from "../../features/spaceSecrets/api"
 import { listActivations } from "../../features/spacePlugins/api"
 import { listPlugins } from "../../features/plugins/api"
@@ -37,12 +38,13 @@ interface AgentDetailProps {
   agentId: string
 }
 
-type Tab = "overview" | "config" | "runs" | "revisions"
+type Tab = "overview" | "config" | "runs" | "schedules" | "revisions"
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "config", label: "Configuration" },
   { id: "runs", label: "Runs" },
+  { id: "schedules", label: "Schedules" },
   { id: "revisions", label: "Revisions" },
 ]
 
@@ -418,6 +420,14 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
             <section className="agent-detail__panel">
               <p className="page-activity__subtitle">Each run is a durable Task thread. Select one to open it.</p>
               {renderRunsTable(tasks)}
+            </section>
+          ) : null}
+
+          {tab === "schedules" ? (
+            <section className="agent-detail__panel">
+              {token ? (
+                <SchedulesSection token={token} spaceId={spaceId} agentId={agent.id} canManage={canManage} />
+              ) : null}
             </section>
           ) : null}
 

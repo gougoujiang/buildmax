@@ -254,6 +254,30 @@ export interface ApiTasksListResponse {
   total: number
 }
 
+/** A recurring schedule as returned by the schedule endpoints. */
+export interface ApiSchedule {
+  id: string
+  space_id: string
+  agent_id: string
+  created_by: string
+  name?: string
+  input: string
+  cron_expr: string
+  timezone: string
+  enabled: boolean
+  next_fire_at: string
+  last_fire_at?: string | null
+  last_task_id?: string | null
+  consecutive_failures: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ApiScheduleListResponse {
+  schedules: ApiSchedule[]
+  total: number
+}
+
 /** Task as returned by space-scoped task endpoints. */
 export interface ApiTask {
   id: string

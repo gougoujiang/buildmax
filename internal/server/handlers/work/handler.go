@@ -19,6 +19,7 @@ import (
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
+	coreschedule "github.com/gougoujiang/buildmax/internal/core/schedule"
 	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
@@ -49,6 +50,9 @@ type Config struct {
 	Tasks         coretask.Store
 	TaskRuns      coretask.RunStore
 	Agents        agentdef.Store
+	// Schedules confirms a schedule belongs to the space before its tasks are
+	// listed. Nil leaves the schedule-tasks route reporting the feature is off.
+	Schedules     coreschedule.Store
 	Spaces        corespace.Store
 	Conversations coreconv.Store
 	Messages      coreconv.MessageStore
@@ -170,6 +174,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/spaces/{space_id}/tasks", h.createSpaceTaskHandler)
 	mux.HandleFunc("GET /api/spaces/{space_id}/agents/{agent_id}/tasks", h.listAgentTasksHandler)
 	mux.HandleFunc("POST /api/spaces/{space_id}/agents/{agent_id}/tasks", h.createAgentTaskHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/schedules/{schedule_id}/tasks", h.listScheduleTasksHandler)
 	mux.HandleFunc("GET /api/spaces/{space_id}/tasks/{task_id}", h.getTaskHandler)
 	mux.HandleFunc("GET /api/spaces/{space_id}/tasks/{task_id}/runs", h.listTaskRunsHandler)
 	mux.HandleFunc("POST /api/spaces/{space_id}/tasks/{task_id}/runs", h.createTaskRunHandler)

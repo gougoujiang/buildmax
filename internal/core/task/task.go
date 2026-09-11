@@ -327,6 +327,10 @@ type Store interface {
 	ListTasksByConversationPaginated(ctx context.Context, conversationID string, executedOnly bool, limit, offset int) ([]Task, int, error)
 	ListTasksByIssue(ctx context.Context, issueID string, limit, offset int) ([]Task, int, error)
 	ListTasksByAgent(ctx context.Context, spaceID, agentID string, limit, offset int) ([]Task, int, error)
+	// ListTasksBySchedule returns the tasks a recurring schedule created, newest
+	// first, scoped to the space so a schedule id cannot read another space's
+	// tasks. total is the count ignoring limit and offset.
+	ListTasksBySchedule(ctx context.Context, spaceID, scheduleID string, limit, offset int) ([]Task, int, error)
 	GetTask(ctx context.Context, taskID string) (*Task, error)
 	GetTaskBySessionID(ctx context.Context, sessionID string) (*Task, error)
 	// CreateTask creates a new task and its first Run (input, title, PENDING). Returns the task with last_run_id set.
