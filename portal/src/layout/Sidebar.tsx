@@ -281,9 +281,6 @@ export function SidebarNavContent({
             <IssueIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">Issues</span>
           </button>
-        </div>
-        <div className="sidebar__group">
-          <span className="sidebar__group-label">Reuse</span>
           <button
             type="button"
             className={cn("sidebar__nav-item", isAgentsActive(route) && "sidebar__nav-item--active")}
@@ -310,7 +307,7 @@ export function SidebarNavContent({
           </button>
         </div>
         <div className="sidebar__group">
-          <span className="sidebar__group-label">Data</span>
+          <span className="sidebar__group-label">Resources</span>
           <button
             type="button"
             className={cn("sidebar__nav-item", isFilesActive(route) && "sidebar__nav-item--active")}
