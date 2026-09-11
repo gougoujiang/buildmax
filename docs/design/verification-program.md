@@ -379,8 +379,9 @@ considered for release.
 - external MySQL and S3-compatible storage;
 - TLS at the published endpoint;
 - Kubernetes Job workers;
-- two Server replicas with Redis coordination, while explicitly exercising the
-  still-open message-write fencing and Redis failure/recovery limits;
+- two Server replicas with Redis coordination, while explicitly exercising
+  cross-replica delivery, concurrent turns, reconnects, and Redis
+  failure/recovery;
 - no fixed development login or provider credential;
 - direct and managed inference qualified separately;
 - exact image digests, dependency versions, configuration digest, operator,

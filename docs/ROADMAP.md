@@ -86,7 +86,8 @@ process interruption without duplicate execution, refused work leaves no
 orphan record, and the supported topology has candidate evidence for delivery,
 serialization, and recovery.
 
-Design: [Server coordination](design/server-coordination.md).
+Design: [Server coordination](design/server-coordination.md) and
+[Workflow runtime](design/workflow-runtime.md).
 
 ### R2. Bound Long-Running Operation And Recovery
 

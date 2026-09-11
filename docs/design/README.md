@@ -114,7 +114,7 @@ the individual record rather than being duplicated here.
 
 | Document | Lifecycle | Covers |
 |---|---|---|
-| [Server coordination](server-coordination.md) | Active plan | Shipped Redis fan-out and turn leases; message fencing and candidate qualification remain |
+| [Server coordination](server-coordination.md) | Active plan | Shipped Redis fan-out, turn leases, and write fencing; candidate qualification remains |
 | [Enterprise deployment](enterprise-deployment.md) | Active plan | Supported private deployment shape and operating gaps |
 | [Graceful shutdown](graceful-shutdown.md) | Active plan | Draining, quiescing, worker interruption, and bounded shutdown |
 

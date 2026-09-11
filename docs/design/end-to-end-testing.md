@@ -18,8 +18,9 @@
 
 ## Status
 
-- roadmap_priority: `unscheduled` — contributor and agent productivity work,
-  not yet placed in [../ROADMAP.md](../ROADMAP.md)
+- roadmap_priority: `R2` — the two remaining deployment paths supply lifecycle
+  evidence for the recovery priority in [../ROADMAP.md](../ROADMAP.md); the
+  completed local productivity work does not form a separate roadmap item
 - status: `in progress` — §9 steps 1, 2, 3, 5, and 6 are done: the model harness of
   §4 is `internal/testsupport/mockllm` and serves the deployment smokes too; the
   CLI suite covers print mode, answers an approval on a pseudo-terminal, and
