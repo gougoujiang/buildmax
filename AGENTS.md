@@ -241,9 +241,10 @@ surface; details belong there rather than being copied into this file.
 - Add a changelog file for user-visible changes with
   `./make changelog new <added|changed|fixed|security> <slug>`.
 - Commit subjects are imperative lines. Pull request titles carry the
-  Conventional Commits prefix. Do not add assistant attribution, generated-by
-  footers, session links, or tooling trailers. The full rules are in
-  [`docs/contribute/conventions.md`](docs/contribute/conventions.md).
+  Conventional Commits prefix. Do not add assistant, model, or tool
+  attribution, generated-by footers, session links, or tooling trailers.
+  `Co-authored-by` may credit substantive human collaboration. The full rules
+  are in [`docs/contribute/conventions.md`](docs/contribute/conventions.md).
 - Dependency changes include lockfiles and license checks. Assess
   security-sensitive changes against [`SECURITY.md`](SECURITY.md) and the
   sandbox and hook trust boundaries.
