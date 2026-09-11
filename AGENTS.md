@@ -60,6 +60,7 @@ and nothing under `cmd/` or `internal/` may import it.
 - Documentation index: [`docs/README.md`](docs/README.md)
 - Current shipped state: [`docs/current-state.md`](docs/current-state.md)
 - Active priorities: [`docs/ROADMAP.md`](docs/ROADMAP.md)
+- Ready, decomposed work items: [`docs/backlog/`](docs/backlog/README.md)
 - Architecture index: [`docs/contribute/architecture/`](docs/contribute/architecture/README.md)
 - Repository layout and dependency direction:
   [`docs/contribute/repo-layout.md`](docs/contribute/repo-layout.md)
@@ -229,6 +230,11 @@ surface; details belong there rather than being copied into this file.
   the documentation updated, or explain why no documentation change is needed.
 - Documents under `docs/proposals/` and `docs/design/` open with an accurate
   `## Contents` list of their top-level sections.
+- Decomposed, ready-to-execute main-line work lives as one file per task in
+  [`docs/backlog/`](docs/backlog/README.md), ordered by filename prefix. Create
+  a task when its source design is approved; delete the file when the work
+  merges. Keep a work item in exactly one place: main-line and agent work in the
+  backlog, externally contributable work in GitHub issues.
 - Add a changelog file for user-visible changes with
   `./make changelog new <added|changed|fixed|security> <slug>`.
 - Commit subjects are imperative lines. Pull request titles carry the

@@ -25,8 +25,9 @@ release readiness depends on evidence, not the number of features implemented.
 This roadmap owns priority, sequencing, and release gates. Implementation
 evidence belongs in [current state](current-state.md), design rationale in
 [design records](design/README.md), and release proof in the
-[Beta readiness record](deploy/beta-readiness.md). “Implemented” does not mean
-qualified in a real deployment. Earlier P0–P4 phase names in design records are
+[Beta readiness record](deploy/beta-readiness.md). Approved work decomposed into
+ready-to-execute units lives in the [backlog](backlog/README.md). “Implemented”
+does not mean qualified in a real deployment. Earlier P0–P4 phase names in design records are
 historical capability groupings; the R0–R5 order below governs current work.
 
 ## Active Priority Order
