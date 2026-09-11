@@ -224,10 +224,11 @@ coordination:
 
 ## 10. Testing
 
-- Unit tests cover each backed implementation against a real Redis reached through
-  a `BUILDMAX_TEST_REDIS` address, with a CI Redis service container, mirroring how
-  `./make test mysql` gates the store scope. The scope refuses to skip silently
-  when the address is set.
+- Unit tests cover each backed implementation against an in-process
+  [miniredis](https://github.com/alicebob/miniredis), so the coordination behavior
+  runs on every build without a Redis service. This proves the mechanism, not the
+  deployed candidate topology (§1); a real-Redis scope is left to the candidate
+  exercise rather than asserted here.
 - A cross-instance test builds two `Handler`s sharing one Redis and asserts the
   three guarantees: an `Append` on one is read by a `Subscribe` on the other; a
   `Broadcast` on one reaches a socket registered on the other; a turn lease held
