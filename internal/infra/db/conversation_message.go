@@ -5,10 +5,12 @@ import (
 	"errors"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type conversationMessageRow struct {
@@ -71,12 +73,7 @@ func toConversationMessages(rows []conversationMessageReadRow) []coreconv.Messag
 // role "user" and role "system"; tool_call_id is stored when role is "tool"; tool_calls (JSON) is
 // stored when role is "assistant" with tool calls. Returns the created message.
 func (s *Store) AppendMessage(ctx context.Context, in coreconv.AppendInput) (*coreconv.Message, error) {
-	convKey, err := lookupKey(ctx, s.db, "conversation", in.ConversationID)
-	if err != nil {
-		return nil, err
-	}
 	row := &conversationMessageRow{
-		ConversationID:    convKey,
 		Role:              in.Role,
 		Content:           in.Content,
 		Channel:           in.Channel,
@@ -86,13 +83,60 @@ func (s *Store) AppendMessage(ctx context.Context, in coreconv.AppendInput) (*co
 		PartsJSON:         in.PartsJSON,
 		CreatedAt:         time.Now().UTC(),
 	}
-	if err := createWithPublicID(ctx, s.db, "uq_conversation_message_public_id",
-		func(id string) { row.PublicID = id }, row); err != nil {
+	insert := func(tx *gorm.DB, convKey uint64) error {
+		row.ConversationID = convKey
+		return createWithPublicID(ctx, tx, "uq_conversation_message_public_id",
+			func(id string) { row.PublicID = id }, row)
+	}
+
+	// The unfenced path is the single-instance deployment: the process's own turn
+	// queue already serializes writes, so no cross-replica token is needed.
+	if in.Fence == 0 {
+		convKey, err := lookupKey(ctx, s.db, "conversation", in.ConversationID)
+		if err != nil {
+			return nil, err
+		}
+		if err := insert(s.db, convKey); err != nil {
+			return nil, err
+		}
+	} else if err := s.appendFenced(ctx, in.Fence, in.ConversationID, insert); err != nil {
 		return nil, err
 	}
 	return toConversationMessage(&conversationMessageReadRow{
 		Row: *row, ConversationPublicID: canonicalPublicID(in.ConversationID),
 	}), nil
+}
+
+// appendFenced locks the conversation row, refuses a write whose fencing token
+// the conversation has already superseded, advances the stored token, and
+// inserts the message — all in one transaction so a concurrent turn on another
+// replica cannot interleave its own check-and-write. See
+// docs/design/server-coordination.md §7.
+func (s *Store) appendFenced(ctx context.Context, fence int64, conversationID string, insert func(tx *gorm.DB, convKey uint64) error) error {
+	canonical, ok := util.CanonicalPublicID(conversationID)
+	if !ok {
+		return apierr.ErrNotFound
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var conv conversationRow
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("id", "turn_fence").Where("public_id = ?", canonical).Take(&conv).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return apierr.ErrNotFound
+			}
+			return err
+		}
+		if fence < conv.TurnFence {
+			return coreconv.ErrStaleTurnWrite
+		}
+		if fence > conv.TurnFence {
+			if err := tx.Model(&conversationRow{}).Where("id = ?", conv.ID).
+				Update("turn_fence", fence).Error; err != nil {
+				return err
+			}
+		}
+		return insert(tx, conv.ID)
+	})
 }
 
 // GetMessage returns one message by handle, or (nil, nil) when there is none.

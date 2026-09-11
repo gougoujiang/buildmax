@@ -50,6 +50,10 @@ type turnRunInput struct {
 	AgentSummaries []agentSummary
 	TitleGenerator llm.TitleGenerator
 	StreamSink     llm.StreamSink
+	// Fence is the conversation lease's token, stamped on every message-history
+	// write this turn makes. Zero disables fencing. See
+	// docs/design/server-coordination.md §7.
+	Fence int64
 }
 
 // buildConversationTools builds this turn's task tools.
@@ -85,6 +89,9 @@ type conversationBuffer struct {
 	conversationID string
 	msgStore       coreconv.MessageStore
 	msgs           []llm.Message
+	// fence stamps every persisted message with the turn's lease token so a
+	// stale replica's write is rejected. Zero disables the check.
+	fence int64
 }
 
 func (b *conversationBuffer) HistoryMessages() []llm.Message {
@@ -135,6 +142,7 @@ func (b *conversationBuffer) Append(m llm.Message) error {
 		ToolCallsJSON:     toolCallsJSON,
 		ProviderStateJSON: providerStateJSON,
 		PartsJSON:         partsJSON,
+		Fence:             b.fence,
 	})
 	return err
 }
@@ -184,6 +192,7 @@ func prepareRun(ctx context.Context, msgStore coreconv.MessageStore, in turnRunI
 		Role:           "user",
 		Content:        in.Message,
 		Channel:        channelPtr,
+		Fence:          in.Fence,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("append incoming message: %w", err)
@@ -205,6 +214,7 @@ func prepareRun(ctx context.Context, msgStore coreconv.MessageStore, in turnRunI
 			conversationID: in.ConversationID,
 			msgStore:       msgStore,
 			msgs:           llmMsgs,
+			fence:          in.Fence,
 		},
 		toolsList: buildConversationTools(in, sourceMessageID),
 	}, nil

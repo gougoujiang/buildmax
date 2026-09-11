@@ -36,6 +36,10 @@ type HandleTurnCmd struct {
 	Message        string
 	ConversationID string
 	StreamSink     llm.StreamSink
+	// Fence is the conversation lease's fencing token, carried into this turn's
+	// message-history writes. Zero on the single-instance path. See
+	// docs/design/server-coordination.md §7.
+	Fence int64
 }
 
 // RerunTaskCmd describes a direct task-rerun request (bypasses the LLM layer).
@@ -98,6 +102,7 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 		AgentSummaries: s.fetchAgentSummaries(ctx, spaceID, cmd.Channel),
 		TitleGenerator: s.TitleGenerator,
 		StreamSink:     cmd.StreamSink,
+		Fence:          cmd.Fence,
 	}
 	reply, err := runConversationTurn(ctx, s.ConversationStore, s.MessageStore, s.LLMClient, runInput)
 	return ConversationResult{Reply: reply}, err

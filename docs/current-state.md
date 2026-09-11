@@ -21,10 +21,10 @@ The [Beta readiness record](deploy/beta-readiness.md) remains unqualified.
 MCP stdio child processes run outside the Bash sandbox today. The supported
 worker profile must confine or disable them before Beta; this is the remaining
 R0 engineering rule, not merely a qualification checkbox. Worker-wide network
-egress is a documented, accepted limit for the first private Beta. Distributed
-lease fencing at database writes, durable Workflow reconciliation, trace
-retention, and candidate failure/recovery evidence also remain open. Shared
-Redis coordination is implemented. The worker API already
+egress is a documented, accepted limit for the first private Beta. Durable
+Workflow reconciliation, trace retention, and candidate failure/recovery
+evidence also remain open. Shared Redis coordination is implemented, including
+distributed lease fencing at message-history writes. The worker API already
 has a separate listener, TLS support, and a shipped ingress NetworkPolicy; that
 bounded network slice must not be confused with unrestricted worker egress.
 
@@ -190,9 +190,9 @@ Both the basic/kind and production manifests now configure Redis and two Server
 replicas. Architecture tests reject multiple replicas without coordination.
 Multi-replica streaming and lease behavior have automated tests; candidate
 reconnect, contention, outage, and recovery exercises still need operating
-proof. The lease exposes a fencing token, but message-history writes do not yet
-enforce it. Lease mutual exclusion alone does not establish protection against
-stale writers after lease loss. See the
+proof. The lease exposes a fencing token, and message-history writes enforce it:
+a write carrying a token below the one the conversation has accepted is rejected,
+so a stale writer after lease loss cannot append behind the new holder. See the
 [coordination design](design/server-coordination.md).
 
 The scheduler has one concurrent dispatch slot per instance. In local-process

@@ -47,13 +47,20 @@ func TestRunLockedAcquiresAndReleasesAroundTheTurn(t *testing.T) {
 	r := NewRegistry(locker)
 
 	ran := make(chan struct{})
-	if _, err := r.Submit("conv_1", NewJob(func() { close(ran) })); err != nil {
+	var gotFence int64
+	if _, err := r.Submit("conv_1", NewJob(func(fence int64) { gotFence = fence; close(ran) })); err != nil {
 		t.Fatalf("Submit: %v", err)
 	}
 	select {
 	case <-ran:
 	case <-time.After(time.Second):
 		t.Fatal("turn did not run under a locker")
+	}
+
+	// The turn must receive its lease's fencing token so its writes can be
+	// serialized against a replica that supersedes it. fakeLocker issues 1 first.
+	if gotFence != 1 {
+		t.Fatalf("job fence = %d, want the lease's token 1", gotFence)
 	}
 
 	// The turn ran, so the lease was acquired for that conversation and released
@@ -74,7 +81,7 @@ func TestRunLockedSkipsTheTurnWhenTheLeaseCannotBeAcquired(t *testing.T) {
 	r := NewRegistry(locker)
 
 	ran := false
-	job := NewJob(func() { ran = true })
+	job := NewJob(func(int64) { ran = true })
 	if _, err := r.Submit("conv_1", job); err != nil {
 		t.Fatalf("Submit: %v", err)
 	}

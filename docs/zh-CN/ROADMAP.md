@@ -57,16 +57,15 @@ worker 配置拒绝它；在已经可见的运行边界旁展示这种处理；�
 
 ### R1. 关闭持久状态正确性缺口
 
-**核心机制已实现；还剩三个正确性窗口。** Redis 模式提供共享流、连接事件和
+**核心机制已实现；还剩两个正确性窗口。** Redis 模式提供共享流、连接事件和
 Conversation 回合租约，参考清单运行两个协调后的 Server 副本。Workflow run 与
 step-run 转换现在使用带保护的 compare-and-set 写入，失败步骤的收口也已原子化。
-消息写入尚未执行租约 fencing；Workflow 推进仍依赖 callback 而非持久化协调；
-title token 配额拒绝仍可能留下[孤立 Conversation](https://github.com/gougoujiang/buildmax/issues/278)。
+消息历史写入现在已执行租约 fencing，陈旧写入者会被拒绝而非损坏会话。Workflow 推进
+仍依赖 callback 而非持久化协调；title token 配额拒绝仍可能留下[孤立 Conversation](https://github.com/gougoujiang/buildmax/issues/278)。
 
-**下一步：** 对 Conversation 消息历史写入执行 fencing，让线性 Workflow 前身能在
-callback 丢失或重启后恢复，关闭孤立 Conversation 窗口，并用真实 MySQL 验证这些竞争。
-之后在候选拓扑中演练 worker 更新、重连、并发回合与 Redis 故障。
-进程内双副本测试不能算作集群演练。
+**下一步：** 让线性 Workflow 前身能在 callback 丢失或重启后恢复，关闭孤立 Conversation
+窗口，并用真实 MySQL 验证这些竞争。之后在候选拓扑中演练 worker 更新、重连、并发回合与
+Redis 故障。进程内双副本测试不能算作集群演练。
 
 **完成标准：** 旧持有者不能提交写入；持久工作在进程中断后收敛且不会重复执行；
 被拒绝的工作不留下孤立记录；受支持拓扑具备投递、串行化与恢复的候选版本证据。

@@ -53,7 +53,10 @@ var ErrDraining = errors.New("this server is shutting down; retry the turn")
 type Job struct {
 	// run executes the turn. It is called on the registry's goroutine for the
 	// conversation, never concurrently with another job for the same conversation.
-	run func()
+	// The fence is the conversation lease's token, threaded into the turn's
+	// message-history writes so a stale holder is rejected; it is zero on the
+	// single-instance path, which enforces no fence.
+	run func(fence int64)
 	// OnDequeue, when set, is called just before run for a job that had to wait.
 	// A job that started immediately never sees it, which is what lets a surface
 	// announce "this queued message is starting now" without a race.
@@ -62,7 +65,7 @@ type Job struct {
 	Dropped   atomic.Bool
 }
 
-func NewJob(run func()) *Job {
+func NewJob(run func(fence int64)) *Job {
 	return &Job{run: run, Done: make(chan struct{})}
 }
 
@@ -187,7 +190,7 @@ func (r *Registry) Wait(ctx context.Context) bool {
 //
 // A caller that goes away before its turn starts marks the job dropped and returns
 // the context error; the queue moves on to the next turn.
-func (r *Registry) RunSync(ctx context.Context, conversationID string, run func()) error {
+func (r *Registry) RunSync(ctx context.Context, conversationID string, run func(fence int64)) error {
 	job := NewJob(run)
 	if _, err := r.Submit(conversationID, job); err != nil {
 		return err
@@ -245,7 +248,7 @@ func (r *Registry) drain(conversationID string, q *convQueue, job *Job) {
 // lease exists to prevent. The caller's Done still closes, so a waiter unblocks.
 func (r *Registry) runLocked(conversationID string, job *Job) {
 	if r.locker == nil {
-		job.run()
+		job.run(0)
 		return
 	}
 	lease, err := r.locker.Acquire(r.lockCtx, conversationID)
@@ -255,7 +258,7 @@ func (r *Registry) runLocked(conversationID string, job *Job) {
 		return
 	}
 	defer lease.Release()
-	job.run()
+	job.run(lease.Fence())
 }
 
 // forget removes an idle queue so a long-lived server does not accumulate one
