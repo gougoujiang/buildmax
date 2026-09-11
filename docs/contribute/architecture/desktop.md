@@ -139,12 +139,11 @@ and project source files stay in the user-selected folder.
 
 The **memory** tab of the `/info` panel lists what the project remembers and
 shows one memory's body, over the same store the CLI and TUI read. It is
-read-only: a memory is a Markdown file the user can edit directly, and the tab
-prints the directory so they can. Editing from here needs the refusal path a
-digest-checked write takes
-— replacing a memory this session has not read, or one that changed underneath
-it — which is phase 3 in
-[local project memory](../../design/local-project-memory.md) §11.5.
+intentionally read-only: a memory is a Markdown file the user can edit directly,
+the tab prints that directory, `buildmax project forget` owns deletion and
+clearing, and `--no-project-memory` owns one-run disablement. The completed
+[local project memory](../../design/local-project-memory.md) §11.5 keeps those
+as the authoritative control paths instead of adding Desktop-specific writes.
 
 Desktop opens a Project at its default workspace, so one Project is one root
 here and the runtime cache is keyed by Project alone. Adding a folder resolves

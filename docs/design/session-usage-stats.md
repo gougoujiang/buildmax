@@ -4,7 +4,8 @@
 
 > **Audience:** contributors · **Status:** partly implemented — per-session
 > statistics on the CLI and in the TUI, and the metering fixes they required,
-> are shipped; cross-session aggregation is designed and not built
+> are shipped; cross-session aggregation is designed and not built. The
+> remaining local usage work is ordered as R5 item 2 in the roadmap.
 >
 > The surfaces this record calls `buildmax stats` and `/stats` are now
 > `buildmax info` and the `session` tab of `/info`. They gained a second half —
