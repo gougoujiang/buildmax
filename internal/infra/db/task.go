@@ -22,6 +22,7 @@ type taskRow struct {
 	ConversationID        *uint64    `gorm:"column:conversation_id;index"`
 	SpaceID               uint64     `gorm:"column:space_id;not null;index:idx_task_space_created,priority:1"`
 	IssueID               *uint64    `gorm:"column:issue_id;index"`
+	ScheduleID            *uint64    `gorm:"column:schedule_id;index"`
 	Status                string     `gorm:"type:varchar(32);not null"`
 	Input                 string     `gorm:"type:text;not null"`
 	Title                 string     `gorm:"type:varchar(256)"`
@@ -58,6 +59,7 @@ type taskReadRow struct {
 	CreatedByPublicID    string  `gorm:"column:created_by_public_id"`
 	LastRunPublicID      *string `gorm:"column:last_run_public_id"`
 	IssuePublicID        *string `gorm:"column:issue_public_id"`
+	SchedulePublicID     *string `gorm:"column:schedule_public_id"`
 	AgentPublicID        *string `gorm:"column:agent_public_id"`
 }
 
@@ -68,12 +70,14 @@ func (s *Store) taskSelect(ctx context.Context) *gorm.DB {
 	return s.db.WithContext(ctx).Model(&taskRow{}).
 		Select("task.*, c.public_id AS conversation_public_id, t.public_id AS space_public_id, " +
 			"cb.public_id AS created_by_public_id, lr.public_id AS last_run_public_id, " +
-			"i.public_id AS issue_public_id, a.public_id AS agent_public_id").
+			"i.public_id AS issue_public_id, sc.public_id AS schedule_public_id, " +
+			"a.public_id AS agent_public_id").
 		Joins("LEFT JOIN conversation c ON c.id = task.conversation_id").
 		Joins("INNER JOIN space t ON t.id = task.space_id").
 		Joins("INNER JOIN `user` cb ON cb.id = task.created_by").
 		Joins("LEFT JOIN task_run lr ON lr.id = task.last_run_id").
 		Joins("LEFT JOIN issue i ON i.id = task.issue_id").
+		Joins("LEFT JOIN schedule sc ON sc.id = task.schedule_id").
 		Joins("LEFT JOIN agent a ON a.id = task.agent_id")
 }
 
@@ -105,6 +109,10 @@ func toTask(row *taskReadRow) *coretask.Task {
 	if row.Row.IssueID != nil {
 		issue := derefPublicID(row.IssuePublicID)
 		out.IssueID = &issue
+	}
+	if row.Row.ScheduleID != nil {
+		schedule := derefPublicID(row.SchedulePublicID)
+		out.ScheduleID = &schedule
 	}
 	if row.Row.AgentID != nil {
 		agent := derefPublicID(row.AgentPublicID)
@@ -320,6 +328,13 @@ func (s *Store) CreateTask(ctx context.Context, in *coretask.CreateInput) (*core
 			}
 			taskDB.IssueID = &key
 		}
+		if in.ScheduleID != nil && *in.ScheduleID != "" {
+			key, err := lookupKey(ctx, tx, "schedule", *in.ScheduleID)
+			if err != nil {
+				return err
+			}
+			taskDB.ScheduleID = &key
+		}
 		// See CreateTaskRun: an unresolvable message leaves the run
 		// unattributed rather than refusing to create the task.
 		sourceKey, err := optionalKey(ctx, tx, "conversation_message", in.InitialRunSourceMessageID)
@@ -351,6 +366,7 @@ func (s *Store) CreateTask(ctx context.Context, in *coretask.CreateInput) (*core
 		CreatedByPublicID:    canonicalPublicID(in.CreatedBy),
 		LastRunPublicID:      &runDB.PublicID,
 		IssuePublicID:        optionalCanonicalPublicID(in.IssueID),
+		SchedulePublicID:     optionalCanonicalPublicID(in.ScheduleID),
 		AgentPublicID:        optionalCanonicalPublicID(in.AgentID),
 	}), nil
 }

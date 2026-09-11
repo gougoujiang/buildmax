@@ -109,6 +109,7 @@ erDiagram
     space ||--o{ conversation : scopes
     space ||--o{ workflow : owns
     space ||--o{ task : scopes
+    space ||--o{ schedule : owns
 
     conversation ||--o{ conversation_message : contains
     conversation ||--o{ task : "spawns (tier 1 to tier 2)"
@@ -120,9 +121,11 @@ erDiagram
     issue ||--o{ workflow_run : "tracked by"
 
     agent ||--o{ task : executes
+    agent ||--o{ schedule : "fired by"
     agent ||--o{ workflow_step_run : "targeted by"
     agent ||--o{ agent_revision : "versioned by"
     workflow ||--o{ workflow_revision : "versioned by"
+    schedule ||--o{ task : "fires"
 
     plugin ||--o{ plugin_release : "published as"
     space ||--o{ plugin_activation : activates
@@ -722,6 +725,41 @@ Task plus task_run is durable Agent execution. TaskRun owns the result;
 Conversation, Issue, and Workflow views may project it through explicit
 optional relations.
 
+### `schedule`
+
+A space-owned recurring time trigger. On each due time the dispatcher admits one
+ordinary Task through the Task service, so a schedule owns no execution state —
+its firings are Tasks with `trigger_source = schedule` and this schedule's
+`schedule_id`. See
+[Scheduled Agent execution](../../proposals/scheduled-agent-execution.md).
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
+| `space_id` | `bigint unsigned` | no | Owning space, authoritative for every schedule operation |
+| `agent_id` | `bigint unsigned` | no | The agent each firing runs |
+| `created_by` | `bigint unsigned` | no | `user.id`; carried onto each firing's Task |
+| `name` | `varchar(256)` | yes | Human label |
+| `input` | `text` | no | The fixed prompt each firing runs |
+| `cron_expr` | `varchar(256)` | no | Recurrence rule; parsed by the dispatcher, not this layer |
+| `timezone` | `varchar(64)` | no | IANA name the cron is evaluated in; storage stays UTC |
+| `enabled` | `boolean` | no | A disabled (paused) schedule keeps its row and next fire but is not claimed |
+| `next_fire_at` | `datetime(6)` | no | UTC due time; the dispatcher's claim target |
+| `last_fire_at` | `datetime(6)` | yes | Most recent firing time |
+| `last_task_id` | `bigint unsigned` | yes | `task.id` the most recent firing created |
+| `consecutive_failures` | `bigint` | no | Firings that failed to admit a Task since the last success; bounds runaway cost |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
+| `updated_at` | `datetime(6)` | yes | `autoUpdateTime` |
+
+Indexes: PK `id`; index `agent_id`; index `last_task_id`; index
+`idx_schedule_due` on (`enabled`, `next_fire_at`) for the due query; index
+`idx_schedule_space_created` on (`space_id`, `created_at`); unique `public_id`.
+
+A firing is exactly-once per due time through a conditional update of
+`next_fire_at`: the dispatcher advances it only when it still equals the value it
+read, so one of several racing replicas wins.
+
 ### `task`
 
 The durable unit of background work. One task, many attempts.
@@ -733,6 +771,7 @@ The durable unit of background work. One task, many attempts.
 | `conversation_id` | `bigint unsigned` | yes | Optional origin/projection relation; a direct Agent, Issue, or Workflow task has none |
 | `space_id` | `bigint unsigned` | no | Owning space, authoritative for every Task operation |
 | `issue_id` | `bigint unsigned` | yes | The issue this task advances, if any |
+| `schedule_id` | `bigint unsigned` | yes | The recurring time trigger that created this task, if any; an origin relation, never an authorization parent |
 | `status` | `varchar(32)` | no | `PENDING`, `SCHEDULED`, `RUNNING`, `SUCCEEDED`, `FAILED`, `CANCELED` |
 | `input` | `text` | no | The prompt |
 | `title` | `varchar(256)` | yes | LLM-generated |
@@ -751,9 +790,9 @@ The durable unit of background work. One task, many attempts.
 | `plugin_environment_head_id` | `bigint unsigned` | yes | Immutable Plugin environment the next Continue uses; null for a Task that installs nothing autonomously |
 
 Indexes: PK `id`; index `agent_id`; index `conversation_id`; index `issue_id`;
-index `last_run_id`; index `workspace_head_checkpoint_id`; index
-`plugin_environment_head_id`; index `idx_task_space_created` on (`space_id`,
-`created_at`); unique `public_id`.
+index `schedule_id`; index `last_run_id`; index `workspace_head_checkpoint_id`;
+index `plugin_environment_head_id`; index `idx_task_space_created` on
+(`space_id`, `created_at`); unique `public_id`.
 
 Status values are `task.RunStatus` — uppercase, and shared with `task_run`.
 

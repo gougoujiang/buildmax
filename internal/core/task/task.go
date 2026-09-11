@@ -79,6 +79,11 @@ const (
 	RunTriggerSourceIssueAgentRun      = "issue_agent_run"
 	RunTriggerSourceWorkflowStep       = "workflow_step"
 	RunTriggerSourceWebhook            = "webhook"
+	// RunTriggerSourceSchedule marks a run a recurring time trigger admitted.
+	// The Task also carries the schedule's id as an origin relation, so "why did
+	// this run" points at a schedule rather than a person. See
+	// docs/proposals/scheduled-agent-execution.md.
+	RunTriggerSourceSchedule = "schedule"
 )
 
 // Task holds the user-visible state for a background task.
@@ -86,9 +91,13 @@ type Task struct {
 	ID string `json:"id"`
 	// ConversationID is an optional projection target for a task started from
 	// a foreground conversation. It is never the task's ownership boundary.
-	ConversationID        string     `json:"conversation_id,omitempty"`
-	SpaceID               string     `json:"space_id"`
-	IssueID               *string    `json:"issue_id,omitempty"`
+	ConversationID string  `json:"conversation_id,omitempty"`
+	SpaceID        string  `json:"space_id"`
+	IssueID        *string `json:"issue_id,omitempty"`
+	// ScheduleID is an optional origin relation for a Task a recurring time
+	// trigger created. Like ConversationID and IssueID it is an origin, never the
+	// Task's ownership or authorization boundary.
+	ScheduleID            *string    `json:"schedule_id,omitempty"`
 	Status                string     `json:"status"`
 	Input                 string     `json:"input"`
 	Title                 string     `json:"title,omitempty"`
@@ -266,6 +275,7 @@ type CreateInput struct {
 	InitialRunSandboxNetworkTier    *string
 	InitialRunSandboxFilesystemTier *string
 	IssueID                         *string
+	ScheduleID                      *string
 }
 
 // UpdateInput updates a task to the given status with optional fields.

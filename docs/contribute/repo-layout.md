@@ -165,6 +165,9 @@ internal/
 │   ├── secret/         The Space Secret: a group of named items, its lifecycle,
 │   │                   the sealed-bytes and store contracts — no crypto, no
 │   │                   persistence
+│   ├── schedule/       A space's recurring time trigger: what a Schedule is, its
+│   │                   due-time and firing lifecycle, and its store contract —
+│   │                   no cron parsing, no timers
 │   ├── task/           Tier 2 durable work: the Task, its runs and their one
 │   │                   legal set of transitions, run output, and delivery
 │   ├── identity/       Who a caller is: the account, its credentials, its
