@@ -239,9 +239,10 @@ direct local execution.
   chain-of-thought.
 - Treating an uploaded local file as a tamper-proof audit log.
 - Natural-language organization-wide search in the first storage slice.
-- Automatically adding attribution or session links to commits and pull
-  request descriptions. The repository currently rejects that convention;
-  changing it would be a separate explicit product and contribution decision.
+- Automatically adding assistant, model, or tool attribution or session links
+  to commits and pull request descriptions. The repository excludes that
+  convention while still allowing human co-author credit; changing it would be
+  a separate explicit product and contribution decision.
 
 ## 6. Terms And Mental Model
 
@@ -900,11 +901,13 @@ The relation records repository, pull request identity, result commit, session
 revision, and creator. A pull request link should open a review projection, not
 automatically grant the recipient access.
 
-BuildMax's current contribution convention excludes assistant session links
-from its own pull request descriptions and commit history. This proposal does
-not quietly reverse that decision. A product integration should prefer a
-structured provider surface such as a check details link, and any change to
-repository contribution policy requires its own explicit acceptance.
+BuildMax's current contribution convention excludes assistant, model, and tool
+attribution and assistant session links from its own pull request descriptions
+and commit history; it does not exclude credit for substantive human
+collaboration. This proposal does not quietly reverse that decision. A product
+integration should prefer a structured provider surface such as a check details
+link, and any change to repository contribution policy requires its own explicit
+acceptance.
 
 ### 13.4 External API
 

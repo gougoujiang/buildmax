@@ -71,11 +71,12 @@ public APIs need deliberate human review in addition to automated checks. Open
 an Issue or Discussion before starting one when the direction is not already
 settled.
 
-Disclosure of AI assistance in a pull request is encouraged when it helps
-reviewers understand the scope or validation performed, but it is not a
-separate quality label. Do not add generated-by footers, assistant-session
-links, or attribution trailers; the pull request description must still explain
-the problem, approach, verification, and remaining limitations.
+Task-specific disclosure of AI assistance in pull request prose is encouraged
+when it helps reviewers understand the scope or validation performed, but it is
+not a separate quality label. Do not add assistant, model, or tool attribution
+trailers, generated-by footers, or assistant-session links; the pull request
+description must still explain the problem, approach, verification, and
+remaining limitations.
 
 When improving contributor tooling, prefer changes that make the repository
 more legible and verifiable to both people and Agents: a named source of truth,
@@ -324,8 +325,10 @@ The rest:
   type and then the same imperative line — `feat: Add a login-code expiry
   check`, `docs: …`, `fix(portal): …`, or `!` before the colon for a change that
   breaks existing public behavior. Only the title; commit subjects stay bare.
-- No `Co-Authored-By` or `Claude-Session` trailers, and no "Generated with …"
-  footer or assistant session link in the description. The reasoning is in
+- `Co-authored-by` may credit substantive human collaboration. Do not use it for
+  an assistant, model, or tool; do not add `Claude-Session` or other tooling
+  trailers, a "Generated with …" footer, or an assistant session link. The
+  reasoning is in
   [conventions.md](docs/contribute/conventions.md#commit-messages-and-pull-requests).
 - Add or update focused tests for behavioral changes.
 - Add a changelog entry when a user or operator would notice the change: new or

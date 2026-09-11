@@ -77,7 +77,7 @@ git push -u origin short-topic-name
 
 `./make check ci` 包括必需的拉取请求套件，以及按路径划分的发布和 Windows 检查：上述 Go 检查、两个前端测试套件、文档检查和全仓库扫描。它需要固定版本的 Node；没有 Node 时，运行 `./make check go`，其余交给 CI。
 
-提交标题是一行祈使句。不要加入工具 trailer，也不要添加“Generated with …”页脚。如果用户或运维人员能感知变更，请在 [`docs/changelog/`](../changelog/README.md) 下新增 changelog 文件。
+提交标题是一行祈使句。`Co-authored-by` 可以用于标明实质性的人类协作；不要加入 assistant、模型或工具 trailer，也不要添加“Generated with …”页脚。如果用户或运维人员能感知变更，请在 [`docs/changelog/`](../changelog/README.md) 下新增 changelog 文件。
 
 向 `main` 创建拉取请求并填写模板：问题、方案、验证方法以及尚缺内容。小而可验证胜过庞大而面面俱到；维护者一次能读完的拉取请求会更快获得评审。
 

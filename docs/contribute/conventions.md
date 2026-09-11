@@ -266,8 +266,10 @@ account identifiers and request fragments.
 
 ## Commit Messages And Pull Requests
 
-The repository's public record carries project content only. Tooling
-attribution is noise in a history that anyone can read.
+The repository's public record carries project content: the change, rationale,
+verification, and the people accountable for substantive collaboration.
+Repeating assistant, model, or tool attribution is noise, and a trailer cannot
+provide the structured provenance needed to reproduce or audit an Agent run.
 
 - Commit subjects are a **single imperative line** — `Move the Dockerfiles into
   deployment/docker`, not `moved dockerfiles` or `fix stuff`. Add a body when
@@ -296,9 +298,12 @@ attribution is noise in a history that anyone can read.
 - Keep the branch to **one coherent change**. The merge commit is what a revert
   targets, so a pull request that does three unrelated things cannot have one of
   them backed out later. Two changes, two pull requests.
-- Do **not** add `Co-Authored-By` or `Claude-Session` trailers to commits.
+- `Co-authored-by` may credit a person who contributed substantively to the
+  change. Do **not** use it for an assistant, model, provider, or tool.
+- Do **not** add `Claude-Session` or other tooling trailers to commits.
 - Do **not** add a "Generated with …" footer or an assistant session link to a
-  pull request description.
+  pull request description. When review benefits from task-specific AI context,
+  describe that context in ordinary pull request prose.
 - Follow [`.github/pull_request_template.md`](../../.github/pull_request_template.md)
   for the shape of a pull request description.
 - Add a changelog entry for anything a user or operator would notice: new or
