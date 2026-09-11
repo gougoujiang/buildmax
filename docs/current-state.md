@@ -280,9 +280,13 @@ definitions and durable run/step records, but no branching, parallel graph,
 manual approval, loops, or typed input/output mapping in the definition contract
 ([`internal/core/workflow/workflow.go`](../internal/core/workflow/workflow.go)).
 
-Portal and inbound webhook execution are assembled. Telegram and cron remain
-channel vocabulary, and the webhook callback sender is not assembled into the
-Server. Space plugin activation supports skill/subagent content but rejects
+Portal and inbound webhook execution are assembled. Telegram remains channel
+vocabulary, and the webhook callback sender is not assembled into the Server.
+Recurring schedules run an Agent on the Task plane through a `schedule` trigger
+source and the `/api/spaces/{space_id}/schedules` API, dispatched by a resident
+loop; they are not a conversation channel, and no Portal surface manages them
+yet ([`internal/core/schedule`](../internal/core/schedule/schedule.go),
+[`internal/server/scheduler`](../internal/server/scheduler)). Space plugin activation supports skill/subagent content but rejects
 releases containing hooks or MCP servers
 ([activation service](../internal/service/plugin/activation.go)). Foreground
 Conversations do not load Space plugins.
