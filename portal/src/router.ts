@@ -24,6 +24,7 @@ export const SEGMENT = {
   admin: "admin",
   workflows: "workflows",
   workflowRuns: "workflow-runs",
+  schedules: "schedules",
   issues: "issues",
   artifacts: "artifacts",
   artifact: "artifact",
@@ -49,6 +50,10 @@ function parseSpaceScopedRoute(spaceId: string, rest: string[]): Route {
     case SEGMENT.workflowRuns:
       if (id) return { name: "workflowRun", spaceId, workflowRunId: id }
       break
+    case SEGMENT.schedules:
+      // Space-wide overview only; a single schedule is edited on its agent's
+      // detail page, so there is no schedule detail route.
+      return { name: "schedules", spaceId }
     case SEGMENT.tasks:
       if (id) return { name: "task", spaceId, taskId: id }
       break
@@ -206,6 +211,8 @@ export function buildHash(route: Route): string {
       return `#/${SEGMENT.spaces}/${route.spaceId}/${SEGMENT.workflows}/${route.workflowId}`
     case "workflowRun":
       return `#/${SEGMENT.spaces}/${route.spaceId}/${SEGMENT.workflowRuns}/${route.workflowRunId}`
+    case "schedules":
+      return `#/${SEGMENT.spaces}/${route.spaceId}/${SEGMENT.schedules}`
     case "issues":
       return `#/${SEGMENT.spaces}/${route.spaceId}/${SEGMENT.issues}`
     case "issue":

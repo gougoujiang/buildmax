@@ -12,6 +12,7 @@ import HelpIcon from "../icons/help.svg?react"
 import SignOutIcon from "../icons/sign-out.svg?react"
 import IssueIcon from "../icons/issue.svg?react"
 import WorkflowIcon from "../icons/workflow.svg?react"
+import ScheduleIcon from "../icons/schedule.svg?react"
 import AgentsIcon from "../icons/agents.svg?react"
 import ArtifactIcon from "../icons/artifact.svg?react"
 import FilesIcon from "../icons/files.svg?react"
@@ -49,6 +50,10 @@ function isIssuesActive(route: Route): boolean {
 
 function isWorkflowsActive(route: Route): boolean {
   return route.name === "workflows" || route.name === "workflow" || route.name === "workflowRun"
+}
+
+function isSchedulesActive(route: Route): boolean {
+  return route.name === "schedules"
 }
 
 function isArtifactsActive(route: Route): boolean {
@@ -294,6 +299,14 @@ export function SidebarNavContent({
           >
             <WorkflowIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">Workflows</span>
+          </button>
+          <button
+            type="button"
+            className={cn("sidebar__nav-item", isSchedulesActive(route) && "sidebar__nav-item--active")}
+            onClick={() => go({ name: "schedules", spaceId: currentSpaceId! })}
+          >
+            <ScheduleIcon className="sidebar__nav-icon" aria-hidden />
+            <span className="sidebar__nav-item-text">Schedules</span>
           </button>
         </div>
         <div className="sidebar__group">

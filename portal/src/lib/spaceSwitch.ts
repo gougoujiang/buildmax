@@ -2,7 +2,7 @@ import type { Route, SpaceScopedRouteName } from "./types"
 
 /** Every Space-scoped route name that is itself a collection -- i.e. a
  * Space-switch destination, never just a detail page passing through. */
-type SpaceCollectionRouteName = "chat" | "explore" | "agents" | "space" | "workflows" | "issues" | "artifacts"
+type SpaceCollectionRouteName = "chat" | "explore" | "agents" | "space" | "workflows" | "schedules" | "issues" | "artifacts"
 
 /**
  * Where a Space-scoped route lands after a Space switch: its own collection
@@ -29,6 +29,7 @@ const SWITCH_TARGET: Record<SpaceScopedRouteName, SpaceCollectionRouteName> = {
   workflows: "workflows",
   workflow: "workflows",
   workflowRun: "workflows",
+  schedules: "schedules",
   issues: "issues",
   issue: "issues",
   artifacts: "artifacts",
@@ -58,6 +59,8 @@ export function spaceSwitchTarget(route: Route, targetSpaceId: string): Route | 
       return { name: "space", spaceId: targetSpaceId, section: "overview" }
     case "workflows":
       return { name: "workflows", spaceId: targetSpaceId }
+    case "schedules":
+      return { name: "schedules", spaceId: targetSpaceId }
     case "issues":
       return { name: "issues", spaceId: targetSpaceId }
     case "artifacts":

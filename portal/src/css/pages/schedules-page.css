@@ -1,0 +1,46 @@
+/* Space-wide schedules overview: one row per schedule across every agent. */
+
+.schedules-page__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.schedules-page__main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.schedules-page__side {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.schedules-page__agent-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--color-link);
+  cursor: pointer;
+}
+
+.schedules-page__agent-link:hover {
+  text-decoration: underline;
+}
+
+.schedules-page__status--off {
+  color: var(--color-text-subtle);
+}
+
+.schedules-page__failures {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-warning);
+}

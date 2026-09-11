@@ -120,6 +120,9 @@ export function useBreadcrumbs(route: Route, conversations: Conversation[] = [])
       { label: entityLabels[route.workflowRunId] ?? "Workflow Run", route },
     ]
   }
+  if (route.name === "schedules") {
+    return [{ label: "Schedules", route: { name: "schedules", spaceId: route.spaceId } }]
+  }
   if (route.name === "issues") {
     return [{ label: "Issues", route: { name: "issues", spaceId: route.spaceId } }]
   }
