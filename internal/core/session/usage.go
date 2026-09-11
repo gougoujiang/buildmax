@@ -61,12 +61,11 @@ type UsageReport struct {
 
 // AggregateUsage folds session rows into a usage report grouped by groupBy.
 //
-// A row is counted when it is a user session (subagent rows never reach the
-// index, but a hidden one is skipped defensively) and, when since is set,
-// started at or after it — a session belongs to its start day, so the same
-// timestamp scopes the window and keys the day grouping, and the two never
-// disagree about which week a session falls in. loc is the zone the day key is
-// computed in, so "today" means the reader's today rather than UTC's.
+// A row is counted when it is a user session and, when since is set, started at
+// or after it — a session belongs to its start day, so the same timestamp
+// scopes the window and keys the day grouping, and the two never disagree about
+// which week a session falls in. loc is the zone the day key is computed in, so
+// "today" means the reader's today rather than UTC's.
 func AggregateUsage(rows []ItemSummary, groupBy UsageGroup, since *time.Time, loc *time.Location) UsageReport {
 	if loc == nil {
 		loc = time.Local
@@ -74,6 +73,11 @@ func AggregateUsage(rows []ItemSummary, groupBy UsageGroup, since *time.Time, lo
 	report := UsageReport{GroupBy: groupBy, Since: since}
 	byKey := map[string]*UsageBucket{}
 	for _, r := range rows {
+		// A subagent's spend is already inside the totals of the user session
+		// that delegated it — run totals are inclusive (see agent.RunStats) —
+		// so counting its own hidden bundle here would bill that delegation
+		// twice. The index excludes hidden rows already; this is the guard for
+		// a caller that passes them in anyway.
 		if r.Kind == KindSubagent {
 			continue
 		}
