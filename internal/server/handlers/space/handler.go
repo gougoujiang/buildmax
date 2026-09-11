@@ -13,6 +13,7 @@ import (
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
+	coreschedule "github.com/gougoujiang/buildmax/internal/core/schedule"
 	coresecret "github.com/gougoujiang/buildmax/internal/core/secret"
 	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
@@ -21,6 +22,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/plugin"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
+	schedulesvc "github.com/gougoujiang/buildmax/internal/service/schedule"
 	secretsvc "github.com/gougoujiang/buildmax/internal/service/secret"
 	spacesvc "github.com/gougoujiang/buildmax/internal/service/space"
 	"github.com/gougoujiang/buildmax/internal/service/workflow"
@@ -45,6 +47,9 @@ type Config struct {
 	// leaves that check unmade, which is what a deployment without workflows
 	// has.
 	Workflows coreworkflow.Store
+	// Schedules backs the recurring-schedule routes. Nil leaves them reporting
+	// the feature is off. See docs/proposals/scheduled-agent-execution.md.
+	Schedules coreschedule.Store
 
 	Quota *quota.Service
 	Audit *audit.Recorder
@@ -69,14 +74,16 @@ type Config struct {
 type Handler struct {
 	cfg Config
 
-	spaces *spacesvc.Service
-	agents *agentsvc.Service
+	spaces    *spacesvc.Service
+	agents    *agentsvc.Service
+	schedules *schedulesvc.Service
 }
 
 func New(cfg Config) *Handler {
 	h := &Handler{cfg: cfg}
 	h.spaces = newSpaceService(cfg)
 	h.agents = newSpaceAgentService(cfg, newWorkflowUsage(cfg))
+	h.schedules = newScheduleService(cfg)
 	return h
 }
 
@@ -125,6 +132,13 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/spaces/{space_id}/agents/{agent_id}", h.deleteAgentHandler)
 	mux.HandleFunc("GET /api/spaces/{space_id}/agents/{agent_id}/revisions", h.listAgentRevisionsHandler)
 	mux.HandleFunc("POST /api/spaces/{space_id}/agents/{agent_id}/revisions/{revision}/restore", h.restoreAgentRevisionHandler)
+
+	// Schedules -- recurring time triggers that admit Agent Tasks.
+	mux.HandleFunc("GET /api/spaces/{space_id}/schedules", h.listSchedulesHandler)
+	mux.HandleFunc("POST /api/spaces/{space_id}/schedules", h.createScheduleHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/schedules/{schedule_id}", h.getScheduleHandler)
+	mux.HandleFunc("PATCH /api/spaces/{space_id}/schedules/{schedule_id}", h.patchScheduleHandler)
+	mux.HandleFunc("DELETE /api/spaces/{space_id}/schedules/{schedule_id}", h.deleteScheduleHandler)
 
 	// Webhook keys
 	mux.HandleFunc("POST /api/webhook-keys", h.createWebhookKeyHandler)

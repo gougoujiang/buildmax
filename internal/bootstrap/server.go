@@ -519,6 +519,7 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			IssueCommentStore:        st,
 			TaskStore:                st,
 			TaskRunStore:             st,
+			ScheduleStore:            st,
 			LLMCallStore:             st,
 			UserWebhookKeyStore:      st,
 			AuditStore:               st,

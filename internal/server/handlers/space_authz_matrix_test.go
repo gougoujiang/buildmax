@@ -69,6 +69,15 @@ var spaceRoutes = []authzCase{
 	{"GET", "/api/spaces/{space_id}/agent-instructions", corespace.RoleMember, false},
 	{"PUT", "/api/spaces/{space_id}/agent-instructions", corespace.RoleAdmin, false},
 
+	// Schedules: any member may manage recurring triggers, the same tier as
+	// running work, because a schedule is a member arranging a run they could
+	// start by hand. See docs/proposals/scheduled-agent-execution.md §9.
+	{"GET", "/api/spaces/{space_id}/schedules", corespace.RoleMember, false},
+	{"POST", "/api/spaces/{space_id}/schedules", corespace.RoleMember, false},
+	{"GET", "/api/spaces/{space_id}/schedules/{schedule_id}", corespace.RoleMember, false},
+	{"PATCH", "/api/spaces/{space_id}/schedules/{schedule_id}", corespace.RoleMember, false},
+	{"DELETE", "/api/spaces/{space_id}/schedules/{schedule_id}", corespace.RoleMember, false},
+
 	// Reading what a space activated answers "why did this run have this
 	// plugin", which is any member's question. Changing an activation is the
 	// same authority the space's other shared automation needs.
@@ -234,6 +243,7 @@ func matrixMuxWithGrants(t *testing.T, grants coreidentity.SystemGrantStore) *ht
 		WorkflowStore:            &mock.MockWorkflowStore{},
 		TaskStore:                &mock.MockTaskStore{},
 		TaskRunStore:             &mock.MockTaskRunStore{},
+		ScheduleStore:            &mock.MockScheduleStore{},
 		ConversationStore:        conversations,
 		ConversationMessageStore: &mock.MockConversationMessageStore{},
 		AuditStore:               &mock.MockAuditStore{},

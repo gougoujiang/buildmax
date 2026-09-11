@@ -21,6 +21,7 @@ import (
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
+	coreschedule "github.com/gougoujiang/buildmax/internal/core/schedule"
 	coreschema "github.com/gougoujiang/buildmax/internal/core/schema"
 	coresecret "github.com/gougoujiang/buildmax/internal/core/secret"
 	corespace "github.com/gougoujiang/buildmax/internal/core/space"
@@ -86,6 +87,7 @@ type StoresConfig struct {
 	IssueCommentStore   coreissue.CommentStore
 	TaskStore           coretask.Store
 	TaskRunStore        coretask.RunStore
+	ScheduleStore       coreschedule.Store
 	LLMCallStore        coregw.CallStore
 	UserWebhookKeyStore coreidentity.UserWebhookKeyStore
 	AuditStore          coreaudit.Store
@@ -337,6 +339,7 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		IssueCommentStore:        cfg.Stores.IssueCommentStore,
 		TaskStore:                cfg.Stores.TaskStore,
 		TaskRunStore:             cfg.Stores.TaskRunStore,
+		ScheduleStore:            cfg.Stores.ScheduleStore,
 		LLMCallStore:             cfg.Stores.LLMCallStore,
 		UserWebhookKeyStore:      cfg.Stores.UserWebhookKeyStore,
 		ConversationStore:        cfg.Conv.ConversationStore,

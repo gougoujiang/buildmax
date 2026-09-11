@@ -56,6 +56,12 @@ const (
 	// Agent needs to see which Secrets exist to configure its consumption. See
 	// docs/design/space-secrets.md §10.
 	ActionReadSecrets Action = "read_secrets"
+	// ActionManageSchedules covers creating, editing, enabling, disabling, and
+	// deleting recurring schedules. Any member, not owner-only: it is the same
+	// permission tier as running work, because a schedule is a member arranging
+	// for a run they could already start by hand. See
+	// docs/proposals/scheduled-agent-execution.md §9.
+	ActionManageSchedules Action = "manage_schedules"
 )
 
 // Actions returns every action, so a test can prove the matrix covers each one
@@ -74,6 +80,7 @@ func Actions() []Action {
 		ActionModerateIssueComments,
 		ActionManageSecrets,
 		ActionReadSecrets,
+		ActionManageSchedules,
 	}
 }
 
@@ -119,7 +126,7 @@ func Allows(role string, action Action) bool {
 		return role == RoleOwner
 	case ActionManageAgents, ActionManageWorkflows, ActionAssignIssueWorkflow, ActionInviteSpaceMember, ActionReadSecrets:
 		return role == RoleOwner || role == RoleAdmin
-	case ActionRunWorkflow, ActionCommentIssue:
+	case ActionRunWorkflow, ActionCommentIssue, ActionManageSchedules:
 		return role == RoleOwner || role == RoleAdmin || role == RoleMember
 	default:
 		return false
