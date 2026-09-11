@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/session"
 )
 
@@ -87,6 +88,27 @@ func TestRebuildIndexSkipsADamagedSessionRatherThanFailing(t *testing.T) {
 	}
 	if len(rows) != 1 || rows[0].ID != "good" {
 		t.Fatalf("rows = %v, want only the readable session", rows)
+	}
+}
+
+func TestSummarizeProjectsUsageAndCostForAggregation(t *testing.T) {
+	m := session.NewMeta("s1", session.KindUser, testTime)
+	m.SelectedModel = "opus"
+	m.PromptTokens = 1200
+	m.CompletionTokens = 90
+	m.CacheReadTokens = 400
+	m.Cost = &llm.Cost{Currency: "USD", Total: 500}
+	m.CostIncomplete = true
+
+	row := summarize(m)
+	if row.PromptTokens != 1200 || row.CompletionTokens != 90 || row.CacheReadTokens != 400 {
+		t.Errorf("token projection = %+v", row)
+	}
+	if row.Model != "opus" {
+		t.Errorf("model = %q, want opus", row.Model)
+	}
+	if row.Cost == nil || row.Cost.Total != 500 || !row.CostIncomplete {
+		t.Errorf("cost projection = %+v incomplete=%v", row.Cost, row.CostIncomplete)
 	}
 }
 

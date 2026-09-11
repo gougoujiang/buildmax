@@ -101,15 +101,22 @@ func scanSessionMetas(rootDir string) ([]session.Meta, error) {
 
 func summarize(m session.Meta) session.ItemSummary {
 	return session.ItemSummary{
-		ID:         m.ID,
-		ProjectID:  m.ProjectID,
-		Kind:       m.Kind,
-		CreatedAt:  m.CreatedAt,
-		UpdatedAt:  m.UpdatedAt,
-		Title:      m.Title,
-		Workspace:  m.Workspace,
-		Pinned:     m.Pinned,
-		ForkedFrom: m.ForkedFrom,
+		ID:               m.ID,
+		ProjectID:        m.ProjectID,
+		Kind:             m.Kind,
+		CreatedAt:        m.CreatedAt,
+		UpdatedAt:        m.UpdatedAt,
+		Title:            m.Title,
+		Workspace:        m.Workspace,
+		Pinned:           m.Pinned,
+		ForkedFrom:       m.ForkedFrom,
+		PromptTokens:     m.PromptTokens,
+		CompletionTokens: m.CompletionTokens,
+		CacheReadTokens:  m.CacheReadTokens,
+		CacheWriteTokens: m.CacheWriteTokens,
+		Cost:             m.Cost,
+		CostIncomplete:   m.CostIncomplete,
+		Model:            m.SelectedModel,
 	}
 }
 

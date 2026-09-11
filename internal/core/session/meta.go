@@ -72,6 +72,14 @@ type Meta struct {
 	Cost             *llm.Cost `json:"cost,omitempty"`
 	CostIncomplete   bool      `json:"cost_incomplete,omitempty"`
 
+	// Turns is the per-turn breakdown of the aggregates above: one entry per
+	// metered update, in order, each the delta that update carried. Summing
+	// the entries reproduces the running totals, so the session describes what
+	// each turn cost from its own file, without folding it back out of the
+	// traces. A metadata change that carries no usage — a rename, a model
+	// switch — adds no entry.
+	Turns []TurnStat `json:"turns,omitempty"`
+
 	// Lineage fields are set only when Kind is KindSubagent, and are immutable
 	// once written: they describe how this session came to exist, not
 	// anything it is currently doing.
@@ -113,6 +121,25 @@ func (m Meta) Validate() error {
 		return errors.New("meta: kind must be user or subagent")
 	}
 	return nil
+}
+
+// TurnStat is one metered update's contribution to a session: the tokens and
+// cost a single MetaUpdate added, tagged with when it landed. It is a
+// persisted, per-turn breakdown of the running totals on Meta.
+//
+// It records the delta an update carried, not which model produced it: what
+// model actually ran is the traces' answer (Meta.SelectedModel is only the
+// next turn's selection), and recording a value this record cannot stand
+// behind would break the same honesty rule the rest of the stats view keeps.
+// An entry is a conversational turn or a folded-in title generation without
+// distinction, because both are usage the session paid for.
+type TurnStat struct {
+	At               time.Time `json:"at"`
+	PromptTokens     int       `json:"prompt_tokens,omitempty"`
+	CompletionTokens int       `json:"completion_tokens,omitempty"`
+	CacheReadTokens  int       `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens int       `json:"cache_write_tokens,omitempty"`
+	Cost             *llm.Cost `json:"cost,omitempty"`
 }
 
 // MetaUpdate describes a change to a session's current selections or running
@@ -172,5 +199,28 @@ func ApplyMetaUpdate(m Meta, update MetaUpdate, now time.Time) Meta {
 		}
 	}
 	m.UpdatedAt = now.UTC()
+	if update.hasUsage() {
+		// Append rather than write in place: Turns is a per-turn journal, and
+		// a copy keeps ApplyMetaUpdate's promise not to mutate m's slice.
+		turn := TurnStat{
+			At:               m.UpdatedAt,
+			PromptTokens:     update.AddPromptTokens,
+			CompletionTokens: update.AddCompletionTokens,
+			CacheReadTokens:  update.AddCacheReadTokens,
+			CacheWriteTokens: update.AddCacheWriteTokens,
+		}
+		if update.AddCost != nil {
+			cost := *update.AddCost
+			turn.Cost = &cost
+		}
+		m.Turns = append(append([]TurnStat(nil), m.Turns...), turn)
+	}
 	return m
+}
+
+// hasUsage reports whether the update carries tokens or cost, so a metadata-only
+// change — a rename, a pin, a model switch — records no per-turn entry.
+func (u MetaUpdate) hasUsage() bool {
+	return u.AddPromptTokens != 0 || u.AddCompletionTokens != 0 ||
+		u.AddCacheReadTokens != 0 || u.AddCacheWriteTokens != 0 || u.AddCost != nil
 }

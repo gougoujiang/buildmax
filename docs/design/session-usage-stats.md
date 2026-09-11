@@ -2,9 +2,11 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/会话用量统计.md)
 
-> **Audience:** contributors · **Status:** partly implemented — per-session
-> statistics on the CLI and in the TUI, and the metering fixes they required,
-> are shipped; cross-session aggregation is designed and not built
+> **Audience:** contributors · **Status:** implemented — per-session statistics
+> on the CLI, TUI, and Desktop; the metering fixes they required; cross-session
+> aggregation (`buildmax usage`); and the per-turn breakdown recorded in the
+> session file are all shipped. §6 records what was deliberately left out of
+> scope.
 >
 > The surfaces this record calls `buildmax stats` and `/stats` are now
 > `buildmax info` and the `session` tab of `/info`. They gained a second half —
@@ -31,7 +33,7 @@
 - [3. Metering Fixes This Required](#3-metering-fixes-this-required)
 - [4. Where The Code Lives](#4-where-the-code-lives)
 - [5. Honesty Rules](#5-honesty-rules)
-- [6. Open](#6-open)
+- [6. Out Of Scope](#6-out-of-scope)
 
 ## 1. Problem
 
@@ -155,6 +157,27 @@ to miss.
   them would be a warning nobody trusted. The panel folds the **live** session
   rather than the file, since a session is persisted after each assistant reply
   and reading it back mid-turn would answer about the previous turn.
+- `interface/desktop.GetSlashInfo` is the same per-session view for Desktop's
+  `/info` panel. It is a purpose-built flat payload rather than `SessionStats`
+  itself — the frontend cannot call the helper methods or read the untagged
+  nested records — but the caveats and the "meaningful only" gates match the CLI
+  and TUI, because what may be claimed of the numbers is one answer across
+  surfaces.
+- `core/session.AggregateUsage` folds the index projection into the
+  cross-session report `buildmax usage` renders. The token and cost totals it
+  sums are projected onto each `ItemSummary` row by `sessionstore.summarize`, so
+  a week of sessions answers from `index.json` alone — no per-session read, the
+  same reason the picker lists from that file. Grouping by model uses the
+  session's selected model, not a per-turn record of what ran, and the reference
+  says so.
+- Per-turn recording lives in `core/session`: `Meta.Turns` is the breakdown, and
+  `ApplyMetaUpdate` appends one `TurnStat` per metered update — the single choke
+  point every turn's usage passes through before it is persisted. The entries
+  sum to the running totals, so the session describes what each turn cost from
+  its own file. It records the delta an update carried, not which model produced
+  it: what ran is the traces' answer, and `SelectedModel` is only the next
+  turn's selection. `info --json` surfaces it under `stats.turns`; the tables do
+  not, because a per-turn list would swamp a boxed overlay.
 
 ## 5. Honesty Rules
 
@@ -174,27 +197,21 @@ numbers.
   this normal — the model/tools split is not printed, rather than printing a
   negative model time.
 
-## 6. Open
+## 6. Out Of Scope
 
-- **Cross-session aggregation.** "What did this week cost", grouped by
-  workspace, model, and day. The intended mechanism is a small projection on
-  the row in `sessions/index.json`, written on the metadata write that already
-  happens each turn — that file is explicitly rebuildable, so a wrong value is
-  repairable rather than a migration. Deferred by choice, not blocked.
-- **Per-turn recording.** It would remove the trace dependency and make a
-  session self-describing. [Local session storage](local-session-storage.md)
-  has since landed, so the place for it now exists: `meta.json` holds the
-  running totals, and a per-turn breakdown belongs beside them there rather
-  than being folded back out of the journal.
-- **Trace retention.** Nothing prunes a session's `traces/` today. Stats is both an
-  argument for retention and a victim of it; the view degrades visibly rather
-  than silently, which is the most it can do until retention is decided.
-- **Cache diagnostics.** When §6 of [prompt cache control](prompt-cache-control.md)
-  lands its requested-mode / capability / strategy / outcome fields in the
-  trace, the cache section should report the recorded outcome instead of
-  inferring one from counts.
-- **Desktop.** A binding needs nothing the aggregation does not already
-  expose. Not built.
-- **Worker runs contribute nothing**, by construction: a worker assembles
-  inside a run-scoped `BUILDMAX_HOME`. That is correct — worker spend is the
-  ledger's job — and is recorded here so it is stated rather than discovered.
+These belong to other records or other planes, and are stated here so their
+absence reads as a decision rather than an omission.
+
+- **Trace retention** is a separate question. Nothing prunes a session's
+  `traces/` today; when a retention policy is decided, stats is both an argument
+  for it and a victim of it, and the view already degrades visibly rather than
+  silently. It is not this feature's to settle.
+- **Cache diagnostics from the recorded outcome** wait on §6 of
+  [prompt cache control](prompt-cache-control.md): only once its requested-mode /
+  capability / strategy / outcome fields are in the trace can the cache section
+  report what happened instead of inferring it from counts. Until then the
+  inferred view stands, and this record does not duplicate that dependency.
+- **Worker runs contribute nothing**, by construction: a worker assembles inside
+  a run-scoped `BUILDMAX_HOME`, so its spend is the managed ledger's to report,
+  not this local view's. That boundary is deliberate and is not a gap to close
+  here.

@@ -3,6 +3,8 @@ package session
 import (
 	"context"
 	"time"
+
+	"github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
 // LoadMode controls how much of a session Store.Load reads.
@@ -49,6 +51,19 @@ type ItemSummary struct {
 	Workspace  string      `json:"workspace,omitempty"`
 	Pinned     bool        `json:"pinned,omitempty"`
 	ForkedFrom *ForkedFrom `json:"forked_from,omitempty"`
+
+	// Usage and cost are projected from meta.json so cross-session aggregation
+	// (buildmax usage) can sum a week of sessions from this one file, without
+	// reading every session's journal. They are the same running aggregates
+	// Meta carries. Model is the session's selected model, carried for by-model
+	// grouping; it is the current selection, not a record of what each turn ran.
+	PromptTokens     int       `json:"prompt_tokens,omitempty"`
+	CompletionTokens int       `json:"completion_tokens,omitempty"`
+	CacheReadTokens  int       `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens int       `json:"cache_write_tokens,omitempty"`
+	Cost             *llm.Cost `json:"cost,omitempty"`
+	CostIncomplete   bool      `json:"cost_incomplete,omitempty"`
+	Model            string    `json:"model,omitempty"`
 }
 
 // Store is the persistence seam between AgentApp and physical storage. It

@@ -70,7 +70,7 @@ the individual record rather than being duplicated here.
 |---|---|---|
 | [Local Projects and Project Memory](local-project-memory.md) | Active plan | Shared local Project identity and bounded cross-session memory |
 | [Local session storage](local-session-storage.md) | Active plan | Atomic session bundles, linked history, rewind, and fork |
-| [Session usage stats](session-usage-stats.md) | Active plan | Per-session and future cross-session usage reporting |
+| [Session usage stats](session-usage-stats.md) | Specification | Per-session and cross-session usage reporting |
 | [Local background jobs](local-background-jobs.md) | Active plan | Process-scoped command, subagent, and monitor jobs |
 | [Local Ollama provider](local-ollama-provider.md) | Active plan | Credential-free local model discovery and inference |
 | [Workspace root and worktrees](workspace-root-and-worktrees.md) | Active plan | Mutable workspace roots and Agent-managed Git worktrees |
