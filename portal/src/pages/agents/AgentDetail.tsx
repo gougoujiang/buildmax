@@ -52,6 +52,11 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
   const { currentUserRole } = useSpace()
   const { setEntityLabel } = useApp()
   const canManage = isAllowed(useSpaceCapability(currentUserRole === "owner" || currentUserRole === "admin"))
+  // Schedules are member-tier (manage_schedules), unlike agent config which is
+  // owner/admin, so any member of the space may create and pause them.
+  const canManageSchedules = isAllowed(
+    useSpaceCapability(currentUserRole === "owner" || currentUserRole === "admin" || currentUserRole === "member")
+  )
 
   const [agent, setAgent] = useState<Agent | null>(null)
   const [secrets, setSecrets] = useState<ApiSecret[]>([])
@@ -426,7 +431,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
           {tab === "schedules" ? (
             <section className="agent-detail__panel">
               {token ? (
-                <SchedulesSection token={token} spaceId={spaceId} agentId={agent.id} canManage={canManage} />
+                <SchedulesSection token={token} spaceId={spaceId} agentId={agent.id} canManage={canManageSchedules} />
               ) : null}
             </section>
           ) : null}

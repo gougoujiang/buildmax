@@ -61,6 +61,7 @@ export type Route =
   | { name: "workflows"; spaceId: string }
   | { name: "workflow"; spaceId: string; workflowId: string }
   | { name: "workflowRun"; spaceId: string; workflowRunId: string }
+  | { name: "schedules"; spaceId: string }
   | { name: "issues"; spaceId: string }
   | { name: "issue"; spaceId: string; issueId: string }
   | { name: "artifacts"; spaceId: string }

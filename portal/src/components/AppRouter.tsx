@@ -13,6 +13,7 @@ import { IssueDetail } from "../pages/issues/IssueDetail"
 import { Artifacts } from "../pages/artifacts/Artifacts"
 import { ArtifactDetail } from "../pages/artifacts/ArtifactDetail"
 import { Workflows } from "../pages/workflows/Workflows"
+import { SchedulesPage } from "../pages/schedules/SchedulesPage"
 import { WorkflowDetail } from "../pages/workflows/WorkflowDetail"
 import { WorkflowRunDetail } from "../pages/workflows/WorkflowRunDetail"
 import { AccountSettings } from "../pages/settings/AccountSettings"
@@ -109,6 +110,10 @@ export function AppRouter({
     return (
       <WorkflowRunDetail token={token ?? null} spaceId={route.spaceId} workflowRunId={route.workflowRunId} />
     )
+  }
+
+  if (route.name === "schedules") {
+    return <SchedulesPage token={token ?? null} spaceId={route.spaceId} />
   }
 
   if (route.name === "issues") {
