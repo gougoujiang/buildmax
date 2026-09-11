@@ -3,8 +3,8 @@
 > **简体中文：** [阅读中文镜像](../zh-CN/design/服务器协调.md)
 
 > **Audience:** contributors and operators · **Status:** mechanism implemented;
-> qualification open. Both `local` and `redis` backends ship. The remaining R1
-> work is message-write fencing and candidate deployment evidence.
+> qualification open. Both `local` and `redis` backends ship, and message-write
+> fencing is enforced. The remaining R1 work is candidate deployment evidence.
 
 Related: [Graceful shutdown](graceful-shutdown.md), [Worker API network
 boundary](worker-api-network-boundary.md), [Enterprise
@@ -34,11 +34,13 @@ Redis-backed Task streams, connection-event fan-out, renewable Conversation
 turn leases, startup failure when configured Redis is unavailable, and manifest
 topology checks all ship.
 
-The remaining correctness gap is enforcing each lease's fencing token in the
-Conversation message-history write path. The remaining qualification gap is a
-deployed candidate exercise covering cross-replica delivery, concurrent turns,
-reconnects, Redis failure, and recovery. In-process and miniredis tests prove the
-mechanism, not the candidate topology.
+Each lease's fencing token is enforced in the Conversation message-history write
+path: a write carrying a token below the highest the conversation has accepted is
+rejected, so a holder that resumed after its lease expired cannot append behind
+the replica that superseded it. The remaining qualification gap is a deployed
+candidate exercise covering cross-replica delivery, concurrent turns, reconnects,
+Redis failure, and recovery. In-process and miniredis tests prove the mechanism,
+not the candidate topology.
 
 ## 2. Problem
 
@@ -164,12 +166,14 @@ one boundary that must hold across replicas: starting a turn.
 - A replica that cannot acquire the lock waits, which is exactly the cross-replica
   serialization required. A replica that dies mid-turn has its lease expire, so
   another replica takes over rather than deadlocking.
-- The lease carries a monotonic **fencing token**, exposed on the lease. The
-  lease and its renewal are the mutual exclusion that this design delivers; wiring
-  the token into the message-history write path — so a stalled holder that resumes
-  after its lease expired cannot interleave a write behind the replica that took
-  the lock — is the safety net for a >TTL pause and is a tracked follow-up, called
-  out in §11.
+- The lease carries a monotonic **fencing token**, exposed on the lease and
+  threaded into every message-history write the turn makes. The conversation
+  stores the highest token it has accepted and rejects a lower one with
+  `ErrStaleTurnWrite`, so a stalled holder that resumes after its lease expired
+  cannot interleave a write behind the replica that took the lock. This is the
+  safety net for a >TTL pause, on top of the mutual exclusion the held lease and
+  its renewal deliver. The token is zero on the single-instance (`local`) path,
+  which enforces no fence because the in-process queue is the only writer.
 - Queue **position** becomes per-replica and therefore approximate across
   replicas. That is acceptable: position is a UX hint the surface shows, not a
   guarantee, and the serialization it hints at is now enforced by the lease.
@@ -233,6 +237,10 @@ coordination:
   the same delivery does not cross process-local hubs accidentally.
 - A fail-closed test asserts that `mode: redis` with an unreachable address makes
   server construction return an error rather than a working handler.
+- The store scope (`./make test mysql`) asserts the write-path fencing: once a
+  conversation has accepted a message under a token, `AppendMessage` refuses a
+  lower token with `ErrStaleTurnWrite`, an unfenced write does not lower the bar,
+  and the rejected writes leave no row.
 - An architecture test asserts the production manifest's `buildmax-server` replica
   count is consistent with a configured coordination backend, so a manifest that
   scales the server without `coordination.mode: redis` fails the build.
@@ -244,10 +252,6 @@ coordination:
 - Sharing durable Session state across devices is a separate direction
   ([durable Agent sessions](../proposals/durable-agent-sessions.md)); this record
   covers only live server coordination.
-- Enforcing the Conversation fencing token in the message-history write path is
-  the remaining R1 correctness work. The lease delivers mutual exclusion while
-  it is held; the token rejects a stale process that resumes after its lease TTL
-  and would otherwise append behind the newer holder.
 - Per-space Pub/Sub channels, backpressure metrics on a slow subscriber, and a
   Redis-outage readiness signal that degrades rather than exits are deferred until
   a running multi-replica deployment shows they are needed.

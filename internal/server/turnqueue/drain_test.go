@@ -11,10 +11,10 @@ func TestDrainRefusesNewTurns(t *testing.T) {
 	r := NewRegistry(nil)
 	r.Drain()
 
-	if _, err := r.Submit("conv-1", NewJob(func() {})); !errors.Is(err, ErrDraining) {
+	if _, err := r.Submit("conv-1", NewJob(func(int64) {})); !errors.Is(err, ErrDraining) {
 		t.Fatalf("Submit after Drain: err = %v, want ErrDraining", err)
 	}
-	if err := r.RunSync(context.Background(), "conv-1", func() {}); !errors.Is(err, ErrDraining) {
+	if err := r.RunSync(context.Background(), "conv-1", func(int64) {}); !errors.Is(err, ErrDraining) {
 		t.Fatalf("RunSync after Drain: err = %v, want ErrDraining", err)
 	}
 }
@@ -25,7 +25,7 @@ func TestWaitLetsARunningTurnFinish(t *testing.T) {
 	finished := make(chan struct{})
 
 	started := make(chan struct{})
-	if _, err := r.Submit("conv-1", NewJob(func() {
+	if _, err := r.Submit("conv-1", NewJob(func(int64) {
 		close(started)
 		<-release
 		close(finished)
@@ -70,14 +70,14 @@ func TestQueuedTurnsDoNotLeakTheActiveCount(t *testing.T) {
 	release := make(chan struct{})
 	started := make(chan struct{})
 
-	if _, err := r.Submit("conv-1", NewJob(func() {
+	if _, err := r.Submit("conv-1", NewJob(func(int64) {
 		close(started)
 		<-release
 	})); err != nil {
 		t.Fatalf("Submit first: %v", err)
 	}
 	<-started
-	if pos, err := r.Submit("conv-1", NewJob(func() {})); err != nil || pos != 1 {
+	if pos, err := r.Submit("conv-1", NewJob(func(int64) {})); err != nil || pos != 1 {
 		t.Fatalf("Submit second: pos = %d, err = %v; want 1, nil", pos, err)
 	}
 

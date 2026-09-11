@@ -11,7 +11,7 @@ import (
 // blockedJob returns a job that parks until release is closed, plus a channel that
 // is closed once the job has actually started running.
 func blockedJob(started chan<- struct{}, release <-chan struct{}) *Job {
-	return NewJob(func() {
+	return NewJob(func(int64) {
 		close(started)
 		<-release
 	})
@@ -30,7 +30,7 @@ func TestTurnRegistrySecondTurnQueuesBehindTheFirst(t *testing.T) {
 	var ran []string
 	var mu sync.Mutex
 	record := func(name string) *Job {
-		return NewJob(func() {
+		return NewJob(func(int64) {
 			mu.Lock()
 			ran = append(ran, name)
 			mu.Unlock()
@@ -71,7 +71,7 @@ func TestTurnRegistryConversationsAreIndependent(t *testing.T) {
 	}
 	<-started
 
-	other := NewJob(func() {})
+	other := NewJob(func(int64) {})
 	if pos, err := r.Submit("v_other", other); err != nil || pos != 0 {
 		t.Fatalf("Submit other = %d, %v; want 0, nil", pos, err)
 	}
@@ -95,7 +95,7 @@ func TestTurnRegistryOnDequeueFiresOnlyForWaitingTurns(t *testing.T) {
 	}
 	<-started
 
-	second := NewJob(func() {})
+	second := NewJob(func(int64) {})
 	dequeued := make(chan struct{})
 	second.OnDequeue = func() { close(dequeued) }
 	if _, err := r.Submit("v_1", second); err != nil {
@@ -125,11 +125,11 @@ func TestTurnRegistryRejectsPastTheCap(t *testing.T) {
 	<-started
 
 	for i := 0; i < MaxQueued; i++ {
-		if _, err := r.Submit("v_1", NewJob(func() {})); err != nil {
+		if _, err := r.Submit("v_1", NewJob(func(int64) {})); err != nil {
 			t.Fatalf("Submit #%d: %v", i, err)
 		}
 	}
-	if _, err := r.Submit("v_1", NewJob(func() {})); !errors.Is(err, ErrQueueFull) {
+	if _, err := r.Submit("v_1", NewJob(func(int64) {})); !errors.Is(err, ErrQueueFull) {
 		t.Fatalf("Submit past the cap = %v, want ErrQueueFull", err)
 	}
 	if got := r.Waiting("v_1"); got != MaxQueued {
@@ -149,7 +149,7 @@ func TestTurnRegistryRunSyncWaitsForItsTurn(t *testing.T) {
 	ran := make(chan struct{})
 	done := make(chan error, 1)
 	go func() {
-		done <- r.RunSync(context.Background(), "v_1", func() { close(ran) })
+		done <- r.RunSync(context.Background(), "v_1", func(int64) { close(ran) })
 	}()
 
 	select {
@@ -185,7 +185,7 @@ func TestTurnRegistryRunSyncDropsOnCallerCancel(t *testing.T) {
 	var mu sync.Mutex
 	done := make(chan error, 1)
 	go func() {
-		done <- r.RunSync(ctx, "v_1", func() {
+		done <- r.RunSync(ctx, "v_1", func(int64) {
 			mu.Lock()
 			ran = true
 			mu.Unlock()
@@ -199,7 +199,7 @@ func TestTurnRegistryRunSyncDropsOnCallerCancel(t *testing.T) {
 	}
 
 	// Let the queue drain past the dropped job.
-	tail := NewJob(func() {})
+	tail := NewJob(func(int64) {})
 	if _, err := r.Submit("v_1", tail); err != nil {
 		t.Fatalf("Submit tail: %v", err)
 	}
@@ -215,7 +215,7 @@ func TestTurnRegistryRunSyncDropsOnCallerCancel(t *testing.T) {
 
 func TestTurnRegistryForgetsIdleConversations(t *testing.T) {
 	r := NewRegistry(nil)
-	job := NewJob(func() {})
+	job := NewJob(func(int64) {})
 	if _, err := r.Submit("v_1", job); err != nil {
 		t.Fatalf("Submit: %v", err)
 	}

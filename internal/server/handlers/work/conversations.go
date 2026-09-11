@@ -156,7 +156,8 @@ func (h *Handler) runConversationTurn(w http.ResponseWriter, r *http.Request, in
 		}
 		cmd.StreamSink = &sseSink{w: w, flusher: flusher}
 		var turnErr error
-		waitErr := h.cfg.Turns.RunSync(r.Context(), in.conversationID, func() {
+		waitErr := h.cfg.Turns.RunSync(r.Context(), in.conversationID, func(fence int64) {
+			cmd.Fence = fence
 			_, turnErr = h.conversationService().HandleTurn(r.Context(), cmd)
 		})
 		if turnErr == nil {
@@ -174,7 +175,8 @@ func (h *Handler) runConversationTurn(w http.ResponseWriter, r *http.Request, in
 	}
 	var result conversation.ConversationResult
 	var turnErr error
-	if waitErr := h.cfg.Turns.RunSync(r.Context(), in.conversationID, func() {
+	if waitErr := h.cfg.Turns.RunSync(r.Context(), in.conversationID, func(fence int64) {
+		cmd.Fence = fence
 		result, turnErr = h.conversationService().HandleTurn(r.Context(), cmd)
 	}); waitErr != nil {
 		return "", waitErr

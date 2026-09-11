@@ -3,7 +3,16 @@ package conversation
 import (
 	"context"
 	"time"
+
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 )
+
+// ErrStaleTurnWrite is returned by AppendMessage when the write carries a
+// fencing token below the highest the conversation has already accepted: the
+// turn's cross-replica lease expired and a newer holder took over, so this
+// writer is stale and must not append behind it. See
+// docs/design/server-coordination.md §7.
+var ErrStaleTurnWrite = apierr.New(apierr.KindConflict, "conversation turn superseded by a newer holder")
 
 // Conversation is the Tier 1 conversation container.
 type Conversation struct {
@@ -50,6 +59,13 @@ type AppendInput struct {
 	ProviderStateJSON *string
 	// PartsJSON is set when the message carries non-text content.
 	PartsJSON *string
+	// Fence is the turn's cross-replica lease token. When above zero the store
+	// rejects the write with ErrStaleTurnWrite if the conversation has already
+	// accepted a higher token, so a holder that resumed after its lease expired
+	// cannot append behind the replica that took over. Zero disables the check,
+	// which is the single-instance (local coordination) path where the process's
+	// own turn queue is the only serialization.
+	Fence int64
 }
 
 // Store provides Tier 1 conversation persistence. Conversations are user-scoped.

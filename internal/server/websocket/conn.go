@@ -317,8 +317,8 @@ func (wc *Conn) handleConversationMessage(ctx context.Context, p ConversationMes
 // while a turn is running is queued and runs as its own turn once that one
 // finishes, rather than being rejected as it used to be.
 func (wc *Conn) runConversationTurn(ctx context.Context, conversationID, message, channel string) {
-	job := turnqueue.NewJob(func() {
-		wc.executeConversationTurn(ctx, conversationID, message, channel)
+	job := turnqueue.NewJob(func(fence int64) {
+		wc.executeConversationTurn(ctx, conversationID, message, channel, fence)
 	})
 	job.OnDequeue = func() {
 		wc.sendEvent(TypeMessageDequeued, MessageDequeued{
@@ -347,7 +347,7 @@ func (wc *Conn) runConversationTurn(ctx context.Context, conversationID, message
 	}
 }
 
-func (wc *Conn) executeConversationTurn(ctx context.Context, conversationID, message, channel string) {
+func (wc *Conn) executeConversationTurn(ctx context.Context, conversationID, message, channel string, fence int64) {
 	componentLog().Info("turn start", "user_id", wc.userID, "conversation_id", conversationID, "channel", channel)
 	sink := &wsSink{c: wc, conversationID: conversationID}
 	svc := wc.deps.Turner
@@ -357,6 +357,7 @@ func (wc *Conn) executeConversationTurn(ctx context.Context, conversationID, mes
 		Message:        message,
 		ConversationID: conversationID,
 		StreamSink:     sink,
+		Fence:          fence,
 	})
 	if err != nil {
 		componentLog().Error("turn error", "user_id", wc.userID, "conversation_id", conversationID, "err", err)

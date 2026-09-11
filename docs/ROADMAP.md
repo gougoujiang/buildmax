@@ -64,20 +64,21 @@ Design: [trust harness](design/trust-harness.md),
 
 ### R1. Close Durable State Correctness
 
-**Core mechanisms implemented; three correctness windows remain.** Redis mode
+**Core mechanisms implemented; two correctness windows remain.** Redis mode
 supplies shared streams, connection events, and Conversation turn leases, and
 the reference manifests run two coordinated Server replicas. Workflow run and
 step-run transitions now use guarded compare-and-set writes, with failed-step
-finalization made atomic. Message writes do not yet enforce lease fencing;
-Workflow progress still depends on callbacks rather than durable reconciliation;
-and a title-token quota refusal can still leave an
+finalization made atomic. Message-history writes now enforce lease fencing, so a
+stale writer is rejected rather than corrupting a conversation. Workflow progress
+still depends on callbacks rather than durable reconciliation; and a title-token
+quota refusal can still leave an
 [orphan Conversation](https://github.com/gougoujiang/buildmax/issues/278).
 
-**Next:** fence Conversation message-history writes, make the linear Workflow
-precursor recover after a lost callback or restart, close the orphan-Conversation
-window, and prove their races against real MySQL. Then exercise worker updates,
-reconnects, concurrent turns, and Redis failure in the candidate topology. Do
-not count an in-process two-replica test as a cluster exercise.
+**Next:** make the linear Workflow precursor recover after a lost callback or
+restart, close the orphan-Conversation window, and prove their races against real
+MySQL. Then exercise worker updates, reconnects, concurrent turns, and Redis
+failure in the candidate topology. Do not count an in-process two-replica test as
+a cluster exercise.
 
 **Done when:** stale writers cannot commit, persisted work converges after a
 process interruption without duplicate execution, refused work leaves no

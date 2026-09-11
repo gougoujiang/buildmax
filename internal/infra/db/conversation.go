@@ -20,6 +20,12 @@ type conversationRow struct {
 	Channel   string `gorm:"type:varchar(32);not null"`
 	Title     string `gorm:"type:varchar(256)"`
 	CreatedBy uint64 `gorm:"column:created_by;not null"`
+	// TurnFence is the highest turn lease fencing token this conversation has
+	// accepted a message-history write under. AppendMessage advances it and
+	// refuses a lower token, so a stale replica cannot write behind the holder
+	// that superseded it. Zero until the first fenced write. See
+	// docs/design/server-coordination.md §7.
+	TurnFence int64 `gorm:"column:turn_fence;not null;default:0"`
 	// The two composite indexes carry created_at because every listing of a
 	// conversation is ordered by it. The single-column indexes the string model
 	// left behind could not serve the sort.
