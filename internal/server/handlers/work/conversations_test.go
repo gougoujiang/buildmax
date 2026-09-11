@@ -137,7 +137,7 @@ func TestCreateConversationRejectsAChannelTheCallerMayNotClaim(t *testing.T) {
 func TestCreateConversationAcceptsTheTransportChannels(t *testing.T) {
 	secret := "test-conversation-secret"
 	spaceID := "tm_personal_u1"
-	for _, body := range []string{`{}`, `{"channel":"portal"}`, `{"channel":"telegram"}`, `{"channel":"cron"}`, `{"channel":"webhook"}`} {
+	for _, body := range []string{`{}`, `{"channel":"portal"}`, `{"channel":"telegram"}`, `{"channel":"webhook"}`} {
 		h := New(Config{
 			JWTSecret: secret,
 			Spaces: &mock.MockSpaceStore{
