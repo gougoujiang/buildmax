@@ -25,7 +25,8 @@ CLI/TUI、Desktop 和 Server/Portal 使用同一个 Go Agent Core。
 
 路线图负责优先级、顺序与发布门槛。实现证据放在[当前状态](current-state.md)，
 设计理由放在[设计记录](design/设计文档索引.md)，发布验证放在
-[Beta 就绪记录](deploy/beta-readiness.md)。“已实现”不等于通过真实部署验证。
+[Beta 就绪记录](deploy/beta-readiness.md)。已通过的工作拆分成的可独立执行单元
+放在 [backlog](../backlog/README.md)。“已实现”不等于通过真实部署验证。
 旧设计中的 P0–P4 是历史能力分组；当前工作以以下 R0–R5 顺序为准。
 
 ## 当前优先顺序
