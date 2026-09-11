@@ -96,6 +96,25 @@ func (m *MockTaskStore) ListTasksByAgent(_ context.Context, spaceID, agentID str
 			filtered = append(filtered, task)
 		}
 	}
+	return pageTasksNewestFirst(filtered, limit, offset)
+}
+
+func (m *MockTaskStore) ListTasksBySchedule(_ context.Context, spaceID, scheduleID string, limit, offset int) ([]coretask.Task, int, error) {
+	if m.ListErr != nil {
+		return nil, 0, m.ListErr
+	}
+	var filtered []coretask.Task
+	for _, task := range m.List {
+		if task.SpaceID == spaceID && task.ScheduleID != nil && *task.ScheduleID == scheduleID {
+			filtered = append(filtered, task)
+		}
+	}
+	return pageTasksNewestFirst(filtered, limit, offset)
+}
+
+// pageTasksNewestFirst reverses insertion order (newest first) and applies the
+// limit/offset window, matching the store's DESC-by-created_at listings.
+func pageTasksNewestFirst(filtered []coretask.Task, limit, offset int) ([]coretask.Task, int, error) {
 	for i, j := 0, len(filtered)-1; i < j; i, j = i+1, j-1 {
 		filtered[i], filtered[j] = filtered[j], filtered[i]
 	}

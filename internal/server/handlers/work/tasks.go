@@ -151,6 +151,41 @@ func (h *Handler) listAgentTasksHandler(w http.ResponseWriter, r *http.Request) 
 	httputil.WriteJSON(w, http.StatusOK, tasksListResponse{Tasks: out, Total: total})
 }
 
+func (h *Handler) listScheduleTasksHandler(w http.ResponseWriter, r *http.Request) {
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Tasks, "tasks not configured")
+	if !ok {
+		return
+	}
+	scheduleID, ok := httputil.PathValue(w, r, "schedule_id")
+	if !ok {
+		return
+	}
+	if h.cfg.Schedules == nil {
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "schedules not configured")
+		return
+	}
+	sched, err := h.cfg.Schedules.GetSchedule(r.Context(), scheduleID)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "handler error", "handler", "list_schedule_tasks", "schedule_id", scheduleID)
+		return
+	}
+	if sched == nil || sched.SpaceID != spaceID {
+		httputil.WriteJSONError(w, http.StatusNotFound, "schedule not found")
+		return
+	}
+	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.BulkPageDefault, httputil.BulkPageMax)
+	list, total, err := h.cfg.Tasks.ListTasksBySchedule(r.Context(), spaceID, scheduleID, limit, offset)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "handler error", "handler", "list_schedule_tasks", "schedule_id", scheduleID)
+		return
+	}
+	out := make([]TaskResponse, len(list))
+	for i := range list {
+		out[i] = taskToResponse(list[i])
+	}
+	httputil.WriteJSON(w, http.StatusOK, tasksListResponse{Tasks: out, Total: total})
+}
+
 func (h *Handler) taskService() *task.Service {
 	return h.tasks
 }

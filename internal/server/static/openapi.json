@@ -1591,6 +1591,19 @@
         }
       }
     },
+    "/api/spaces/{space_id}/schedules/{schedule_id}/tasks": {
+      "parameters": [
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}},
+        {"name": "schedule_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
+      "get": {
+        "summary": "List the tasks a schedule triggered",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
     "/api/spaces/{space_id}/schedules/{schedule_id}": {
       "parameters": [
         {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}

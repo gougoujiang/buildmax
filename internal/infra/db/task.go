@@ -227,6 +227,35 @@ func (s *Store) ListTasksByAgent(ctx context.Context, spaceID, agentID string, l
 	return toTasks(list), int(total), err
 }
 
+// ListTasksBySchedule returns a space's tasks created by one schedule, newest first.
+func (s *Store) ListTasksBySchedule(ctx context.Context, spaceID, scheduleID string, limit, offset int) ([]coretask.Task, int, error) {
+	limit, offset = capPage(limit, offset)
+	spaceKey, err := lookupKey(ctx, s.db, "space", spaceID)
+	if errors.Is(err, apierr.ErrNotFound) {
+		return nil, 0, nil
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	scheduleKey, err := lookupKey(ctx, s.db, "schedule", scheduleID)
+	if errors.Is(err, apierr.ErrNotFound) {
+		return nil, 0, nil
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	var total int64
+	if err := s.db.WithContext(ctx).Model(&taskRow{}).
+		Where("space_id = ? AND schedule_id = ?", spaceKey, scheduleKey).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []taskReadRow
+	err = s.taskSelect(ctx).
+		Where("task.space_id = ? AND task.schedule_id = ?", spaceKey, scheduleKey).
+		Order("task.created_at DESC").Limit(limit).Offset(offset).Find(&list).Error
+	return toTasks(list), int(total), err
+}
+
 // GetTask returns the task by task_id, or (nil, nil) if not found.
 func (s *Store) GetTask(ctx context.Context, taskID string) (*coretask.Task, error) {
 	id, ok := util.CanonicalPublicID(taskID)

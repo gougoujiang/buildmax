@@ -273,6 +273,34 @@ func TestCreateTaskCarriesScheduleOrigin(t *testing.T) {
 	}
 }
 
+// ListTasksBySchedule returns only the tasks a schedule created, scoped to its
+// space.
+func TestListTasksBySchedule(t *testing.T) {
+	s, ctx := newTestStore(t)
+	f := newScheduleFixture(t, s, "sched-tasklist")
+	sched := newTestSchedule(t, s, f, time.Unix(1_800_000_000, 0).UTC(), true)
+	// A task from this schedule, and an unrelated direct task in the same space.
+	fired := newScheduledTaskForTest(t, s, ctx, f, sched.ID)
+	other, err := s.CreateTask(ctx, &coretask.CreateInput{SpaceID: f.spaceID, AgentID: &f.agentID, Input: "direct", CreatedBy: f.userID})
+	if err != nil {
+		t.Fatalf("CreateTask (unrelated): %v", err)
+	}
+	t.Cleanup(func() {
+		if other.LastRunID != nil {
+			_ = s.db.Delete(&taskRunRow{}, "public_id = ?", canonicalPublicID(*other.LastRunID)).Error
+		}
+		_ = s.db.Delete(&taskRow{}, "public_id = ?", canonicalPublicID(other.ID)).Error
+	})
+
+	list, total, err := s.ListTasksBySchedule(ctx, f.spaceID, sched.ID, 10, 0)
+	if err != nil {
+		t.Fatalf("ListTasksBySchedule: %v", err)
+	}
+	if total != 1 || len(list) != 1 || list[0].ID != fired.ID {
+		t.Errorf("ListTasksBySchedule = %+v (total %d), want only the fired task %q", list, total, fired.ID)
+	}
+}
+
 // newScheduledTaskForTest creates a Task attributed to a schedule and registers
 // the removal of the task and its first run.
 func newScheduledTaskForTest(t *testing.T, s *Store, ctx context.Context, f scheduleFixture, scheduleID string) *coretask.Task {
