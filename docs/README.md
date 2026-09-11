@@ -65,7 +65,7 @@ The HTTP API describes itself: `GET /openapi.json`, browsable at `/swagger/`.
 |---|---|
 | [current-state.md](current-state.md) | Code-based implementation and readiness assessment |
 | [ROADMAP.md](ROADMAP.md) | Active priorities and sequencing |
-| [backlog/](backlog/README.md) | Approved work decomposed into ready-to-execute tasks, one file each |
+| [backlog/](backlog/README.md) | The maintainer-and-Agent planning loop and its prioritized, ready-to-execute tasks |
 | [design/](design/README.md) · [简体中文](zh-CN/design/设计文档索引.md) | Design rationale browsed by domain and marked by lifecycle |
 | [../SECURITY.md](../SECURITY.md) | Vulnerability disclosure and operator responsibilities |
 

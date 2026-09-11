@@ -234,7 +234,10 @@ surface; details belong there rather than being copied into this file.
   [`docs/backlog/`](docs/backlog/README.md), ordered by filename prefix. Create
   a task when its source design is approved; delete the file when the work
   merges. Keep a work item in exactly one place: main-line and agent work in the
-  backlog, externally contributable work in GitHub issues.
+  backlog, externally contributable work in GitHub issues. When asked to take
+  backlog work, claim the first unclaimed task whose dependencies are complete
+  before editing, then deliver its acceptance criteria, verification, and
+  documentation; the maintainer owns queue priority.
 - Add a changelog file for user-visible changes with
   `./make changelog new <added|changed|fixed|security> <slug>`.
 - Commit subjects are imperative lines. Pull request titles carry the

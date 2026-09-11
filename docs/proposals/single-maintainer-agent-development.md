@@ -6,6 +6,16 @@
 >
 > **Opened:** 2026-09-06
 
+**Accepted slice:** Main-line planning now uses the in-repository
+[backlog](../backlog/README.md), while externally contributable work remains in
+GitHub Issues under the one-item-one-place rule. The backlog document is the
+current authority for that planning and execution loop. This proposal remains
+open only for the automation, leases, independent acceptance, and measured
+authority expansion described below. Where later historical text says
+"implementation-ready Issue," read it as the ready work item selected for its
+audience: a backlog task for maintainer-and-Agent work or a GitHub Issue for
+external contributors, never both.
+
 Related: [roadmap](../ROADMAP.md),
 [current-state assessment](../current-state.md),
 [testing guide](../contribute/testing.md),
@@ -631,7 +641,9 @@ help. Verification rationale and accepted evidence policy would update the
 invariants would enter the root Agent guide only when they apply to every task;
 details would remain in executable commands and scoped documentation.
 
-Accepted implementation work would become focused GitHub Issues. The roadmap
-would mention this effort only if maintainer-efficiency evidence makes it an
-active product or engineering priority. This proposal would then be deleted;
-git history would preserve the discussion.
+Accepted main-line implementation work now becomes focused backlog tasks;
+externally contributable work becomes focused GitHub Issues, never a mirror in
+both places. The remaining automation would move into contributor documentation
+and task-runner help only if maintainer-efficiency evidence justifies it. Once
+those open decisions are accepted or rejected, this proposal is deleted and git
+history preserves the discussion.
