@@ -7,6 +7,13 @@ import (
 	"fmt"
 	"os"
 
+	// Embed the IANA timezone database in the binary so a schedule's timezone
+	// (e.g. "Asia/Shanghai") resolves through time.LoadLocation even in a
+	// container image that ships no /usr/share/zoneinfo. Without it the server
+	// accepts only "UTC" and rejects every named zone as unknown. See
+	// docs/proposals/scheduled-agent-execution.md.
+	_ "time/tzdata"
+
 	"github.com/gougoujiang/buildmax/internal/bootstrap"
 	"github.com/gougoujiang/buildmax/internal/config"
 	log "github.com/gougoujiang/buildmax/internal/infra/log"
