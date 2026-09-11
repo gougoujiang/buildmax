@@ -64,8 +64,11 @@ type CreateTaskCmd struct {
 	Input          string
 	AgentID        *string
 	IssueID        *string
-	CreatedByType  string
-	TriggerSource  string
+	// ScheduleID names the recurring time trigger that created this task, when a
+	// schedule dispatcher admitted it. An origin relation, never an owner.
+	ScheduleID    *string
+	CreatedByType string
+	TriggerSource string
 	// SourceMessageID names the conversation message that asked for this task.
 	SourceMessageID *string
 }
@@ -133,6 +136,7 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCmd) (*coretask.
 		TitleCompletionTokens:     completionTokens,
 		AgentID:                   agentID,
 		IssueID:                   cmd.IssueID,
+		ScheduleID:                cmd.ScheduleID,
 	}
 	if selectedAgent != nil {
 		revision := selectedAgent.Revision

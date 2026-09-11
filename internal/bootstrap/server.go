@@ -32,6 +32,7 @@ import (
 	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
 	secretsvc "github.com/gougoujiang/buildmax/internal/service/secret"
+	tasksvc "github.com/gougoujiang/buildmax/internal/service/task"
 )
 
 // RunServer loads server.yaml, resolves the listen port (flag overrides config),
@@ -160,6 +161,24 @@ func RunServer(ctx context.Context, portOverride int) error {
 	checkpoints := scheduler.NewCheckpointOrphanSweeper(storage.checkpoint, store, sc.Storage.CheckpointOrphanGraceDays, 0)
 	checkpoints.Start()
 
+	// Fires recurring schedules: on each due time it admits one Task through the
+	// same Task service the API uses, tagged with a schedule trigger source. It
+	// reuses the quota service already built for the HTTP surface so a firing is
+	// metered exactly as a user-started run is.
+	scheduleAdmitter := &tasksvc.Service{
+		Agents:       store,
+		Tasks:        store,
+		TaskRuns:     store,
+		QuotaChecker: serverConfig.Auth.QuotaService,
+	}
+	dispatcher, err := scheduler.NewScheduleDispatcher(store, scheduleAdmitter, 0)
+	if err != nil {
+		return fmt.Errorf("schedule dispatcher: %w", err)
+	}
+	// So a schedule whose creator an administrator disabled pauses rather than
+	// minting Tasks that would only fail at dispatch.
+	dispatcher.WithUserStore(store).Start()
+
 	s := httpserver.New(serverConfig)
 	s.StartBackground()
 	slog.Info("server starting",
@@ -179,7 +198,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 	case err := <-serveErr:
 		// The listener failed before any signal — a taken port, a bad address.
 		// Nothing has started serving, so there is nothing to drain.
-		shutdownServer(context.Background(), targetsFor(s, sched, cleaner, reaper, retainer, artifacts, checkpoints), budget)
+		shutdownServer(context.Background(), targetsFor(s, sched, dispatcher, cleaner, reaper, retainer, artifacts, checkpoints), budget)
 		return err
 	case <-signalCtx.Done():
 	}
@@ -189,7 +208,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 	// handler that is already running one.
 	stopSignals()
 	slog.Info("shutdown requested", "grace", sc.ShutdownGrace)
-	shutdownServer(ctx, targetsFor(s, sched, cleaner, reaper, retainer, artifacts, checkpoints), budget)
+	shutdownServer(ctx, targetsFor(s, sched, dispatcher, cleaner, reaper, retainer, artifacts, checkpoints), budget)
 
 	slog.Info("server stopped")
 	return <-serveErr
@@ -224,11 +243,15 @@ type shutdownTargets struct {
 }
 
 // targetsFor names what RunServer started in the order the ladder stops it.
-func targetsFor(s *httpserver.Server, sched *scheduler.Scheduler, cleaner *scheduler.CredentialCleaner, reaper *scheduler.StaleRunReaper, retainer *scheduler.AuditRetainer, artifacts *scheduler.ArtifactRetainer, checkpoints *scheduler.CheckpointOrphanSweeper) shutdownTargets {
+func targetsFor(s *httpserver.Server, sched *scheduler.Scheduler, dispatcher *scheduler.ScheduleDispatcher, cleaner *scheduler.CredentialCleaner, reaper *scheduler.StaleRunReaper, retainer *scheduler.AuditRetainer, artifacts *scheduler.ArtifactRetainer, checkpoints *scheduler.CheckpointOrphanSweeper) shutdownTargets {
 	return shutdownTargets{
 		server:    s,
 		scheduler: namedStop{name: "scheduler", stop: func(ctx context.Context) { sched.Stop(ctx) }},
 		loops: []namedStop{
+			// Stopped before the sweeps: it produces work, so quieting it first
+			// keeps a shutdown from creating Tasks nothing will dispatch until the
+			// next start.
+			{name: "schedule dispatcher", stop: ignoringContext(dispatcher.Stop)},
 			{name: "checkpoint orphan sweeper", stop: ignoringContext(checkpoints.Stop)},
 			{name: "audit retainer", stop: ignoringContext(retainer.Stop)},
 			{name: "artifact retainer", stop: ignoringContext(artifacts.Stop)},

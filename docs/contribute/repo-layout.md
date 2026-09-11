@@ -199,6 +199,8 @@ internal/
 │   │                   opening the session it earns
 │   ├── issue/          Issue service
 │   ├── task/           Task and task_run service
+│   ├── schedule/       Cron parsing and timezone handling for recurring
+│   │                   schedules — the library and DST logic core excludes
 │   ├── workspace/      Cross-storage commit of Task workspace checkpoints:
 │   │                   validate a payload descriptor, confirm its bytes are
 │   │                   durable, then record the authoritative pointer
