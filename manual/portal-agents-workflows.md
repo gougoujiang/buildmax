@@ -75,6 +75,28 @@ also assign the workflow to an issue so it runs as that issue's work — see
 Like agents, workflows keep a numbered history, and a run records the workflow
 version it expanded so the record of a past run stays accurate.
 
+## Schedule an agent
+
+An agent can run on a timetable with nobody pressing Run. Open the agent's
+detail view and use the **Schedules** section: give the schedule a name, the
+input the agent should receive each time, a five-field cron expression such as
+`0 9 * * 1-5`, and the IANA timezone the expression is read in, such as
+`Asia/Shanghai`.
+
+Each firing creates an ordinary task for that agent, so it shows up in the task
+list with its own status, trace, and artifacts. The section lists each
+schedule's next and last firing and the tasks it created, and lets you disable,
+re-enable, or delete it. Deleting a schedule keeps the tasks it already created.
+
+A schedule pauses itself after five consecutive firings fail to start a task,
+or when its creator's account is disabled; re-enable it once the cause is
+fixed. If the server was down across a firing time, the schedule fires once
+when it comes back and then resumes its regular times rather than replaying
+every missed slot.
+
+The **Schedules** entry in the sidebar shows every schedule in the space across
+all agents, so you can see what unattended work is set up and pause any of it.
+
 ## Plugins from the Marketplace
 
 The **Marketplace** icon in the top bar lists the plugins this deployment

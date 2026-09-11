@@ -29,6 +29,7 @@ Fill this table before starting. Tags alone are not immutable evidence.
 | S3 product, version or service, and region | Not recorded |
 | TLS termination and ingress | Not recorded |
 | Configuration snapshot, with secrets redacted | Not recorded |
+| Starting schema/commit and supported upgrade or clean-install path | Not recorded |
 
 ## Accepted Limits
 
@@ -119,10 +120,14 @@ screens, TaskRun JSON, trace, audit rows, and artifact listings for each case.
   environment. Sign in and compare space, task, TaskRun, trace, audit, usage, and
   artifact identifiers and checksums with the pre-backup record. State the
   measured recovery time and any accepted data loss.
-- [ ] Upgrade from the previous release to the candidate through at least one
-  real schema change. Repeat the operator journey, then redeploy the previous
-  server and worker binaries against the upgraded schema and repeat it again.
-  Database rollback is not expected or supported.
+- [ ] Name the starting schema and commit; do not assume a released predecessor.
+  Exercise the candidate's claimed upgrade path through a real schema change.
+  Where binary rollback is supported, run the previous Server and worker
+  against the upgraded schema and repeat the operator journey. Where Alpha
+  deliberately drops compatibility, record the affected fields and use a
+  clean-install/paired-restore procedure, exercising that recovery instead.
+  Unsupported rollback is an explicit candidate limit, not a passed rollback
+  test. Database down-migrations are not supported.
 - [ ] Rotate the JWT secret, database credential, storage identity or credential,
   and model credential using a documented drain/restart procedure. Record what
   happens to existing browser sessions, in-flight runs, and already-created
@@ -145,7 +150,7 @@ restored identifiers, or checksums are the actual proof.
 | Database outage and recovery | Not run | — | — |
 | Object-storage denial and recovery | Not run | — | — |
 | Paired database and bucket restore | Not run | — | — |
-| Schema upgrade and binary rollback | Not run | — | — |
+| Declared schema path and rollback or destructive-cutover recovery | Not run | — | — |
 | Credential rotation | Not run | — | — |
 
 ## Decision

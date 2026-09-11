@@ -183,7 +183,9 @@ every deployment as an execution boundary:
 - give the server and workers dedicated, least-privilege credentials
 - keep `workspaces_dir` and blob storage off any host path that matters
 - decide the network policy for workers explicitly; the
-  [sandbox](../../manual/sandbox.md) can restrict egress but is **off by default**
+  [sandbox](../../manual/sandbox.md) can restrict Bash egress. Official worker
+  images select it, while local CLI/Desktop defaults remain off and the worker
+  API/cluster policy is a separate boundary
 - never commit credentials to `server.yaml` in version control
 - know which boundary you have: `local_process` runs workers as children of the
   server on one host, one trust domain, and narrowing what they inherit does not

@@ -15,7 +15,9 @@
 > not-found/forbidden/error)由
 > [Portal导航与Space上下文.md](Portal导航与Space上下文.md)
 > 里独立的 `ResourceUnavailable` 组件提供，本文不再叠加一套竞争的详情页方案。剩余：
-> Issue 详情页 per-task Retry/Stop 的逐行错误，以及这些状态路径的 Playwright 测试。
+> Issue 详情页 per-task Retry/Stop 的逐行错误，以及更广的状态路径覆盖；
+> `portal/e2e/resource-states.spec.ts` 已通过注入响应覆盖审计拉取的
+> error/stale 与角色查询失败，它证明的是呈现，而不是后端恢复。
 
 本文定义 Portal 如何区分加载、缺失、失败与授权。它支持 R3 候选版本运维流程，且可以
 逐页实施，不改变 domain 行为或路线图优先级。

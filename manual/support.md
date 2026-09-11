@@ -76,26 +76,30 @@ A **Beta** label on one surface below describes that component's maturity; it do
 | JWT user API and space membership authorization | **Beta** | User API uses JWT; space membership is the resource boundary. |
 | Run-token worker auth | **Beta** | Every dispatched worker receives a credential scoped to one task run, and it is the only credential the worker routes accept. The old shared worker token is removed. Each worker route also enforces the run's lifecycle: everything but the status poll is refused unless the run is RUNNING, so a leaked but unexpired token cannot act before the claim or after the run is terminal. |
 | Worker API network boundary | **Beta** | The worker control API (`/api/worker/*`) is served on a separate internal listener over TLS, off the public HTTP surface. On Kubernetes it is fronted by the `buildmax-worker-api` Service and a NetworkPolicy that admits only labelled worker pods; the public Ingress carries no worker route. The kind smoke exercises the HTTPS channel and proves the cross-pod denial. |
-| Bash sandbox | **Beta** | Off by default on every surface. Covers `Bash` subprocesses, not every tool or process on the host. |
+| Bash sandbox | **Beta** | Off by default for local CLI/Desktop. Official worker images select an enabled, fail-closed baseline; an unmarked bare worker host inherits local defaults. Covers `Bash` subprocesses, not every tool or process on the host. |
 | Worker pod containment | **Beta** | Worker Jobs run with no service-account token, a read-only root filesystem, and every Linux capability dropped except `SYS_ADMIN` (which `bwrap`'s own sandbox needs to run at all) — not non-root, since a capability a container runtime adds to a non-root pod does not land in that pod's effective set at exec time. The boundary a Kubernetes deployment relies on is `bwrap`'s own workspace-scoped sandboxing of the worker's Bash calls, not the pod's own uid. Workers still receive object-storage credentials. |
 | Runtime hooks | **Beta** | Can observe or block selected lifecycle/tool events. Hook failures fail open. |
 | Durable run traces | **Supported** | On by default, bounded and redacted; failures do not break runs. |
 | Audit log | **Beta** | Records sign-ins, membership changes, model catalog changes, and refused requests. Owner-only, in the API and in Portal. A failed write is logged and dropped, so it records what happened while the database was reachable rather than guaranteeing every action was recorded. |
-| Approval workflow | Not supported | Planned; no gate exists today. |
+| Space approval workflow | Not supported | Outside the first Beta scope; separate from local tool approvals and Space invitations. |
 
 ## Compatibility
 
 What an upgrade may and may not do to a deployment. Where a promise does not exist yet, this says so rather than implying one.
 
-### Database schema — forward only, one release back by default
+### Database schema — forward only, no Alpha compatibility guarantee
 
-The schema moves **forward only**. There are no down migrations, and the `Migration` type has no `Down` field to write one in. That half is structural and cannot lapse.
+The schema moves forward only; there are no down migrations. Alpha does not
+promise compatibility with a previous binary or preservation of an older stored
+shape. A change may remove or rename fields in the same release. Current
+migrations already drop plaintext model credentials and the old Issue assignee
+columns; redeploying an old binary does not restore them.
 
-What you can normally do is roll the **binary** back one release: schema version N keeps serving code from release N-1, which is why an upgrade that goes wrong is recovered by redeploying the previous image tag. Holding that open costs one rule — nothing is removed in the release that stops using it, so a removal takes two — and BuildMax follows it by default.
-
-It is a discipline rather than a mechanism, and **alpha can spend it**. When a stored shape is wrong, an alpha release may correct it in one step instead of carrying it for another release. A release that does so says so in its notes. Read the release notes before an upgrade you intend to be able to undo.
-
-Rolling a **database** back is not supported in any case. Recovery from a bad schema change is a restore from backup, so take one before an upgrade that crosses a release carrying migrations. A binary that meets migrations from a later release logs a warning and keeps running; a binary several releases behind has no such promise, and that log line is the only signal an operator gets that they are in that position.
+Read the release's declared starting schema and recovery procedure before an
+upgrade. Binary rollback is supported only for an explicitly tested version
+pair. Otherwise use a clean deployment or restore a coordinated database and
+bucket backup with its matching binaries. A warning about unknown migrations
+at startup is diagnostic output, not a compatibility check or guarantee.
 
 ### HTTP API — no version, so expect change
 
@@ -115,15 +119,15 @@ Credentials never gain defaults. A setting that decides *where* a deployment con
 
 ### Stored data
 
-Run artifacts, run state, and durable traces are written under a documented key layout in object storage and are not rewritten by an upgrade. BuildMax never deletes them; retention is the operator's to configure.
+Task/TaskRun metadata lives in MySQL; Artifact payloads, worker traces, and workspace checkpoints use object storage. Artifact deletion/expiry and retention sweeps can remove payloads, and checkpoint orphan cleanup removes unreferenced blobs. Backups must include both the database and bucket; storage is not an indefinite archive.
 
-The audit trail is the one exception, and only when asked: setting `audit.retention_days` in `server.yaml` expires events older than that window, and each sweep records what it removed as an `audit.pruned` event. The default is to keep everything. The trail can be downloaded as CSV or JSONL — a space owner gets their own, a System Administrator gets the deployment's — and a download is itself recorded.
+Audit retention is separately configured: setting `audit.retention_days` in `server.yaml` expires events older than that window, and each sweep records what it removed as an `audit.pruned` event. The default is to keep everything. The trail can be downloaded as CSV or JSONL — a space owner gets their own, a System Administrator gets the deployment's — and a download is itself recorded.
 
 There is no export or import command for a deployment's data as a whole, so moving one means moving its database and its bucket together.
 
 ## Non-goals for the alpha
 
-- Production identity management. Real OIDC/OAuth/SAML login, invite flows, and passwordless OTP delivery are not part of the current server.
+- Production identity management. Real OIDC/OAuth/SAML login and automatic login-code delivery are not implemented. Space invitations to existing accounts are implemented.
 - Multi-tenant public SaaS hosting. BuildMax is aimed at local use and private deployments, not running an untrusted public shared service.
 - A guarantee that model-selected code is safe. Treat every run as executing untrusted commands with your credentials and network access.
 - Full sandboxing for every operation. The sandbox targets `Bash`; file tools, MCP tools, hooks, and provider calls have separate boundaries.

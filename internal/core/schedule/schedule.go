@@ -1,7 +1,7 @@
 // Package schedule holds the domain for a time trigger that runs an Agent on a
 // recurring wall-clock schedule. A Schedule is Space-owned; each firing admits
 // one ordinary Task through the existing Task application service, tagged with a
-// schedule trigger source. See docs/proposals/scheduled-agent-execution.md.
+// schedule trigger source. See docs/design/scheduled-agent-execution.md.
 //
 // This package is pure domain: it does not parse cron expressions or load
 // timezones. The caller that owns those (the dispatcher/service) computes each
@@ -21,7 +21,7 @@ type Schedule struct {
 	CreatedBy string `json:"created_by"`
 	Name      string `json:"name,omitempty"`
 	// Input is the fixed prompt each firing runs. The first slice does not
-	// template it; see the proposal's open questions.
+	// template it; see the design record's open questions.
 	Input    string `json:"input"`
 	CronExpr string `json:"cron_expr"`
 	// Timezone is an IANA name, e.g. "Asia/Shanghai". Cron is evaluated in it so

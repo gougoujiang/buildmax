@@ -102,8 +102,10 @@ This record accepts the architecture, not immediate breadth. The reliability
 foundation belongs before new Workflow control flow. Static graph execution is
 an R5 capability selected after the R0–R3 Beta evidence and later product
 evidence justify it, or earlier only when a concrete deployment supplies the
-need and priority. Dynamic expansion, human waits, schedules, and inbound events
-remain later slices.
+need and priority. Dynamic expansion, human waits, Workflow-level schedules,
+and inbound events remain later slices; recurring runs of a single Agent
+already ship on the Task plane (see
+[scheduled Agent execution](scheduled-agent-execution.md)).
 
 ## 2. Problem And Design Principles
 

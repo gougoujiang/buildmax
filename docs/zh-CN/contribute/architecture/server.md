@@ -50,7 +50,7 @@
 
 ## Conversation 回合
 
-每个 Conversation 一次只运行一个回合。回合队列（`internal/server/turnqueue`）为每个 Conversation 各自维护一个队列，并把所有路径都串行化进这个队列——WebSocket 消息、报告已完成 TaskRun 的系统回合，以及 HTTP 的 `POST .../messages` 和 `POST .../conversations` 路由。它的作用域是整个 Server，而不是单个连接，因为一个 Conversation 可能同时被多个连接访问到。
+每个 Conversation 一次只运行一个回合。回合队列（`internal/server/turnqueue`）为每个 Conversation 各自维护一个队列，串行化 WebSocket 消息及 HTTP 的 `POST .../messages` 和 `POST .../conversations` 前台入口。TaskRun 完成广播持久状态失效通知，不排入摘要回合。它的作用域是整个 Server，而不是单个连接，因为一个 Conversation 可能同时被多个连接访问到。
 
 在一个回合运行期间到达的消息会被排队，每个 Conversation 最多排队 10 条，之后各自作为独立的回合运行。WebSocket 客户端会看到 `conversation.message.queued`，等它开始运行时再看到 `conversation.message.dequeued`；`conversation.message.completed` 会携带 `queued_remaining`。超出上限的消息会被 `conversation.error` 拒绝，并携带 `code: "queue_full"`（HTTP：`429`），但这不会终止正在进行的那个回合。队列保存在内存中。参见[排队消息](../../design/排队消息.md)。
 

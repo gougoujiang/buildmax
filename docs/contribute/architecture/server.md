@@ -108,9 +108,9 @@ it for every call back, managed inference included. See
 
 One turn per conversation runs at a time. The turn queue
 (`internal/server/turnqueue`) owns a queue per conversation
-and serializes every path into it — WebSocket messages, system turns reporting a
-finished task run, and the HTTP `POST .../messages` and `POST .../conversations`
-routes. It is server-scoped rather than connection-scoped because one
+and serializes foreground entry paths — WebSocket messages and the HTTP
+`POST .../messages` and `POST .../conversations` routes. TaskRun completion
+broadcasts durable-state invalidation; it does not enqueue a summary turn. It is server-scoped rather than connection-scoped because one
 conversation is reachable from several connections at once.
 
 A message that arrives while a turn is running is queued, up to 10 per

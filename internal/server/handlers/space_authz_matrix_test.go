@@ -71,7 +71,7 @@ var spaceRoutes = []authzCase{
 
 	// Schedules: any member may manage recurring triggers, the same tier as
 	// running work, because a schedule is a member arranging a run they could
-	// start by hand. See docs/proposals/scheduled-agent-execution.md §9.
+	// start by hand. See docs/design/scheduled-agent-execution.md §9.
 	{"GET", "/api/spaces/{space_id}/schedules", corespace.RoleMember, false},
 	{"POST", "/api/spaces/{space_id}/schedules", corespace.RoleMember, false},
 	{"GET", "/api/spaces/{space_id}/schedules/{schedule_id}", corespace.RoleMember, false},

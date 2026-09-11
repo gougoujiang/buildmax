@@ -3,7 +3,7 @@
 > **简体中文：** [阅读中文镜像](zh-CN/ROADMAP.md)
 >
 > **Audience:** users, operators, and contributors · **Status:** current — Alpha
-> **Last reviewed:** 2026-09-10
+> **Last reviewed:** 2026-09-12
 
 BuildMax is an open-source Agent runtime for local work and private Space
 deployment. CLI/TUI, Desktop, and Server/Portal use the same Go Agent Core.
@@ -18,7 +18,7 @@ release readiness depends on evidence, not the number of features implemented.
 
 | Horizon | User outcome | Current position |
 |---|---|---|
-| Available in Alpha | Run Agents locally or in a private Space, with managed models, background work, shared results, and diagnostic traces. | Implemented capabilities have different limits; see the [current-state assessment](current-state.md) and [user manual](../manual/introduction.md). |
+| Available in Alpha | Run Agents locally or in a private Space, with managed models, background and scheduled work, shared results, and diagnostic traces. | Implemented capabilities have different limits; see the [current-state assessment](current-state.md) and [user manual](../manual/introduction.md). |
 | Next: private-deployment Beta | Trust the worker boundary, supported Server topology, persistence, and recovery procedures. | Engineering gaps and candidate operating evidence remain open. |
 | Later: evidence-led expansion | Richer Workflows, integrations, and local experiences that solve demonstrated user problems. | Candidate directions, not release commitments. |
 

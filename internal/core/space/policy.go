@@ -60,7 +60,7 @@ const (
 	// deleting recurring schedules. Any member, not owner-only: it is the same
 	// permission tier as running work, because a schedule is a member arranging
 	// for a run they could already start by hand. See
-	// docs/proposals/scheduled-agent-execution.md §9.
+	// docs/design/scheduled-agent-execution.md §9.
 	ActionManageSchedules Action = "manage_schedules"
 )
 

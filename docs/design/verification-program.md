@@ -40,7 +40,7 @@ Related records: [Local end-to-end verification](end-to-end-testing.md),
   admission, checkpoint head advancement, and initial Workflow revisions also
   have real-MySQL coverage. Remaining database work includes Workflow revision
   advancement under edits/contention, restart recovery, broader cross-Space
-  store cases, and an N-1 fixture using the migrations that now exist. The
+  store cases, and fixtures for the candidate’s declared starting schema. The
   unified matrix, expanded failure paths, and complete release rehearsal
   described here are not implemented
 - principle: implementation code, tests, and documentation can share the same
@@ -132,7 +132,7 @@ cross-package and user-visible.
 | V17 | A worker disappears without reporting | Heartbeats expire, the lost-worker path closes the run predictably, partial evidence remains, and retry is explicit. | Scheduled deployment |
 | V18 | Database or object storage becomes unavailable | Readiness changes, user-visible state is honest, no phantom artifact is published, and recovery or retry has an unambiguous path. | Scheduled deployment |
 | V19 | A database and bucket pair is restored | Relational records and stored objects agree after restore; every retained artifact reference resolves or is explicitly tombstoned. | Release candidate |
-| V20 | A candidate upgrades and rolls back | Forward schema change, N-1 binary rollback, drain, and credential rotation follow the documented contract without ambiguous data loss. | Release candidate |
+| V20 | A candidate upgrades and rolls back | The declared schema path, supported binary rollback or destructive-cutover recovery, drain, and credential rotation follow the documented contract without ambiguous data loss. | Release candidate |
 
 Every journey test uses the same assertion structure:
 
@@ -201,11 +201,13 @@ Still to write:
 - restart recovery cases for durable Task/TaskRun/checkpoint state;
 - broader cross-Space lookup rejection at the store, distinct from the role
   matrix the handler tests already assert; and
-- migration fixtures representing the supported N-1 schema. The explicit
-  migration list is no longer empty: `system_grant_live_marker` and
-  `llm_model_credential_encryption` provide real upgrade history. The fixture
-  must exercise those migrations from the actual older shape and record the
-  candidate's binary-rollback limit; it is open, not blocked.
+- migration fixtures for the declared starting schema. The three explicit
+  migrations include `issue_owner_executor_split`, whose old-column backfill
+  already has a MySQL test. This is not an old-binary rollback fixture. Alpha
+  may drop compatibility; test the claimed upgrade/rollback version pair or
+  destructive-cutover recovery, as required by the Beta readiness record;
+- existing linear Workflow reconciliation, idempotent step admission, and
+  Agent revision authority (R2), including lost/concurrent terminal callbacks.
 
 One item from this list is withdrawn rather than pending. **Quota reservation
 and charging boundaries** describes a design that does not exist: there is no
@@ -224,8 +226,8 @@ ever built.
 - repeated and parallel runs do not depend on test order or shared IDs;
 - two claims cannot win one run;
 - repeated cancel, report, and retry operations preserve legal state;
-- an N-1 fixture upgrades to the current schema and passes the critical
-  journeys;
+- a fixture for the declared starting schema exercises the supported upgrade
+  or destructive-cutover recovery and passes the critical journeys;
 - failure output identifies the relevant SQL or state transition without
   leaking secrets;
 - coverage is reported per critical package. The program does not impose a
@@ -403,8 +405,8 @@ The operator must:
 10. kill a worker without a graceful report;
 11. interrupt database access and object-storage access separately;
 12. restore the database and bucket as a pair;
-13. upgrade through a schema-changing candidate and exercise N-1 binary
-   rollback;
+13. exercise the declared schema path and supported binary rollback or
+   destructive Alpha cutover recovery;
 14. rotate JWT, database, object-storage, and provider credentials using the
    documented drain/restart procedure.
 

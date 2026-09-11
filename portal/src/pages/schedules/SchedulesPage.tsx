@@ -24,7 +24,7 @@ function formatWhen(iso: string | null | undefined): string {
 // This is the space-wide overview: every schedule across every agent, so an
 // owner can see what unattended automation is running. A schedule is created
 // and edited on its agent's detail page; here a member can only pause or resume
-// one and open its agent. See docs/proposals/scheduled-agent-execution.md.
+// one and open its agent. See docs/design/scheduled-agent-execution.md.
 export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
   const { currentUserRole } = useSpace()
   // Any member may manage schedules (manage_schedules is member-tier), so the

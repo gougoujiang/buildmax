@@ -135,7 +135,7 @@ invocation still receives an explicit Task and TaskRun envelope so cancellation,
 retry, quota, trace, artifacts, and audit retain one authoritative owner.
 
 Space is authoritative for every Portal execution resource. Conversation,
-Issue, Workflow step, webhook, and future schedule are typed origins or result
+Issue, Workflow step, webhook, and schedule are typed origins or result
 destinations within that Space.
 
 ## 4. Supported Entry Paths
@@ -184,7 +184,7 @@ typed selection or when the user explicitly asked it to coordinate. A client
 that supplies `agent_id` must not encode it into prose for another model to
 interpret.
 
-### 4.5 API, Webhook, And Future Schedule
+### 4.5 API, Webhook, And Schedule
 
 Non-conversational callers create Space-owned Tasks through the same service.
 Each records a typed trigger source and the caller identity available at its

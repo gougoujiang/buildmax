@@ -95,7 +95,7 @@ Worker 一旦拿到 TaskRun，确实是直接执行共享的 Agent 运行时的�
 
 Agent 可以被直接执行，并不意味着一行 Agent 记录就变成了一个正在运行的进程：同一个 Agent 可以同时服务许多用户和许多 Task。每一次调用仍然会拿到一个显式的 Task 与 TaskRun 信封，这样取消、重试、配额、轨迹、Artifact 与审计才始终有一个权威的归属者。
 
-Space 对每一项 Portal 执行资源都是权威的所有者；Conversation、Issue、Workflow 步骤、webhook，以及未来的定时任务，都只是 Space 之内的、类型化的发起来源或结果投递目的地。
+Space 对每一项 Portal 执行资源都是权威的所有者；Conversation、Issue、Workflow 步骤、webhook，以及定时任务，都只是 Space 之内的、类型化的发起来源或结果投递目的地。
 
 ## 4. 支持的入口路径
 
@@ -132,7 +132,7 @@ Conversation 可以通过其受限工具调用同一个 Task 应用服务，把�
 
 只有在用户尚未做出类型化选择、或者用户明确要求它来协调时，Conversation 才可以自行选择 Agent。一个已经提供了 `agent_id` 的客户端，不应该把它编码进自然语言散文，再交给另一个模型去解读。
 
-### 4.5 API、Webhook 与未来的定时任务
+### 4.5 API、Webhook 与定时任务
 
 非会话型的调用方通过同一个服务创建归属于 Space 的 Task。每一种来源都会记录一个类型化的触发来源，以及在其边界上可获得的调用者身份；没有谁会为了存储或授权而凭空发明一个 Conversation。
 

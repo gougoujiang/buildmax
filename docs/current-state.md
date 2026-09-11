@@ -2,9 +2,9 @@
 
 > **简体中文：** [阅读中文镜像](zh-CN/current-state.md)
 >
-> **Audience:** users, operators, and contributors · **Status:** current as of 2026-09-10
+> **Audience:** users, operators, and contributors · **Status:** current as of 2026-09-12
 
-This assessment was checked against repository code at `2041cbec`. It describes
+This assessment was checked against repository code at `0bd7e5bf`. It describes
 implemented behavior, test coverage, and remaining limits. Priority and future
 sequencing belong in the [roadmap](ROADMAP.md), not in a second priority list
 here. Design records explain decisions; their unfinished checklists are not
@@ -196,8 +196,10 @@ Multi-replica streaming and lease behavior have automated tests; candidate
 reconnect, contention, outage, and recovery exercises still need operating
 proof. The lease exposes a fencing token, and message-history writes enforce it:
 a write carrying a token below the one the conversation has accepted is rejected,
-so a stale writer after lease loss cannot append behind the new holder. See the
-[coordination design](design/server-coordination.md).
+so a stale writer after lease loss cannot append behind the new holder. Lease
+renewal itself discards Redis errors and does not cancel the running turn when
+ownership is lost, so such a turn runs to a rejected write rather than being
+stopped early. See the [coordination design](design/server-coordination.md).
 
 The scheduler has one concurrent dispatch slot per instance. In local-process
 mode that slot remains occupied during execution. Kubernetes dispatch returns
@@ -288,9 +290,14 @@ Portal and inbound webhook execution are assembled. Telegram remains channel
 vocabulary, and the webhook callback sender is not assembled into the Server.
 Recurring schedules run an Agent on the Task plane through a `schedule` trigger
 source and the `/api/spaces/{space_id}/schedules` API, dispatched by a resident
-loop; they are not a conversation channel, and no Portal surface manages them
-yet ([`internal/core/schedule`](../internal/core/schedule/schedule.go),
-[`internal/server/scheduler`](../internal/server/scheduler)). Space plugin activation supports skill/subagent content but rejects
+loop that claims each due time once across replicas, coalesces missed firings
+into one catch-up, and pauses a schedule after five consecutive failed firings
+or when its creator is disabled. Portal creates and manages schedules on the
+Agent detail page and lists every schedule in a Space on a Schedules page; the
+pause reason is logged, not shown. They are not a conversation channel
+([`internal/core/schedule`](../internal/core/schedule/schedule.go),
+[`internal/server/scheduler`](../internal/server/scheduler),
+[design](design/scheduled-agent-execution.md)). Space plugin activation supports skill/subagent content but rejects
 releases containing hooks or MCP servers
 ([activation service](../internal/service/plugin/activation.go)). Foreground
 Conversations do not load Space plugins.
@@ -328,10 +335,10 @@ the unsigned [Beta readiness record](deploy/beta-readiness.md).
 
 This is a source-and-tests reassessment, not a fresh deployment qualification.
 The latest `main` CI, CodeQL, Windows, and deployment-smoke workflows passed for
-`2041cbec`. For this documentation update, focused local tests covered
-`internal/agentapp` and `internal/core/workflow`; `./make check docs` and
-`git diff --check` also passed. Documentation checks cover links and formatting;
-they do not prove runtime behavior.
+`0bd7e5bf`. For this documentation update, `./make check docs`,
+`./make check portal`, `./make test ./internal/architecture`, the Go packages
+whose comments changed, and `git diff --check` passed locally. Documentation
+checks cover links and formatting; they do not prove runtime behavior.
 
 The review did not run the real-MySQL scope (no `BUILDMAX_TEST_DSN` was supplied),
 full builds, frontend/browser suites, Compose/kind deployment smoke, external

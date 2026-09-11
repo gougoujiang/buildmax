@@ -82,7 +82,7 @@ const (
 	// RunTriggerSourceSchedule marks a run a recurring time trigger admitted.
 	// The Task also carries the schedule's id as an origin relation, so "why did
 	// this run" points at a schedule rather than a person. See
-	// docs/proposals/scheduled-agent-execution.md.
+	// docs/design/scheduled-agent-execution.md.
 	RunTriggerSourceSchedule = "schedule"
 )
 
