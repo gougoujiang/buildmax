@@ -70,11 +70,32 @@
           "created_at": { "type": "string", "format": "date-time" }
         }
       },
+      "Schedule": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "space_id": { "type": "string" },
+          "agent_id": { "type": "string" },
+          "created_by": { "type": "string" },
+          "name": { "type": "string" },
+          "input": { "type": "string" },
+          "cron_expr": { "type": "string" },
+          "timezone": { "type": "string" },
+          "enabled": { "type": "boolean" },
+          "next_fire_at": { "type": "string", "format": "date-time" },
+          "last_fire_at": { "type": "string", "format": "date-time", "nullable": true },
+          "last_task_id": { "type": "string", "nullable": true },
+          "consecutive_failures": { "type": "integer" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
       "Task": {
         "type": "object",
         "properties": {
           "id": { "type": "string" },
           "space_id": { "type": "string" },
+          "schedule_id": { "type": "string", "nullable": true },
           "conversation_id": { "type": "string" },
           "session_id": { "type": "string", "nullable": true },
           "status": { "type": "string" },
@@ -1528,6 +1549,80 @@
           "404": { "description": "No such task run" },
           "409": { "description": "The run is not executing, so no call is accepted for it" },
           "429": { "description": "Space quota exceeded" }
+        }
+      }
+    },
+    "/api/spaces/{space_id}/schedules": {
+      "parameters": [
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
+      "get": {
+        "summary": "List schedules",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schedules": { "type": "array", "items": { "$ref": "#/components/schemas/Schedule" } },
+                    "total": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create schedule",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Schedule" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/spaces/{space_id}/schedules/{schedule_id}": {
+      "parameters": [
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
+      "get": {
+        "summary": "Get schedule",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "schedule_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Schedule" } } } }
+        }
+      },
+      "patch": {
+        "summary": "Update schedule",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "schedule_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Schedule" } } } }
+        }
+      },
+      "delete": {
+        "summary": "Delete schedule",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "schedule_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "No Content" }
         }
       }
     },

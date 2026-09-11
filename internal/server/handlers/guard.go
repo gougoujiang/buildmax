@@ -174,6 +174,7 @@ func (h *Handler) buildSpaceHandler() *spaceroutes.Handler {
 		WebhookKeys:      h.cfg.UserWebhookKeyStore,
 		Audits:           h.cfg.AuditStore,
 		Workflows:        h.cfg.WorkflowStore,
+		Schedules:        h.cfg.ScheduleStore,
 		Quota:            h.cfg.QuotaService,
 		Audit:            h.cfg.Audit,
 		Plugins:          h.cfg.PluginService,
