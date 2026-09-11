@@ -34,7 +34,7 @@
     "jsdom": "^30.0.1",
     "typescript": "~7.0.2",
     "vite": "^8.2.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.0"
   },
   "scripts": {
     "build": "vite build && cp src/theme.css dist/theme.css && cp src/modal.css dist/modal.css && cp src/drawer.css dist/drawer.css && cp src/widgets.css dist/widgets.css && npm run build:types",
