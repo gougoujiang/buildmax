@@ -252,8 +252,9 @@ Task run。
 
 ## 提交信息与拉取请求
 
-仓库的公开记录只承载项目内容。工具署名在任何人都能读到的历史中是
-噪声。
+仓库的公开记录承载项目内容：变更、理由、验证，以及对实质性协作负责的
+人。重复 assistant、模型或工具署名只会产生噪声，而且 trailer 无法提供
+复现或审计 Agent 运行所需的结构化来源信息。
 
 - 提交主题是**单行祈使句**——`Move the Dockerfiles into
   deployment/docker`,而不是 `moved dockerfiles` 或 `fix stuff`。当原因
@@ -281,10 +282,12 @@ Task run。
 - 让分支保持为**一次连贯的变更**。merge commit 是回退操作的目标,所以
   一个做了三件不相关事情的拉取请求,以后无法单独回退其中一件。两件
   变更,就开两个拉取请求。
-- **不要**在提交中添加 `Co-Authored-By` 或 `Claude-Session` 之类的
-  trailer。
-- **不要**在拉取请求描述中添加"Generated with …"footer 或 Agent Session
-  链接。
+- `Co-authored-by` 可以用于标明对变更有实质贡献的人。**不要**用它标记
+  assistant、模型、提供商或工具。
+- **不要**在提交中添加 `Claude-Session` 或其他工具 trailer。
+- **不要**在拉取请求描述中添加“Generated with …”footer 或 assistant
+  session 链接。如果评审确实需要了解本次任务特有的 AI 背景，请在 pull
+  request 的普通正文中说明。
 - 拉取请求描述的形式请遵循
   [`.github/pull_request_template.md`](../../../.github/pull_request_template.md)。
 - 为任何用户或运维人员会注意到的变化添加 changelog 条目:新增或变更的

@@ -116,8 +116,9 @@ release and Windows checks — the Go gate above, both frontend suites, the
 documentation checks, and the repository-wide scans. It needs the pinned Node;
 without it, run `./make check go` and let CI cover the other half.
 
-A commit subject is a single imperative line. No tooling trailers, no
-"Generated with …" footer. Add a changelog entry — a new file under
+A commit subject is a single imperative line. `Co-authored-by` may credit
+substantive human collaboration; do not add assistant, model, or tooling
+trailers or a "Generated with …" footer. Add a changelog entry — a new file under
 [`docs/changelog/`](../changelog/README.md) — if a user or operator would notice
 the change.
 

@@ -6,6 +6,8 @@
 > D1 works end to end, including Portal activation and Agent plugin selection.
 > D2 executable content is unbuilt. D3 is tracked by Space Secrets, whose
 > environment-delivery phase is complete; later delivery modes remain open.
+> Roadmap R5 orders D2 as item 4, Task-scoped autonomous acquisition as item 5,
+> and the D3 follow-ons around them as items 3 and 6.
 >
 > Follows [plugin-marketplace.md](./plugin-marketplace.md), whose §12 Phase D
 > introduced this distribution boundary.
@@ -33,13 +35,14 @@
 
 ## Status
 
-- roadmap_priority: `post-Beta, after the Marketplace`
+- roadmap_priority: `R5` items 3–6, after the Beta gate
 - status: `partially_implemented` — D1 ships activation, Agent selection,
   claim-time server resolution, pinned worker materialization, and Portal
   activation management and Agent plugin pickers. D2 executable content and
-  §16 Task-scoped autonomous acquisition remain unimplemented. D3 is tracked
+  §16 Task-scoped autonomous acquisition remain unimplemented and are ordered
+  as R5 items 4 and 5. D3 is tracked
   by [space-secrets.md](space-secrets.md): Phase 1 environment delivery is
-  complete; file delivery and later phases remain open.
+  complete; file delivery and later phases are R5 items 3 and 6.
 - follows: [plugin-marketplace.md](./plugin-marketplace.md)
 - depends_on: nothing unbuilt. An earlier draft made the executable half wait
   on the worker sandbox surface being wired; §9 retires that, because the Bash

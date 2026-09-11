@@ -63,7 +63,7 @@ Desktop 不在调用间持有会话。运行打开会话，在包括排队提示
 
 Project 元数据位于 `<BUILDMAX_HOME>/projects/<project_id>/`，旁边的 `memory/` 中每条记忆一个文件，与 CLI 共享，详见[本地 Project 记忆](../../design/本地项目记忆.md) §8。Session 仍位于顶层 `<BUILDMAX_HOME>/sessions/`，按 ID 指定所属 Project；设置、trace、认证和日志使用 `BUILDMAX_HOME` 下的常规路径，Project 源文件保留在用户选择的文件夹。
 
-`/info` 面板的 **memory** 标签页列出 Project 记住的内容，并展示单条记忆正文，读取与 CLI 和 TUI 相同的存储。它是只读的：记忆是用户可以直接编辑的 Markdown 文件，标签页会显示目录供其操作。在这里编辑需要处理带摘要校验的写入拒绝路径：替换本会话尚未读取或读取后已经变化的记忆。这属于[本地 Project 记忆](../../design/本地项目记忆.md) §11.5 的第 3 阶段。
+`/info` 面板的 **memory** 标签页列出 Project 记住的内容，并展示单条记忆正文，读取与 CLI 和 TUI 相同的存储。它有意保持只读：记忆是用户可以直接编辑的 Markdown 文件，标签页会显示目录，`buildmax project forget` 负责删除和清空，`--no-project-memory` 负责单次运行禁用。已完成的[本地 Project 记忆](../../design/本地项目记忆.md) §11.5 将它们保留为权威控制路径，不再添加 Desktop 专用写入界面。
 
 Desktop 在默认工作区打开 Project，因此这里一个 Project 对应一个根目录，运行时缓存只按 Project 索引。添加文件夹是解析而非创建：已列出仓库的 worktree 会打开该仓库的 Project。删除 Project 与删除其会话是独立决定；`DeleteProject` 会拒绝仍拥有会话的 Project，除非调用者明确要求一起删除。
 

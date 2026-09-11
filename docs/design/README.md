@@ -68,7 +68,7 @@ the individual record rather than being duplicated here.
 
 | Document | Lifecycle | Covers |
 |---|---|---|
-| [Local Projects and Project Memory](local-project-memory.md) | Active plan | Shared local Project identity and bounded cross-session memory |
+| [Local Projects and Project Memory](local-project-memory.md) | Specification | Shared local Project identity and bounded cross-session memory |
 | [Local session storage](local-session-storage.md) | Active plan | Atomic session bundles, linked history, rewind, and fork |
 | [Session usage stats](session-usage-stats.md) | Specification | Per-session and cross-session usage reporting |
 | [Local background jobs](local-background-jobs.md) | Active plan | Process-scoped command, subagent, and monitor jobs |

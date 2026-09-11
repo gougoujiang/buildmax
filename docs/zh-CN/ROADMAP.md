@@ -138,12 +138,29 @@ canary 只能证明评估链路成立，不能证明平台整体可靠，也不�
 当支持不互信多租户、不可信仓库，或 worker 持有高价值凭证时重新开启这项工作；
 没有这些证据，不把特定 CNI 或代理变成 BuildMax 的无条件依赖。
 
+Beta 门槛通过后，按以下顺序评估并交付此前尚未排期的本地与插件后续项。每一步仍需
+满足其所述证据；在此获得一个有序位置，并不意味着可以跳过提案的接受决策。
+
+1. 决定[本地 Issue 工作桥接](proposals/local-issue-work-bridge.md)剩余的 Phase 1
+   契约；若被接受，再完成持久的 Issue-to-Session 关联和本地结果投影。只有在
+   receive/work/return 路径取得采用证据后，才评估其拆解与治理阶段。
+2. 在扩展通常需要凭证文件的插件之前，先加入 [Space Secret](design/Space密钥.md)
+   的凭证文件交付。
+3. 只有在 R0 具备受支持的 hook/MCP 进程与网络边界后，才加入
+   [可执行 Space 插件内容](design/Space插件分发.md)；保留版本资格、精确 pin 和
+   Run 范围物化机制。
+4. 只有在固定的插件环境和可执行插件分发得到验证后，才加入 Task 范围的插件自主获取。
+   它创建后续 TaskRun，绝不热加载正在运行的进程。
+5. 按短期凭证交换、外部 Secret 提供方、workload identity 的顺序考虑后续能力，
+   并且只为具体的提供方和运维流程实施。
+
 Workflow 扩展先做状态协调与类型化数据流，再扩展图结构。
 共享 runtime 中与提供商无关的结构化输出契约，是类型化路由、规划器、评估器与
 更丰富 Task 结果的前提。渠道名称或部分适配代码不能算作已经交付的集成。
 
 设计：[Workflow runtime](../design/workflow-runtime.md)与
 [编排和连续性决策](../design/orchestration-and-continuity-decisions.md)。
+以上有序后续项的具体契约以各自链接的记录为准，不在此重复。
 
 ## Beta 门槛
 

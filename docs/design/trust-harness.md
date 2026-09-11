@@ -229,7 +229,8 @@ long-term memory merely because it helps recall.
 
 Memory should be scoped and visible. Session notes and todos are the shipped
 working-memory scope. Shared CLI/Desktop Project identity and bounded Project
-Memory are planned in [local-project-memory.md](local-project-memory.md).
+Memory are implemented as specified in
+[local-project-memory.md](local-project-memory.md).
 Global user memory, space memory, and reusable Agent memory remain separate
 future scopes rather than meanings assigned to `AGENTS.md` or agent
 instructions.
