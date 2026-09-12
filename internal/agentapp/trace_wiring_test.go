@@ -107,8 +107,8 @@ func TestAgentApp_RunPromptWritesTrace(t *testing.T) {
 	}
 
 	records := readTrace(t, sess.ID(), result.TraceID)
-	if len(records) != 5 {
-		t.Fatalf("got %d records, want run_start + sandbox_boundary + context_sources + plugins + run_end: %+v",
+	if len(records) != 6 {
+		t.Fatalf("got %d records, want run_start + sandbox_boundary + mcp_boundary + context_sources + plugins + run_end: %+v",
 			len(records), records)
 	}
 
@@ -139,11 +139,18 @@ func TestAgentApp_RunPromptWritesTrace(t *testing.T) {
 		t.Errorf("sandboxed = %v, want an explicit false on this unsandboxed surface", boundary["sandboxed"])
 	}
 
+	// The MCP treatment is recorded beside the boundary, even on a blocked run:
+	// how MCP transports were treated does not depend on how far the run got.
+	mcp := records[2]
+	if mcp["type"] != "mcp_boundary" {
+		t.Errorf("third record type = %v, want mcp_boundary", mcp["type"])
+	}
+
 	// The context sources are recorded for the same reason: what the run was told before the
 	// conversation started does not depend on how far it got.
-	sources := records[2]
+	sources := records[3]
 	if sources["type"] != "context_sources" {
-		t.Errorf("third record type = %v, want context_sources", sources["type"])
+		t.Errorf("fourth record type = %v, want context_sources", sources["type"])
 	}
 	if got, ok := sources["instructions"].([]any); !ok || len(got) == 0 {
 		t.Errorf("context_sources records no instruction layers: %+v", sources)

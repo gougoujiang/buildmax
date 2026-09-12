@@ -18,9 +18,11 @@
 - status: `in_progress` — hooks, durable traces, the Bash sandbox, process
   limits, Agent/Space sandbox tiers, worker baseline selection, and worker API
   ingress isolation are implemented. Portal presents the boundary recorded by a
-  TaskRun trace and its resolved plugin pins. Fail-closed worker stdio MCP
-  treatment, its diagnostic presentation, and candidate boundary evidence remain
-  open. Pod-wide egress and an outer runtime are conditional post-Beta hardening
+  TaskRun trace and its resolved plugin pins. The unattended-worker profile now
+  refuses stdio MCP fail-closed before any child or model call, and Portal Run
+  Details presents that treatment beside the boundary. Candidate boundary
+  evidence remains open. Pod-wide egress and an outer runtime are conditional
+  post-Beta hardening
 - follows: P0 Agent Core stability, P1 Local agent experience, and P2 Portal outcome surface — all complete; their plans were retired (see git history)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-05-23`
@@ -308,10 +310,16 @@ and an outer runtime such as gVisor belong to the same conditional hardening
 decision, not the current R0.
 
 Stdio MCP child processes launch outside the current worker command boundary.
-The supported unattended-worker profile must reject them unless the child can
-enter its declared boundary. Disabling an unsupported transport is sufficient
-for the first Beta; BuildMax does not need a general Pod-egress product to make
-that narrower contract truthful.
+The supported unattended-worker profile now rejects them: `AppConfig.UnattendedWorker`
+carries the profile as an explicit fact, independent of the sandbox backend
+marker, and a resolved stdio server fails construction before any child process
+or model call (`internal/agentapp/mcp_manager.go`). Remote transports and local
+surfaces are unaffected. The run's trace records that treatment in an
+`mcp_boundary` record beside `sandbox_boundary`, and Portal Run Details presents
+it; a run refused before any trace exists still leaves a terminal TaskRun error
+naming the policy. Disabling an unsupported transport is sufficient for the
+first Beta; BuildMax does not need a general Pod-egress product to make that
+narrower contract truthful.
 
 ## 4. Explicitly Out Of Scope For Now
 

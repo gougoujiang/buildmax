@@ -3,11 +3,72 @@ package agentapp
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 
 	mcpcfg "github.com/icloudbb/buildmax/internal/core/mcp"
 	"github.com/icloudbb/buildmax/internal/infra/mcp"
 )
+
+// rejectWorkerStdioMCP fails an unattended-worker run whose resolved MCP
+// configuration declares a stdio server.
+//
+// The worker launches a stdio server as a direct child process, outside the
+// Bash boundary the worker profile confines model-chosen commands to, so the
+// supported profile disables the transport rather than run it unconfined. This
+// runs against the fully merged configuration — global, workspace, and
+// activated-plugin layers — before NewMCPManager starts any child, so the
+// refusal lands before the command executes and before the first model call.
+//
+// The message names the rejected server ids, sorted for a stable diagnostic,
+// and the remote transports that are supported instead. It never prints the
+// command, arguments, environment, or url, which can carry secrets.
+func rejectWorkerStdioMCP(cfg *mcpcfg.ConfigRoot) error {
+	if cfg == nil {
+		return nil
+	}
+	var stdio []string
+	for id, s := range cfg.MCPServers {
+		if s.Type == mcpcfg.TransportStdio {
+			stdio = append(stdio, id)
+		}
+	}
+	if len(stdio) == 0 {
+		return nil
+	}
+	sort.Strings(stdio)
+	return fmt.Errorf("the unattended worker profile does not support stdio MCP servers %v: "+
+		"the worker would run them as unconfined child processes outside its Bash boundary; "+
+		"configure a remote transport (%s or %s) instead",
+		stdio, mcpcfg.TransportHTTP, mcpcfg.TransportSSE)
+}
+
+// resolvedRemoteTransports returns the sorted, deduplicated remote transport
+// kinds (a subset of "http","sse") the resolved config declares.
+//
+// It names kinds only, never a server id, command, url, or credential, because
+// its one consumer is the trace's MCP treatment, which an operator reads.
+func resolvedRemoteTransports(cfg *mcpcfg.ConfigRoot) []string {
+	if cfg == nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	for _, s := range cfg.MCPServers {
+		switch s.Type {
+		case mcpcfg.TransportHTTP, mcpcfg.TransportSSE:
+			seen[s.Type] = true
+		}
+	}
+	if len(seen) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(seen))
+	for k := range seen {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
 
 type MCPStatus struct {
 	LoadError string

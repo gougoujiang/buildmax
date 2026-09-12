@@ -145,6 +145,7 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 		sandbox:                     agent.SandboxView(sandboxManager),
 		sandboxManager:              sandboxManager,
 		sandboxResolved:             resolved.sandbox,
+		unattendedWorker:            cfg.UnattendedWorker,
 		maxIterations:               config.ResolveMaxIterations(resolved.settings.Agent, cfg.MaxIterations),
 		plugins:                     resolved.plugins,
 		secretEnvValues:             cfg.SecretEnvValues,
@@ -182,6 +183,15 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 		}
 		app.plugins.addFindings(mcpResolution.Findings...)
 		app.plugins.addShadowed(mcpResolution.Shadowed...)
+		// The supported unattended-worker profile disables stdio MCP: refuse the
+		// run here, before NewMCPManager starts any child process and before the
+		// first model call. See docs/design/trust-harness.md §3.9.
+		if cfg.UnattendedWorker {
+			if rejectErr := rejectWorkerStdioMCP(mcpResolution.Config); rejectErr != nil {
+				return nil, rejectErr
+			}
+		}
+		app.mcpRemoteTransports = resolvedRemoteTransports(mcpResolution.Config)
 		app.mcpManager, err = NewMCPManager(context.Background(), mcpResolution.Config)
 		if err != nil {
 			return nil, err
