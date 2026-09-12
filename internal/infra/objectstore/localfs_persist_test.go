@@ -13,7 +13,10 @@ func TestLocalFSPersistStorage_PutGetListMaterialize(t *testing.T) {
 	persistRoot := func(workspaceID string) string {
 		return filepath.Join(root, workspaceID, "persist")
 	}
-	s := NewLocalFSPersistStorage(persistRoot)
+	runGlobalDir := func(spaceID, taskID, taskRunID string) string {
+		return filepath.Join(root, spaceID, "tasks", taskID, taskRunID, "global")
+	}
+	s := NewLocalFSPersistStorage(persistRoot, runGlobalDir)
 	ctx := context.Background()
 	ws := "ws1"
 
@@ -48,5 +51,45 @@ func TestLocalFSPersistStorage_PutGetListMaterialize(t *testing.T) {
 	b, _ = os.ReadFile(filepath.Join(dst, "sub", "f2.txt"))
 	if string(b) != "world" {
 		t.Errorf("materialized f2 = %q", b)
+	}
+}
+
+func TestLocalFSPersistStorage_DeleteRunGlobal(t *testing.T) {
+	root := t.TempDir()
+	runGlobalDir := func(spaceID, taskID, taskRunID string) string {
+		return filepath.Join(root, spaceID, "tasks", taskID, taskRunID, "global")
+	}
+	s := NewLocalFSPersistStorage(func(string) string { return root }, runGlobalDir)
+	ctx := context.Background()
+	ref := RunObjectRef{SpaceID: "sp", TaskID: "t", TaskRunID: "r", RelPath: "sessions/s/traces/r.jsonl"}
+
+	// Seed the trace file the way a worker leaves it on disk.
+	full := filepath.Join(runGlobalDir(ref.SpaceID, ref.TaskID, ref.TaskRunID), "sessions", "s", "traces", "r.jsonl")
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(full, []byte(`{"type":"run_start"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.DeleteRunGlobal(ctx, ref); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, err := os.Stat(full); !os.IsNotExist(err) {
+		t.Errorf("trace file must be gone, stat err = %v", err)
+	}
+	// A second delete of the now-missing file is not an error: the sweep is
+	// idempotent across restarts.
+	if err := s.DeleteRunGlobal(ctx, ref); err != nil {
+		t.Errorf("deleting a missing trace must not error, got %v", err)
+	}
+}
+
+// Without a resolver the store does not know the run-global layout, so it
+// removes nothing rather than guessing a path.
+func TestLocalFSPersistStorage_DeleteRunGlobalNoResolver(t *testing.T) {
+	s := NewLocalFSPersistStorage(func(string) string { return t.TempDir() }, nil)
+	if err := s.DeleteRunGlobal(context.Background(), RunObjectRef{SpaceID: "sp", TaskID: "t", TaskRunID: "r", RelPath: "x.jsonl"}); err != nil {
+		t.Errorf("nil resolver must be a no-op, got %v", err)
 	}
 }

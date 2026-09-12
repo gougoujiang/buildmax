@@ -47,6 +47,11 @@ func (m *MockPersistStorage) GetRunGlobal(_ context.Context, ref blob.RunObjectR
 	return nil, apierr.ErrNotFound
 }
 
+func (m *MockPersistStorage) DeleteRunGlobal(_ context.Context, ref blob.RunObjectRef) error {
+	delete(m.RunGlobal, runObjectKey(ref))
+	return nil
+}
+
 func (m *MockPersistStorage) Put(_ context.Context, _ string, _ string, _ io.Reader) error {
 	return nil
 }

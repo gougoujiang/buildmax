@@ -69,7 +69,7 @@ func usePathStyle(cfg config.WorkspaceStorageConfig) bool {
 }
 
 // BuildPersistStorage returns the configured persist storage implementation.
-func BuildPersistStorage(cfg config.WorkspaceStorageConfig, persistRoot func(spaceID string) string, s3Client blob.S3Client) (blob.PersistStorage, error) {
+func BuildPersistStorage(cfg config.WorkspaceStorageConfig, persistRoot func(spaceID string) string, runGlobalDir func(spaceID, taskID, taskRunID string) string, s3Client blob.S3Client) (blob.PersistStorage, error) {
 	switch cfg.PersistProvider {
 	case config.ProviderMinIO:
 		if s3Client == nil {
@@ -77,7 +77,7 @@ func BuildPersistStorage(cfg config.WorkspaceStorageConfig, persistRoot func(spa
 		}
 		return blob.NewS3PersistStorage(s3Client, cfg.Bucket, cfg.Prefix), nil
 	default:
-		return blob.NewLocalFSPersistStorage(persistRoot), nil
+		return blob.NewLocalFSPersistStorage(persistRoot, runGlobalDir), nil
 	}
 }
 

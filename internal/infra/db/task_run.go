@@ -821,3 +821,52 @@ func (s *Store) ListStaleTaskRuns(ctx context.Context, cutoff time.Time, limit i
 	}
 	return out, nil
 }
+
+// ListTaskRunsWithExpiredTrace returns runs ended on or before cutoff that still
+// point at a trace, oldest first. It selects only the public ids and the path a
+// retention sweep needs, joining to the task and space for the coordinates a
+// storage backend keys a run-global object by.
+func (s *Store) ListTaskRunsWithExpiredTrace(ctx context.Context, cutoff time.Time, limit int) ([]coretask.RunTraceRef, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	var rows []struct {
+		SpaceID   string
+		TaskID    string
+		RunID     string
+		TracePath string
+	}
+	err := s.db.WithContext(ctx).
+		Model(&taskRunRow{}).
+		Select("sp.public_id AS space_id, t.public_id AS task_id, task_run.public_id AS run_id, task_run.trace_path AS trace_path").
+		Joins("INNER JOIN task t ON t.id = task_run.task_id").
+		Joins("INNER JOIN space sp ON sp.id = t.space_id").
+		Where("task_run.trace_path IS NOT NULL AND task_run.trace_path <> ''").
+		Where("task_run.ended_at IS NOT NULL AND task_run.ended_at <= ?", cutoff).
+		Order("task_run.ended_at ASC").
+		Limit(limit).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]coretask.RunTraceRef, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, coretask.RunTraceRef{
+			SpaceID:   r.SpaceID,
+			TaskID:    r.TaskID,
+			TaskRunID: r.RunID,
+			TracePath: r.TracePath,
+		})
+	}
+	return out, nil
+}
+
+// ClearTaskRunTracePath sets a run's trace pointer to NULL. A run that already
+// has none, or an id that names no run, is not an error: the sweep's job is that
+// the pointer end up empty, not that this call be the one that emptied it.
+func (s *Store) ClearTaskRunTracePath(ctx context.Context, taskRunID string) error {
+	return s.db.WithContext(ctx).
+		Model(&taskRunRow{}).
+		Where("public_id = ?", taskRunID).
+		Update("trace_path", nil).Error
+}

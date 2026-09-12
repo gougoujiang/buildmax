@@ -11,11 +11,17 @@ import (
 // LocalFSPersistStorage implements PersistStorage using the local filesystem.
 type LocalFSPersistStorage struct {
 	persistRoot func(spaceID string) string
+	// runGlobalDir resolves the on-disk directory a worker wrote a run's global
+	// files to, so the store can remove one. Home files live under persistRoot;
+	// run-global files live in a separate subtree the caller owns the layout of,
+	// which is why this is injected rather than derived from persistRoot.
+	runGlobalDir func(spaceID, taskID, taskRunID string) string
 }
 
-// NewLocalFSPersistStorage returns a PersistStorage that uses the given root function per space.
-func NewLocalFSPersistStorage(persistRoot func(spaceID string) string) *LocalFSPersistStorage {
-	return &LocalFSPersistStorage{persistRoot: persistRoot}
+// NewLocalFSPersistStorage returns a PersistStorage that uses the given per-space
+// persist root and the given resolver for a run's global directory.
+func NewLocalFSPersistStorage(persistRoot func(spaceID string) string, runGlobalDir func(spaceID, taskID, taskRunID string) string) *LocalFSPersistStorage {
+	return &LocalFSPersistStorage{persistRoot: persistRoot, runGlobalDir: runGlobalDir}
 }
 
 // Put writes one file at relPath under the space's persist root.
@@ -82,6 +88,24 @@ func (s *LocalFSPersistStorage) PutRunGlobal(ctx context.Context, ref RunObjectR
 // GetRunGlobal returns apierr.ErrNotFound; task run global files are not in the persist root for local_fs (caller uses local path).
 func (s *LocalFSPersistStorage) GetRunGlobal(ctx context.Context, ref RunObjectRef) ([]byte, error) {
 	return nil, apierr.ErrNotFound
+}
+
+// DeleteRunGlobal removes one run-global file from the worker disk it was
+// written to. A file that is not there is not an error. Without a resolver the
+// store does not know the layout and reports nothing to remove.
+func (s *LocalFSPersistStorage) DeleteRunGlobal(ctx context.Context, ref RunObjectRef) error {
+	if s.runGlobalDir == nil {
+		return nil
+	}
+	clean, err := CleanRelPath(ref.RelPath)
+	if err != nil {
+		return err
+	}
+	fullPath := filepath.Join(s.runGlobalDir(ref.SpaceID, ref.TaskID, ref.TaskRunID), filepath.FromSlash(clean))
+	if err := os.Remove(fullPath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 // MaterializeToDir copies all persistent files from the space into dstDir.

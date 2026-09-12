@@ -93,13 +93,12 @@ Design: [Server coordination](design/server-coordination.md) and
 **Test infrastructure implemented; lifecycle evidence remains.** The MySQL
 scope runs on pull requests and covers critical authorization, TaskRun state,
 checkpoint, Artifact, and Workflow transition behavior. Deployment smoke covers
-ordinary execution and cancellation. Trace files have no retention lifecycle,
-and no candidate has proved hard worker loss, dependency denial, paired restore,
+ordinary execution and cancellation. A server now expires persisted run traces
+on an operator-set window, defaulting to keep-forever and recording each prune;
+no candidate has yet proved hard worker loss, dependency denial, paired restore,
 schema upgrade, binary rollback, or credential rotation.
 
-**Next:** add [trace retention](https://github.com/icloudbb/buildmax/issues/140)
-with an explicit keep-forever default and visible prune evidence; extend
-real-MySQL coverage for Workflow revision advancement,
+**Next:** extend real-MySQL coverage for Workflow revision advancement,
 [quota windows](https://github.com/icloudbb/buildmax/issues/498), and
 cross-Space scenarios; and make the failure and recovery
 drills in the Beta readiness record executable. Retire plans for removed
