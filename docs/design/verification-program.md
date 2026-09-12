@@ -37,8 +37,10 @@ Related records: [Local end-to-end verification](end-to-end-testing.md),
   mysql` and runs on every pull request. §4.2's contention cases cover Task
   claiming, run transitions, cancellation, one-active-run admission, and
   idempotency; Artifact tombstoning and retention, retry lineage, direct Task
-  admission, checkpoint head advancement, and initial Workflow revisions also
-  have real-MySQL coverage. Remaining database work includes Workflow revision
+  admission, checkpoint head advancement, initial Workflow revisions, and the
+  Workflow reconciliation lease (due-run discovery plus concurrent
+  claim/renew/release with takeover) also have real-MySQL coverage. Remaining
+  database work includes Workflow revision
   advancement under edits/contention, restart recovery, broader cross-Space
   store cases, and fixtures for the candidate’s declared starting schema. The
   unified matrix, expanded failure paths, and complete release rehearsal

@@ -231,18 +231,21 @@ The database coverage is broader than the previous assessment reported:
 | Checkpoint head advancement and partial checkpoint retention | [workspace_checkpoint_test.go](../internal/infra/db/workspace_checkpoint_test.go) |
 | Workflow guarded run/step transitions and atomic failure finalization | [workflow_test.go](../internal/infra/db/workflow_test.go) |
 | Idempotent Workflow Task admission, replay, payload conflict, space scope, and its contention winner | [task_admission_test.go](../internal/infra/db/task_admission_test.go) |
+| Workflow due-run discovery and reconciliation lease claim/renew/release under contention | [workflow_reconciliation_test.go](../internal/infra/db/workflow_reconciliation_test.go) |
 | Workflow initial revision and revision queries | [revision_query_test.go](../internal/infra/db/revision_query_test.go) |
 | Space isolation for secrets and independent invitations | [secret_test.go](../internal/infra/db/secret_test.go), [space_invitation_test.go](../internal/infra/db/space_invitation_test.go) |
 
-The guarded transitions prevent illegal terminal rewrites and make failed-step,
 later-step blocking, and failed-run finalization atomic. Workflow step dispatch
 now admits its Task idempotently through `AdmitTask`, keyed
 `workflow/<workflow_run_id>/node/<step_id>` and unique within the space, so a
 retried or concurrent dispatch — the crash window between admitting the Task and
 linking it onto the step run — resolves to the one Task instead of duplicating
-the agent's execution. This does not yet create a durable reconciler: progress
-still depends on callbacks, so restart and lost-callback recovery remain open,
-and nothing yet replays that admission key on recovery. This is also not
+the agent's execution. The store also discovers due non-terminal runs and hands
+out a bounded, takeover-safe reconciliation lease, so the durable state a
+reconciler needs exists. The reconciler itself is not yet built: nothing folds
+terminal facts, dispatches the next step, or sweeps due runs on a loop, so
+progress still depends on callbacks, restart and lost-callback recovery remain
+open, and nothing yet replays that admission key on recovery. This is also not
 exhaustive proof of cross-Space store behavior or Workflow revision advancement
 under edits and contention.
 External dependency recovery still needs scenario-specific evidence. The

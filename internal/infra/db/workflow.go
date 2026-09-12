@@ -90,6 +90,13 @@ type workflowRunRow struct {
 	StartedAt        *time.Time `gorm:""`
 	EndedAt          *time.Time `gorm:""`
 	ErrorMessage     *string    `gorm:"type:text"`
+	// Reconciliation lease and schedule. The due query walks
+	// idx_workflow_run_next_reconcile; idx_workflow_run_lease_expires supports the
+	// expired-lease takeover branch of the same query. All three are nulled when
+	// the run reaches a terminal status.
+	ReconcileOwner  *string    `gorm:"column:reconcile_owner;type:varchar(64)"`
+	LeaseExpiresAt  *time.Time `gorm:"column:lease_expires_at;type:datetime(6);index:idx_workflow_run_lease_expires"`
+	NextReconcileAt *time.Time `gorm:"column:next_reconcile_at;type:datetime(6);index:idx_workflow_run_next_reconcile"`
 }
 
 func (workflowRunRow) TableName() string { return "workflow_run" }
@@ -227,6 +234,9 @@ func toWorkflowRun(row *workflowRunReadRow) *coreworkflow.Run {
 		StartedAt:        row.Row.StartedAt,
 		EndedAt:          row.Row.EndedAt,
 		ErrorMessage:     row.Row.ErrorMessage,
+		ReconcileOwner:   row.Row.ReconcileOwner,
+		LeaseExpiresAt:   row.Row.LeaseExpiresAt,
+		NextReconcileAt:  row.Row.NextReconcileAt,
 	}
 	if row.Row.IssueID != nil {
 		issue := derefPublicID(row.IssuePublicID)
@@ -644,9 +654,16 @@ func (s *Store) CreateWorkflowStepRuns(ctx context.Context, workflowRunID string
 }
 
 // runStatusUpdates builds the column writes a run transition lands. status is
-// always written; the rest only when supplied.
+// always written; the rest only when supplied. A move to a terminal status also
+// clears the reconciliation lease and schedule, so a finished run leaves the due
+// set and no owner keeps a lease on it.
 func runStatusUpdates(status coreworkflow.RunStatus, startedAt, endedAt *time.Time, errorMessage *string) map[string]interface{} {
 	updates := map[string]interface{}{"status": string(status)}
+	if coreworkflow.RunStatusTerminal(status) {
+		updates["reconcile_owner"] = nil
+		updates["lease_expires_at"] = nil
+		updates["next_reconcile_at"] = nil
+	}
 	if startedAt != nil {
 		updates["started_at"] = *startedAt
 	}
@@ -817,18 +834,114 @@ func (s *Store) FinalizeFailedWorkflowRun(ctx context.Context, in coreworkflow.F
 			return err
 		}
 
-		runUpdates := map[string]interface{}{"status": string(in.RunStatus)}
-		if in.EndedAt != nil {
-			runUpdates["ended_at"] = *in.EndedAt
-		}
-		if in.ErrorMessage != nil {
-			runUpdates["error_message"] = *in.ErrorMessage
-		}
+		// The run always goes terminal here, so runStatusUpdates also clears its
+		// reconciliation lease and schedule.
+		runUpdates := runStatusUpdates(in.RunStatus, nil, in.EndedAt, in.ErrorMessage)
 		return tx.Model(&workflowRunRow{}).
 			Where("public_id = ? AND status = ?", runID, string(in.RunExpected)).
 			Updates(runUpdates).Error
 	})
 	return stepApplied, err
+}
+
+// defaultDueRunLimit bounds a due-run batch when the caller passes no limit. It
+// keeps one sweep's work finite; a caller that wants more pages again.
+const defaultDueRunLimit = 100
+
+// terminalRunStatusStrings is the terminal run statuses as the column stores
+// them, for the NOT IN filter the due query and lease guards share.
+func terminalRunStatusStrings() []string {
+	terminal := coreworkflow.TerminalRunStatuses()
+	out := make([]string, len(terminal))
+	for i, st := range terminal {
+		out[i] = string(st)
+	}
+	return out
+}
+
+// ListDueWorkflowRuns returns non-terminal runs that need a reconciliation pass:
+// their next_reconcile_at has arrived (or was never set) or their lease expired.
+// Ordering is next_reconcile_at ascending then id, which MySQL sorts NULLs
+// first, so never-scheduled runs lead and ties are stable.
+func (s *Store) ListDueWorkflowRuns(ctx context.Context, now time.Time, limit int) ([]coreworkflow.Run, error) {
+	if limit <= 0 {
+		limit = defaultDueRunLimit
+	}
+	var list []workflowRunReadRow
+	err := s.workflowRunSelect(ctx).
+		Where("workflow_run.status NOT IN ?", terminalRunStatusStrings()).
+		Where("workflow_run.next_reconcile_at IS NULL OR workflow_run.next_reconcile_at <= ? OR "+
+			"(workflow_run.lease_expires_at IS NOT NULL AND workflow_run.lease_expires_at <= ?)", now, now).
+		Order("workflow_run.next_reconcile_at ASC, workflow_run.id ASC").
+		Limit(limit).
+		Find(&list).Error
+	if err != nil {
+		return nil, err
+	}
+	return toWorkflowRuns(list), nil
+}
+
+// ClaimWorkflowRunLease acquires the lease for in.Owner with a guarded CAS: the
+// run must be non-terminal and either unowned or holding an expired lease. A
+// false result means another owner holds an unexpired lease or the run is done.
+func (s *Store) ClaimWorkflowRunLease(ctx context.Context, in coreworkflow.ClaimLeaseInput) (bool, error) {
+	id, ok := util.CanonicalPublicID(in.WorkflowRunID)
+	if !ok {
+		return false, nil
+	}
+	res := s.db.WithContext(ctx).Model(&workflowRunRow{}).
+		Where("public_id = ? AND status NOT IN ? AND (reconcile_owner IS NULL OR lease_expires_at <= ?)",
+			id, terminalRunStatusStrings(), in.Now).
+		Updates(map[string]interface{}{
+			"reconcile_owner":  in.Owner,
+			"lease_expires_at": in.LeaseExpiresAt,
+		})
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected == 1, nil
+}
+
+// RenewWorkflowRunLease extends the lease in.Owner already holds. The owner
+// guard means a stale owner a takeover replaced, or a run gone terminal (which
+// cleared the owner), matches nothing and gets false.
+func (s *Store) RenewWorkflowRunLease(ctx context.Context, in coreworkflow.RenewLeaseInput) (bool, error) {
+	id, ok := util.CanonicalPublicID(in.WorkflowRunID)
+	if !ok {
+		return false, nil
+	}
+	res := s.db.WithContext(ctx).Model(&workflowRunRow{}).
+		Where("public_id = ? AND reconcile_owner = ?", id, in.Owner).
+		Update("lease_expires_at", in.LeaseExpiresAt)
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected == 1, nil
+}
+
+// ReleaseWorkflowRunLease clears the lease in.Owner holds and sets when the run
+// next wants a pass; a nil NextReconcileAt leaves it unscheduled. The owner
+// guard refuses a stale owner, so it cannot disturb a replacement's lease.
+func (s *Store) ReleaseWorkflowRunLease(ctx context.Context, in coreworkflow.ReleaseLeaseInput) (bool, error) {
+	id, ok := util.CanonicalPublicID(in.WorkflowRunID)
+	if !ok {
+		return false, nil
+	}
+	updates := map[string]interface{}{
+		"reconcile_owner":   nil,
+		"lease_expires_at":  nil,
+		"next_reconcile_at": nil,
+	}
+	if in.NextReconcileAt != nil {
+		updates["next_reconcile_at"] = *in.NextReconcileAt
+	}
+	res := s.db.WithContext(ctx).Model(&workflowRunRow{}).
+		Where("public_id = ? AND reconcile_owner = ?", id, in.Owner).
+		Updates(updates)
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected == 1, nil
 }
 
 func (s *Store) GetWorkflowStepRunByTaskID(ctx context.Context, taskID string) (*coreworkflow.StepRun, error) {

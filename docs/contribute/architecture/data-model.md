@@ -1139,10 +1139,22 @@ revision cannot unpublish a workflow spaces are running.
 | `started_at` | `datetime(6)` | yes | |
 | `ended_at` | `datetime(6)` | yes | |
 | `error_message` | `text` | yes | |
+| `reconcile_owner` | `varchar(64)` | yes | Holder of the current reconciliation lease; NULL when unleased |
+| `lease_expires_at` | `datetime(6)` | yes | When the current lease expires; a lease at or past this may be taken over |
+| `next_reconcile_at` | `datetime(6)` | yes | When this run next wants a reconciliation pass; NULL is treated as due |
 
 Indexes: PK `id`; index `issue_id`; index
-`idx_workflow_run_workflow_created` on (`workflow_id`, `created_at`); unique
-`public_id`.
+`idx_workflow_run_workflow_created` on (`workflow_id`, `created_at`); index
+`idx_workflow_run_next_reconcile` on (`next_reconcile_at`); index
+`idx_workflow_run_lease_expires` on (`lease_expires_at`); unique `public_id`.
+
+A run is *due* when it is non-terminal and `next_reconcile_at` is NULL, has
+arrived, or its `lease_expires_at` has passed; the due scanner reads these in
+oldest-due order (NULLs first) within a bounded batch. The lease
+(`reconcile_owner` + `lease_expires_at`) only reduces duplicate reconciliation
+work — it is not the correctness mechanism. A stale owner cannot renew or
+release a lease a takeover replaced, and all three columns are cleared when the
+run reaches a terminal status, so a finished run leaves the due set.
 
 Each step run creates a Space-owned Task directly (`task.space_id`, no
 `conversation_id`); a run's progress is read from its steps' `task_id` /

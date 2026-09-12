@@ -52,6 +52,13 @@ func RunStatusTerminal(s RunStatus) bool {
 	}
 }
 
+// TerminalRunStatuses lists the statuses RunStatusTerminal reports true for, so
+// a store can build the "non-terminal" filter the due-run query and the lease
+// guards rest on without duplicating the set.
+func TerminalRunStatuses() []RunStatus {
+	return []RunStatus{RunStatusSucceeded, RunStatusFailed, RunStatusCanceled}
+}
+
 // StepRunStatusTerminal reports whether a step run has finished. Blocked is
 // terminal alongside the three natural ends: a blocked step is never revisited.
 func StepRunStatusTerminal(s StepRunStatus) bool {
@@ -139,6 +146,13 @@ type Run struct {
 	StartedAt        *time.Time `json:"started_at,omitempty"`
 	EndedAt          *time.Time `json:"ended_at,omitempty"`
 	ErrorMessage     *string    `json:"error_message,omitempty"`
+	// Reconciliation scheduling and ownership. ReconcileOwner and LeaseExpiresAt
+	// are a bounded lease that reduces duplicate reconciliation work; they are not
+	// the correctness mechanism. NextReconcileAt is when this run next wants a
+	// reconciliation pass. All three are cleared when the run becomes terminal.
+	ReconcileOwner  *string    `json:"reconcile_owner,omitempty"`
+	LeaseExpiresAt  *time.Time `json:"lease_expires_at,omitempty"`
+	NextReconcileAt *time.Time `json:"next_reconcile_at,omitempty"`
 }
 
 // StepRun is one durable step execution record under a workflow run.
@@ -258,6 +272,33 @@ type FinalizeFailedRunInput struct {
 	EndedAt       *time.Time
 }
 
+// ClaimLeaseInput acquires a reconciliation lease on a non-terminal run for
+// Owner. The store writes nothing unless the run has no owner or its prior lease
+// has expired at Now.
+type ClaimLeaseInput struct {
+	WorkflowRunID  string
+	Owner          string
+	Now            time.Time
+	LeaseExpiresAt time.Time
+}
+
+// RenewLeaseInput extends the lease Owner already holds. A stale owner -- one a
+// takeover has replaced -- matches nothing and gets a false result.
+type RenewLeaseInput struct {
+	WorkflowRunID  string
+	Owner          string
+	LeaseExpiresAt time.Time
+}
+
+// ReleaseLeaseInput clears the lease Owner holds and sets when the run next
+// wants a pass. NextReconcileAt is nil to leave the run without a scheduled
+// pass, waking only from a due sweep. A stale owner matches nothing.
+type ReleaseLeaseInput struct {
+	WorkflowRunID   string
+	Owner           string
+	NextReconcileAt *time.Time
+}
+
 // Store provides workflow and workflow execution persistence.
 type Store interface {
 	ListWorkflowsBySpace(ctx context.Context, spaceID string) ([]Workflow, error)
@@ -277,6 +318,17 @@ type Store interface {
 	TransitionWorkflowRun(ctx context.Context, in TransitionRunInput) (bool, error)
 	TransitionWorkflowStepRun(ctx context.Context, in TransitionStepRunInput) (bool, error)
 	FinalizeFailedWorkflowRun(ctx context.Context, in FinalizeFailedRunInput) (bool, error)
+	// ListDueWorkflowRuns returns non-terminal runs that need a reconciliation
+	// pass at now -- their scheduled time has arrived or their lease expired --
+	// in stable oldest-due order, bounded by limit (a documented default when
+	// limit <= 0). ClaimWorkflowRunLease, RenewWorkflowRunLease, and
+	// ReleaseWorkflowRunLease are guarded writes: a false result means the run was
+	// terminal, already leased to another unexpired owner, or held by someone
+	// else, so this caller did not win the lease.
+	ListDueWorkflowRuns(ctx context.Context, now time.Time, limit int) ([]Run, error)
+	ClaimWorkflowRunLease(ctx context.Context, in ClaimLeaseInput) (bool, error)
+	RenewWorkflowRunLease(ctx context.Context, in RenewLeaseInput) (bool, error)
+	ReleaseWorkflowRunLease(ctx context.Context, in ReleaseLeaseInput) (bool, error)
 	GetWorkflowStepRunByTaskID(ctx context.Context, taskID string) (*StepRun, error)
 	GetWorkflowStepRunByTaskRunID(ctx context.Context, taskRunID string) (*StepRun, error)
 	// ListWorkflowRevisions returns a workflow's revisions, newest first, with
