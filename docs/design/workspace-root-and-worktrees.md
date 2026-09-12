@@ -372,8 +372,9 @@ landed.
 `WorktreeRemove`, and `CwdChanged` fire from the lifecycle, all advisory: the
 tool call already passed `PreToolUse`, so a second gate could only leave a
 worktree half-created, and a hook that fails never undoes a move that has
-happened. Desktop needed no code — it renders the project folder, which is its
-root, and it does not enable worktrees, so that root cannot move. The user
+happened. Desktop gained only a read-only worktree listing
+(`GetSlashWorktrees`) — it renders the project folder, which is its root, and it
+does not enable or switch worktrees, so that root cannot move. The user
 documentation is in [manual/tools.md](../../manual/tools.md) and
 [manual/hooks.md](../../manual/hooks.md).
 

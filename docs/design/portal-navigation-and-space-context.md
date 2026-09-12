@@ -3,7 +3,7 @@
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Portal导航与Space上下文.md)
 > **Audience:** Portal contributors and product designers · **Status:**
 > implemented — slice 1 (navigation language: Home renamed to Chat, sidebar
-> grouped into Work/Reuse/Data/Manage, Workspace Files exposed, deployment
+> grouped into Work/Resources/Manage, Workspace Files exposed, deployment
 > Administration separated from Space scope), slice 2 (canonical
 > `#/spaces/{space_id}/...` routes; every Space-owned page reads its Space from
 > the route, not a previously selected one), slice 3 (Space switching
@@ -75,9 +75,8 @@ The primary Space navigation is grouped by user intent:
 
 | Group | Destinations |
 |---|---|
-| Work | Issues, Chat |
-| Reuse | Agents, Workflows |
-| Data | Workspace Files, Artifacts |
+| Work | Chat, Issues, Agents, Workflows, Schedules |
+| Resources | Workspace Files, Artifacts |
 | Manage | Space settings and permitted administrative surfaces |
 
 “Home” becomes “Chat.” A true Overview is not added until a Space-wide query
@@ -109,8 +108,8 @@ from [unified artifacts](unified-artifacts.md) and
 [artifact public sharing and preview](artifact-public-sharing-and-preview.md).
 `#/artifact/{artifact_id}` is the single ID-resolved detail exception: after an
 authorized lookup, Portal selects the artifact's Space and renders that context.
-The authenticated collection moves from `#/artifacts` to the Space-prefixed Data
-route; public share URLs remain outside the authenticated shell.
+The authenticated collection moves from `#/artifacts` to the Space-prefixed
+Resources route; public share URLs remain outside the authenticated shell.
 
 Global routes do not acquire a Space prefix. They include Account, Marketplace,
 Help, and deployment administration.

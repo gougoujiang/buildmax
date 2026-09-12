@@ -46,8 +46,9 @@
   default this same section adds; space settings gets a "Sandbox defaults"
   section on the Plugins tab, the closest existing precedent for "what this
   space's background runs may use." Run Details now shows the boundary recorded
-  by the trace and the run's resolved plugin pins. It does not separately show
-  the requested/resolved tier pair or stdio MCP treatment. The k8s pod/`bwrap`
+  by the trace, the run's resolved plugin pins, and the worker's stdio MCP
+  treatment. It does not yet separately show the requested/resolved tier pair.
+  The k8s pod/`bwrap`
   interaction is now verified against a real pod carrying the worker's exact security
   context and by an organic end-to-end run the deployment smoke performs
   automatically — see [`deployment/seccomp/README.md`](../../deployment/seccomp/README.md)
@@ -446,9 +447,9 @@ picker.)
   (`portal/src/features/spaceSandbox/`) on the Plugins settings tab, beside
   plugin curation.
 - Task-run detail view: the Run Details modal now surfaces the boundary recorded
-  by the trace and the resolved plugin pins. Showing the requested/resolved tier
-  pair and stdio MCP treatment as distinct fields remains open; the actual
-  boundary no longer requires reading the trace file directly.
+  by the trace, the resolved plugin pins, and the worker's stdio MCP treatment.
+  Showing the requested/resolved tier pair as a distinct field remains open; the
+  actual boundary no longer requires reading the trace file directly.
 
 ## 11. Validation
 

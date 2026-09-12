@@ -163,10 +163,12 @@ attributed to the person rather than to a Space.
 
 ### Client Storage
 
-CLI/TUI and Desktop share `auth.json`, which holds the Server URL, access token,
-refresh token, and user metadata. Writes are atomic and the file mode is `0600`.
-The shared file is also why the server has a rotation grace window: two
-processes may read and exchange the same refresh token concurrently.
+CLI/TUI and Desktop now keep the access and refresh tokens in the OS credential
+store by default (`internal/interface/auth/secretstore.go`, via go-keyring),
+falling back to a `0600` file when no store is available; `auth.json` retains
+the Server URL and non-secret user metadata. The shared credential is also why
+the server has a rotation grace window: two processes may read and exchange the
+same refresh token concurrently.
 
 Portal stores both credentials in `localStorage` and coordinates refreshes
 inside one browser tab. That is a different threat model from a native client
@@ -364,11 +366,11 @@ Agent runtime ── asks for an access token ──> credential broker
                                                   └─ refresh token in OS secret store
 ```
 
-Desktop should use the native OS credential store: Keychain on macOS,
-Credential Manager on Windows, and Secret Service on supported Linux desktops.
-CLI/TUI should use the same class of store or a small credential-helper
-interface. `auth.json` may retain non-secret metadata such as Server URL,
-subject, session ID, and selected storage backend.
+**Shipped.** CLI/TUI and Desktop now store tokens in the native OS credential
+store — Keychain on macOS, Credential Manager on Windows, and Secret Service on
+supported Linux desktops — via `internal/interface/auth/secretstore.go`, with a
+`0600` file as the reported fallback. `auth.json` retains non-secret metadata
+such as Server URL, subject, session ID, and selected storage backend.
 
 If a platform has no usable secret store, a `0600` file may remain an explicit
 fallback for Alpha, but the surface must report that weaker storage mode. There

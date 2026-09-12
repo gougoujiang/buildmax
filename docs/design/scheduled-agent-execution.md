@@ -5,7 +5,7 @@
 > **Audience:** contributors and operators · **Status:** implemented. The
 > `Schedule` domain and store, the dispatcher, the Space-scoped REST API, the
 > Portal surfaces, and the removal of the `ChannelCron` placeholder shipped on
-> 2026-09-11 (pull requests #548–#553). §13 records the questions left open on
+> 2026-09-11 (pull requests #548–#554). §13 records the questions left open on
 > purpose.
 
 Related records:
