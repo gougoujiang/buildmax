@@ -81,8 +81,11 @@ test("the compact header shows a state label, never a fabricated 'My Space', whe
   // resolve it must fall back to the shared unresolved-state label, not a
   // fabricated "My Space" — see docs/design/portal-state-and-permission-feedback.md.
   const current = await session(page)
+  await page.goto(`/#/spaces/${current.spaceId}/agents`)
 
-  // The id persists in storage, but failing the list means its summary cannot
+  // Fail the Space list, then reload so the app re-fetches it: a hash change
+  // alone would not re-run the fetch, and the already-loaded summary would
+  // still resolve. On reload the id persists in storage but its summary cannot
   // resolve, so the header has no Space name to show.
   await page.route(/\/api\/spaces(\?|$)/, (route) =>
     route.fulfill({
@@ -91,7 +94,7 @@ test("the compact header shows a state label, never a fabricated 'My Space', whe
       body: JSON.stringify({ error: "injected failure" }),
     }),
   )
-  await page.goto(`/#/spaces/${current.spaceId}/agents`)
+  await page.reload()
 
   const compactSpace = page.locator(".shell__compact-space")
   await expect(compactSpace).toBeVisible()
