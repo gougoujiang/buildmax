@@ -169,7 +169,7 @@ func (h *Handler) postStream(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	h.cfg.Hub.Append(run.TaskID, req.Delta)
+	h.cfg.Hub.Append(run.ID, req.Delta)
 	httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 

@@ -79,7 +79,7 @@ Introduce one shared coordination backend, selected by configuration:
   replicas share the live state. A deployment that runs more than one replica
   must set this.
 
-Redis carries all three because their needs — a replayable per-task stream, a
+Redis carries all three because their needs — a replayable per-run stream, a
 low-latency per-space broadcast, and a per-conversation mutual-exclusion lease —
 are all first-class Redis primitives, so one dependency and one connection pool
 cover the whole surface. A hybrid split across MySQL advisory locks and a
@@ -111,21 +111,28 @@ the three in-memory structures directly.
 
 ## 5. Stream Delivery
 
-The Redis stream hub maps `StreamHub` onto a Redis Stream keyed `stream:{task_id}`.
+The stream hub is keyed by `task_run_id`, not `task_id`: a task's successive
+turns each own a distinct buffer. A run's buffer lingers briefly past its own end
+(a short done-TTL, so a straggler still catches the tail), but the next turn is a
+new run under a new key, so a finished run's output is never replayed to the next
+run's watchers. The SSE handler resolves the task's active run
+(`GetActiveTaskRunByTask`) and subscribes to that run's key; the front end still
+addresses the endpoint by `task_id` and never learns the run key.
 
-- `Append(taskID, delta)` is `XADD` with `MAXLEN ~` approximate trimming, which
+The Redis stream hub maps `StreamHub` onto a Redis Stream keyed `stream:{task_run_id}`.
+
+- `Append(runID, delta)` is `XADD` with `MAXLEN ~` approximate trimming, which
   caps memory the way the 2 MiB in-memory buffer does, and refreshes a TTL so an
   abandoned run's stream expires instead of leaking.
-- `Subscribe(taskID)` tails entries appended after the subscription point
+- `Subscribe(runID)` tails entries appended after the subscription point
   (`XREAD BLOCK` from the current last id), delivering live deltas — the same
-  semantics the in-memory hub has, so the SSE handler stays unchanged and shares
-  one code path across both backends.
-- `Buffer(taskID)` returns the current snapshot (`XRANGE - +`, minus the terminal
+  semantics the in-memory hub has, so both backends share one code path.
+- `Buffer(runID)` returns the current snapshot (`XRANGE - +`, minus the terminal
   marker) so a late subscriber catches up, exactly as the in-memory hub does. The
   small overlap window between `Subscribe` and `Buffer` can duplicate a fragment;
   that matches the in-memory hub's accepted behavior and is cosmetic on additive
   text.
-- `Done(taskID)` appends a terminal marker entry and sets a short TTL; a
+- `Done(runID)` appends a terminal marker entry and sets a short TTL; a
   subscriber that reads the marker emits the `[[DONE]]` sentinel and stops.
 
 A worker `XADD` on one replica and a browser `XREAD` on another now see the same

@@ -23,6 +23,18 @@ func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if h.cfg.TaskRuns == nil {
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "task runs not configured")
+		return
+	}
+	// Stream keys are the task_run_id, not the task: a task's turns each own a
+	// distinct buffer, so a finished run's output is never replayed to the next
+	// run's watchers. Resolve the run the client is here to watch.
+	activeRun, err := h.cfg.TaskRuns.GetActiveTaskRunByTask(r.Context(), taskID)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "handler error", "handler", "get_chat_stream", "task_id", taskID)
+		return
+	}
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-store")
@@ -36,10 +48,22 @@ func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 		flusher.Flush()
 	}
 
-	events, unsub := h.cfg.Hub.Subscribe(taskID)
+	if activeRun == nil {
+		// No run is producing output: the one the client saw finished between its
+		// poll and this request. Say done so it reloads the authoritative record
+		// rather than holding an idle connection open. The poll owns lifecycle.
+		writeSSE(w, "done")
+		if flusher != nil {
+			flusher.Flush()
+		}
+		return
+	}
+	runID := activeRun.ID
+
+	events, unsub := h.cfg.Hub.Subscribe(runID)
 	defer unsub()
 
-	if buf := h.cfg.Hub.Buffer(taskID); buf != "" {
+	if buf := h.cfg.Hub.Buffer(runID); buf != "" {
 		writeSSE(w, buf)
 		if flusher != nil {
 			flusher.Flush()
