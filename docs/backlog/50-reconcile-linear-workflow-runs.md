@@ -11,7 +11,7 @@ verification:
   - ./make test mysql -run TestWorkflowReconcile
   - ./make test mysql
   - ./make test
-claim:
+claim: gougoujiang 2026-09-13
 ---
 
 ## Outcome

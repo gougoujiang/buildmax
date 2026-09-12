@@ -38,16 +38,38 @@ var (
 	ErrWorkflowArchived           = apierr.New(apierr.KindInvalid, "workflow archived")
 )
 
+// TaskRunReader is the read half of the Task plane a reconciliation observes.
+// Reconcile folds a step's TaskRun terminal facts by reading them from durable
+// state rather than trusting a pushed callback, so a lost callback loses a
+// wake-up, not the outcome. coretask.RunStore satisfies it.
+type TaskRunReader interface {
+	GetTaskRun(ctx context.Context, taskRunID string) (*coretask.Run, error)
+}
+
 type Service struct {
 	Workflows   coreworkflow.Store
 	Agents      agentdef.Store
 	Issues      coreissue.Store
 	TaskService *task.Service
+	// TaskRuns reads the TaskRun a step owns so Reconcile can fold its terminal
+	// outcome. Wired from the same store the Task service uses.
+	TaskRuns TaskRunReader
 	// Audit is optional; nil discards the events. A workflow is a reusable plan
 	// that shared work runs against, so its creation, edits, and lifecycle moves
 	// are governed acts worth the trail.
 	Audit *audit.Recorder
 }
+
+const (
+	// reconcileLeaseDuration bounds how long one reconciliation pass owns a run
+	// before another may take over. A pass is short; this only has to outlast it
+	// and be short enough that a crashed owner is recovered promptly.
+	reconcileLeaseDuration = 2 * time.Minute
+	// reconcileObserveInterval is when a run with an active step next wants a
+	// pass, so a lost terminal callback is recovered by the due-run sweep within
+	// a bounded time rather than never.
+	reconcileObserveInterval = 30 * time.Second
+)
 
 type CreateWorkflowCmd struct {
 	SpaceID     string
@@ -365,14 +387,17 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 			Status:            string(coreworkflow.StepRunStatusPending),
 		}
 	}
-	stepRuns, err := s.Workflows.CreateWorkflowStepRuns(ctx, run.ID, stepsIn)
-	if err != nil {
+	if _, err := s.Workflows.CreateWorkflowStepRuns(ctx, run.ID, stepsIn); err != nil {
 		return nil, nil, err
 	}
-	if _, err := s.dispatchNextStep(ctx, cmd.SpaceID, cmd.UserID, run, stepRuns); err != nil {
+	// Dispatch the first step through the reconciler, so start, callback, and
+	// recovery drive progress the same way and the run records when it next
+	// wants observing. The step rows are re-read afterward, so the created set is
+	// not used here.
+	if err := s.Reconcile(ctx, run.ID); err != nil {
 		return nil, nil, err
 	}
-	stepRuns, err = s.Workflows.ListWorkflowStepRuns(ctx, run.ID)
+	stepRuns, err := s.Workflows.ListWorkflowStepRuns(ctx, run.ID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -383,6 +408,10 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	return run, stepRuns, nil
 }
 
+// HandleTaskRunTerminal is only a wake-up now: it maps the finished TaskRun to
+// its WorkflowRun and asks the reconciler to advance it. The reconciler reads
+// the TaskRun's terminal facts from durable state itself, so a callback that is
+// lost costs a wake-up the due-run sweep supplies, not the outcome it carried.
 func (s *Service) HandleTaskRunTerminal(ctx context.Context, info coretask.RunTerminalInfo) error {
 	if s.Workflows == nil {
 		return nil
@@ -397,67 +426,185 @@ func (s *Service) HandleTaskRunTerminal(ctx context.Context, info coretask.RunTe
 			return err
 		}
 	}
-	run, err := s.Workflows.GetWorkflowRun(ctx, stepRun.WorkflowRunID)
-	if err != nil || run == nil {
-		if err == nil {
-			return ErrWorkflowRunNotFound
-		}
+	return s.Reconcile(ctx, stepRun.WorkflowRunID)
+}
+
+// Reconcile advances one WorkflowRun from durable facts. It is the single
+// progression entry point for the linear precursor: under a bounded lease it
+// reads the run, its steps, and the TaskRun the running step owns; folds a
+// terminal TaskRun into a guarded step and run transition; dispatches the next
+// pending step (re-admitting its Task by the stable key, which recovers the
+// crash window between admitting a step's Task and linking it); and records
+// when the run next wants a pass while work remains.
+//
+// It is safe to call after admission, from a terminal callback, from a due-run
+// sweep, on restart, or by two callers at once. The lease only reduces
+// duplicate work; idempotent admission and the guarded compare-and-set
+// transitions are the correctness mechanism when a lease is lost or races.
+func (s *Service) Reconcile(ctx context.Context, workflowRunID string) error {
+	if s.Workflows == nil {
+		return nil
+	}
+	owner, err := util.NewPublicID()
+	if err != nil {
 		return err
 	}
 	now := time.Now().UTC()
-	if info.Status == string(coretask.RunStatusSucceeded) {
-		summary := summarizeOutput(info.Output)
+	claimed, err := s.Workflows.ClaimWorkflowRunLease(ctx, coreworkflow.ClaimLeaseInput{
+		WorkflowRunID:  workflowRunID,
+		Owner:          owner,
+		Now:            now,
+		LeaseExpiresAt: now.Add(reconcileLeaseDuration),
+	})
+	if err != nil {
+		return err
+	}
+	if !claimed {
+		// Another owner holds a live lease, or the run is already terminal.
+		// Either way this pass has nothing to do.
+		return nil
+	}
+	var nextReconcileAt *time.Time
+	passErr := s.reconcilePass(ctx, workflowRunID, now, &nextReconcileAt)
+	if passErr != nil {
+		// A failed pass must not strand the run: leave it due again soon so a
+		// later pass retries from the same durable state.
+		nextReconcileAt = util.Ptr(now.Add(reconcileObserveInterval))
+	}
+	if _, relErr := s.Workflows.ReleaseWorkflowRunLease(ctx, coreworkflow.ReleaseLeaseInput{
+		WorkflowRunID:   workflowRunID,
+		Owner:           owner,
+		NextReconcileAt: nextReconcileAt,
+	}); relErr != nil && passErr == nil {
+		return relErr
+	}
+	return passErr
+}
+
+// reconcilePass does one unit of progression and, through nextReconcileAt,
+// reports when the run next wants observing. A terminal run cleared its own
+// schedule when it finished, so leaving nextReconcileAt nil there is correct.
+func (s *Service) reconcilePass(ctx context.Context, workflowRunID string, now time.Time, nextReconcileAt **time.Time) error {
+	run, err := s.Workflows.GetWorkflowRun(ctx, workflowRunID)
+	if err != nil {
+		return err
+	}
+	if run == nil {
+		return nil
+	}
+	steps, err := s.Workflows.ListWorkflowStepRuns(ctx, workflowRunID)
+	if err != nil {
+		return err
+	}
+	// A step already running folds first: its TaskRun decides whether the run
+	// advances, fails, or is still working.
+	if running := firstStepWithStatus(steps, coreworkflow.StepRunStatusRunning); running != nil {
+		taskRun, err := s.stepTaskRun(ctx, running)
+		if err != nil {
+			return err
+		}
+		if taskRun == nil || !coretask.RunStatusTerminal(taskRun.Status) {
+			// Still executing (or not yet observable): look again later.
+			*nextReconcileAt = util.Ptr(now.Add(reconcileObserveInterval))
+			return nil
+		}
+		return s.foldTerminalStep(ctx, run, *running, taskRun, now, nextReconcileAt)
+	}
+	// No step is running: dispatch the next pending one, or finalize the run
+	// when none remains. dispatchNextStep re-admits by the stable key, so a step
+	// whose Task was admitted before a crash is linked rather than duplicated.
+	dispatched, err := s.dispatchNextStep(ctx, "", run.CreatedBy, run, steps)
+	if err != nil {
+		return err
+	}
+	if dispatched != nil {
+		*nextReconcileAt = util.Ptr(now.Add(reconcileObserveInterval))
+	}
+	return nil
+}
+
+// foldTerminalStep records a running step's finished TaskRun as the step's
+// outcome and moves the run forward: a success advances to the next step, a
+// failure or cancel ends the run. The transitions are the same guarded moves
+// the callback path used; only the source of the terminal facts changed from a
+// pushed payload to the read TaskRun.
+func (s *Service) foldTerminalStep(ctx context.Context, run *coreworkflow.Run, step coreworkflow.StepRun, taskRun *coretask.Run, now time.Time, nextReconcileAt **time.Time) error {
+	if taskRun.Status == string(coretask.RunStatusSucceeded) {
 		applied, err := s.Workflows.TransitionWorkflowStepRun(ctx, coreworkflow.TransitionStepRunInput{
-			StepRunID:      stepRun.ID,
+			StepRunID:      step.ID,
 			ExpectedStatus: coreworkflow.StepRunStatusRunning,
 			NewStatus:      coreworkflow.StepRunStatusSucceeded,
-			TaskRunID:      &info.TaskRunID,
-			OutputSummary:  summary,
+			TaskRunID:      &taskRun.ID,
+			OutputSummary:  summarizeOutput(taskRun.Output),
 			EndedAt:        &now,
 		})
 		if err != nil {
 			return err
 		}
 		if !applied {
-			// The step was no longer running -- a concurrent cancel already
-			// finished it and the run. Nothing more to dispatch.
+			// The step was no longer running -- a concurrent pass or cancel
+			// already finished it. Nothing to dispatch.
 			return nil
 		}
 		steps, err := s.Workflows.ListWorkflowStepRuns(ctx, run.ID)
 		if err != nil {
 			return err
 		}
-		if _, err := s.dispatchNextStep(ctx, "", info.UserID, run, steps); err != nil {
+		dispatched, err := s.dispatchNextStep(ctx, "", run.CreatedBy, run, steps)
+		if err != nil {
 			return err
+		}
+		if dispatched != nil {
+			*nextReconcileAt = util.Ptr(now.Add(reconcileObserveInterval))
 		}
 		return nil
 	}
 	// A canceled step stops the run the same way a failed one does, but it is
 	// not a failure: someone stopped this work on purpose, and a run labelled
-	// failed would send whoever reads it looking for a fault that never
-	// happened.
+	// failed would send whoever reads it looking for a fault that never happened.
 	stepStatus := coreworkflow.StepRunStatusFailed
 	runStatus := coreworkflow.RunStatusFailed
-	if info.Status == string(coretask.RunStatusCanceled) {
+	if taskRun.Status == string(coretask.RunStatusCanceled) {
 		stepStatus = coreworkflow.StepRunStatusCanceled
 		runStatus = coreworkflow.RunStatusCanceled
 	}
 	// One transaction ends the run: the step goes terminal, every later step
 	// still pending is blocked, and the run goes terminal -- so a crash cannot
 	// leave a failed step under a run that still reads as running.
-	_, err = s.Workflows.FinalizeFailedWorkflowRun(ctx, coreworkflow.FinalizeFailedRunInput{
+	_, err := s.Workflows.FinalizeFailedWorkflowRun(ctx, coreworkflow.FinalizeFailedRunInput{
 		WorkflowRunID: run.ID,
-		StepRunID:     stepRun.ID,
-		StepIndex:     stepRun.StepIndex,
+		StepRunID:     step.ID,
+		StepIndex:     step.StepIndex,
 		StepExpected:  coreworkflow.StepRunStatusRunning,
 		StepStatus:    stepStatus,
 		RunExpected:   coreworkflow.RunStatusRunning,
 		RunStatus:     runStatus,
-		TaskRunID:     &info.TaskRunID,
-		ErrorMessage:  info.ErrorMessage,
+		TaskRunID:     &taskRun.ID,
+		ErrorMessage:  taskRun.ErrorMessage,
 		EndedAt:       &now,
 	})
 	return err
+}
+
+// stepTaskRun reads the TaskRun a running step owns. A running step was linked
+// to its TaskRun in the same transaction that made it running, so the id is
+// present; a missing reader or id yields (nil, nil), which reconcilePass treats
+// as not-yet-terminal and observes again later.
+func (s *Service) stepTaskRun(ctx context.Context, step *coreworkflow.StepRun) (*coretask.Run, error) {
+	if s.TaskRuns == nil || step.TaskRunID == nil || *step.TaskRunID == "" {
+		return nil, nil
+	}
+	return s.TaskRuns.GetTaskRun(ctx, *step.TaskRunID)
+}
+
+// firstStepWithStatus returns the first step in the given status, or nil.
+func firstStepWithStatus(steps []coreworkflow.StepRun, status coreworkflow.StepRunStatus) *coreworkflow.StepRun {
+	for i := range steps {
+		if steps[i].Status == string(status) {
+			return &steps[i]
+		}
+	}
+	return nil
 }
 
 func (s *Service) dispatchNextStep(ctx context.Context, spaceID, userID string, run *coreworkflow.Run, steps []coreworkflow.StepRun) (*coreworkflow.StepRun, error) {

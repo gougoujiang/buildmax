@@ -18,11 +18,13 @@ import (
 	"github.com/icloudbb/buildmax/internal/config"
 )
 
-// mysqlScopePackages is what the persistence gate runs. It is the store package
-// today because that is where the real-store tests are; a service or handler
-// scope joins this list when it grows tests that need the database rather than
-// a mock. See docs/design/verification-program.md §4.1.
-var mysqlScopePackages = []string{"./internal/infra/db"}
+// mysqlScopePackages is what the persistence gate runs. It began as the store
+// package because that is where the real-store tests are; the Workflow service
+// scope joined it when Reconcile grew tests that fold a real TaskRun across the
+// store's transactions rather than a mock. A service or handler scope joins this
+// list when it grows tests that need the database rather than a mock. See
+// docs/design/verification-program.md §4.1.
+var mysqlScopePackages = []string{"./internal/infra/db", "./internal/service/workflow"}
 
 // tempDatabasePrefix marks a database this command created. Nothing without it
 // is ever dropped: the DSN a contributor exports usually names a database they
@@ -118,7 +120,13 @@ func cmdTestMySQL(flags []string) error {
 // stopped testing anything would otherwise pass -- which is the exact failure
 // this gate exists to make impossible.
 func runMySQLScope(dsn string, flags []string) error {
-	args := append([]string{"test", "-json", "-count=1"}, mysqlScopePackages...)
+	// -p 1 runs the scope's packages one at a time. They share the one database
+	// this command created, and each opens it with db.New, whose AutoMigrate is
+	// idempotent in sequence but races another package's AutoMigrate in parallel
+	// -- two `CREATE TABLE` for the same table, one of which fails "already
+	// exists". Serial packages keep the shared schema and cost only the smaller
+	// package's runtime, which is dwarfed by the store suite.
+	args := append([]string{"test", "-json", "-count=1", "-p", "1"}, mysqlScopePackages...)
 	args = append(args, flags...)
 	cmd := exec.Command("go", args...)
 	cmd.Env = append(os.Environ(), config.EnvKeyBuildmaxTestDSN+"="+dsn)

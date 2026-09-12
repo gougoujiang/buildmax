@@ -180,7 +180,13 @@ checkpoint head advancement, Artifact retention, issues, conversations, the
 Space invitation and ownership-transfer lifecycle, Workflow revision advancement
 under edits and contention (`TestWorkflowRevisionContention`, a guarded
 compare-and-set on the workflow row that appends its revision in the same
-transaction; mutation-checked by removing the revision predicate), and — in
+transaction; mutation-checked by removing the revision predicate), the linear
+Workflow reconciler in `internal/service/workflow`
+(`TestWorkflowReconcile...`, which folds a running step's terminal TaskRun —
+read from the TaskRun store, not a callback — into the guarded step and run
+transitions, distinguishes failure from cancel while blocking later steps,
+recovers a lost callback from persisted state, and leaves one outcome and one
+next Task under concurrent reconciliation), and — in
 `internal/infra/db/concurrency_test.go` — four store methods under contention:
 `ClaimTask`, `TransitionTaskRun`, and `RequestTaskRunCancel` each as a
 conditional UPDATE, and `CreateTaskRun`'s one-active-run-per-task and
@@ -209,8 +215,12 @@ Still to write:
   already has a MySQL test. This is not an old-binary rollback fixture. Alpha
   may drop compatibility; test the claimed upgrade/rollback version pair or
   destructive-cutover recovery, as required by the Beta readiness record;
-- existing linear Workflow reconciliation, idempotent step admission, and
-  Agent revision authority (R2), including lost/concurrent terminal callbacks.
+- Agent revision authority through the Workflow reconciler (R2): that a step
+  sends the pinned Agent revision even when the live Agent is edited mid-run.
+  The linear reconciler itself, idempotent step admission, and lost/concurrent
+  terminal callbacks are now covered (above); the Server-owned background
+  due-run sweep and restart loop that would drive `Reconcile` without an
+  in-process callback remain to be built and verified.
 
 One item from this list is withdrawn rather than pending. **Quota reservation
 and charging boundaries** describes a design that does not exist: there is no
