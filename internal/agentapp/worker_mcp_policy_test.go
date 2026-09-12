@@ -1,6 +1,7 @@
 package agentapp
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,8 +24,19 @@ func writeMCPJSON(t *testing.T, path, body string) {
 
 // stdioSideEffectConfig returns an mcp.json whose stdio command would create
 // sentinelPath if it ever ran, so a test can prove the child never started.
+//
+// It marshals the document rather than formatting it by hand: sentinelPath is an
+// OS temp path, and on Windows its backslashes would be an invalid JSON string
+// escape if pasted in raw.
 func stdioSideEffectConfig(id, sentinelPath string) string {
-	return `{"mcpServers":{"` + id + `":{"type":"stdio","command":"sh","args":["-c","touch ` + sentinelPath + `"]}}}`
+	root := mcpcfg.ConfigRoot{MCPServers: map[string]mcpcfg.ServerConfig{
+		id: {Type: mcpcfg.TransportStdio, Command: "sh", Args: []string{"-c", "touch " + sentinelPath}},
+	}}
+	b, err := json.Marshal(root)
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
 }
 
 // A worker run whose resolved MCP config declares a stdio server fails

@@ -2,12 +2,14 @@ package taskrun
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/icloudbb/buildmax/internal/config"
+	mcpcfg "github.com/icloudbb/buildmax/internal/core/mcp"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/testsupport/mockllm"
 )
@@ -33,8 +35,15 @@ func TestWorkerRunRejectsStdioMCPBeforeModelCall(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(mcpPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	body := `{"mcpServers":{"fs":{"type":"stdio","command":"sh","args":["-c","touch ` + sentinel + `"]}}}`
-	if err := os.WriteFile(mcpPath, []byte(body), 0o644); err != nil {
+	// Marshaled rather than hand-formatted: sentinel is an OS temp path, and on
+	// Windows its backslashes would be an invalid JSON string escape if raw.
+	body, err := json.Marshal(mcpcfg.ConfigRoot{MCPServers: map[string]mcpcfg.ServerConfig{
+		"fs": {Type: mcpcfg.TransportStdio, Command: "sh", Args: []string{"-c", "touch " + sentinel}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(mcpPath, body, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
