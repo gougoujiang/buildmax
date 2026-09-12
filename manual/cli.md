@@ -301,7 +301,11 @@ add`; run `buildmax admin model add --help` for the full set.
 - `BUILDMAX_HOME` and `settings.yaml`
 - configured models and placeholder API keys
 - current workspace and git availability
+- the local project this directory belongs to and the state of its memory
 - sandbox dependencies when `sandbox.enabled` is set
+
+`buildmax doctor --workspace DIR` checks the specified workspace directory.
+The default is `""`.
 
 It exits `2` when a required first-run prerequisite is missing. Warnings, such
 as running outside a git branch or leaving the local sandbox disabled, are
