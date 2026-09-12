@@ -36,7 +36,13 @@ R0–R2 关闭剩余的发布阻塞型工程缺口：受支持的 worker 契约�
 R4–R5 是 Beta 之后、由证据驱动的工作，不是藏在发布路径中的前置条件。
 这些是优先级，不代表每项都已有负责人正在开发。
 
+下面每个优先项都以机器可读的 `**Status:**` 行开头——取值为 `open`、
+`in-progress`、`candidate-proof-remains` 或 `done`——供 `./make board` 报告，
+并由架构测试强制。它只是一词定位；随后的正文仍承载真正的细节与 `完成标准`。
+
 ### R0. 关闭受支持的 worker 契约
+
+**Status:** candidate-proof-remains
 
 **还剩一条工程规则与候选版本验证。** 官方 worker 镜像已经选择并探测 worker
 沙箱基线；Bash 隔离、进程限制、hook 传输策略、worker API 隔离、轨迹边界展示和
@@ -58,6 +64,8 @@ worker 配置拒绝它；在已经可见的运行边界旁展示这种处理；�
 
 ### R1. 关闭持久状态正确性缺口
 
+**Status:** in-progress
+
 **核心机制已实现；还剩持久化协调这一窗口。** Redis 模式提供共享流、连接事件和
 Conversation 回合租约，参考清单运行两个协调后的 Server 副本。Workflow run 与
 step-run 转换现在使用带保护的 compare-and-set 写入，失败步骤的收口也已原子化。
@@ -76,6 +84,8 @@ step-run 转换现在使用带保护的 compare-and-set 写入，失败步骤的
 [Workflow runtime](design/Workflow运行时.md)。
 
 ### R2. 约束长期运行并完成恢复闭环
+
+**Status:** in-progress
 
 **测试基础设施已实现；生命周期证据待补齐。** MySQL scope 已在 pull request 中运行，
 覆盖关键授权、TaskRun 状态、检查点、Artifact 与 Workflow 转换行为。部署冒烟覆盖正常
@@ -96,6 +106,8 @@ step-run 转换现在使用带保护的 compare-and-set 写入，失败步骤的
 
 ### R3. 验证一个私有部署候选版本
 
+**Status:** candidate-proof-remains
+
 **产品路径已实现；证据记录仍为空。** 账号引导、登录码恢复、Space 成员管理、
 托管模型、Agent 与 Workflow 运行、Artifact、轨迹、用量、审计、Compose/kind 和生产
 参考均已存在。这些都不能替代使用外部依赖，对拟发布的不可变 Server、worker 与 Portal
@@ -114,6 +126,8 @@ step-run 转换现在使用带保护的 compare-and-set 写入，失败步骤的
 
 ### R4. 衡量 Beta 门槛之外的产品质量
 
+**Status:** in-progress
+
 **Beta 之后；框架已实现但覆盖有限。** 三个 BuildMax 自有任务与一次外部单任务
 canary 只能证明评估链路成立，不能证明平台整体可靠，也不构成 Terminal-Bench 分数。
 公共基准覆盖面不是验证私有部署契约的前置条件。
@@ -128,6 +142,8 @@ canary 只能证明评估链路成立，不能证明平台整体可靠，也不�
 设计：[评估系统](../design/evaluation-system.md)。
 
 ### R5. 依据证据深化产品能力
+
+**Status:** open
 
 **后续方向；范围取决于需求与验证结果。** 候选工作包括持久 Workflow 状态协调与
 类型化数据流、真实渠道适配器、可执行 Space 插件、Portal 性能、Desktop 自动化和吞吐量。

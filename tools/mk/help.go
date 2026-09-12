@@ -65,6 +65,7 @@ func allHelpSections() []helpSection {
 			{"lint", "Run pinned golangci-lint and govulncheck"},
 			{"e2e <suite>", "Run one end-to-end suite: cli, desktop, desktop-ui, desktop-launch, local, compose, kind, or all"},
 			{"run <target>", "Run a binary or frontend development server locally"},
+			{"board [--md]", "Show project status derived from the backlog, Roadmap, and git"},
 			{"clean", "Remove binaries, native app builds, node_modules, and dist"},
 			{"help [command]", "Show this list, or one command's arguments and examples"},
 		}},
@@ -337,6 +338,30 @@ func helpTopics() []helpTopic {
 				{"<command>", "That command's arguments, examples, and caveats"},
 			},
 			examples: []string{"help", "help test", "help eval"},
+		},
+		{
+			name:    "board",
+			usage:   "board [--md]",
+			summary: "Show the project status view derived from the backlog, Roadmap, and git.",
+			details: []string{
+				"The board holds no state of its own. It reads the backlog task frontmatter,\n" +
+					"the Roadmap `Status:` lines, the unreleased changelog, and recent git\n" +
+					"history, so it cannot drift from them the way a hand-maintained status file\n" +
+					"would. There is nothing to commit.",
+				"A backlog task is in progress when it is claimed, in review once its `pr`\n" +
+					"field names an open pull request, ready when it is unclaimed and every\n" +
+					"dependency has merged, and blocked while a dependency file still exists.\n" +
+					"The format contract those columns depend on is enforced by the architecture\n" +
+					"tests `" + mk() + " check docs` runs, not by this command.",
+				"`--md` prints the same view as Markdown on stdout, for pasting into a note or\n" +
+					"an issue. It is not written to a file.",
+			},
+			args: []helpRow{
+				{"(none)", "Print the status view for the terminal"},
+				{"--md", "Print the same view as Markdown on stdout"},
+			},
+			examples: []string{"board", "board --md"},
+			see:      "docs/backlog/README.md",
 		},
 		{
 			name:    "models",

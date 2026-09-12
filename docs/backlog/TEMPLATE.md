@@ -5,7 +5,8 @@ roadmap: <R0|R1|R2|R3|R4|R5|none>
 source: <docs/design/some-record.md#section, or "direct">
 depends_on: []          # other task files, e.g. [20-other-task.md]
 verification: []        # test scopes from docs/contribute/testing.md
-claim:                  # set to who/when while working; clear if abandoned
+claim:                  # "<handle> <YYYY-MM-DD>" while working; clear if abandoned
+pr:                     # PR number once one is open; clear until then
 ---
 
 ## Outcome

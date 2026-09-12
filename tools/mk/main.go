@@ -90,6 +90,8 @@ func dispatch(args []string) error {
 		return cmdEval(rest)
 	case "run":
 		return cmdRun(rest)
+	case "board":
+		return cmdBoard(rest)
 	case "changelog":
 		return cmdChangelog(rest)
 	case "models":

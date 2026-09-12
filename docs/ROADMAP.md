@@ -39,7 +39,14 @@ R4–R5 are post-Beta, evidence-led work rather than prerequisites hidden inside
 the release path. These are priorities, not claims that someone is currently
 assigned to every item.
 
+Each priority below opens with a machine-readable `**Status:**` line —
+`open`, `in-progress`, `candidate-proof-remains`, or `done` — that `./make board`
+reports and an architecture test requires. It is the one-word position; the
+prose that follows still carries the real detail and the `Done when:` gate.
+
 ### R0. Close The Supported Worker Contract
+
+**Status:** candidate-proof-remains
 
 **Candidate proof remains.** Official worker images
 select and probe the worker sandbox baseline; Bash confinement, process limits,
@@ -63,6 +70,8 @@ Design: [trust harness](design/trust-harness.md),
 [sandbox boundaries](design/sandbox-boundaries.md).
 
 ### R1. Close Durable State Correctness
+
+**Status:** in-progress
 
 **Core mechanisms implemented; the durable-reconciliation window remains.** Redis
 mode supplies shared streams, connection events, and Conversation turn leases, and
@@ -89,6 +98,8 @@ Design: [Server coordination](design/server-coordination.md) and
 
 ### R2. Bound Long-Running Operation And Recovery
 
+**Status:** in-progress
+
 **Test infrastructure implemented; lifecycle evidence remains.** The MySQL
 scope runs on pull requests and covers critical authorization, TaskRun state,
 checkpoint, Artifact, and Workflow transition behavior. Deployment smoke covers
@@ -114,6 +125,8 @@ Design: [verification program](design/verification-program.md) and
 
 ### R3. Qualify One Private-Deployment Candidate
 
+**Status:** candidate-proof-remains
+
 **Product path implemented; the evidence record is empty.** Account bootstrap,
 login-code recovery, Space membership, managed models, Agent and Workflow runs,
 artifacts, traces, usage, audit, Compose/kind, and the production reference all
@@ -136,6 +149,8 @@ Design: [Space membership lifecycle](design/space-membership-lifecycle.md) and
 
 ### R4. Measure Product Quality Beyond The Beta Gate
 
+**Status:** in-progress
+
 **Post-Beta; framework implemented and coverage limited.** Three
 BuildMax-owned tasks and a one-task external canary establish the evaluation
 path, not platform-wide reliability or a Terminal-Bench score. Public benchmark
@@ -153,6 +168,8 @@ explicitly.
 Design: [evaluation system](design/evaluation-system.md).
 
 ### R5. Deepen Product Capability From Evidence
+
+**Status:** open
 
 **Later; scope depends on demand and qualification results.** Candidate work
 includes durable Workflow reconciliation and typed dataflow, real channel
