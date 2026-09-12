@@ -17,7 +17,7 @@
 
 ## Status
 
-- roadmap_priority: `R2` for trace-directory retention; the trace contract itself is implemented
+- roadmap_priority: server-side trace retention is implemented (§7); the trace contract itself is implemented
 - status: `phase 1 implemented` (§8 phase 1 landed; follow-ups in §7 still open)
 - implements: [trust-harness.md](./trust-harness.md) §3.3
 - follows: [hook-system.md](./hook-system.md)
@@ -294,13 +294,20 @@ agentapp.RunPrompt(ctx, sess, prompt, stream, approval, eventSink)
   model or task failed. `/readyz` answers whether a dependency is down now; it
   cannot answer why one run failed then. Classifying the failure needs a typed
   cause on `run_end`, which the event stream does not carry.
-- Retention/rotation/GC of the traces directory ([issue #140](https://github.com/icloudbb/buildmax/issues/140)). **Consequence to accept
-  knowingly:** tracing is on by default and nothing ever deletes a trace, so
-  the session bundles grow without bound — one trace file per run, each capped
-  at 10000 records × ~4KB of bounded fields. Local use is unlikely to notice;
-  a long-lived worker container that keeps its `global/` home across runs is the
-  real exposure. Until a retention policy lands, operators can size that volume
-  from the per-run cap or set `BUILDMAX_TRACE_DISABLED`.
+- Retention of a **server** deployment's persisted run traces is implemented
+  ([issue #140](https://github.com/icloudbb/buildmax/issues/140)): `server.yaml`
+  `trace.retention_days` (0, the default, keeps everything) runs an hourly sweep
+  that, for each run ended longer ago than the window, deletes the trace object,
+  clears the run's `trace_path`, and records a `traces.pruned` audit event so a
+  missing trace reads as policy rather than loss. A pruned run then reports that
+  it has no trace instead of one that fails to load. It follows the audit
+  retention shape (`ServerTraceConfig`, `scheduler.TraceRetainer`).
+- Retention of the **local** CLI/Desktop traces directory is still a non-goal.
+  **Consequence to accept knowingly:** locally, tracing is on by default and
+  nothing deletes a trace, so the session bundles grow without bound — one trace
+  file per run, each capped at 10000 records × ~4KB of bounded fields. Local use
+  is unlikely to notice; operators can size that volume from the per-run cap or
+  set `BUILDMAX_TRACE_DISABLED`.
 
 ## 8. Implementation steps
 

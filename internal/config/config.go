@@ -268,6 +268,13 @@ func PersistentWorkspaceDir(workspacesDir, workspaceID string) string {
 	return filepath.Join(workspacesDir, workspaceID, "home")
 }
 
+// RunGlobalDir returns where a task run's global (BUILDMAX_HOME) files live on
+// disk for a local_fs deployment — the run's durable trace among them. A worker
+// writes them here and the server reads and prunes them from the same path.
+func RunGlobalDir(workspacesDir, spaceID, taskID, taskRunID string) string {
+	return filepath.Join(workspacesDir, spaceID, "tasks", taskID, taskRunID, "global")
+}
+
 // ---------------------------------------------------------------------------
 // Settings loader
 // ---------------------------------------------------------------------------

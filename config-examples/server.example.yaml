@@ -242,6 +242,15 @@ worker_api:
 audit:
   retention_days: 0
 
+# Durable run-trace retention. 0 (default) keeps every trace forever, for the
+# same reason the audit trail does — traces are diagnostic evidence. Setting a
+# window starts an hourly sweep that, for each run whose trace is older, deletes
+# the trace object, clears the run's pointer to it, and records a traces.pruned
+# audit event naming the range and count. A pruned run then reports that it has
+# no trace rather than failing to load one.
+trace:
+  retention_days: 0
+
 # Cross-replica coordination. Live server state — streamed deltas, connection
 # events, and conversation turn serialization — is process-local by default, so
 # the default mode is correct only for a single server replica. Run more than one

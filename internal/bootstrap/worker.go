@@ -223,7 +223,10 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 	persistRoot := func(spaceID string) string {
 		return config.PersistentWorkspaceDir(workspacesDir, spaceID)
 	}
-	persistStorage, err := BuildPersistStorage(wsCfg, persistRoot, s3Client)
+	runGlobalDir := func(spaceID, taskID, taskRunID string) string {
+		return config.RunGlobalDir(workspacesDir, spaceID, taskID, taskRunID)
+	}
+	persistStorage, err := BuildPersistStorage(wsCfg, persistRoot, runGlobalDir, s3Client)
 	if err != nil {
 		slog.Error("failed to build persist storage", "err", err)
 		return fmt.Errorf("persist storage: %w", err)

@@ -362,6 +362,16 @@ type CreateRunInput struct {
 }
 
 // RunStore provides task run persistence.
+// RunTraceRef locates one run's durable trace: the run whose pointer to clear,
+// and the space/task/run coordinates a storage backend needs to remove the
+// object. It is what a retention sweep reads instead of a whole Run.
+type RunTraceRef struct {
+	SpaceID   string
+	TaskID    string
+	TaskRunID string
+	TracePath string
+}
+
 type RunStore interface {
 	// CreateTaskRun creates a new run (PENDING). Returns ErrRunInProgress if the task has any run in PENDING/SCHEDULED/RUNNING.
 	CreateTaskRun(ctx context.Context, in CreateRunInput) (*Run, error)
@@ -415,4 +425,13 @@ type RunStore interface {
 	// was given. Like the agent revision, the first write wins, and it is
 	// written even when both tiers are empty -- see Run.SandboxNetworkTier.
 	RecordTaskRunSandboxTiers(ctx context.Context, taskRunID string, networkTier, filesystemTier string) error
+	// ListTaskRunsWithExpiredTrace returns runs that ended on or before cutoff
+	// and still point at a trace, oldest first, up to limit. It drives trace
+	// retention: a run with no EndedAt or no TracePath is never returned, so an
+	// in-flight run's trace is never a candidate.
+	ListTaskRunsWithExpiredTrace(ctx context.Context, cutoff time.Time, limit int) ([]RunTraceRef, error)
+	// ClearTaskRunTracePath sets a run's trace pointer to NULL after its trace
+	// has been removed, so the run reports that it has no trace rather than one
+	// that fails to load. Clearing a run that already has none is not an error.
+	ClearTaskRunTracePath(ctx context.Context, taskRunID string) error
 }

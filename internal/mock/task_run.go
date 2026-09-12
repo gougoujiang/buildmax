@@ -274,3 +274,19 @@ func (m *MockTaskRunStore) RecordTaskRunSpaceAgentInstructionsRevision(_ context
 	}
 	return nil
 }
+
+// ListTaskRunsWithExpiredTrace is inert: the mock carries no space coordinate, so
+// trace retention is exercised against a purpose-built fake or the real store,
+// not this double.
+func (m *MockTaskRunStore) ListTaskRunsWithExpiredTrace(_ context.Context, _ time.Time, _ int) ([]coretask.RunTraceRef, error) {
+	return nil, nil
+}
+
+func (m *MockTaskRunStore) ClearTaskRunTracePath(_ context.Context, taskRunID string) error {
+	for i := range m.Runs {
+		if m.Runs[i].ID == taskRunID {
+			m.Runs[i].TracePath = nil
+		}
+	}
+	return nil
+}

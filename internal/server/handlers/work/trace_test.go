@@ -246,7 +246,7 @@ func TestGetTaskRunTraceHandler_ReadsLocalFSRunGlobal(t *testing.T) {
 	// that local_fs reports ErrNotFound and the handler looks further.
 	persist := blob.NewLocalFSPersistStorage(func(spaceID string) string {
 		return filepath.Join(workspaces, spaceID, "persist")
-	})
+	}, nil)
 	mux, token, spaceID, taskRunID := traceTestFixture(t, tracePath, persist, workspaces)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/task-runs/"+taskRunID+"/trace", nil)
@@ -281,7 +281,7 @@ func TestGetTaskRunTraceHandler_RejectsEscapingTracePath(t *testing.T) {
 	tracePath := util.Ptr("../../../../../../secret.txt")
 	persist := blob.NewLocalFSPersistStorage(func(spaceID string) string {
 		return filepath.Join(workspaces, spaceID, "persist")
-	})
+	}, nil)
 	mux, token, spaceID, taskRunID := traceTestFixture(t, tracePath, persist, workspaces)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/task-runs/"+taskRunID+"/trace", nil)

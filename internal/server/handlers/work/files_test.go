@@ -71,6 +71,10 @@ func (s *testPersistStorage) GetRunGlobal(ctx context.Context, ref blob.RunObjec
 	return nil, apierr.ErrNotFound
 }
 
+func (s *testPersistStorage) DeleteRunGlobal(ctx context.Context, ref blob.RunObjectRef) error {
+	return nil
+}
+
 func TestSpaceScopedFilesHandlers(t *testing.T) {
 	spaceA := "tm_personal_u1"
 	spaceB := "tm_shared_u1"

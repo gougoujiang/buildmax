@@ -68,6 +68,7 @@ type ServerConfig struct {
 	WorkerAPI ServerWorkerAPIConfig `mapstructure:"worker_api"`
 	Storage   ServerStorageConfig   `mapstructure:"storage"`
 	Audit     ServerAuditConfig     `mapstructure:"audit"`
+	Trace     ServerTraceConfig     `mapstructure:"trace"`
 	Secret    ServerSecretConfig    `mapstructure:"secret"`
 	// Coordination selects how live server state — streamed deltas, connection
 	// events, and conversation turn serialization — is shared across replicas.
@@ -185,6 +186,20 @@ type ServerAuditConfig struct {
 	// records what it removed: a trail that begins partway through then says
 	// that policy shortened it, rather than leaving a reader to guess between
 	// policy and loss.
+	RetentionDays int `mapstructure:"retention_days"`
+}
+
+// ServerTraceConfig decides how long a run's durable trace is kept.
+type ServerTraceConfig struct {
+	// RetentionDays expires the trace of a run that ended longer ago than the
+	// window. Zero, the default, keeps every trace forever.
+	//
+	// Traces are diagnostic evidence, so keeping is the default for the same
+	// reason it is for the audit trail: a deployment that never chose a policy
+	// has not decided to discard anything. When a sweep does remove a trace it
+	// clears the run's pointer to it and records the prune, so a later reader
+	// finds a run that explicitly has no trace rather than one whose trace
+	// silently 404s. See docs/design/durable-run-trace.md.
 	RetentionDays int `mapstructure:"retention_days"`
 }
 

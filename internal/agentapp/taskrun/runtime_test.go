@@ -137,6 +137,11 @@ func (f *fakePersistStorage) GetRunGlobal(ctx context.Context, ref blob.RunObjec
 	return data, nil
 }
 
+func (f *fakePersistStorage) DeleteRunGlobal(ctx context.Context, ref blob.RunObjectRef) error {
+	delete(f.taskGlobal, ref.SpaceID+"/"+ref.TaskID+"/"+ref.TaskRunID+"/"+ref.RelPath)
+	return nil
+}
+
 func (f *fakePersistStorage) PutRunArtifacts(ctx context.Context, ref blob.RunObjectRef, r io.Reader) error {
 	key := ref.SpaceID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/artifacts/" + ref.RelPath
 	data, _ := io.ReadAll(r)

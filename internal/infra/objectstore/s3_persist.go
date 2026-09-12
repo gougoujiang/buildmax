@@ -77,6 +77,16 @@ func (s *S3PersistStorage) GetRunGlobal(ctx context.Context, ref RunObjectRef) (
 	return s.client.GetObject(ctx, s.bucket, key)
 }
 
+// DeleteRunGlobal removes one file from the task run global key space. A key
+// that is not there is not an error.
+func (s *S3PersistStorage) DeleteRunGlobal(ctx context.Context, ref RunObjectRef) error {
+	key, err := RunGlobalObjectKey(s.prefix, ref.SpaceID, ref.TaskID, ref.TaskRunID, ref.RelPath)
+	if err != nil {
+		return err
+	}
+	return s.client.DeleteObject(ctx, s.bucket, key)
+}
+
 // MaterializeToDir downloads all persistent files into dstDir.
 func (s *S3PersistStorage) MaterializeToDir(ctx context.Context, spaceID string, dstDir string) error {
 	keys, err := s.ListFiles(ctx, spaceID)

@@ -157,6 +157,13 @@ const (
 	// table it deletes from is deliberate — the event survives its own sweep
 	// until the window moves past it, and by then a later one says the same.
 	EventsPruned = "audit.pruned"
+	// TracesPruned records run traces expiring under the deployment's trace
+	// retention window, naming the range and how many went. It plays the same
+	// role for the run-trace store that EventsPruned plays for the audit trail:
+	// it explains a trace that is gone by policy rather than by loss. It lands
+	// in the audit trail because that is where an operator already looks for
+	// what a retention sweep removed.
+	TracesPruned = "traces.pruned"
 	// QuotaThresholdReached records a space crossing a share of its quota,
 	// and QuotaExceeded records work being refused because the limit was
 	// reached. The first is a warning nobody was blocked by; the second is the

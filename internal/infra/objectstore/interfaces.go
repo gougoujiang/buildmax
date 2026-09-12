@@ -28,6 +28,11 @@ type HomeStorage interface {
 type RunStorage interface {
 	PutRunGlobal(ctx context.Context, ref RunObjectRef, r io.Reader) error
 	GetRunGlobal(ctx context.Context, ref RunObjectRef) ([]byte, error)
+	// DeleteRunGlobal removes one run-global file. A file that is not there is
+	// not an error, so a retention sweep is idempotent across restarts. It is
+	// the one run-global write the local_fs backend performs, since that backend
+	// keeps these files on the server's own disk rather than in a persist root.
+	DeleteRunGlobal(ctx context.Context, ref RunObjectRef) error
 }
 
 // PersistStorage is the composite interface for components that need both home-file and
