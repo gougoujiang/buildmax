@@ -41,6 +41,7 @@
 | [本地 Issue 工作桥接](local-issue-work-bridge.md) | 本地体验 | 已连接的本地界面应如何处理 Space Issue？ | R5 第 1 项安排剩余的 Phase 1 决策；持久 Issue-to-Session 关联与后续阶段仍待完成 |
 | [Session 树、Agent 邮箱与分支工作区](session-tree-and-agent-mailbox.md) | 本地体验 | Session 是否应 fork 隔离工作区，并通过持久邮箱恢复父 Session？ | 尚未开始 |
 | [Agent 原生协作底座](agent-native-collaboration-substrate.md) | 产品与执行模型 | 不同规模和不同专业背景的参与者，是否需要一套统一的意图、执行、提议、证据、决策、集成与知识生命周期？ | 尚未建设；当前 Issue、Task/TaskRun、Artifact、Space 与本地 workspace 是待验证的基础构件 |
+| [API 表面约定](api-surface-conventions.md) | 运维与部署 | 什么样的命名与结构规则应治理 HTTP 路由，且该表面是否需要 URL 版本化或拆分 OpenAPI 文档？ | 尚未建设；约 150 条路由处于风格分歧的单一表面中，配一份合并的 OpenAPI 文档 |
 
 已退役提案不留在当前索引中。获采纳的理由移入
 [设计记录](../design/设计文档索引.md)，被拒绝或取代的讨论仍可通过 Git 历史查阅。
