@@ -163,8 +163,14 @@ a versioned public subset rather than a global `/v1/` prefix over the entire
 internal surface.
 
 The `info.version` field in `openapi.json` is spec metadata, not a URL version.
-If nothing consumes it for compatibility decisions it is a value that will
-drift; tie it to the application version or drop it.
+Today it is a hand-set literal (`0.0.7`) tied to nothing and read by nothing, so
+it drifts. Decided: the build stamps it from the single application-version
+source — the git tag that `tools/mk` already injects into the `config.Version`
+build variable at link time — rather than being maintained by hand.
+OpenAPI 3.0 makes `info.version` required, so this ties it to a real source
+instead of dropping it; whether the build rewrites the served spec or the
+`GET /openapi.json` handler injects `config.Version` at serve time is an
+implementation choice for the task.
 
 ## 5. Decision: Split OpenAPI Along The Listener Boundary
 
@@ -207,7 +213,6 @@ document.
 - Should the two OpenAPI documents live as separate committed files, or as one
   source generated into two views? Either satisfies the boundary; the choice is
   about how the match-the-routes check is wired.
-- Is `openapi.json`'s `info.version` consumed by anything, or can it be dropped?
 
 ## 8. Likely Destination If Accepted
 
