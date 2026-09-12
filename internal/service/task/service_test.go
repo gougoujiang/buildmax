@@ -194,3 +194,75 @@ func TestAdmitsRefusesAnOverQuotaSpaceWithTheQuotaKind(t *testing.T) {
 		t.Fatalf("Admits err kind = %q, want %q", kind, apierr.KindQuotaExceeded)
 	}
 }
+
+// recordingQuota captures the last tokensToAdd it was asked about and refuses
+// only when a token limit would be exceeded, so a test can tell a run-allowance
+// question from a token one.
+type recordingQuota struct {
+	lastTokens  int
+	refuseOnAny bool // refuse every Check, whatever the counts
+}
+
+func (q *recordingQuota) Check(_ context.Context, _ string, _ int, tokensToAdd int) (bool, string, error) {
+	q.lastTokens = tokensToAdd
+	if q.refuseOnAny {
+		return false, "quota exceeded: run limit", nil
+	}
+	return true, "", nil
+}
+
+// bigTitleGenerator records whether it ran and returns a title whose token count
+// would once have tipped a near-limit space over.
+type bigTitleGenerator struct{ calls int }
+
+func (g *bigTitleGenerator) GenerateTitle(context.Context, string) (string, int, int, error) {
+	g.calls++
+	return "a generated title", 4000, 4000, nil
+}
+
+// A space under its run limit creates the task even when the title it generates
+// is expensive: the title's tokens are recorded as usage, not charged as a gate
+// that would refuse the task after its conversation already existed. CreateTask
+// asks the quota only about the run (zero tokens).
+func TestCreateTaskDoesNotGateOnTitleTokens(t *testing.T) {
+	taskStore := &mock.MockTaskStore{}
+	quota := &recordingQuota{}
+	gen := &bigTitleGenerator{}
+	svc := &Service{Tasks: taskStore, QuotaChecker: quota, TitleGenerator: gen}
+
+	if _, err := svc.CreateTask(context.Background(), CreateTaskCmd{
+		UserID: "u1", SpaceID: "tm_1", Input: "do the thing",
+	}); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	if quota.lastTokens != 0 {
+		t.Errorf("quota was asked about %d tokens; the title must not be a gate", quota.lastTokens)
+	}
+	if len(taskStore.Created) != 1 {
+		t.Fatalf("CreateInput count = %d, want 1", len(taskStore.Created))
+	}
+	got := taskStore.Created[0]
+	if got.TitlePromptTokens != 4000 || got.TitleCompletionTokens != 4000 {
+		t.Errorf("title tokens recorded = %d/%d, want 4000/4000",
+			got.TitlePromptTokens, got.TitleCompletionTokens)
+	}
+}
+
+// Out of runs, CreateTask refuses before it spends a title model call: the run
+// allowance is asked first, so a refused task never pays for a title it will not
+// keep.
+func TestCreateTaskRefusesOutOfRunsBeforeGeneratingATitle(t *testing.T) {
+	quota := &recordingQuota{refuseOnAny: true}
+	gen := &bigTitleGenerator{}
+	svc := &Service{Tasks: &mock.MockTaskStore{}, QuotaChecker: quota, TitleGenerator: gen}
+
+	_, err := svc.CreateTask(context.Background(), CreateTaskCmd{
+		UserID: "u1", SpaceID: "tm_1", Input: "do the thing",
+	})
+	if kind, _ := apierr.KindOf(err); kind != apierr.KindQuotaExceeded {
+		t.Fatalf("CreateTask err kind = %q, want %q", kind, apierr.KindQuotaExceeded)
+	}
+	if gen.calls != 0 {
+		t.Errorf("title generator ran %d times; a refused run must not spend a title call", gen.calls)
+	}
+}

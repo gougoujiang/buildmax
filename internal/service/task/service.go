@@ -117,11 +117,18 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCmd) (*coretask.
 	if err != nil {
 		return nil, err
 	}
-	createdByType, triggerSource := normalizeCreateTaskProvenance(cmd.CreatedByType, cmd.TriggerSource)
-	title, promptTokens, completionTokens := s.resolveTitle(ctx, input)
-	if err := s.checkQuota(ctx, cmd.SpaceID, promptTokens+completionTokens); err != nil {
+	// Ask about the run allowance before spending a title model call, and never
+	// against the title afterwards. The token half was once charged here against
+	// the freshly generated title, which refused a task only once its
+	// conversation already existed -- and nothing deletes a conversation, so a
+	// space under its run limit stranded one every time a title tipped it over.
+	// Those tokens are recorded as usage below rather than gating a task whose
+	// title has already spent them.
+	if err := s.checkQuota(ctx, cmd.SpaceID, 0); err != nil {
 		return nil, err
 	}
+	createdByType, triggerSource := normalizeCreateTaskProvenance(cmd.CreatedByType, cmd.TriggerSource)
+	title, promptTokens, completionTokens := s.resolveTitle(ctx, input)
 	create := &coretask.CreateInput{
 		ConversationID:            cmd.ConversationID,
 		SpaceID:                   cmd.SpaceID,
@@ -351,16 +358,15 @@ func (s *Service) resolveTitle(ctx context.Context, input string) (string, int, 
 // Admits reports whether the space can start one more run right now, before a
 // caller writes anything a refusal would strand.
 //
-// CreateTask checks the same allowance, but only after resolving a title --
-// which is a model call -- and only once it has been handed a conversation to
-// hang the task on. An orchestrator that creates that conversation first and
-// asks afterwards leaves one behind on every refusal, and nothing deletes a
-// conversation. This is the question worth asking before the first write.
+// CreateTask checks the same run allowance when it persists the task, but an
+// orchestrator that opens a conversation first and asks afterwards leaves one
+// behind on every refusal, and nothing deletes a conversation. Asking here
+// keeps that refusal ahead of the first write.
 //
-// It asks about the run allowance alone. The token half depends on the title
-// the model has not written yet, so CreateTask still checks it and can still
-// refuse; what this closes is the case a space hits routinely, which is running
-// out of runs.
+// The run allowance is the whole gate. A task is no longer refused for the
+// tokens its generated title spent: those are already spent by the time the
+// title exists, so refusing then only stranded a conversation. CreateTask
+// records the title's tokens as usage instead of gating on them.
 func (s *Service) Admits(ctx context.Context, spaceID string) error {
 	return s.checkQuota(ctx, spaceID, 0)
 }
