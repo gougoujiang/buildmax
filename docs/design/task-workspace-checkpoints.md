@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Task工作区检查点.md)
 
-> **Audience:** contributors, product designers, and operators · **Status:** largely implemented — the base/result/partial checkpoint lifecycle, object-store payload persistence, restore-before-Continue, ephemeral-storage bounds, orphan and retention sweeps, and read-only Portal workspace state have shipped, with unit, MySQL-gated, object-store, and kind evidence. §16.5 tracks exactly what is verified and what remains; deferred within this feature are setting and surfacing a failed-checkpoint status with the Continue gating that reads it (fail-open today) and Task-scoped autonomous Plugin installation, which is separate Plugin-distribution work.
+> **Audience:** contributors, product designers, and operators · **Status:** largely implemented — the base/result/partial checkpoint lifecycle, object-store payload persistence, restore-before-Continue, ephemeral-storage bounds, orphan and retention sweeps, and read-only Portal workspace state have shipped, with unit, MySQL-gated, object-store, and kind evidence. §16.5 tracks exactly what is verified and what remains. Two capabilities are out of this feature's scope: setting and surfacing a failed-checkpoint status with the Continue gating that reads it — a checkpoint that cannot commit is fail-open today, leaving the run outcome intact and the Task head unmoved, with an explicit status deferred to a future record (§18) — and Task-scoped autonomous Plugin installation, which is separate Plugin-distribution work.
 
 Related: [product vision](product-vision.md),
 [Agent execution and Task threads](agent-execution-and-task-threads.md),
@@ -358,12 +358,14 @@ but it cannot change the head selected by the first accepted report.
 
 TaskRun status and workspace persistence are related but distinct facts. If the
 Agent produced a successful answer and final checkpoint publication fails, the
-run remains `SUCCEEDED` and records `workspace_checkpoint_status=failed`. Its
-final reply and any independently published Artifacts remain valid. The Task
-workspace head does not advance, and Continue is refused until the user
-explicitly chooses a recovery base or the checkpoint is repaired. Marking the
+run remains `SUCCEEDED`. Its final reply and any independently published
+Artifacts remain valid. The Task workspace head does not advance, so a later
+Continue restores the previous durable head rather than a torn one. Marking the
 whole run failed would invite a Retry which can repeat external effects merely
-because storage failed after execution.
+because storage failed after execution. Recording an explicit
+`workspace_checkpoint_status=failed` state and gating Continue on it is out of
+scope for this feature; the behavior is fail-open today (§16.5) and an explicit
+status is a future record (§18).
 
 ### 5.6 Failure, Cancellation, And Interruption
 
@@ -1095,12 +1097,13 @@ The Task-scoped autonomous Plugin installation row (16.4 item 7) and the
 Plugin-environment continuity bullets are separate Plugin-distribution work, not
 part of the workspace-checkpoint feature, and remain unbuilt.
 
-Not yet built within this feature: setting and surfacing a
+Out of scope for this feature: setting and surfacing a
 `workspace_checkpoint_status=failed` record for a successful run whose checkpoint
 could not commit, and the Continue gating that reads it. Today such a failure is
 fail-open — the run's outcome stands and the head does not advance — and is
 visible in the run's logs and in the head staying put; the Portal shows the
-committed and restored states read-only.
+committed and restored states read-only. Making that failure explicit, and
+gating Continue on it, is deferred to a future record (§18).
 
 ## 17. Alternatives Rejected
 
@@ -1189,6 +1192,9 @@ These questions do not block the first complete-archive implementation:
    their Tasks remain independently seeded from Space files?
 7. Which evidence would justify checkpointing at safe tool boundaries rather
    than only at TaskRun boundaries?
+8. When a successful run's checkpoint cannot commit, should the failure become an
+   explicit `workspace_checkpoint_status=failed` state with Continue gated on it,
+   rather than the current fail-open behavior that leaves the Task head unmoved?
 
 The following are not deferred implementation work under this record: generic
 workspace history, timeline restore, merging, cross-device reconstruction, and
