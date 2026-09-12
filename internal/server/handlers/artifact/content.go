@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"strings"
 
-	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
+	coreartifact "github.com/icloudbb/buildmax/internal/core/artifact"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	artifactsvc "github.com/icloudbb/buildmax/internal/service/artifact"
 )
 
 // previewMode says how a client may show a type, not merely whether. It is the

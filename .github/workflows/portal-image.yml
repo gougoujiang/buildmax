@@ -29,7 +29,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  IMAGE: ghcr.io/gougoujiang/buildmax-portal
+  IMAGE: ghcr.io/icloudbb/buildmax-portal
 
 jobs:
   image:

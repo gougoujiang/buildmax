@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreschedule "github.com/gougoujiang/buildmax/internal/core/schedule"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreschedule "github.com/icloudbb/buildmax/internal/core/schedule"
 )
 
 // MockScheduleStore is an in-memory coreschedule.Store for tests.

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
 )
 
 // ErrExecutableContent means the release contributes hooks or MCP servers.

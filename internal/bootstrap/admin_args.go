@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 )
 
 // emailArg parses a subcommand's flags and returns its single email argument.

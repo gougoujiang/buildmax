@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
-	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
-	"github.com/gougoujiang/buildmax/internal/service/task"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
+	"github.com/icloudbb/buildmax/internal/core/llm"
+	convchannel "github.com/icloudbb/buildmax/internal/service/conversation/channel"
+	"github.com/icloudbb/buildmax/internal/service/task"
 )
 
 const (

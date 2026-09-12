@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	"github.com/gougoujiang/buildmax/internal/infra/httpclient"
-	"github.com/gougoujiang/buildmax/internal/tool"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	"github.com/icloudbb/buildmax/internal/infra/httpclient"
+	"github.com/icloudbb/buildmax/internal/tool"
 )
 
 // OwnedIssue is one item of the caller's inbox, with the space it belongs to

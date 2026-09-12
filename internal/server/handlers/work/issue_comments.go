@@ -1,13 +1,13 @@
 package work
 
 import (
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	"net/http"
 	"time"
 
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	"github.com/gougoujiang/buildmax/internal/service/issue"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	"github.com/icloudbb/buildmax/internal/service/issue"
 )
 
 type issueCommentResponse struct {

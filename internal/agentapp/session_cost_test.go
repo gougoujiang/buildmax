@@ -3,7 +3,7 @@ package agentapp
 import (
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 func testPricing() llm.Pricing {

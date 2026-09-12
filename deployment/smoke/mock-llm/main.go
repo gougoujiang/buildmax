@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/gougoujiang/buildmax/internal/testsupport/mockllm"
+	"github.com/icloudbb/buildmax/internal/testsupport/mockllm"
 )
 
 // defaultReply is what the deployment smoke asserts a task run produced.

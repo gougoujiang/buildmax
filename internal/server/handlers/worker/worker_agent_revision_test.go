@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/mock"
+	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/mock"
 )
 
 // revisionFixture keeps the run store the route writes to, which

@@ -10,9 +10,9 @@ import (
 	"os"
 	"path/filepath"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
-	"github.com/gougoujiang/buildmax/internal/infra/wsarchive"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/infra/workerclient"
+	"github.com/icloudbb/buildmax/internal/infra/wsarchive"
 )
 
 // CheckpointPayloadStore reads and writes checkpoint payloads in the object

@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const versionPkg = "github.com/gougoujiang/buildmax/internal/config"
+const versionPkg = "github.com/icloudbb/buildmax/internal/config"
 
 var alphaVersionPattern = regexp.MustCompile(`^v((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))-alpha(?:\.([1-9][0-9]*))?$`)
 

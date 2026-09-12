@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/infra/objectstore"
+	"github.com/icloudbb/buildmax/internal/infra/objectstore"
 )
 
 // defaultCheckpointSweepInterval is how often orphan payloads are reclaimed.

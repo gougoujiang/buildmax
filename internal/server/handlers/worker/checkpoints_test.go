@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	workspacesvc "github.com/gougoujiang/buildmax/internal/service/workspace"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/infra/workerclient"
+	"github.com/icloudbb/buildmax/internal/mock"
+	workspacesvc "github.com/icloudbb/buildmax/internal/service/workspace"
 )
 
 // fakeWorkspaceRuns is the base-read and restore-record half of the worker

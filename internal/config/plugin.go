@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/core/plugin"
+	"github.com/icloudbb/buildmax/internal/core/plugin"
 )
 
 // PluginsDir is where installed plugins live. Respecting BUILDMAX_HOME is what

@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	"github.com/gougoujiang/buildmax/internal/mock"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	"github.com/icloudbb/buildmax/internal/mock"
 )
 
 // fakeAdminStore satisfies adminStore from the in-memory mocks, so the command

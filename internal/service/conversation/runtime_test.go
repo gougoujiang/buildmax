@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
+	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
 )
 
 // Internal input keeps its stored role when a conversation is replayed.

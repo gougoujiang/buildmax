@@ -6,8 +6,8 @@ import (
 	"sync"
 	"testing"
 
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/service/llmgateway"
 )
 
 // fakeLLMClient is a distinguishable core client. Routing never calls it; the

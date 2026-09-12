@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	"github.com/gougoujiang/buildmax/internal/util"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // TestCreatedIssueCarriesTheVersionItWasWrittenWith covers the value a create

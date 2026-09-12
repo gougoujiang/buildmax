@@ -5,11 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
-	"github.com/gougoujiang/buildmax/internal/mock"
+	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
+	"github.com/icloudbb/buildmax/internal/mock"
 )
 
 func TestCreateIssue_TitleRequired(t *testing.T) {

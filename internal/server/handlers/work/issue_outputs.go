@@ -5,9 +5,9 @@ import (
 	"sort"
 	"time"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
-	"github.com/gougoujiang/buildmax/internal/util"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 type outputSourceResponse struct {

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/localproject"
+	"github.com/icloudbb/buildmax/internal/core/localproject"
 )
 
 func initRepo(t *testing.T, dir string) {

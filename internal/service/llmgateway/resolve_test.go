@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/service/llmgateway"
 )
 
 // failingCatalog reports a store-level failure, distinct from a missing target.

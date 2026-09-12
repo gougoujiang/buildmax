@@ -20,11 +20,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gougoujiang/buildmax/evaluation/adapter"
-	"github.com/gougoujiang/buildmax/evaluation/contract"
-	"github.com/gougoujiang/buildmax/evaluation/runner"
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/evaluation/adapter"
+	"github.com/icloudbb/buildmax/evaluation/contract"
+	"github.com/icloudbb/buildmax/evaluation/runner"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 func main() {

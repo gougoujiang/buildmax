@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	streamhub "github.com/gougoujiang/buildmax/internal/server/websocket"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/mock"
+	streamhub "github.com/icloudbb/buildmax/internal/server/websocket"
 )
 
 func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {

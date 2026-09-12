@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/util/secretscan"
+	"github.com/icloudbb/buildmax/internal/util/secretscan"
 )
 
 // A background job outlives the run trace of the tool call that launched it,

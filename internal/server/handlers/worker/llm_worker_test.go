@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/server/authtoken"
-	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/server/authtoken"
+	"github.com/icloudbb/buildmax/internal/service/llmgateway"
 )
 
 // workerRunClaims is what the scheduler would have minted for the run the tests

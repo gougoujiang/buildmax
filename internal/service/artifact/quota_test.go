@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
-	"github.com/gougoujiang/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreartifact "github.com/icloudbb/buildmax/internal/core/artifact"
+	"github.com/icloudbb/buildmax/internal/mock"
 )
 
 // fakeAdmitter answers the storage question and records what it was asked, so a

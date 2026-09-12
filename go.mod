@@ -1,4 +1,4 @@
-module github.com/gougoujiang/buildmax
+module github.com/icloudbb/buildmax
 
 go 1.26.6
 

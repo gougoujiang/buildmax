@@ -3,17 +3,17 @@ package worker
 import (
 	"errors"
 	"fmt"
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
 	"io"
 	"net/http"
 	"strconv"
 
-	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
-	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/infra/pluginwire"
+	"github.com/icloudbb/buildmax/internal/infra/workerclient"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
 )
 
 // Plugin resolution happens here, in the route where a worker claims its run,

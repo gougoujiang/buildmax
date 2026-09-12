@@ -5,7 +5,7 @@
 // registered only where the surface can serve them, as the constants below say.
 package tool
 
-import "github.com/gougoujiang/buildmax/internal/core/agent"
+import "github.com/icloudbb/buildmax/internal/core/agent"
 
 // Tool name constants — single source of truth for every tool's Name(). Use camelCase for LLM-facing names.
 const (

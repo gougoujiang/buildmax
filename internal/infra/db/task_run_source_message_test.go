@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/util"
+	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // A run's input is what Tier 1 decided to send a worker. Without the message it

@@ -3,7 +3,7 @@ version: 1.0.0
 description: Skills for writing task-oriented docs and checking Markdown links.
 
 display_name: Docs Smith
-homepage: https://github.com/gougoujiang/buildmax/tree/main/sample-plugins/docs-smith
+homepage: https://github.com/icloudbb/buildmax/tree/main/sample-plugins/docs-smith
 maintainer: BuildMax Samples <samples@buildmax.example>
 license: Apache-2.0
 

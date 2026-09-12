@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
+	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
 )
 
 // TestAppendMessageFencingRejectsStaleWriter proves the R1 turn-lease fencing

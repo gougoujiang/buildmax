@@ -92,7 +92,7 @@ Portal 是静态资源包。运行已发布镜像：
 ```bash
 docker run -p 8080:80 \
   -e BUILDMAX_API_BASE=https://api.example.com \
-  ghcr.io/gougoujiang/buildmax-portal:<version>
+  ghcr.io/icloudbb/buildmax-portal:<version>
 ```
 
 `BUILDMAX_API_BASE` 在容器启动时应用，而非构建时，因此同一镜像可用于所有部署。由此有两点要求：
@@ -102,7 +102,7 @@ docker run -p 8080:80 \
 
 将 Portal 和服务器放在同一主机名的反向代理后即可消除这个问题：设置 `BUILDMAX_API_BASE=/`，Portal 就会调用同源地址，无需允许跨源请求。
 
-镜像标签对应其构建的发行版，因此 `ghcr.io/gougoujiang/buildmax-portal:0.1.0` 与 `ghcr.io/gougoujiang/buildmax:0.1.0` 配套使用。
+镜像标签对应其构建的发行版，因此 `ghcr.io/icloudbb/buildmax-portal:0.1.0` 与 `ghcr.io/icloudbb/buildmax:0.1.0` 配套使用。
 
 也可以自行构建资源包：
 
@@ -116,8 +116,8 @@ cd portal && npm install && npm run build     # → portal/dist
 
 | 镜像 | 内容 |
 |---|---|
-| `ghcr.io/gougoujiang/buildmax` | CLI、服务器和 Worker 二进制 |
-| `ghcr.io/gougoujiang/buildmax-portal` | nginx 提供的静态前端 |
+| `ghcr.io/icloudbb/buildmax` | CLI、服务器和 Worker 二进制 |
+| `ghcr.io/icloudbb/buildmax-portal` | nginx 提供的静态前端 |
 
 两者分别通过 `.goreleaser.yaml` 和 `.github/workflows/portal-image.yml`，按发行标签发布。它们由不同的工作流构建，前端失败不会阻塞二进制发布。
 

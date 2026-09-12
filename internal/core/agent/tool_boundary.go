@@ -1,6 +1,6 @@
 package agent
 
-import "github.com/gougoujiang/buildmax/internal/core/llm"
+import "github.com/icloudbb/buildmax/internal/core/llm"
 
 // Tool outcome statuses.
 //

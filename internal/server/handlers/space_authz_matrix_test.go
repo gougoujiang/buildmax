@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/testsupport"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/testsupport"
 )
 
 // Every route under /api/spaces/{space_id} is a space-scoped resource, and Space is

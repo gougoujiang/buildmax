@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/infra/git"
-	"github.com/gougoujiang/buildmax/internal/interface/slashcmd"
-	tools "github.com/gougoujiang/buildmax/internal/tool"
+	"github.com/icloudbb/buildmax/internal/infra/git"
+	"github.com/icloudbb/buildmax/internal/interface/slashcmd"
+	tools "github.com/icloudbb/buildmax/internal/tool"
 )
 
 // --- Command registry ---

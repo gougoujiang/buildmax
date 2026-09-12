@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/evaluation/contract"
-	"github.com/gougoujiang/buildmax/evaluation/runner"
+	"github.com/icloudbb/buildmax/evaluation/contract"
+	"github.com/icloudbb/buildmax/evaluation/runner"
 )
 
 func TestSelectTasksDefaultsToTheRequestedSurface(t *testing.T) {

@@ -10,8 +10,8 @@ import (
 // inject both at link time so the git tag stays the single source of truth for
 // what a binary calls itself:
 //
-//	-ldflags "-X github.com/gougoujiang/buildmax/internal/config.Version=0.1.0 \
-//	          -X github.com/gougoujiang/buildmax/internal/config.Commit=abc1234"
+//	-ldflags "-X github.com/icloudbb/buildmax/internal/config.Version=0.1.0 \
+//	          -X github.com/icloudbb/buildmax/internal/config.Commit=abc1234"
 //
 // When the linker sets neither — `go install module@version`, `go build`,
 // `go run`, `go test` — init falls back to the Go build info, so a binary
@@ -66,7 +66,7 @@ func init() {
 //
 // The two inputs come from different places and neither is always present:
 //
-//   - `go install github.com/gougoujiang/buildmax/cmd/buildmax@latest` records
+//   - `go install github.com/icloudbb/buildmax/cmd/buildmax@latest` records
 //     the module version in bi.Main.Version but carries no VCS stamp, so the
 //     version is recovered and the commit is not.
 //   - `go build` inside a checkout records vcs.revision and vcs.modified, and

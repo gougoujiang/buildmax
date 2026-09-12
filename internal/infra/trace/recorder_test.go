@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/agent"
 )
 
 func readRecords(t *testing.T, path string) []Record {

@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/session"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/session"
 )
 
 func renderUsage(r session.UsageReport) string {

@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	tools "github.com/gougoujiang/buildmax/internal/tool"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	tools "github.com/icloudbb/buildmax/internal/tool"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 type stubIssueClient struct{}

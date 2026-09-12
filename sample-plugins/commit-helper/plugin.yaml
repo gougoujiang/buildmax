@@ -3,7 +3,7 @@ version: 1.0.0
 description: Write clear Conventional Commits messages from a staged diff.
 
 display_name: Commit Helper
-homepage: https://github.com/gougoujiang/buildmax/tree/main/sample-plugins/commit-helper
+homepage: https://github.com/icloudbb/buildmax/tree/main/sample-plugins/commit-helper
 maintainer: BuildMax Samples <samples@buildmax.example>
 license: MIT
 

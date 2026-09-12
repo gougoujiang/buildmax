@@ -5,8 +5,8 @@ import (
 	"sort"
 	"time"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 )
 
 // MockSystemGrantStore is an in-memory coreidentity.SystemGrantStore for tests.

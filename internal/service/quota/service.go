@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	corequota "github.com/icloudbb/buildmax/internal/core/quota"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
 )
 
 // Service enforces space-scoped quota (run count and token limits) using tier limits from the store.

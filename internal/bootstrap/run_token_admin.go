@@ -8,8 +8,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/server/authtoken"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/server/authtoken"
 )
 
 // The operator-side half of the run token. Workers are given one automatically

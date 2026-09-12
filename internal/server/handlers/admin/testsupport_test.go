@@ -1,7 +1,7 @@
 package admin
 
 import (
-	"github.com/gougoujiang/buildmax/internal/testsupport"
+	"github.com/icloudbb/buildmax/internal/testsupport"
 	"net/http"
 	"net/http/httptest"
 	"regexp"

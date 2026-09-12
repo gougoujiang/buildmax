@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/plugin"
+	"github.com/icloudbb/buildmax/internal/core/plugin"
 )
 
 func writePlugin(t *testing.T, root, dir, manifest string) string {

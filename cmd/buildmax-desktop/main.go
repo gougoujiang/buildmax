@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gougoujiang/buildmax/desktop"
-	"github.com/gougoujiang/buildmax/internal/config"
-	log "github.com/gougoujiang/buildmax/internal/infra/log"
-	desktopcmd "github.com/gougoujiang/buildmax/internal/interface/desktop"
+	"github.com/icloudbb/buildmax/desktop"
+	"github.com/icloudbb/buildmax/internal/config"
+	log "github.com/icloudbb/buildmax/internal/infra/log"
+	desktopcmd "github.com/icloudbb/buildmax/internal/interface/desktop"
 )
 
 func main() {

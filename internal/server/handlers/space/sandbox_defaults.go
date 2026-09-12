@@ -3,9 +3,9 @@ package space
 import (
 	"net/http"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	spacesvc "github.com/gougoujiang/buildmax/internal/service/space"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	spacesvc "github.com/icloudbb/buildmax/internal/service/space"
 )
 
 // sandboxDefaultsResponse is also the PUT request body: a space's default

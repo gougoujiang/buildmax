@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // TestManager_Disabled asserts a disabled sandbox always falls back.

@@ -9,12 +9,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp"
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
-	"github.com/gougoujiang/buildmax/internal/testsupport/mockllm"
+	"github.com/icloudbb/buildmax/internal/agentapp"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	blob "github.com/icloudbb/buildmax/internal/infra/objectstore"
+	"github.com/icloudbb/buildmax/internal/testsupport/mockllm"
 )
 
 func TestRunProvenance_CarriesTheRunsTrigger(t *testing.T) {

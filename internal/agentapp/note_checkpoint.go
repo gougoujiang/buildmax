@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
-	tools "github.com/gougoujiang/buildmax/internal/tool"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/llm"
+	tools "github.com/icloudbb/buildmax/internal/tool"
 )
 
 // maxCheckpointTurns bounds the checkpoint conversation. Two rather than one so a write that

@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
 )
 
 func (g *Guard) SpaceAction(w http.ResponseWriter, r *http.Request, userID, spaceID string, action corespace.Action) (string, bool) {

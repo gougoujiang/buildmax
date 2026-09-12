@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
+	coreartifact "github.com/icloudbb/buildmax/internal/core/artifact"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/mock"
+	artifactsvc "github.com/icloudbb/buildmax/internal/service/artifact"
 )
 
 func artifactWorkerMux(t *testing.T, store *mock.MockArtifactStore, spaceID string) *http.ServeMux {

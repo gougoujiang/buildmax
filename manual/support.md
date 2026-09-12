@@ -44,9 +44,9 @@ A **Beta** label on one surface below describes that component's maturity; it do
 | Artifact | Status | Notes |
 |---|---|---|
 | Release archives for CLI/server/worker | **Supported** | Linux amd64/arm64, macOS amd64/arm64, Windows amd64. |
-| `go install github.com/gougoujiang/buildmax/cmd/buildmax@latest` | **Supported** | CLI only. Uses the module version, without release archive provenance metadata. |
-| `ghcr.io/gougoujiang/buildmax` | **Beta** | Contains CLI, server, and worker binaries. |
-| `ghcr.io/gougoujiang/buildmax-portal` | **Beta** | Static Portal image; API base URL is configured at container start. |
+| `go install github.com/icloudbb/buildmax/cmd/buildmax@latest` | **Supported** | CLI only. Uses the module version, without release archive provenance metadata. |
+| `ghcr.io/icloudbb/buildmax` | **Beta** | Contains CLI, server, and worker binaries. |
+| `ghcr.io/icloudbb/buildmax-portal` | **Beta** | Static Portal image; API base URL is configured at container start. |
 | Desktop binary releases | Not supported | Build from source. Published, signed installers are not part of the alpha release path. |
 | npm package for `@buildmax/gui` | Not supported | The shared GUI package is consumed by this repository through local `file:` dependencies. |
 

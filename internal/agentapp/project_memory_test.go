@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	"github.com/gougoujiang/buildmax/internal/core/localproject"
-	tools "github.com/gougoujiang/buildmax/internal/tool"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/localproject"
+	tools "github.com/icloudbb/buildmax/internal/tool"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // memoryApp is the smallest AgentApp the memory seam reads through: a resolved

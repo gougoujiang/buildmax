@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/evaluation/contract"
-	"github.com/gougoujiang/buildmax/evaluation/trace"
+	"github.com/icloudbb/buildmax/evaluation/contract"
+	"github.com/icloudbb/buildmax/evaluation/trace"
 )
 
 // CLIAdapterVersion changes when this adapter changes how it invokes the

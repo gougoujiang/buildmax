@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	buildmaxlog "github.com/gougoujiang/buildmax/internal/infra/log"
+	buildmaxlog "github.com/icloudbb/buildmax/internal/infra/log"
 )
 
 func captureLog(t *testing.T) *bytes.Buffer {

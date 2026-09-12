@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"time"
 
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	"github.com/gougoujiang/buildmax/internal/util"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // sourceMessageMaxLen bounds the quoted message. It is a comparison, not a

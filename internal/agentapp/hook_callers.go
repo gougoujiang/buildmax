@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // mcpCaller adapts MCPManager to the hook.MCPCaller interface so the MCP

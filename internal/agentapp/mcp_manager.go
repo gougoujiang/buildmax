@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	mcpcfg "github.com/gougoujiang/buildmax/internal/core/mcp"
-	"github.com/gougoujiang/buildmax/internal/infra/mcp"
+	mcpcfg "github.com/icloudbb/buildmax/internal/core/mcp"
+	"github.com/icloudbb/buildmax/internal/infra/mcp"
 )
 
 type MCPStatus struct {

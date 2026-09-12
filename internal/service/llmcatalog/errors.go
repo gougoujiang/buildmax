@@ -3,7 +3,7 @@ package llmcatalog
 import (
 	"fmt"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
 )
 
 // ErrInvalid is the refusal a caller gets for input the catalog will not take.

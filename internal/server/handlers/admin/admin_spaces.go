@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
 )
 
 // AdminSpace is one space as an administrator sees it: metadata only.

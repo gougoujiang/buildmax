@@ -2,11 +2,11 @@ package admin
 
 import (
 	"context"
-	"github.com/gougoujiang/buildmax/internal/server/handlers/auditexport"
+	"github.com/icloudbb/buildmax/internal/server/handlers/auditexport"
 	"net/http"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
 )
 
 // AdminAuditEventsResponse is a page of the deployment-wide trail.

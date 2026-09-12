@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/server/access"
+	"github.com/icloudbb/buildmax/internal/server/access"
 
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	"github.com/gougoujiang/buildmax/internal/mock"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	"github.com/icloudbb/buildmax/internal/mock"
 )
 
 const refreshTestSecret = "test-jwt-secret"

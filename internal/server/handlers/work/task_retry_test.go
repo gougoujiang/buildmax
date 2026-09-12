@@ -7,13 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/testsupport"
-	"github.com/gougoujiang/buildmax/internal/util"
+	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/testsupport"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 const (

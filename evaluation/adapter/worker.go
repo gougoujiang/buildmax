@@ -15,9 +15,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/gougoujiang/buildmax/evaluation/contract"
-	"github.com/gougoujiang/buildmax/evaluation/trace"
-	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
+	"github.com/icloudbb/buildmax/evaluation/contract"
+	"github.com/icloudbb/buildmax/evaluation/trace"
+	"github.com/icloudbb/buildmax/internal/infra/workerclient"
 )
 
 // WorkerAdapterVersion changes when this adapter changes how it dispatches a

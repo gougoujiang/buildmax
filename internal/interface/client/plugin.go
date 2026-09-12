@@ -10,9 +10,9 @@ import (
 	"net/url"
 	"strconv"
 
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	"github.com/gougoujiang/buildmax/internal/infra/httpclient"
-	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	"github.com/icloudbb/buildmax/internal/infra/httpclient"
+	"github.com/icloudbb/buildmax/internal/infra/pluginwire"
 )
 
 // ListPlugins returns the deployment's browsable catalog.

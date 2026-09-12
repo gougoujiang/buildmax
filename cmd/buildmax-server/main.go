@@ -14,9 +14,9 @@ import (
 	// docs/design/scheduled-agent-execution.md.
 	_ "time/tzdata"
 
-	"github.com/gougoujiang/buildmax/internal/bootstrap"
-	"github.com/gougoujiang/buildmax/internal/config"
-	log "github.com/gougoujiang/buildmax/internal/infra/log"
+	"github.com/icloudbb/buildmax/internal/bootstrap"
+	"github.com/icloudbb/buildmax/internal/config"
+	log "github.com/icloudbb/buildmax/internal/infra/log"
 )
 
 func main() {

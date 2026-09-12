@@ -17,7 +17,7 @@ current alpha platform and deployment boundaries.
 ## Release archive
 
 Download an archive for your platform from
-[Releases](https://github.com/gougoujiang/buildmax/releases). Each one contains
+[Releases](https://github.com/icloudbb/buildmax/releases). Each one contains
 all three binaries plus `config-examples/`.
 
 ```bash
@@ -32,7 +32,7 @@ after the repository became public, verify GitHub's build provenance
 attestation with:
 
 ```bash
-gh attestation verify --owner gougoujiang buildmax_<version>_<os>_<arch>.tar.gz
+gh attestation verify --owner icloudbb buildmax_<version>_<os>_<arch>.tar.gz
 ```
 
 Windows archives use `.zip`. Checksums prove the downloaded bytes match the
@@ -44,7 +44,7 @@ repository.
 For the CLI alone:
 
 ```bash
-go install github.com/gougoujiang/buildmax/cmd/buildmax@latest
+go install github.com/icloudbb/buildmax/cmd/buildmax@latest
 ```
 
 A binary installed this way reports the module version it was built from —
@@ -56,8 +56,8 @@ because `go install` records no VCS stamp; release archives report both.
 One image carries all three binaries; a second serves the Portal:
 
 ```bash
-docker pull ghcr.io/gougoujiang/buildmax:<version>
-docker pull ghcr.io/gougoujiang/buildmax-portal:<version>
+docker pull ghcr.io/icloudbb/buildmax:<version>
+docker pull ghcr.io/icloudbb/buildmax-portal:<version>
 ```
 
 Both are published per release tag and carry the same version. Alpha releases
@@ -69,7 +69,7 @@ Requires Go (version in `go.mod`), plus Node only if you also want the
 frontends:
 
 ```bash
-git clone https://github.com/gougoujiang/buildmax.git
+git clone https://github.com/icloudbb/buildmax.git
 cd buildmax
 ./make build          # CLI, server, worker, shared GUI, desktop app → bin/
 ```

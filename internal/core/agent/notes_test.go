@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // statefulHistory is a compactingHistory that also carries durable state, so a test can cover

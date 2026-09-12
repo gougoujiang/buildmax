@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // delegatingTool stands in for the Task tool: it reports a finished child run

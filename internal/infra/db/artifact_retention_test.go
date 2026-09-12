@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
+	coreartifact "github.com/icloudbb/buildmax/internal/core/artifact"
 )
 
 // These cover what docs/design/verification-program.md section 4.2 listed as

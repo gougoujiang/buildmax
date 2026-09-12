@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreschedule "github.com/gougoujiang/buildmax/internal/core/schedule"
+	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreschedule "github.com/icloudbb/buildmax/internal/core/schedule"
 )
 
 var (

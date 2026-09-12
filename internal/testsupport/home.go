@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 // RunWithIsolatedHome runs a package's tests against a throwaway BUILDMAX_HOME

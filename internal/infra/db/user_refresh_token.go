@@ -8,8 +8,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"

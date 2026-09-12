@@ -2,18 +2,18 @@ package work
 
 import (
 	"context"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	"net/http"
 	"strings"
 	"time"
 
-	agentsvc "github.com/gougoujiang/buildmax/internal/service/agent"
+	agentsvc "github.com/icloudbb/buildmax/internal/service/agent"
 
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	"github.com/gougoujiang/buildmax/internal/service/issue"
-	"github.com/gougoujiang/buildmax/internal/service/task"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	"github.com/icloudbb/buildmax/internal/service/issue"
+	"github.com/icloudbb/buildmax/internal/service/task"
 )
 
 type IssueResponse struct {

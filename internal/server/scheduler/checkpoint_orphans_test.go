@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/infra/objectstore"
+	"github.com/icloudbb/buildmax/internal/infra/objectstore"
 )
 
 type fakeCheckpointBlobs struct {

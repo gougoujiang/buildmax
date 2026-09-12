@@ -3,8 +3,8 @@ package conversation
 import (
 	"testing"
 
-	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
-	"github.com/gougoujiang/buildmax/internal/service/task"
+	convchannel "github.com/icloudbb/buildmax/internal/service/conversation/channel"
+	"github.com/icloudbb/buildmax/internal/service/task"
 )
 
 func TestTaskServiceForChannel_systemDisablesTaskTools(t *testing.T) {

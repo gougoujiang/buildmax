@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
 )
 
 // The invitation store is three joins, a multi-table transaction, and two

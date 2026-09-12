@@ -1,7 +1,7 @@
 package config
 
 import (
-	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
+	corehook "github.com/icloudbb/buildmax/internal/core/hook"
 	"os"
 	"path/filepath"
 	"testing"

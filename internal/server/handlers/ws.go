@@ -3,9 +3,9 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/gougoujiang/buildmax/internal/server/access"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	wsconn "github.com/gougoujiang/buildmax/internal/server/websocket"
+	"github.com/icloudbb/buildmax/internal/server/access"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	wsconn "github.com/icloudbb/buildmax/internal/server/websocket"
 )
 
 // wsUpgradeHandler authenticates the upgrade and hands the socket over.

@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"io"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	"github.com/gougoujiang/buildmax/internal/service/audit"
-	"github.com/gougoujiang/buildmax/internal/service/systemadmin"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	"github.com/icloudbb/buildmax/internal/service/audit"
+	"github.com/icloudbb/buildmax/internal/service/systemadmin"
 )
 
 // The operator-side half of deployment administration.

@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/interface/auth"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/interface/auth"
 )
 
 func TestRootCommand_InvalidSessionIDReturnsError(t *testing.T) {

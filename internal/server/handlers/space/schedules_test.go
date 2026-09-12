@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"testing"
 
-	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/testsupport"
+	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/testsupport"
 )
 
 const scheduleTestSecret = "schedule-test-secret"

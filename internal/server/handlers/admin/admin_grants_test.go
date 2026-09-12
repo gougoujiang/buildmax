@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 )
 
 // TestGrantRoundTripThroughTheAPI: an administrator can hand the authority to

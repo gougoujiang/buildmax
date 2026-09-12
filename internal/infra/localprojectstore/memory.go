@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/core/localproject"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/core/localproject"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // MemoryDir holds one file per memory plus the generated index and the lock.

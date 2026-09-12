@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"time"
 
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
 )
 
 // LLMCallSummary is one managed call as a reader sees it.

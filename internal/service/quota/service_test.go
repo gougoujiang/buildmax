@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	corequota "github.com/icloudbb/buildmax/internal/core/quota"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
 )
 
 type mockSpaceStore struct {

@@ -9,13 +9,13 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
-	"github.com/gougoujiang/buildmax/internal/infra/db"
-	infrasecret "github.com/gougoujiang/buildmax/internal/infra/secret"
-	"github.com/gougoujiang/buildmax/internal/service/audit"
-	"github.com/gougoujiang/buildmax/internal/service/llmcatalog"
+	"github.com/icloudbb/buildmax/internal/config"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
+	"github.com/icloudbb/buildmax/internal/infra/db"
+	infrasecret "github.com/icloudbb/buildmax/internal/infra/secret"
+	"github.com/icloudbb/buildmax/internal/service/audit"
+	"github.com/icloudbb/buildmax/internal/service/llmcatalog"
 )
 
 // The operator-side half of the managed model catalog. The catalog holds

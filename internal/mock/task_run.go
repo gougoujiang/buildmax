@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
 // MockTaskRunStore is an in-memory TaskRunStore for tests.

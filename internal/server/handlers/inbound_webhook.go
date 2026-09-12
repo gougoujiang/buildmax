@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"strings"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/server/access"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/server/access"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	convchannel "github.com/icloudbb/buildmax/internal/service/conversation/channel"
 )
 
 func (h *Handler) serveWebhook(w http.ResponseWriter, r *http.Request) {

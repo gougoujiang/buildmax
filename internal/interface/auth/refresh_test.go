@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/interface/client"
-	"github.com/gougoujiang/buildmax/internal/testsupport"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/interface/client"
+	"github.com/icloudbb/buildmax/internal/testsupport"
 )
 
 // storeSession writes a full login — both credentials — into an isolated

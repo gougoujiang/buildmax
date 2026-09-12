@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // MetaVersion is the meta.json format this build writes and is the only one it

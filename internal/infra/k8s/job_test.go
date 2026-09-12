@@ -10,8 +10,8 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/config"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
 // fakeJobCreator records the last created Job for tests.

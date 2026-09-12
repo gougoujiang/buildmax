@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/evaluation/contract"
-	"github.com/gougoujiang/buildmax/evaluation/trace"
+	"github.com/icloudbb/buildmax/evaluation/contract"
+	"github.com/icloudbb/buildmax/evaluation/trace"
 )
 
 // TraceConfig asserts over recorded process events.

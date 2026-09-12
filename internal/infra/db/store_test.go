@@ -7,15 +7,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // testPublicID is a distinct handle for a row a test invents. It is a real

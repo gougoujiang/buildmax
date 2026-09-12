@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/infra/httpclient"
+	"github.com/icloudbb/buildmax/internal/infra/httpclient"
 )
 
 // CreateAccount creates an account by email and returns it. Creating an account

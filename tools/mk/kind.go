@@ -18,7 +18,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 const (

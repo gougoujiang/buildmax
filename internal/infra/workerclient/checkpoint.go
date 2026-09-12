@@ -6,7 +6,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/gougoujiang/buildmax/internal/infra/httpclient"
+	"github.com/icloudbb/buildmax/internal/infra/httpclient"
 )
 
 // ErrWorkspaceCheckpointsUnsupported reports that the server this run reached

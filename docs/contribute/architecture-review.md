@@ -208,7 +208,7 @@ and packages that pull unrelated capabilities into the same change surface.
 ```bash
 # One line per package and its direct imports; retain module-local imports.
 go list -f '{{.ImportPath}} {{join .Imports " "}}' ./internal/... | \
-  rg 'github.com/gougoujiang/buildmax/internal/'
+  rg 'github.com/icloudbb/buildmax/internal/'
 # Or, quick fan-in: who imports a suspected hub.
 rg -l -g '*.go' 'buildmax/internal/<pkg>' internal | wc -l
 ```

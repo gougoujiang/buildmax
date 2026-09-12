@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // toolTurn is a turn that asked for one tool, entered it, and got a result.

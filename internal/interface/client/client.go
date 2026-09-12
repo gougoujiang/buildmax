@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/infra/httpclient"
-	"github.com/gougoujiang/buildmax/internal/infra/llmwire"
+	"github.com/icloudbb/buildmax/internal/infra/httpclient"
+	"github.com/icloudbb/buildmax/internal/infra/llmwire"
 )
 
 // DefaultServerURL is where a client looks when nobody has named a server: the

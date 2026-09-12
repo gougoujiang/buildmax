@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/evaluation/contract"
+	"github.com/icloudbb/buildmax/evaluation/contract"
 )
 
 func config(t *testing.T, v any) json.RawMessage {

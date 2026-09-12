@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // issueReportBudget is how many times one run may write to the issue thread.

@@ -2,12 +2,12 @@ package tool
 
 import (
 	"context"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/util"
 	"os"
 	"strconv"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // ReadFile reads a local file under a workspace root.

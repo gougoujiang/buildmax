@@ -10,8 +10,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
-	mcpcfg "github.com/gougoujiang/buildmax/internal/core/mcp"
+	"github.com/icloudbb/buildmax/internal/core/llm"
+	mcpcfg "github.com/icloudbb/buildmax/internal/core/mcp"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )

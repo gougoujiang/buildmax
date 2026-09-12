@@ -2,10 +2,10 @@ package issue
 
 import (
 	"context"
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
 	"strings"
 
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
 )
 
 var (

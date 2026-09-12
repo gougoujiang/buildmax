@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
+	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
 )
 
 // MockLLMModelStore is an in-memory LLMModelStore for tests.

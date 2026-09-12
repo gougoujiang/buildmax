@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/infra/mcp"
+	"github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/infra/mcp"
 )
 
 const (

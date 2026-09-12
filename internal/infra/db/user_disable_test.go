@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
+	"github.com/icloudbb/buildmax/internal/config"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 )
 
 func openUserAdminStore(t *testing.T) (*Store, context.Context) {

@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 func TestManagerEnforcesWorkspaceWriteBoundary(t *testing.T) {

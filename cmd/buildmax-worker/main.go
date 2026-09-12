@@ -11,10 +11,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/gougoujiang/buildmax/internal/bootstrap"
-	"github.com/gougoujiang/buildmax/internal/config"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	log "github.com/gougoujiang/buildmax/internal/infra/log"
+	"github.com/icloudbb/buildmax/internal/bootstrap"
+	"github.com/icloudbb/buildmax/internal/config"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	log "github.com/icloudbb/buildmax/internal/infra/log"
 )
 
 func main() {

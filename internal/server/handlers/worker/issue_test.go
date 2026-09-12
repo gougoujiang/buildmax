@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	issuesvc "github.com/gougoujiang/buildmax/internal/service/issue"
-	"github.com/gougoujiang/buildmax/internal/util"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/mock"
+	issuesvc "github.com/icloudbb/buildmax/internal/service/issue"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 const issueWorkerSpace = "tm_llm"

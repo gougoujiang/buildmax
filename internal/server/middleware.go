@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	buildmaxlog "github.com/gougoujiang/buildmax/internal/infra/log"
+	buildmaxlog "github.com/icloudbb/buildmax/internal/infra/log"
 )
 
 // RequestIDHeader returns the request's correlation id to the caller, so a bug

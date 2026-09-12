@@ -8,7 +8,7 @@
 ## 1. 克隆与构建
 
 ```bash
-git clone https://github.com/gougoujiang/buildmax.git
+git clone https://github.com/icloudbb/buildmax.git
 cd buildmax
 ./make doctor
 ./make setup local
@@ -92,5 +92,5 @@ git push -u origin short-topic-name
 ## 遇到困难时
 
 - 运行时问题参见 [manual/troubleshooting.md](../../../manual/troubleshooting.md)
-- 一般问题可到 [GitHub Discussions](https://github.com/gougoujiang/buildmax/discussions) 提问，也可以在未完成的拉取请求中提问
+- 一般问题可到 [GitHub Discussions](https://github.com/icloudbb/buildmax/discussions) 提问，也可以在未完成的拉取请求中提问
 - 应使用哪个渠道参见 [../../.github/SUPPORT.md](../../../.github/SUPPORT.md)

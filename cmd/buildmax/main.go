@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	log "github.com/gougoujiang/buildmax/internal/infra/log"
-	"github.com/gougoujiang/buildmax/internal/interface/cli"
+	"github.com/icloudbb/buildmax/internal/config"
+	log "github.com/icloudbb/buildmax/internal/infra/log"
+	"github.com/icloudbb/buildmax/internal/interface/cli"
 )
 
 func main() {

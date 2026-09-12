@@ -1,13 +1,13 @@
 package tool
 
 import (
-	"github.com/gougoujiang/buildmax/internal/core/subagent"
+	"github.com/icloudbb/buildmax/internal/core/subagent"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/plugin"
+	"github.com/icloudbb/buildmax/internal/core/plugin"
 )
 
 func makeSkill(t *testing.T, dir, name, desc string) {

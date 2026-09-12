@@ -10,8 +10,8 @@ import (
 
 	"github.com/spf13/viper"
 
-	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	corehook "github.com/icloudbb/buildmax/internal/core/hook"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // LLM holds resolved LLM provider settings.

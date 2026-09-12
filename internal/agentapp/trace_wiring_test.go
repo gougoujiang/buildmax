@@ -11,14 +11,14 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/infra/sessionstore"
-	"github.com/gougoujiang/buildmax/internal/infra/trace"
-	tools "github.com/gougoujiang/buildmax/internal/tool"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/infra/sessionstore"
+	"github.com/icloudbb/buildmax/internal/infra/trace"
+	tools "github.com/icloudbb/buildmax/internal/tool"
 
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 type traceScriptClient struct {

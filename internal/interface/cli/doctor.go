@@ -12,13 +12,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/infra/git"
-	"github.com/gougoujiang/buildmax/internal/infra/llm"
-	"github.com/gougoujiang/buildmax/internal/infra/sandbox"
-	"github.com/gougoujiang/buildmax/internal/interface/auth"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/infra/git"
+	"github.com/icloudbb/buildmax/internal/infra/llm"
+	"github.com/icloudbb/buildmax/internal/infra/sandbox"
+	"github.com/icloudbb/buildmax/internal/interface/auth"
 
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 	"github.com/spf13/cobra"
 )
 

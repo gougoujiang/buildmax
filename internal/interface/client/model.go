@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/gougoujiang/buildmax/internal/infra/httpclient"
+	"github.com/icloudbb/buildmax/internal/infra/httpclient"
 )
 
 // AdminModel is one catalog entry as the admin API returns it. Only the fields

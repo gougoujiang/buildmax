@@ -23,10 +23,10 @@ import (
 	"sort"
 	"strings"
 
-	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
-	coremcp "github.com/gougoujiang/buildmax/internal/core/mcp"
-	"github.com/gougoujiang/buildmax/internal/core/plugin"
-	"github.com/gougoujiang/buildmax/internal/core/subagent"
+	corehook "github.com/icloudbb/buildmax/internal/core/hook"
+	coremcp "github.com/icloudbb/buildmax/internal/core/mcp"
+	"github.com/icloudbb/buildmax/internal/core/plugin"
+	"github.com/icloudbb/buildmax/internal/core/subagent"
 )
 
 // Package layout, relative to the plugin root.

@@ -6,9 +6,9 @@ import (
 	"io"
 	"text/tabwriter"
 
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
-	"github.com/gougoujiang/buildmax/internal/interface/pluginmgr"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	"github.com/icloudbb/buildmax/internal/infra/pluginwire"
+	"github.com/icloudbb/buildmax/internal/interface/pluginmgr"
 
 	"github.com/spf13/cobra"
 )

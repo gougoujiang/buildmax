@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
 // seedTaskForCheckpoint creates a space, agent, and task, and returns the store,

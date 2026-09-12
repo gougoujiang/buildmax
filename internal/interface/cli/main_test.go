@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/testsupport"
+	"github.com/icloudbb/buildmax/internal/testsupport"
 )
 
 // Code in this package reads BUILDMAX_HOME-relative paths, so the whole binary

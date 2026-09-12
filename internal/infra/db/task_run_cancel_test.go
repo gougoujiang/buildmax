@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
 // TestTaskRunCancelQueries covers the three queries a cancel depends on. They

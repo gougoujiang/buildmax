@@ -3,8 +3,8 @@ package session
 import (
 	"fmt"
 
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // State is what a branch of history reduces to: everything a resumed turn needs

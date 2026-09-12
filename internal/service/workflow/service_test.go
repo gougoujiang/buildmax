@@ -5,11 +5,11 @@ import (
 	"strings"
 	"testing"
 
-	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/service/task"
+	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/service/task"
 )
 
 func TestCreateWorkflow_ValidateDefinition(t *testing.T) {

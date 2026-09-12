@@ -3,9 +3,9 @@ package agentapp
 import (
 	"context"
 
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	"github.com/gougoujiang/buildmax/internal/core/session"
-	tools "github.com/gougoujiang/buildmax/internal/tool"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/session"
+	tools "github.com/icloudbb/buildmax/internal/tool"
 )
 
 // newSubAgentSession gives one subagent run its own hidden session bundle.

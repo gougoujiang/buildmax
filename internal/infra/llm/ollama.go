@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/config"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // ollamaAdapter speaks Ollama's native /api/chat.

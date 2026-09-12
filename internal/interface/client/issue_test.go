@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	"github.com/gougoujiang/buildmax/internal/tool"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	"github.com/icloudbb/buildmax/internal/tool"
 )
 
 // The inbox asks each space the same question and keeps the space alongside each

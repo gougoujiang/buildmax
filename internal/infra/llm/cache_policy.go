@@ -5,8 +5,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/config"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // Cache strategies named in diagnostics. A strategy says how a request was

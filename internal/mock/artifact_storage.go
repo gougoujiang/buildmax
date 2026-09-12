@@ -3,12 +3,12 @@ package mock
 import (
 	"bytes"
 	"context"
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreartifact "github.com/icloudbb/buildmax/internal/core/artifact"
 	"io"
 	"sync"
 
-	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
+	blob "github.com/icloudbb/buildmax/internal/infra/objectstore"
 )
 
 // MockArtifactStorage is an in-memory artifact.ContentStore for tests.

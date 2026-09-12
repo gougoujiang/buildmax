@@ -17,13 +17,13 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
-	"github.com/gougoujiang/buildmax/internal/service/audit"
-	inspect "github.com/gougoujiang/buildmax/internal/service/plugininspect"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	archive "github.com/icloudbb/buildmax/internal/infra/pluginarchive"
+	"github.com/icloudbb/buildmax/internal/service/audit"
+	inspect "github.com/icloudbb/buildmax/internal/service/plugininspect"
 )
 
 // ErrInvalidPackage means the uploaded bytes are not a plugin this deployment

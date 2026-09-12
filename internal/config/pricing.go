@@ -3,7 +3,7 @@ package config
 import (
 	"fmt"
 
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // ModelPricing is what one model charges, as it is written in a settings file

@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	coreschema "github.com/gougoujiang/buildmax/internal/core/schema"
+	coreschema "github.com/icloudbb/buildmax/internal/core/schema"
 	"gorm.io/gorm"
 )
 

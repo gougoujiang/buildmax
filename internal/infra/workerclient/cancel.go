@@ -3,7 +3,7 @@ package workerclient
 import (
 	"context"
 	"encoding/json"
-	"github.com/gougoujiang/buildmax/internal/infra/httpclient"
+	"github.com/icloudbb/buildmax/internal/infra/httpclient"
 	"log/slog"
 	"net/http"
 	"time"

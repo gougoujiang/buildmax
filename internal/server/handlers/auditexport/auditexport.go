@@ -17,8 +17,8 @@ import (
 	"strconv"
 	"time"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
 )
 
 // auditExportPage is how many events one round trip to the store fetches. The

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/infra/httpclient"
+	"github.com/icloudbb/buildmax/internal/infra/httpclient"
 )
 
 // SystemGrant is one deployment-scoped authority as the admin API returns it,

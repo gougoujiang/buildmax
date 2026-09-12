@@ -6,10 +6,10 @@ import (
 	"os"
 	"path/filepath"
 
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
-	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
-	inspect "github.com/gougoujiang/buildmax/internal/service/plugininspect"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	archive "github.com/icloudbb/buildmax/internal/infra/pluginarchive"
+	"github.com/icloudbb/buildmax/internal/infra/workerclient"
+	inspect "github.com/icloudbb/buildmax/internal/service/plugininspect"
 )
 
 // A worker's BUILDMAX_HOME is created fresh per run, so its plugins directory

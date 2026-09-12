@@ -17,9 +17,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	"github.com/gougoujiang/buildmax/internal/service/audit"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	"github.com/icloudbb/buildmax/internal/service/audit"
 )
 
 // Refusals a login can produce. The two 401s carry no Kind: apierr has no

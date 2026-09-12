@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/gougoujiang/buildmax/internal/core/session"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/core/session"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // IndexFile is the picker projection, held directly under the sessions root

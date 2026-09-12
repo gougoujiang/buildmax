@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/infra/proc"
+	"github.com/icloudbb/buildmax/internal/infra/proc"
 )
 
 // commandSpec runs command through the platform shell, as the Bash tool's

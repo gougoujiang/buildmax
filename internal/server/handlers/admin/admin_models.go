@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"strings"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	"github.com/gougoujiang/buildmax/internal/service/llmcatalog"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	"github.com/icloudbb/buildmax/internal/service/llmcatalog"
 )
 
 // AdminModel is one catalog entry as an administrator sees it.

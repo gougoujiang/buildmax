@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
+	corequota "github.com/icloudbb/buildmax/internal/core/quota"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
 )
 
 type mockStorageReader struct {

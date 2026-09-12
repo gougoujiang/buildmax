@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 )
 
 // MockAuditStore is an in-memory coreaudit.Store for tests.

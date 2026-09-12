@@ -10,12 +10,12 @@ import (
 	"strings"
 	"testing"
 
-	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
-	"github.com/gougoujiang/buildmax/internal/testsupport"
-	"github.com/gougoujiang/buildmax/internal/util"
+	coreartifact "github.com/icloudbb/buildmax/internal/core/artifact"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	"github.com/icloudbb/buildmax/internal/mock"
+	artifactsvc "github.com/icloudbb/buildmax/internal/service/artifact"
+	"github.com/icloudbb/buildmax/internal/testsupport"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 const (

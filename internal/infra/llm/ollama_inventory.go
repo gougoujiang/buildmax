@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 // OllamaModel is one model a local daemon holds, as `buildmax models --local`

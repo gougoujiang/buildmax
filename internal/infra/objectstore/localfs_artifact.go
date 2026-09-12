@@ -2,8 +2,8 @@ package objectstore
 
 import (
 	"context"
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreartifact "github.com/icloudbb/buildmax/internal/core/artifact"
 	"io"
 	"os"
 	"path/filepath"

@@ -23,50 +23,50 @@ var importRules = []struct {
 		name: "core stays independent of adapters",
 		dir:  "internal/core",
 		forbidden: []string{
-			"github.com/gougoujiang/buildmax/internal/agentapp",
-			"github.com/gougoujiang/buildmax/internal/bootstrap",
-			"github.com/gougoujiang/buildmax/internal/config",
-			"github.com/gougoujiang/buildmax/internal/infra",
-			"github.com/gougoujiang/buildmax/internal/interface",
-			"github.com/gougoujiang/buildmax/internal/server",
-			"github.com/gougoujiang/buildmax/internal/service",
+			"github.com/icloudbb/buildmax/internal/agentapp",
+			"github.com/icloudbb/buildmax/internal/bootstrap",
+			"github.com/icloudbb/buildmax/internal/config",
+			"github.com/icloudbb/buildmax/internal/infra",
+			"github.com/icloudbb/buildmax/internal/interface",
+			"github.com/icloudbb/buildmax/internal/server",
+			"github.com/icloudbb/buildmax/internal/service",
 		},
 	},
 	{
 		name: "infra does not depend on upper layers",
 		dir:  "internal/infra",
 		forbidden: []string{
-			"github.com/gougoujiang/buildmax/internal/bootstrap",
-			"github.com/gougoujiang/buildmax/internal/interface",
-			"github.com/gougoujiang/buildmax/internal/server",
+			"github.com/icloudbb/buildmax/internal/bootstrap",
+			"github.com/icloudbb/buildmax/internal/interface",
+			"github.com/icloudbb/buildmax/internal/server",
 		},
 	},
 	{
 		name: "server does not depend on local interfaces or process bootstrap",
 		dir:  "internal/server",
 		forbidden: []string{
-			"github.com/gougoujiang/buildmax/internal/bootstrap",
-			"github.com/gougoujiang/buildmax/internal/interface",
-			"github.com/gougoujiang/buildmax/internal/config",
+			"github.com/icloudbb/buildmax/internal/bootstrap",
+			"github.com/icloudbb/buildmax/internal/interface",
+			"github.com/icloudbb/buildmax/internal/config",
 		},
 	},
 	{
 		name: "service is reached by transports, not the reverse",
 		dir:  "internal/service",
 		forbidden: []string{
-			"github.com/gougoujiang/buildmax/internal/agentapp",
-			"github.com/gougoujiang/buildmax/internal/bootstrap",
-			"github.com/gougoujiang/buildmax/internal/interface",
-			"github.com/gougoujiang/buildmax/internal/server",
+			"github.com/icloudbb/buildmax/internal/agentapp",
+			"github.com/icloudbb/buildmax/internal/bootstrap",
+			"github.com/icloudbb/buildmax/internal/interface",
+			"github.com/icloudbb/buildmax/internal/server",
 		},
 	},
 	{
 		name: "agentapp does not depend on the surfaces that assemble it",
 		dir:  "internal/agentapp",
 		forbidden: []string{
-			"github.com/gougoujiang/buildmax/internal/bootstrap",
-			"github.com/gougoujiang/buildmax/internal/interface",
-			"github.com/gougoujiang/buildmax/internal/server",
+			"github.com/icloudbb/buildmax/internal/bootstrap",
+			"github.com/icloudbb/buildmax/internal/interface",
+			"github.com/icloudbb/buildmax/internal/server",
 		},
 	},
 	{
@@ -161,8 +161,8 @@ func allowedExportedPackageVar(path, name string) bool {
 // Reached from production code, each of these is either a shipped capability
 // that should not exist or a real dependency wired to a fake.
 var testOnlyPackages = []string{
-	"github.com/gougoujiang/buildmax/internal/mock",
-	"github.com/gougoujiang/buildmax/internal/testsupport",
+	"github.com/icloudbb/buildmax/internal/mock",
+	"github.com/icloudbb/buildmax/internal/testsupport",
 }
 
 // The rule covers cmd/ and deployment/ as well as internal/, because "must not
@@ -212,7 +212,7 @@ func TestTestOnlyPackagesStayInTests(t *testing.T) {
 // tools/eval reads internal/ to drive the CLI it measures.
 func TestShippedCodeDoesNotImportTools(t *testing.T) {
 	root := moduleRoot(t)
-	const toolsPkg = "github.com/gougoujiang/buildmax/tools"
+	const toolsPkg = "github.com/icloudbb/buildmax/tools"
 	for _, tree := range []string{"cmd", "internal"} {
 		for _, path := range goFiles(t, filepath.Join(root, tree)) {
 			for _, imp := range parseFile(t, path).Imports {

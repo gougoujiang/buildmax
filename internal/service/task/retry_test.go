@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/util"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // retryFixture builds a task whose last run finished in the given status.

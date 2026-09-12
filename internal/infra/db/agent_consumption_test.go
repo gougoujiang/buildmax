@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/agentdef"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/agentdef"
 )
 
 func TestAgentStore_SecretConsumptionRoundTrip(t *testing.T) {

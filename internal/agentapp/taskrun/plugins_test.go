@@ -9,8 +9,8 @@ import (
 	"testing"
 	"testing/fstest"
 
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	archive "github.com/icloudbb/buildmax/internal/infra/pluginarchive"
 )
 
 func mapFile(body string) *fstest.MapFile { return &fstest.MapFile{Data: []byte(body)} }

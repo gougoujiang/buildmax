@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreschedule "github.com/gougoujiang/buildmax/internal/core/schedule"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreschedule "github.com/icloudbb/buildmax/internal/core/schedule"
+	"github.com/icloudbb/buildmax/internal/util"
 
 	"gorm.io/gorm"
 )

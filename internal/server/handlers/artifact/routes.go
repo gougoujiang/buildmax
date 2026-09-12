@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"time"
 
-	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
+	coreartifact "github.com/icloudbb/buildmax/internal/core/artifact"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	artifactsvc "github.com/icloudbb/buildmax/internal/service/artifact"
 )
 
 const notFoundMessage = "artifact not found"

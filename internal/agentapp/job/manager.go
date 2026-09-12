@@ -15,8 +15,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/infra/proc"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/infra/proc"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // Kind says what a job runs. The monitor kind arrives with its own delivery

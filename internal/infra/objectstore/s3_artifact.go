@@ -2,7 +2,7 @@ package objectstore
 
 import (
 	"context"
-	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
+	coreartifact "github.com/icloudbb/buildmax/internal/core/artifact"
 	"io"
 )
 

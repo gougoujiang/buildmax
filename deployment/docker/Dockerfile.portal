@@ -5,7 +5,7 @@
 # Build: docker build -f deployment/docker/Dockerfile.portal -t buildmax-portal:local .
 # Run:   docker run -p 8080:80 -e BUILDMAX_API_BASE=http://localhost:5678 buildmax-portal:local
 #
-# The published image is ghcr.io/gougoujiang/buildmax-portal, built by
+# The published image is ghcr.io/icloudbb/buildmax-portal, built by
 # .github/workflows/portal-image.yml. See docs/deploy/overview.md.
 
 # Stage 1: build.

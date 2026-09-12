@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/agent"
 )
 
 const testPromptText = "You are a law consultant.\n\n## Invariants\n- Name the jurisdiction.\n"

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
 )
 
 // MockSpaceStore is an in-memory SpaceStore for tests.

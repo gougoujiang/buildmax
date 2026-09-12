@@ -11,11 +11,11 @@ package artifact
 import (
 	"net/http"
 
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	"github.com/gougoujiang/buildmax/internal/server/access"
-	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
-	"github.com/gougoujiang/buildmax/internal/service/audit"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	"github.com/icloudbb/buildmax/internal/server/access"
+	artifactsvc "github.com/icloudbb/buildmax/internal/service/artifact"
+	"github.com/icloudbb/buildmax/internal/service/audit"
 )
 
 type Config struct {

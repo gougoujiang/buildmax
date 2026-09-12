@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp/job"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/infra/proc"
+	"github.com/icloudbb/buildmax/internal/agentapp/job"
+	"github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/infra/proc"
 )
 
 // defaultJobOutputBytes bounds one JobOutput read. Callers page with cursor;

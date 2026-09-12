@@ -103,7 +103,7 @@ At the end, print the summary table (see "Report Format" below).
 
 ### R0: Read known file
 - Call `Read` with `file_path=go.mod`
-- **Pass** if output contains `module github.com/gougoujiang/buildmax`
+- **Pass** if output contains `module github.com/icloudbb/buildmax`
 
 ### R1: Read with offset and limit
 - Call `Read` with `file_path=go.mod`, `offset=1`, `limit=2`
@@ -126,7 +126,7 @@ At the end, print the summary table (see "Report Format" below).
 - **Pass** if output is `No files matched the pattern.`
 
 ### P0: Grep content mode
-- Call `Grep` with `pattern=module github.com/gougoujiang/buildmax`,
+- Call `Grep` with `pattern=module github.com/icloudbb/buildmax`,
   `path=go.mod`, `output_mode=content`
 - **Pass** if output names the file on its own line, then the matching line
   prefixed with its line number and `:` — line numbers are on by default
@@ -343,7 +343,7 @@ tool the surface does not register — see "Which Tools Exist Where" above.
 ### X0: Task delegates to a sub-agent
 - Call `Task` with `subagent_type=explore`, `description=smoke delegation check`,
   `prompt=Report the module path declared in go.mod at the workspace root. Answer with the module path and nothing else.`
-- **Pass** if the reply contains `github.com/gougoujiang/buildmax`
+- **Pass** if the reply contains `github.com/icloudbb/buildmax`
 
 ### X1: Task rejects an unknown sub-agent type
 - Call `Task` with `subagent_type=no-such-agent-xyz`, `description=bad type`,

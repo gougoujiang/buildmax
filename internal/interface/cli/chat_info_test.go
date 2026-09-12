@@ -1,17 +1,17 @@
 package cli
 
 import (
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/util"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp"
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/localproject"
-	"github.com/gougoujiang/buildmax/internal/core/session"
-	"github.com/gougoujiang/buildmax/internal/infra/trace"
+	"github.com/icloudbb/buildmax/internal/agentapp"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/localproject"
+	"github.com/icloudbb/buildmax/internal/core/session"
+	"github.com/icloudbb/buildmax/internal/infra/trace"
 
 	tea "charm.land/bubbletea/v2"
 )

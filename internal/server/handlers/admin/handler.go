@@ -11,16 +11,16 @@ package admin
 import (
 	"net/http"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
-	coreschema "github.com/gougoujiang/buildmax/internal/core/schema"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/server/access"
-	"github.com/gougoujiang/buildmax/internal/service/audit"
-	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
-	"github.com/gougoujiang/buildmax/internal/service/quota"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
+	coreschema "github.com/icloudbb/buildmax/internal/core/schema"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/server/access"
+	"github.com/icloudbb/buildmax/internal/service/audit"
+	pluginsvc "github.com/icloudbb/buildmax/internal/service/plugin"
+	"github.com/icloudbb/buildmax/internal/service/quota"
 )
 
 type Config struct {

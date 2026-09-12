@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
-	"github.com/gougoujiang/buildmax/internal/server/authtoken"
-	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
+	"github.com/icloudbb/buildmax/internal/server/authtoken"
+	"github.com/icloudbb/buildmax/internal/service/llmgateway"
 )
 
 const (

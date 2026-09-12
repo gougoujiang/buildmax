@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"strings"
 
-	mcpcfg "github.com/gougoujiang/buildmax/internal/core/mcp"
+	mcpcfg "github.com/icloudbb/buildmax/internal/core/mcp"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )

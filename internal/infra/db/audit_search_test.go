@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
+	"github.com/icloudbb/buildmax/internal/config"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 )
 
 // TestSearchAuditEvents covers the read the space-scoped method cannot do: an

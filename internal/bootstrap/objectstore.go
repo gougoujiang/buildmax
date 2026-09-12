@@ -4,13 +4,13 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
-	"github.com/gougoujiang/buildmax/internal/service/plugin"
+	artifactsvc "github.com/icloudbb/buildmax/internal/service/artifact"
+	"github.com/icloudbb/buildmax/internal/service/plugin"
 	"path/filepath"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp/taskrun"
-	"github.com/gougoujiang/buildmax/internal/config"
-	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
+	"github.com/icloudbb/buildmax/internal/agentapp/taskrun"
+	"github.com/icloudbb/buildmax/internal/config"
+	blob "github.com/icloudbb/buildmax/internal/infra/objectstore"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gougoujiang/buildmax/evaluation/contract"
+	"github.com/icloudbb/buildmax/evaluation/contract"
 )
 
 // Options is everything an import needs beyond the job directory and the pins.

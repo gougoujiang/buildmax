@@ -3,7 +3,7 @@ package httputil
 import (
 	"net/http"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
 )
 
 // WriteServiceError answers a service error and reports whether it did.

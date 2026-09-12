@@ -3,8 +3,8 @@ package handlers
 import (
 	"context"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	wsconn "github.com/gougoujiang/buildmax/internal/server/websocket"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	wsconn "github.com/icloudbb/buildmax/internal/server/websocket"
 )
 
 // reportTaskRunTerminal announces durable state. TaskRun output is already the

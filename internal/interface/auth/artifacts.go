@@ -3,8 +3,8 @@ package auth
 import (
 	"log/slog"
 
-	"github.com/gougoujiang/buildmax/internal/interface/client"
-	"github.com/gougoujiang/buildmax/internal/tool"
+	"github.com/icloudbb/buildmax/internal/interface/client"
+	"github.com/icloudbb/buildmax/internal/tool"
 )
 
 // ArtifactPublisherForSession returns this session's artifact capability, or

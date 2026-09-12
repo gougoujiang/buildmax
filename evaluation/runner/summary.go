@@ -1,6 +1,6 @@
 package runner
 
-import "github.com/gougoujiang/buildmax/evaluation/contract"
+import "github.com/icloudbb/buildmax/evaluation/contract"
 
 // Summarize derives one subject's outcome vector from the trials it produced.
 //

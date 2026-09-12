@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/agent"
 )
 
 // TestSummarize_RoundTripsARealTrace runs a trace through the recorder and back

@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"io"
 
-	coresecret "github.com/gougoujiang/buildmax/internal/core/secret"
+	coresecret "github.com/icloudbb/buildmax/internal/core/secret"
 )
 
 // dekSize is 32 bytes: AES-256. A fresh DEK is generated per write, so a

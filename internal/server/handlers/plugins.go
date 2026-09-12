@@ -3,15 +3,15 @@ package handlers
 import (
 	"errors"
 	"fmt"
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
 	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
 
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	"github.com/icloudbb/buildmax/internal/infra/pluginwire"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
 )
 
 // The catalog is readable by any active account. Publishing is the

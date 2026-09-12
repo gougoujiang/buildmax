@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // How a tool call failed. A denial is not among them: it has its own event and

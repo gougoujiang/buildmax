@@ -3,7 +3,7 @@ package work
 import (
 	"bytes"
 	"context"
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -11,11 +11,11 @@ import (
 	"strings"
 	"testing"
 
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/testsupport"
-	"github.com/gougoujiang/buildmax/internal/util"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	blob "github.com/icloudbb/buildmax/internal/infra/objectstore"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/testsupport"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 const filesTestSecret = "files-test-secret"

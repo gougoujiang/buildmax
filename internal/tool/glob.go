@@ -3,7 +3,7 @@ package tool
 import (
 	"context"
 	"errors"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/util"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -12,7 +12,7 @@ import (
 
 	"github.com/bmatcuk/doublestar/v4"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // Glob lists files matching a glob pattern under a workspace root.

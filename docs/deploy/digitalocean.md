@@ -143,8 +143,8 @@ another digest, never a mutable tag:
 
 | Variable | Default artifact |
 |---|---|
-| `BUILDMAX_OCEAN_IMAGE` | `ghcr.io/gougoujiang/buildmax@sha256:64e6775796b4bf0cb1145e3aaa79084e170f1ec340bd5af1cddc1a28cc0336dd` |
-| `BUILDMAX_OCEAN_PORTAL_IMAGE` | `ghcr.io/gougoujiang/buildmax-portal@sha256:82165de877e4cae3c5a1c598b6f39b37a94db114ab6ce315b237d5913f7e2e2b` |
+| `BUILDMAX_OCEAN_IMAGE` | `ghcr.io/icloudbb/buildmax@sha256:64e6775796b4bf0cb1145e3aaa79084e170f1ec340bd5af1cddc1a28cc0336dd` |
+| `BUILDMAX_OCEAN_PORTAL_IMAGE` | `ghcr.io/icloudbb/buildmax-portal@sha256:82165de877e4cae3c5a1c598b6f39b37a94db114ab6ce315b237d5913f7e2e2b` |
 | `BUILDMAX_OCEAN_EDGE_IMAGE` | `caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d` |
 
 `deploy` refreshes OpenTofu's read-only database CA output, combines that CA

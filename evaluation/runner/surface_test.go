@@ -11,9 +11,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/evaluation/adapter"
-	"github.com/gougoujiang/buildmax/evaluation/contract"
-	"github.com/gougoujiang/buildmax/internal/testsupport/mockllm"
+	"github.com/icloudbb/buildmax/evaluation/adapter"
+	"github.com/icloudbb/buildmax/evaluation/contract"
+	"github.com/icloudbb/buildmax/internal/testsupport/mockllm"
 )
 
 var (

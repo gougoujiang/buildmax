@@ -14,10 +14,10 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/infra/llm"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/infra/llm"
 
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 	"github.com/spf13/cobra"
 )
 
@@ -34,7 +34,7 @@ const (
 	initDefaultName          = "GPT-4o mini"
 	initDefaultContextWindow = 128000
 	openRouterKeysURL        = "https://openrouter.ai/keys"
-	quickstartURL            = "https://github.com/gougoujiang/buildmax/blob/main/manual/quickstart.md"
+	quickstartURL            = "https://github.com/icloudbb/buildmax/blob/main/manual/quickstart.md"
 	// initDefaultOllamaModel is written when --ollama finds no daemon to ask.
 	// A model that is not pulled yet is still the right thing to configure: the
 	// next step printed is the command that pulls it.

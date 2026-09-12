@@ -1,6 +1,6 @@
 # BuildMax
 
-[![CI](https://github.com/gougoujiang/buildmax/actions/workflows/ci.yml/badge.svg)](https://github.com/gougoujiang/buildmax/actions/workflows/ci.yml)
+[![CI](https://github.com/icloudbb/buildmax/actions/workflows/ci.yml/badge.svg)](https://github.com/icloudbb/buildmax/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 **An open-source Agent runtime for local work and private space deployment.**
@@ -48,11 +48,11 @@ The user-facing surfaces have distinct jobs:
 
 ## Try BuildMax Locally
 
-Download a binary from [Releases](https://github.com/gougoujiang/buildmax/releases),
+Download a binary from [Releases](https://github.com/icloudbb/buildmax/releases),
 or:
 
 ```bash
-go install github.com/gougoujiang/buildmax/cmd/buildmax@latest
+go install github.com/icloudbb/buildmax/cmd/buildmax@latest
 ```
 
 Configure a model — this writes `~/.buildmax/settings.yaml`:
@@ -87,7 +87,7 @@ A space deployment adds the Server, Portal, and workers around the same Agent
 Core. The fastest complete path is Docker Compose:
 
 ```bash
-git clone https://github.com/gougoujiang/buildmax.git
+git clone https://github.com/icloudbb/buildmax.git
 cd buildmax
 ./make compose smoke
 ```
@@ -138,10 +138,10 @@ Contributions are also welcome in four main areas:
   and observable execution boundaries
 
 Start with the [contribution areas](docs/contribute/areas.md), then choose a
-[`good first issue`](https://github.com/gougoujiang/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22),
-[`help wanted`](https://github.com/gougoujiang/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22),
+[`good first issue`](https://github.com/icloudbb/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22),
+[`help wanted`](https://github.com/icloudbb/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22),
 or
-[`agent-ready`](https://github.com/gougoujiang/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22agent-ready%22)
+[`agent-ready`](https://github.com/icloudbb/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22agent-ready%22)
 task. The last label means the issue has explicit scope, acceptance criteria,
 and verification commands; it does not require using an AI agent.
 
@@ -196,10 +196,10 @@ Report vulnerabilities privately: [SECURITY.md](SECURITY.md).
 
 ## Community
 
-Use [GitHub Discussions](https://github.com/gougoujiang/buildmax/discussions)
+Use [GitHub Discussions](https://github.com/icloudbb/buildmax/discussions)
 for setup questions, early product ideas, deployment experience, and show and
 tell. Confirmed bugs and contributor-ready work belong in
-[Issues](https://github.com/gougoujiang/buildmax/issues).
+[Issues](https://github.com/icloudbb/buildmax/issues).
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) for development checks, architectural
 boundaries, and pull request guidance. Community participation follows the

@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/interface/client"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/interface/client"
 )
 
 // AuthInfo is the caller-facing authentication view.

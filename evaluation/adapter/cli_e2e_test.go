@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/evaluation/contract"
-	"github.com/gougoujiang/buildmax/internal/testsupport/mockllm"
+	"github.com/icloudbb/buildmax/evaluation/contract"
+	"github.com/icloudbb/buildmax/internal/testsupport/mockllm"
 )
 
 // The tests below run the real binary. They are what keeps the adapter honest:

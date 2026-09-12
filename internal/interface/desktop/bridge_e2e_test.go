@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/testsupport/mockllm"
+	"github.com/icloudbb/buildmax/internal/testsupport/mockllm"
 )
 
 // The Desktop bridge end to end: the bound methods, the events the frontend

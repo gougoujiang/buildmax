@@ -5,9 +5,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp"
-	"github.com/gougoujiang/buildmax/internal/config"
-	tools "github.com/gougoujiang/buildmax/internal/tool"
+	"github.com/icloudbb/buildmax/internal/agentapp"
+	"github.com/icloudbb/buildmax/internal/config"
+	tools "github.com/icloudbb/buildmax/internal/tool"
 )
 
 // systemPromptFlags holds the three ways the command line can add to a run's system prompt.

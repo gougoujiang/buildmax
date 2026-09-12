@@ -3,7 +3,7 @@ package sandbox
 import (
 	"strconv"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 // ulimitPrefix returns shell statements enforcing cfg's process limits,

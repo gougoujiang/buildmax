@@ -96,14 +96,14 @@ The remaining bottleneck is coordination and evidence closure:
 - At the review on 2026-09-06, the repository had ten open Issues and only
   three carrying `agent-ready`. Much near-term work remained embedded in the
   roadmap and design records rather than available as an implementation queue.
-- Issue [#55](https://github.com/gougoujiang/buildmax/issues/55) was labelled
+- Issue [#55](https://github.com/icloudbb/buildmax/issues/55) was labelled
   `agent-ready` while still naming the old `cmd/mk` location after the task
   runner had moved to `tools/mk`. Readiness can therefore become stale without
   losing its label.
-- Pull requests [#401](https://github.com/gougoujiang/buildmax/pull/401) and
-  [#402](https://github.com/gougoujiang/buildmax/pull/402) independently
+- Pull requests [#401](https://github.com/icloudbb/buildmax/pull/401) and
+  [#402](https://github.com/icloudbb/buildmax/pull/402) independently
   designed Task workspace continuity. Both records briefly reached `main`
-  before [#404](https://github.com/gougoujiang/buildmax/pull/404) reconciled
+  before [#404](https://github.com/icloudbb/buildmax/pull/404) reconciled
   them into one accepted direction and deleted the losing proposal. The
   resolution was correct, but parallel production still created avoidable
   arbitration and cleanup work for the maintainer.

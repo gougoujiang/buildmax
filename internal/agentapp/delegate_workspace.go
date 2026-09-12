@@ -3,9 +3,9 @@ package agentapp
 import (
 	"log/slog"
 
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	tools "github.com/gougoujiang/buildmax/internal/tool"
-	"github.com/gougoujiang/buildmax/internal/util"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	tools "github.com/icloudbb/buildmax/internal/tool"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // agentTypeToolsAt rebuilds one agent type's tool set against a different

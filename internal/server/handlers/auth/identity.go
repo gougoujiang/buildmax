@@ -3,9 +3,9 @@ package auth
 import (
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/server/access"
-	identitysvc "github.com/gougoujiang/buildmax/internal/service/identity"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/server/access"
+	identitysvc "github.com/icloudbb/buildmax/internal/service/identity"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // jwtIssuer mints access tokens for the identity service.

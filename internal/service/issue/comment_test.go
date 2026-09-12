@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	"github.com/gougoujiang/buildmax/internal/mock"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	"github.com/icloudbb/buildmax/internal/mock"
 )
 
 func commentService(comments ...coreissue.Comment) (*Service, *mock.MockIssueCommentStore) {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // DelegatedStats is what runs delegated from one run spent.

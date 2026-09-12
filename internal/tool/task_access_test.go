@@ -2,10 +2,10 @@ package tool
 
 import (
 	"context"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/util"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // readOnlyAgentTool is a mockAgentTool that declares itself read-only, which

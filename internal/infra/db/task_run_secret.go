@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
-	coresecret "github.com/gougoujiang/buildmax/internal/core/secret"
+	coresecret "github.com/icloudbb/buildmax/internal/core/secret"
 )
 
 // taskRunSecretRow is one non-secret audit snapshot of what a run was granted:

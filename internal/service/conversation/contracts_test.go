@@ -3,7 +3,7 @@ package conversation
 import (
 	"testing"
 
-	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
+	convchannel "github.com/icloudbb/buildmax/internal/service/conversation/channel"
 )
 
 func TestConversationTurn_fields(t *testing.T) {

@@ -96,5 +96,5 @@ changing this, keep `src/lib/api/client.test.ts` honest: a broken precedence is
 invisible in dev and total in a container.
 
 Container image: `deployment/docker/Dockerfile.portal`, published as
-`ghcr.io/gougoujiang/buildmax-portal`. Running it is documented in
+`ghcr.io/icloudbb/buildmax-portal`. Running it is documented in
 [deploy/overview.md](../docs/deploy/overview.md#portal).

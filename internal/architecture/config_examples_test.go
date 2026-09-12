@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 // mapstructureKeys walks t and returns every mapstructure tag, including nested

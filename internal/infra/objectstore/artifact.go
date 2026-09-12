@@ -3,7 +3,7 @@ package objectstore
 import (
 	"path"
 
-	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
+	coreartifact "github.com/icloudbb/buildmax/internal/core/artifact"
 )
 
 // ArtifactObjectKey returns the object key holding one artifact's content.

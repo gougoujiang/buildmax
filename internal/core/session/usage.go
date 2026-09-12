@@ -4,7 +4,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // UsageGroup is the dimension a usage report groups sessions by. The three are

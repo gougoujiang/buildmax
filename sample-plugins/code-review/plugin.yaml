@@ -3,7 +3,7 @@ version: 1.0.0
 description: Structured code review skills and a read-only reviewer subagent.
 
 display_name: Code Review
-homepage: https://github.com/gougoujiang/buildmax/tree/main/sample-plugins/code-review
+homepage: https://github.com/icloudbb/buildmax/tree/main/sample-plugins/code-review
 maintainer: BuildMax Samples <samples@buildmax.example>
 license: Apache-2.0
 

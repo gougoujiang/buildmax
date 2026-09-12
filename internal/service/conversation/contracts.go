@@ -3,7 +3,7 @@ package conversation
 import (
 	"context"
 
-	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
+	convchannel "github.com/icloudbb/buildmax/internal/service/conversation/channel"
 )
 
 // ConversationResult is the output of processing one turn. The engine may return

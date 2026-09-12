@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
+	"github.com/icloudbb/buildmax/internal/service/llmgateway"
 )
 
 func TestCapabilitySetHas(t *testing.T) {

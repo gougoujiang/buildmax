@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // initInHome runs `buildmax init` with BUILDMAX_HOME pointed at a temp dir and

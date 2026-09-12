@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/config"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // contextKey is used as the key type for stream usage values stored in context.

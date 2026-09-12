@@ -12,13 +12,13 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	coreagent "github.com/gougoujiang/buildmax/internal/core/agent"
-	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
+	"github.com/icloudbb/buildmax/internal/config"
+	coreagent "github.com/icloudbb/buildmax/internal/core/agent"
+	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 )
 
 var (

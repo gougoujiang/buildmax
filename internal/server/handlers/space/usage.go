@@ -3,7 +3,7 @@ package space
 import (
 	"net/http"
 
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
 )
 
 type usageResponse struct {

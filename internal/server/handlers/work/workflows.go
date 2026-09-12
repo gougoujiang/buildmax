@@ -1,15 +1,15 @@
 package work
 
 import (
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	"net/http"
 	"time"
 
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	"github.com/gougoujiang/buildmax/internal/service/task"
-	"github.com/gougoujiang/buildmax/internal/service/workflow"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	"github.com/icloudbb/buildmax/internal/service/task"
+	"github.com/icloudbb/buildmax/internal/service/workflow"
 )
 
 type workflowResponse struct {

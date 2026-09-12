@@ -123,7 +123,7 @@ The Portal is a static bundle. Run the published image:
 ```bash
 docker run -p 8080:80 \
   -e BUILDMAX_API_BASE=https://api.example.com \
-  ghcr.io/gougoujiang/buildmax-portal:<version>
+  ghcr.io/icloudbb/buildmax-portal:<version>
 ```
 
 `BUILDMAX_API_BASE` is applied at container start, not at build time, so one
@@ -139,8 +139,8 @@ problem disappears: set `BUILDMAX_API_BASE=/` and the Portal calls its own
 origin, with no cross-origin request to permit.
 
 The image tag matches the release it was built from, so
-`ghcr.io/gougoujiang/buildmax-portal:0.1.0` pairs with
-`ghcr.io/gougoujiang/buildmax:0.1.0`.
+`ghcr.io/icloudbb/buildmax-portal:0.1.0` pairs with
+`ghcr.io/icloudbb/buildmax:0.1.0`.
 
 To build the bundle yourself instead:
 
@@ -155,8 +155,8 @@ from `VITE_API_BASE` at build time, or defaults to `http://localhost:5678`.
 
 | Image | Contents |
 |---|---|
-| `ghcr.io/gougoujiang/buildmax` | CLI, server, and worker binaries |
-| `ghcr.io/gougoujiang/buildmax-portal` | Static frontend served by nginx |
+| `ghcr.io/icloudbb/buildmax` | CLI, server, and worker binaries |
+| `ghcr.io/icloudbb/buildmax-portal` | Static frontend served by nginx |
 
 Both are published per release tag, from `.goreleaser.yaml` and
 `.github/workflows/portal-image.yml` respectively. They are built by separate

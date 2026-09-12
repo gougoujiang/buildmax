@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 )
 
 // seedAuditEvents writes n events for one actor at the given timestamps and

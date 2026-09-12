@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreartifact "github.com/icloudbb/buildmax/internal/core/artifact"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 )
 
 // ErrSharingNotConfigured is a deployment that cannot make a public link: it

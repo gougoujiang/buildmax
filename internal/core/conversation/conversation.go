@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
 )
 
 // ErrStaleTurnWrite is returned by AppendMessage when the write carries a

@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	coreschedule "github.com/gougoujiang/buildmax/internal/core/schedule"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	tasksvc "github.com/gougoujiang/buildmax/internal/service/task"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	coreschedule "github.com/icloudbb/buildmax/internal/core/schedule"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	tasksvc "github.com/icloudbb/buildmax/internal/service/task"
 )
 
 // fakeScheduleStore is an in-memory coreschedule.Store. Only the methods the

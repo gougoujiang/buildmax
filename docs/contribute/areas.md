@@ -51,9 +51,9 @@ Useful experience:
 
 Start with the [Agent Core architecture](architecture/agent-loop.md), then look
 for open
-[`help wanted`](https://github.com/gougoujiang/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
+[`help wanted`](https://github.com/icloudbb/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
 or
-[`agent-ready`](https://github.com/gougoujiang/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22agent-ready%22)
+[`agent-ready`](https://github.com/icloudbb/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22agent-ready%22)
 issues that name the runtime.
 
 ### Local Experience
@@ -124,7 +124,7 @@ valuable even when the fix is small.
 
 Useful starting points:
 
-- [`good first issue`](https://github.com/gougoujiang/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+- [`good first issue`](https://github.com/icloudbb/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 - the [documentation rules](documentation.md)
 - the [first pull request](first-pr.md) walkthrough
 - gaps found by running `./make doctor`, `./make test`, or a quickstart

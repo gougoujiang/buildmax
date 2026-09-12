@@ -15,7 +15,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/evaluation/contract"
+	"github.com/icloudbb/buildmax/evaluation/contract"
 )
 
 // Materialize copies a task's visible initial state into the trial workspace.

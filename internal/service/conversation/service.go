@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
 
-	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
-	"github.com/gougoujiang/buildmax/internal/service/task"
+	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
+	"github.com/icloudbb/buildmax/internal/core/llm"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	convchannel "github.com/icloudbb/buildmax/internal/service/conversation/channel"
+	"github.com/icloudbb/buildmax/internal/service/task"
 )
 
 var (

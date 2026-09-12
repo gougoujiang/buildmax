@@ -6,9 +6,9 @@ import (
 	"io"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coresecret "github.com/gougoujiang/buildmax/internal/core/secret"
-	infrasecret "github.com/gougoujiang/buildmax/internal/infra/secret"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coresecret "github.com/icloudbb/buildmax/internal/core/secret"
+	infrasecret "github.com/icloudbb/buildmax/internal/infra/secret"
 )
 
 // memStore is an in-memory coresecret.Store keyed by a generated id.

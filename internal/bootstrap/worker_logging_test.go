@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	buildmaxlog "github.com/gougoujiang/buildmax/internal/infra/log"
+	"github.com/icloudbb/buildmax/internal/config"
+	buildmaxlog "github.com/icloudbb/buildmax/internal/infra/log"
 )
 
 // A worker process runs one task run, so RunWorker stamps the run onto the

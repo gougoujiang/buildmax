@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 // buildWorkerListenerTLS builds the worker listener's server TLS configuration,

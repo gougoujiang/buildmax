@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // LoadMode controls how much of a session Store.Load reads.

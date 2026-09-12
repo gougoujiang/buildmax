@@ -3,7 +3,7 @@ package session
 import (
 	"sort"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // ConversationStats is the shape of a session's history: who said how much,

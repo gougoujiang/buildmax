@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	wsconn "github.com/gougoujiang/buildmax/internal/server/websocket"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	wsconn "github.com/icloudbb/buildmax/internal/server/websocket"
 )
 
 func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {

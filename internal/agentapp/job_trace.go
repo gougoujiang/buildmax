@@ -1,8 +1,8 @@
 package agentapp
 
 import (
-	"github.com/gougoujiang/buildmax/internal/agentapp/job"
-	"github.com/gougoujiang/buildmax/internal/infra/trace"
+	"github.com/icloudbb/buildmax/internal/agentapp/job"
+	"github.com/icloudbb/buildmax/internal/infra/trace"
 )
 
 // logJobEvents writes every job event to the durable job log until the

@@ -34,9 +34,9 @@
 - MCP、skills、subagents、plugins 和 traces
 
 先阅读 [Agent Core 架构](architecture/agent-loop.md)，再查找提及运行时、尚未关闭且标有
-[`help wanted`](https://github.com/gougoujiang/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
+[`help wanted`](https://github.com/icloudbb/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
 或
-[`agent-ready`](https://github.com/gougoujiang/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22agent-ready%22)
+[`agent-ready`](https://github.com/icloudbb/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22agent-ready%22)
 的 Issue。
 
 ### 本地体验
@@ -88,7 +88,7 @@ Agent 会读取文件、调用远程系统并执行模型选择的代码。项�
 
 有用的起点：
 
-- [`good first issue`](https://github.com/gougoujiang/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+- [`good first issue`](https://github.com/icloudbb/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 - [文档规则](documentation.md)
 - [首次拉取请求](first-pr.md)指南
 - 运行 `./make doctor`、`./make test` 或快速入门时发现的缺口

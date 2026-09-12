@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/infra/llmremote"
-	"github.com/gougoujiang/buildmax/internal/infra/llmwire"
-	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
-	"github.com/gougoujiang/buildmax/internal/testsupport"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/infra/llmremote"
+	"github.com/icloudbb/buildmax/internal/infra/llmwire"
+	"github.com/icloudbb/buildmax/internal/service/llmgateway"
+	"github.com/icloudbb/buildmax/internal/testsupport"
 )
 
 // profileRecordingClient captures what the gateway handed the provider.

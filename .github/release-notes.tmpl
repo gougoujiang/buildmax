@@ -19,13 +19,13 @@ binaries — `buildmax`, `buildmax-server`, `buildmax-worker` — plus
 With a Go toolchain, for the CLI alone:
 
 ```
-go install github.com/gougoujiang/buildmax/cmd/buildmax@{{.Tag}}
+go install github.com/icloudbb/buildmax/cmd/buildmax@{{.Tag}}
 ```
 
 As a container, for linux/amd64 and linux/arm64:
 
 ```
-docker pull ghcr.io/gougoujiang/buildmax:{{.Version}}
+docker pull ghcr.io/icloudbb/buildmax:{{.Version}}
 ```
 
 Copy `config-examples/settings.example.yaml` to `~/.buildmax/settings.yaml`,
@@ -57,4 +57,4 @@ Interfaces and deployment guidance may change before a stable release.
 ---
 
 Earlier releases are in
-[CHANGELOG.md](https://github.com/gougoujiang/buildmax/blob/{{.Tag}}/CHANGELOG.md).
+[CHANGELOG.md](https://github.com/icloudbb/buildmax/blob/{{.Tag}}/CHANGELOG.md).

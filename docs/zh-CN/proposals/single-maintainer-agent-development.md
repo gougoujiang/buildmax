@@ -88,14 +88,14 @@ BuildMax 已经为 Agent 辅助开发提供了一个异常扎实的基础：
 - 在 2026-09-06 的这次评审中，仓库共有十个开放 Issue，其中只有三个带有
   `agent-ready` 标签。大量近期工作仍然嵌在路线图与设计记录里，而没有作为
   一个可实现的任务队列存在。
-- Issue [#55](https://github.com/gougoujiang/buildmax/issues/55) 在任务
+- Issue [#55](https://github.com/icloudbb/buildmax/issues/55) 在任务
   执行器已经从旧的 `cmd/mk` 位置迁移到 `tools/mk` 之后，仍然被打上了
   `agent-ready` 标签，而其内容里指名的还是旧位置。可见就绪性可以在不失去
   标签的情况下变得过时。
-- Pull request [#401](https://github.com/gougoujiang/buildmax/pull/401) 与
-  [#402](https://github.com/gougoujiang/buildmax/pull/402) 各自独立设计了
+- Pull request [#401](https://github.com/icloudbb/buildmax/pull/401) 与
+  [#402](https://github.com/icloudbb/buildmax/pull/402) 各自独立设计了
   Task 工作区连续性方案。两份记录都曾短暂地进入 `main`，直到
-  [#404](https://github.com/gougoujiang/buildmax/pull/404) 把它们统一到一个
+  [#404](https://github.com/icloudbb/buildmax/pull/404) 把它们统一到一个
   被采纳的方向，并删除了未被采纳的那份提案。这一处理结果是正确的，但并行
   产出仍然为维护者制造了本可避免的仲裁与清理工作。
 - [验证计划](../design/验证计划.md)要求进行一次全新的验收核查，以及一个

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/evaluation/harbor"
+	"github.com/icloudbb/buildmax/evaluation/harbor"
 )
 
 // The task runner imports nothing from the module, so that `./make` still runs

@@ -5,8 +5,8 @@ import (
 	"context"
 	"log/slog"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/server/websocket"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/server/websocket"
 )
 
 // Announcer closes out a run: it tells the stream hub the task is done and

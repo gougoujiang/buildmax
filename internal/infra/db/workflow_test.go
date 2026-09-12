@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
+	"github.com/icloudbb/buildmax/internal/config"
+	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 )
 
 // workflowRunFixture creates a running workflow run with n pending step runs and
