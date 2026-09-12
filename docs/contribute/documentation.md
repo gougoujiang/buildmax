@@ -144,6 +144,12 @@ counterpart. Reviewers verify both coverage and semantic fidelity, in
 proportion to the decision's risk. Other documentation remains English unless
 its directory receives an explicit mirror policy here.
 
+`docs/contribute/exploratory-runs/` receives that policy: every report and the
+index has a zh-CN counterpart at the same relative path, English authoritative,
+carrying the links and derived-translation notice above. Its reports are
+short-lived staging artifacts (see that directory's README), so a report and its
+mirror are committed, then converted or discarded, together.
+
 ## Retiring A Document
 
 There is no archive directory. A document that no longer describes the current

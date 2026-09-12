@@ -20,6 +20,7 @@ path from clone to review.
 | [repo-layout.md](repo-layout.md) | The repository tree and dependency direction. **Single source of truth** — other docs link here instead of repeating it. |
 | [testing.md](testing.md) | Which suite to run for a change, what each needs, where its artifacts land, and what CI runs when |
 | [exploratory-testing.md](exploratory-testing.md) | Agent-driven user journeys: choose branches from observations, preserve findings, and turn them into regression evidence |
+| [exploratory-runs/](exploratory-runs/README.md) | Committed, dated records of exploratory-testing sessions and their findings |
 | [architecture/](architecture/README.md) | How each subsystem works today, one document per package or area |
 | [architecture-review.md](architecture-review.md) | A repeatable health check for the type system and package structure — when to run it, the dimensions to examine, and what it produces |
 | [documentation.md](documentation.md) | Documentation structure, conventions, and what to update when |

@@ -183,10 +183,21 @@ blocked branch need not stop independent branches within scope. Record what was
 actually exercised, what was skipped, and what remains uncertain; do not turn
 "no finding in this session" into a product-wide pass or coverage percentage.
 
-Keep a run-specific directory under the gitignored `.artifacts/` for the report,
-screenshots, terminal output, and relevant logs or traces. Do not reuse the E2E
-output directory, which suites clear. Preserve evidence before cleanup and
-redact credentials, login codes, and unrelated private data before sharing.
+While a session runs, keep its raw evidence — screenshots, terminal output, and
+relevant logs or traces — in a run-specific directory under the gitignored
+`.artifacts/`. Do not reuse the E2E output directory, which suites clear. This
+material is ephemeral; preserve what a finding needs before cleanup and redact
+credentials, login codes, and unrelated private data before sharing.
+
+A session that produced something worth discussing — a confirmed or suspected
+finding, a reusable charter, or evidence another contributor will want — is
+committed as a dated report under [`exploratory-runs/`](exploratory-runs/README.md),
+in English with a Simplified Chinese mirror. That report is a transient staging
+artifact, not an archive: write it from the compact shape below and inline the
+shortest reproduction and the key observations, so it stands on its own once the
+`.artifacts/` captures are gone, and see that directory's README for how it is
+triaged. A session that found nothing of lasting interest stays in `.artifacts/`
+and need not be committed; do not manufacture a coverage record.
 
 Use this compact report shape; omit inapplicable fields rather than invent data:
 
@@ -219,8 +230,13 @@ add a focused regression at the lowest layer that proves the failure; use a
 browser regression when the defect depends on interaction or presentation, and
 the required deployment scope when it crosses that boundary. Run the scopes in
 [testing.md](testing.md) and update documentation to match the corrected behavior.
-Preserve the discovery in the fix or an authorized work item, with evidence
-accessible to its reviewer; a local artifact path alone is not durable shared
-evidence. Follow [AGENTS.md](../../AGENTS.md) for backlog/issue ownership and
-avoid duplicate work items. Exploration findings do not automatically authorize
-publishing an issue, broadening the implementation, or claiming Beta readiness.
+
+The committed [run record](exploratory-runs/README.md) is a staging artifact for
+discussion, not a work queue: triage each report into a durable outcome and then
+remove it. Convert an actionable finding into a fix pull request, a
+[backlog](../backlog/README.md) task, or a GitHub issue per
+[AGENTS.md](../../AGENTS.md) — one item, one place, carrying the reproduction and
+evidence into that item — or discard a report that yields nothing actionable, so
+the directory never accumulates. Exploration findings do not automatically
+authorize publishing an issue, broadening the implementation, or claiming Beta
+readiness.
