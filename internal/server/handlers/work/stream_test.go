@@ -23,6 +23,7 @@ const (
 	streamTestSpace  = "tm_personal_user1"
 	streamTestConv   = "conv-1"
 	streamTestTask   = "task-1"
+	streamTestRun    = "run-1"
 )
 
 // openTaskStream serves a handler wired with drain and returns the open stream
@@ -40,6 +41,9 @@ func openTaskStream(t *testing.T, drain <-chan struct{}) *http.Response {
 		},
 		Tasks: &mock.MockTaskStore{
 			List: []coretask.Task{{ID: streamTestTask, ConversationID: streamTestConv, SpaceID: streamTestSpace, Status: "RUNNING", Input: "in", CreatedBy: streamTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
+		},
+		TaskRuns: &mock.MockTaskRunStore{
+			Runs: []coretask.Run{{ID: streamTestRun, TaskID: streamTestTask, Status: "RUNNING", Input: "in", CreatedBy: streamTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
 		Drain: drain,
 	})

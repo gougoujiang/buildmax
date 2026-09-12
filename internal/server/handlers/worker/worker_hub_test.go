@@ -38,7 +38,7 @@ func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("POST stream: got status %d, want 200", w.Code)
 	}
-	if got := hub.Buffer(taskID); got != "hello " {
+	if got := hub.Buffer(taskRunID); got != "hello " {
 		t.Errorf("hub buffer: got %q, want \"hello \"", got)
 	}
 
@@ -52,7 +52,7 @@ func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	if w2.Code != http.StatusOK {
 		t.Errorf("POST stream second: got status %d, want 200", w2.Code)
 	}
-	if got := hub.Buffer(taskID); got != "hello world" {
+	if got := hub.Buffer(taskRunID); got != "hello world" {
 		t.Errorf("hub buffer after second: got %q, want \"hello world\"", got)
 	}
 }

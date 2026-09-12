@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	// streamKeyPrefix namespaces a task's stream key.
+	// streamKeyPrefix namespaces a run's stream key.
 	streamKeyPrefix = "stream:"
 	// streamMaxLen caps a stream at roughly this many entries, the Redis analogue
 	// of the in-memory hub's byte cap.
@@ -50,36 +50,36 @@ func NewStreamHub(ctx context.Context, backend *infra.Backend) *StreamHub {
 	return &StreamHub{backend: backend, ctx: ctx}
 }
 
-func (h *StreamHub) Append(taskID, delta string) {
-	if taskID == "" || delta == "" {
+func (h *StreamHub) Append(runID, delta string) {
+	if runID == "" || delta == "" {
 		return
 	}
-	_ = h.backend.StreamAppend(h.ctx, streamKeyPrefix+taskID, delta, streamMaxLen, streamTTL)
+	_ = h.backend.StreamAppend(h.ctx, streamKeyPrefix+runID, delta, streamMaxLen, streamTTL)
 }
 
-func (h *StreamHub) Buffer(taskID string) string {
-	if taskID == "" {
+func (h *StreamHub) Buffer(runID string) string {
+	if runID == "" {
 		return ""
 	}
-	s, _ := h.backend.StreamSnapshot(h.ctx, streamKeyPrefix+taskID)
+	s, _ := h.backend.StreamSnapshot(h.ctx, streamKeyPrefix+runID)
 	return s
 }
 
-func (h *StreamHub) Done(taskID string) {
-	if taskID == "" {
+func (h *StreamHub) Done(runID string) {
+	if runID == "" {
 		return
 	}
-	_ = h.backend.StreamDone(h.ctx, streamKeyPrefix+taskID, streamDoneTTL)
+	_ = h.backend.StreamDone(h.ctx, streamKeyPrefix+runID, streamDoneTTL)
 }
 
-func (h *StreamHub) Subscribe(taskID string) (<-chan string, func()) {
-	if taskID == "" {
+func (h *StreamHub) Subscribe(runID string) (<-chan string, func()) {
+	if runID == "" {
 		ch := make(chan string, 1)
 		close(ch)
 		return ch, func() {}
 	}
 	subCtx, cancel := context.WithCancel(h.ctx)
-	raw := h.backend.StreamTail(subCtx, streamKeyPrefix+taskID)
+	raw := h.backend.StreamTail(subCtx, streamKeyPrefix+runID)
 	out := make(chan string, 256)
 	go func() {
 		defer close(out)

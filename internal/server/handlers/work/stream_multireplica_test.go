@@ -40,6 +40,9 @@ func serveTaskStreamReplica(t *testing.T, hub wsconn.StreamHub) *http.Response {
 		Tasks: &mock.MockTaskStore{
 			List: []coretask.Task{{ID: streamTestTask, ConversationID: streamTestConv, SpaceID: streamTestSpace, Status: "RUNNING", Input: "in", CreatedBy: streamTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
+		TaskRuns: &mock.MockTaskRunStore{
+			Runs: []coretask.Run{{ID: streamTestRun, TaskID: streamTestTask, Status: "RUNNING", Input: "in", CreatedBy: streamTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
+		},
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
@@ -124,7 +127,7 @@ func TestTaskStreamCrossesReplicas(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Replica A's worker pushes a delta.
-	hubA.Append(streamTestTask, "hello-from-replica-A")
+	hubA.Append(streamTestRun, "hello-from-replica-A")
 
 	awaitSSEContains(t, resp, "hello-from-replica-A")
 }
@@ -140,7 +143,7 @@ func TestTaskStreamDoesNotCrossReplicasWithoutCoordination(t *testing.T) {
 	resp := serveTaskStreamReplica(t, hubB)
 	time.Sleep(100 * time.Millisecond)
 
-	hubA.Append(streamTestTask, "hello-from-replica-A")
+	hubA.Append(streamTestRun, "hello-from-replica-A")
 
 	// The delta must NOT arrive on replica B within a generous window.
 	seen := make(chan struct{})

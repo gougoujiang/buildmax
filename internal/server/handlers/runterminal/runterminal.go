@@ -35,7 +35,7 @@ func (a *Announcer) Announce(ctx context.Context, taskRunID, status string, outp
 	if run == nil {
 		return
 	}
-	a.Hub.Done(run.TaskID)
+	a.Hub.Done(run.ID)
 	if task == nil {
 		return
 	}

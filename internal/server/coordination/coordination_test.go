@@ -34,11 +34,11 @@ func TestStreamHubDeliversAcrossReplicas(t *testing.T) {
 	hubA := NewStreamHub(ctx, a)
 	hubB := NewStreamHub(ctx, b)
 
-	events, unsub := hubB.Subscribe("task1")
+	events, unsub := hubB.Subscribe("r_run1")
 	defer unsub()
 	time.Sleep(50 * time.Millisecond) // let the tail read the current end
 
-	hubA.Append("task1", "delta-from-A")
+	hubA.Append("r_run1", "delta-from-A")
 
 	select {
 	case got := <-events:
@@ -49,7 +49,7 @@ func TestStreamHubDeliversAcrossReplicas(t *testing.T) {
 		t.Fatal("a delta appended on replica A never reached a subscriber on replica B")
 	}
 
-	hubA.Done("task1")
+	hubA.Done("r_run1")
 	select {
 	case got := <-events:
 		if got != wsconn.StreamEventDone {
