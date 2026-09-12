@@ -65,6 +65,11 @@ type UpdateWorkflowCmd struct {
 	Description *string
 	Definition  *string
 	Status      *string
+	// ExpectedRevision pins the update to the revision the caller already
+	// observed, so a restore conflicts against an edit that landed after the
+	// caller read the workflow. It is nil for a plain edit, which observes the
+	// current revision just before the write instead.
+	ExpectedRevision *int
 }
 
 // RestoreWorkflowRevisionCmd restores an earlier revision's content.
@@ -149,6 +154,19 @@ func (s *Service) UpdateWorkflow(ctx context.Context, cmd UpdateWorkflowCmd) (*c
 		}
 		in.Status = cmd.Status
 	}
+	// The update is guarded on the revision the service observed. A restore pins
+	// the revision it read; a plain edit observes the current one now, so two
+	// edits that start from the same revision cannot both advance it -- one
+	// commits and the other gets ErrRevisionConflict to re-read and retry.
+	if cmd.ExpectedRevision != nil {
+		in.ExpectedRevision = *cmd.ExpectedRevision
+	} else {
+		current, err := s.GetWorkflow(ctx, cmd.SpaceID, cmd.WorkflowID)
+		if err != nil {
+			return nil, err
+		}
+		in.ExpectedRevision = current.Revision
+	}
 	workflow, err := s.Workflows.UpdateWorkflow(ctx, cmd.WorkflowID, cmd.SpaceID, in)
 	if err != nil {
 		return nil, err
@@ -214,12 +232,13 @@ func (s *Service) RestoreWorkflowRevision(ctx context.Context, cmd RestoreWorkfl
 		return nil, ErrWorkflowRevisionNotFound
 	}
 	return s.UpdateWorkflow(ctx, UpdateWorkflowCmd{
-		SpaceID:     cmd.SpaceID,
-		UserID:      cmd.UserID,
-		WorkflowID:  workflow.ID,
-		Name:        &revision.Name,
-		Description: &revision.Description,
-		Definition:  &revision.Definition,
+		SpaceID:          cmd.SpaceID,
+		UserID:           cmd.UserID,
+		WorkflowID:       workflow.ID,
+		Name:             &revision.Name,
+		Description:      &revision.Description,
+		Definition:       &revision.Definition,
+		ExpectedRevision: &workflow.Revision,
 	})
 }
 

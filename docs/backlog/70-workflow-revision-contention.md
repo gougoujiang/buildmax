@@ -9,7 +9,7 @@ verification:
   - ./make test mysql -run TestWorkflowRevisionContention
   - ./make test mysql
   - ./make test
-claim:
+claim: gougoujiang 2026-09-12
 ---
 
 ## Outcome

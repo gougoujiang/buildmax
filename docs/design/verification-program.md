@@ -37,11 +37,11 @@ Related records: [Local end-to-end verification](end-to-end-testing.md),
   mysql` and runs on every pull request. §4.2's contention cases cover Task
   claiming, run transitions, cancellation, one-active-run admission, and
   idempotency; Artifact tombstoning and retention, retry lineage, direct Task
-  admission, checkpoint head advancement, initial Workflow revisions, and the
+  admission, checkpoint head advancement, initial Workflow revisions, the
   Workflow reconciliation lease (due-run discovery plus concurrent
-  claim/renew/release with takeover) also have real-MySQL coverage. Remaining
-  database work includes Workflow revision
-  advancement under edits/contention, restart recovery, broader cross-Space
+  claim/renew/release with takeover), and Workflow revision advancement under
+  edits and contention also have real-MySQL coverage. Remaining database work
+  includes restart recovery, broader cross-Space
   store cases, and fixtures for the candidate’s declared starting schema. The
   unified matrix, expanded failure paths, and complete release rehearsal
   described here are not implemented
@@ -177,7 +177,10 @@ Covered today: user and space creation, login codes, refresh tokens, public IDs,
 system grants, plugin activation, LLM models and calls, audit search, revision
 queries, TaskRun transitions and claiming, retry lineage, direct Tasks,
 checkpoint head advancement, Artifact retention, issues, conversations, the
-Space invitation and ownership-transfer lifecycle, and — in
+Space invitation and ownership-transfer lifecycle, Workflow revision advancement
+under edits and contention (`TestWorkflowRevisionContention`, a guarded
+compare-and-set on the workflow row that appends its revision in the same
+transaction; mutation-checked by removing the revision predicate), and — in
 `internal/infra/db/concurrency_test.go` — four store methods under contention:
 `ClaimTask`, `TransitionTaskRun`, and `RequestTaskRunCancel` each as a
 conditional UPDATE, and `CreateTaskRun`'s one-active-run-per-task and
@@ -198,8 +201,6 @@ evidence.
 
 Still to write:
 
-- Workflow revision advancement under edits and contention, beyond initial
-  revision creation and ordered revision queries;
 - restart recovery cases for durable Task/TaskRun/checkpoint state;
 - broader cross-Space lookup rejection at the store, distinct from the role
   matrix the handler tests already assert; and
