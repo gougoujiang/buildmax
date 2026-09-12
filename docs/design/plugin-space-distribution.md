@@ -844,8 +844,54 @@ runtime is assembled. A successful installation can affect only a later
 TaskRun. Continue uses the Task's Plugin environment head; Retry reconstructs
 the repeated run's base environment. An immediate capability handoff may create
 a successor TaskRun after session and workspace state are committed, but it may
-not hot-load the current process. The exact orchestration transition must be
-designed before that immediate handoff ships.
+not hot-load the current process. §16.1 specifies that transition.
+
+### 16.1 The Immediate Capability Handoff Transition
+
+`PluginInstall` never mutates the running process. It stages the requested
+release into a **pending Plugin environment revision** for the Task and returns
+that outcome to the Agent; the current TaskRun keeps its assembled tool set,
+prompt layers, MCP servers, hooks, sandbox rules, and Secret requirements
+unchanged. The Agent may finish the objective with its existing capability, or
+end the turn to pick up the staged capability in a successor run.
+
+The handoff itself happens only at a TaskRun boundary and is orchestrated by the
+Server, not the worker:
+
+1. **Quiesce.** The worker stops the Agent loop and every child process it owns
+   through the graceful-shutdown path, exactly as a normal terminal report does.
+2. **Commit the checkpoint.** The worker captures `workspace/` and the session
+   bundle, uploads, verifies, and asks the Server to commit a successful result
+   checkpoint. This reuses the result-checkpoint protocol in
+   [task-workspace-checkpoints.md](./task-workspace-checkpoints.md) §5.5 without
+   change.
+3. **Commit the environment.** In the same transaction that accepts the terminal
+   report and advances `task.workspace_head_checkpoint_id`, the Server freezes
+   the pending revision into an immutable Plugin environment revision, records it
+   as the TaskRun's `plugin_environment_result_id` with status `committed`, and
+   advances `task.plugin_environment_head_id` to it. Workspace head and
+   environment head advance together or not at all.
+4. **Spawn the successor.** Having accepted a terminal report that carries a
+   committed environment marked for immediate handoff, the Server creates one
+   successor TaskRun on the same Task whose base is the new workspace head, the
+   committed session, and the new environment head. The successor materializes
+   the expanded plugin set as its fail-closed preparation gate and continues the
+   objective. Product UI may present the two runs as one continuous execution;
+   the record keeps the boundary and its reason.
+
+Failure is fail-open and never silent. If the checkpoint or the environment
+commit fails, neither head advances, no successor is spawned, and the pending
+revision is left unreferenced for garbage collection; the completed work stands
+and the user may Continue from the last durable head under existing rules. If
+the successor's materialization fails, that successor fails closed like any
+restore — it does not fall back to the prior capability set.
+
+Retry is unaffected: retrying the pre-handoff run reconstructs its base
+environment without the addition, because Retry repeats an attempt rather than
+resuming from its result. Whether a staged install requests an immediate
+successor or only advances the head for the next user Continue is a property of
+the `PluginInstall` call, so an Agent that merely prepares future capability
+does not force an extra run.
 
 Autonomous acquisition defaults to Task scope so one objective can improve its
 capability without silently changing every future use of the Agent. Promotion
