@@ -543,13 +543,20 @@ func (s *Service) createStepTask(ctx context.Context, spaceID, userID string, st
 		return nil, "", err
 	}
 	input := buildWorkflowTaskInput(agent, step.Prompt)
-	taskItem, err := s.TaskService.CreateTask(ctx, task.CreateTaskCmd{
+	// Admit rather than plain-create so a retried or concurrent dispatch of this
+	// step — including recovery of the crash window between admitting the task
+	// and linking it onto the step run — resolves to the one task instead of
+	// duplicating the agent's execution. The key names the logical node, so every
+	// dispatch of the same step computes the same key. See
+	// docs/design/workflow-runtime.md §11.
+	taskItem, err := s.TaskService.AdmitWorkflowTask(ctx, task.CreateTaskCmd{
 		UserID:        userID,
 		SpaceID:       spaceID,
 		Input:         input,
 		AgentID:       &agentID,
 		CreatedByType: coretask.RunCreatedByTypeUser,
 		TriggerSource: coretask.RunTriggerSourceWorkflowStep,
+		AdmissionKey:  workflowTaskAdmissionKey(step.WorkflowRunID, step.StepID),
 	})
 	if err != nil {
 		return nil, "", err
@@ -684,6 +691,15 @@ func ptrError(err error) *string {
 		return nil
 	}
 	return util.Ptr(err.Error())
+}
+
+// workflowTaskAdmissionKey names the logical node a step's task belongs to, so
+// every dispatch of the same step — first attempt, retry, or crash recovery —
+// admits under one key and cannot duplicate the task. The future graph term is
+// node_id; the linear precursor's step_id is that node. See
+// docs/design/workflow-runtime.md §11.
+func workflowTaskAdmissionKey(workflowRunID, stepID string) string {
+	return fmt.Sprintf("workflow/%s/node/%s", workflowRunID, stepID)
 }
 
 func buildWorkflowTaskInput(agent *agentdef.Agent, prompt string) string {

@@ -20,7 +20,7 @@ type taskRow struct {
 	// by it, and the single-column index the string model left could not serve
 	// the sort.
 	ConversationID        *uint64    `gorm:"column:conversation_id;index"`
-	SpaceID               uint64     `gorm:"column:space_id;not null;index:idx_task_space_created,priority:1"`
+	SpaceID               uint64     `gorm:"column:space_id;not null;index:idx_task_space_created,priority:1;uniqueIndex:uq_task_admission_key,priority:1"`
 	IssueID               *uint64    `gorm:"column:issue_id;index"`
 	ScheduleID            *uint64    `gorm:"column:schedule_id;index"`
 	Status                string     `gorm:"type:varchar(32);not null"`
@@ -46,6 +46,14 @@ type taskRow struct {
 	// PluginEnvironmentHeadID points at the immutable Plugin environment the
 	// next Continue uses; nil for a Task that installs nothing autonomously.
 	PluginEnvironmentHeadID *uint64 `gorm:"column:plugin_environment_head_id;index"`
+	// AdmissionKey binds a task to a coordinator's stable idempotency key, unique
+	// within its space (uq_task_admission_key, composite with space_id). NULL for
+	// the ordinary task no coordinator replays; NULL is not a duplicate of NULL
+	// in a MySQL unique index, so those coexist freely. AdmissionFingerprint is
+	// the digest of the admitted payload, compared on replay to tell an identical
+	// admission from a conflicting reuse of the same key. See AdmitTask.
+	AdmissionKey         *string `gorm:"column:admission_key;type:varchar(191);uniqueIndex:uq_task_admission_key,priority:2"`
+	AdmissionFingerprint *string `gorm:"column:admission_fingerprint;type:char(64)"`
 }
 
 func (taskRow) TableName() string { return "task" }
@@ -291,6 +299,100 @@ func (s *Store) CreateTask(ctx context.Context, in *coretask.CreateInput) (*core
 	if in == nil {
 		return nil, errors.New("coretask.CreateInput is required")
 	}
+	taskDB, runDB := newTaskRows(in)
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return createTaskAndRunTx(ctx, tx, in, taskDB, runDB)
+	}); err != nil {
+		return nil, err
+	}
+	return createdTask(in, taskDB, runDB), nil
+}
+
+// AdmitTask idempotently creates a task and its first run for in.AdmissionKey.
+//
+// The unique index on (space_id, admission_key) is the correctness mechanism,
+// not a lock: the first insert wins, and a concurrent or replayed admission
+// that loses the race reads the winner's task back and returns it. That is what
+// closes the crash window a Workflow node dispatch opens between admitting the
+// Task and recording the link — the coordinator calls this again with the same
+// key and receives the same task rather than a second execution. A different
+// payload under the same key is a caller mistake and returns a conflict rather
+// than silently adopting unrelated work.
+func (s *Store) AdmitTask(ctx context.Context, in *coretask.CreateInput) (*coretask.Task, error) {
+	if in == nil {
+		return nil, errors.New("coretask.CreateInput is required")
+	}
+	if in.AdmissionKey == "" {
+		return nil, errors.New("AdmitTask requires an admission key")
+	}
+	fingerprint := coretask.AdmissionFingerprint(in)
+	// Already admitted: return it (or a conflict) without attempting a second
+	// insert that the unique index would reject anyway.
+	existing, err := s.taskByAdmissionKey(ctx, in.SpaceID, in.AdmissionKey)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		return s.admittedTaskOrConflict(ctx, existing, fingerprint)
+	}
+	taskDB, runDB := newTaskRows(in)
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return createTaskAndRunTx(ctx, tx, in, taskDB, runDB)
+	})
+	if err == nil {
+		return createdTask(in, taskDB, runDB), nil
+	}
+	// A concurrent admitter committed the same key between the read above and
+	// this insert. Read theirs and reconcile against it rather than fail.
+	if isDuplicateOnIndex(err, "uq_task_admission_key") {
+		winner, rerr := s.taskByAdmissionKey(ctx, in.SpaceID, in.AdmissionKey)
+		if rerr != nil {
+			return nil, rerr
+		}
+		if winner != nil {
+			return s.admittedTaskOrConflict(ctx, winner, fingerprint)
+		}
+	}
+	return nil, err
+}
+
+// admittedTaskOrConflict returns the already-admitted task when its stored
+// fingerprint matches the presented one, and ErrTaskAdmissionConflict when it
+// does not. A row admitted without a fingerprint (there is no such path today)
+// is treated as conflicting rather than silently adopted.
+func (s *Store) admittedTaskOrConflict(ctx context.Context, existing *taskRow, fingerprint string) (*coretask.Task, error) {
+	if existing.AdmissionFingerprint == nil || *existing.AdmissionFingerprint != fingerprint {
+		return nil, coretask.ErrTaskAdmissionConflict
+	}
+	return s.GetTask(ctx, existing.PublicID)
+}
+
+// taskByAdmissionKey reads the raw row bound to (space, key), or (nil, nil) when
+// none is. It returns the row rather than a coretask.Task because the caller
+// compares the stored admission fingerprint, which the public projection omits.
+func (s *Store) taskByAdmissionKey(ctx context.Context, spaceID, key string) (*taskRow, error) {
+	spaceKey, err := lookupKey(ctx, s.db, "space", spaceID)
+	if errors.Is(err, apierr.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var row taskRow
+	err = s.db.WithContext(ctx).Where("space_id = ? AND admission_key = ?", spaceKey, key).Take(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
+// newTaskRows builds the task and first-run rows a create or admission inserts.
+// It sets the admission key and fingerprint when the input carries a key, and
+// leaves both NULL otherwise so an ordinary task never enters the unique index.
+func newTaskRows(in *coretask.CreateInput) (*taskRow, *taskRunRow) {
 	now := time.Now().UTC()
 	sessionID := session.NewID() // UUID for buildmax CLI (session not exposed to user)
 	taskDB := &taskRow{
@@ -301,6 +403,12 @@ func (s *Store) CreateTask(ctx context.Context, in *coretask.CreateInput) (*core
 		TitleCompletionTokens: in.TitleCompletionTokens,
 		CreatedAt:             now,
 		SessionID:             &sessionID,
+	}
+	if in.AdmissionKey != "" {
+		key := in.AdmissionKey
+		fingerprint := coretask.AdmissionFingerprint(in)
+		taskDB.AdmissionKey = &key
+		taskDB.AdmissionFingerprint = &fingerprint
 	}
 	// CreatedByType and TriggerSource are not defaulted here: the service
 	// layer (internal/service/task.normalizeCreateTaskProvenance) is this
@@ -318,75 +426,84 @@ func (s *Store) CreateTask(ctx context.Context, in *coretask.CreateInput) (*core
 		SandboxNetworkTier:    in.InitialRunSandboxNetworkTier,
 		SandboxFilesystemTier: in.InitialRunSandboxFilesystemTier,
 	}
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		spaceKey, err := lookupKey(ctx, tx, "space", in.SpaceID)
-		if err != nil {
-			return err
-		}
-		taskDB.SpaceID = spaceKey
-		if in.ConversationID != "" {
-			var conv conversationRow
-			convID, ok := util.CanonicalPublicID(in.ConversationID)
-			if !ok {
-				return apierr.ErrNotFound
-			}
-			if err := tx.Where("public_id = ?", convID).First(&conv).Error; err != nil {
-				return err
-			}
-			if conv.SpaceID != spaceKey {
-				return apierr.ErrNotFound
-			}
-			taskDB.ConversationID = &conv.ID
-		}
-		creator, err := lookupKey(ctx, tx, "user", in.CreatedBy)
-		if err != nil {
-			return err
-		}
-		taskDB.CreatedBy = creator
-		if in.AgentID != nil && *in.AgentID != "" {
-			key, err := lookupKey(ctx, tx, "agent", *in.AgentID)
-			if err != nil {
-				return err
-			}
-			taskDB.AgentID = &key
-		}
-		if in.IssueID != nil && *in.IssueID != "" {
-			key, err := lookupKey(ctx, tx, "issue", *in.IssueID)
-			if err != nil {
-				return err
-			}
-			taskDB.IssueID = &key
-		}
-		if in.ScheduleID != nil && *in.ScheduleID != "" {
-			key, err := lookupKey(ctx, tx, "schedule", *in.ScheduleID)
-			if err != nil {
-				return err
-			}
-			taskDB.ScheduleID = &key
-		}
-		// See CreateTaskRun: an unresolvable message leaves the run
-		// unattributed rather than refusing to create the task.
-		sourceKey, err := optionalKey(ctx, tx, "conversation_message", in.InitialRunSourceMessageID)
-		if err != nil && !errors.Is(err, apierr.ErrNotFound) {
-			return err
-		}
-		runDB.SourceMessageID = sourceKey
-		if err := createWithPublicID(ctx, tx, "uq_task_public_id",
-			func(id string) { taskDB.PublicID = id }, taskDB); err != nil {
-			return err
-		}
-		runDB.TaskID = taskDB.ID
-		if err := createWithPublicID(ctx, tx, "uq_task_run_public_id",
-			func(id string) { runDB.PublicID = id }, runDB); err != nil {
-			return err
-		}
-		// The task names its latest run, so the run has to exist first.
-		return tx.Model(&taskRow{}).Where("id = ?", taskDB.ID).
-			Update("last_run_id", runDB.ID).Error
-	})
+	return taskDB, runDB
+}
+
+// createTaskAndRunTx resolves the input's references and inserts the task and
+// its first run inside one transaction. It is the shared body of CreateTask and
+// AdmitTask; the only difference between them is idempotency, which AdmitTask
+// wraps around this.
+func createTaskAndRunTx(ctx context.Context, tx *gorm.DB, in *coretask.CreateInput, taskDB *taskRow, runDB *taskRunRow) error {
+	spaceKey, err := lookupKey(ctx, tx, "space", in.SpaceID)
 	if err != nil {
-		return nil, err
+		return err
 	}
+	taskDB.SpaceID = spaceKey
+	if in.ConversationID != "" {
+		var conv conversationRow
+		convID, ok := util.CanonicalPublicID(in.ConversationID)
+		if !ok {
+			return apierr.ErrNotFound
+		}
+		if err := tx.Where("public_id = ?", convID).First(&conv).Error; err != nil {
+			return err
+		}
+		if conv.SpaceID != spaceKey {
+			return apierr.ErrNotFound
+		}
+		taskDB.ConversationID = &conv.ID
+	}
+	creator, err := lookupKey(ctx, tx, "user", in.CreatedBy)
+	if err != nil {
+		return err
+	}
+	taskDB.CreatedBy = creator
+	if in.AgentID != nil && *in.AgentID != "" {
+		key, err := lookupKey(ctx, tx, "agent", *in.AgentID)
+		if err != nil {
+			return err
+		}
+		taskDB.AgentID = &key
+	}
+	if in.IssueID != nil && *in.IssueID != "" {
+		key, err := lookupKey(ctx, tx, "issue", *in.IssueID)
+		if err != nil {
+			return err
+		}
+		taskDB.IssueID = &key
+	}
+	if in.ScheduleID != nil && *in.ScheduleID != "" {
+		key, err := lookupKey(ctx, tx, "schedule", *in.ScheduleID)
+		if err != nil {
+			return err
+		}
+		taskDB.ScheduleID = &key
+	}
+	// See CreateTaskRun: an unresolvable message leaves the run
+	// unattributed rather than refusing to create the task.
+	sourceKey, err := optionalKey(ctx, tx, "conversation_message", in.InitialRunSourceMessageID)
+	if err != nil && !errors.Is(err, apierr.ErrNotFound) {
+		return err
+	}
+	runDB.SourceMessageID = sourceKey
+	if err := createWithPublicID(ctx, tx, "uq_task_public_id",
+		func(id string) { taskDB.PublicID = id }, taskDB); err != nil {
+		return err
+	}
+	runDB.TaskID = taskDB.ID
+	if err := createWithPublicID(ctx, tx, "uq_task_run_public_id",
+		func(id string) { runDB.PublicID = id }, runDB); err != nil {
+		return err
+	}
+	// The task names its latest run, so the run has to exist first.
+	return tx.Model(&taskRow{}).Where("id = ?", taskDB.ID).
+		Update("last_run_id", runDB.ID).Error
+}
+
+// createdTask projects a freshly inserted task and run into the public shape,
+// resolving the handles from the input the caller already holds rather than
+// reading them back.
+func createdTask(in *coretask.CreateInput, taskDB *taskRow, runDB *taskRunRow) *coretask.Task {
 	taskDB.LastRunID = &runDB.ID
 	return toTask(&taskReadRow{
 		Row:                  *taskDB,
@@ -397,7 +514,7 @@ func (s *Store) CreateTask(ctx context.Context, in *coretask.CreateInput) (*core
 		IssuePublicID:        optionalCanonicalPublicID(in.IssueID),
 		SchedulePublicID:     optionalCanonicalPublicID(in.ScheduleID),
 		AgentPublicID:        optionalCanonicalPublicID(in.AgentID),
-	}), nil
+	})
 }
 
 func defaultString(v, fallback string) string {

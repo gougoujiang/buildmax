@@ -21,6 +21,10 @@ var (
 	ErrTaskRunsNotConfigured = apierr.New(apierr.KindNotConfigured, "task runs not configured")
 	ErrAgentNotFound         = apierr.New(apierr.KindInvalid, "agent not found")
 	ErrTaskNotFound          = apierr.New(apierr.KindNotFound, "task not found")
+	// ErrAdmissionKeyRequired guards AdmitWorkflowTask: idempotent admission is
+	// meaningless without a key, so an empty one is a caller error rather than a
+	// silent fall-through to a plain create.
+	ErrAdmissionKeyRequired = apierr.New(apierr.KindInvalid, "admission key required")
 	// ErrNoRunToRetry means the task has no finished run to repeat: it has
 	// never run, or its only run is still in flight.
 	ErrNoRunToRetry = apierr.New(apierr.KindConflict, "this task has no finished run to retry")
@@ -71,6 +75,10 @@ type CreateTaskCmd struct {
 	TriggerSource string
 	// SourceMessageID names the conversation message that asked for this task.
 	SourceMessageID *string
+	// AdmissionKey, when set, makes creation idempotent through AdmitWorkflowTask:
+	// a replayed or concurrent dispatch under the same key resolves to the one
+	// task instead of a duplicate. Empty for ordinary CreateTask callers.
+	AdmissionKey string
 }
 
 // CreateRunCmd creates a new run on an existing task.
@@ -113,6 +121,36 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCmd) (*coretask.
 	if s.Tasks == nil {
 		return nil, ErrTasksNotConfigured
 	}
+	create, err := s.buildCreateInput(ctx, cmd)
+	if err != nil {
+		return nil, err
+	}
+	return s.Tasks.CreateTask(ctx, create)
+}
+
+// AdmitWorkflowTask idempotently creates a Workflow node's task, keyed by
+// cmd.AdmissionKey, so a coordinator that retries or races its dispatch — the
+// crash window between admitting the task and recording the step link — resolves
+// to the one task instead of a second execution. It is otherwise CreateTask: it
+// resolves the same input, agent, and provenance and applies the same rules.
+func (s *Service) AdmitWorkflowTask(ctx context.Context, cmd CreateTaskCmd) (*coretask.Task, error) {
+	if s.Tasks == nil {
+		return nil, ErrTasksNotConfigured
+	}
+	if cmd.AdmissionKey == "" {
+		return nil, ErrAdmissionKeyRequired
+	}
+	create, err := s.buildCreateInput(ctx, cmd)
+	if err != nil {
+		return nil, err
+	}
+	return s.Tasks.AdmitTask(ctx, create)
+}
+
+// buildCreateInput resolves the command into the CreateInput both CreateTask
+// and AdmitWorkflowTask persist. The only difference between those two is
+// idempotency, which the store applies from CreateInput.AdmissionKey.
+func (s *Service) buildCreateInput(ctx context.Context, cmd CreateTaskCmd) (*coretask.CreateInput, error) {
 	input, agentID, selectedAgent, err := s.resolveInput(ctx, cmd.SpaceID, cmd.UserID, cmd.Input, cmd.AgentID)
 	if err != nil {
 		return nil, err
@@ -144,6 +182,7 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCmd) (*coretask.
 		AgentID:                   agentID,
 		IssueID:                   cmd.IssueID,
 		ScheduleID:                cmd.ScheduleID,
+		AdmissionKey:              cmd.AdmissionKey,
 	}
 	if selectedAgent != nil {
 		revision := selectedAgent.Revision
@@ -153,7 +192,7 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCmd) (*coretask.
 		create.InitialRunSandboxNetworkTier = &networkTier
 		create.InitialRunSandboxFilesystemTier = &filesystemTier
 	}
-	return s.Tasks.CreateTask(ctx, create)
+	return create, nil
 }
 
 // GetTaskInConversation reads a task and confirms it belongs to conversationID.

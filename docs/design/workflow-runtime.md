@@ -107,6 +107,19 @@ and inbound events remain later slices; recurring runs of a single Agent
 already ship on the Task plane (see
 [scheduled Agent execution](scheduled-agent-execution.md)).
 
+The durable coordination substrate this record builds first — idempotent Task
+admission, reconciliation, lease-based recovery, and compare-and-set
+transitions — is deliberately form-agnostic. The same substrate a linear or
+static-graph run needs is the substrate a bounded Agent-to-Agent delegation
+would need to admit durable child Tasks, wait without holding a worker, and
+recover a parent after a lost callback (see
+[assistant orchestration and the Workflow boundary](../proposals/assistant-orchestration-and-workflow-boundary.md)).
+Building it first is therefore a no-regret investment that does not commit the
+product to graph breadth: whether Workflow later widens into a static DAG or
+narrows toward a deterministic Automation envelope around adaptive delegation,
+this layer is reused unchanged. Deciding how much graph breadth to ship is
+deferred to that later evidence; the substrate is not.
+
 ## 2. Problem And Design Principles
 
 Agent-era workflows combine two different kinds of computation:
@@ -638,6 +651,43 @@ The due-run scanner selects non-terminal runs whose `next_reconcile_at` is due
 or whose lease expired. It uses bounded batches and backoff. A run with an
 active TaskRun is checked less frequently when callbacks work and still has a
 finite recovery bound when they do not.
+
+### 10.1 The Decision Is A Pure Function Over Persisted Facts
+
+A reconciliation pass separates deciding from committing. The decision — which
+pending nodes are ready, which routes activate, which children a bounded
+expansion materializes, and the aggregate run state and result — is a pure
+function of the pinned revision and the already persisted facts:
+
+```text
+Plan(now, RunState) -> Decision
+```
+
+`RunState` is the revision, the current node rows, and the accepted outputs of
+succeeded nodes. `Plan` performs no I/O, calls no model, and reads no clock
+beyond the `now` it is handed, so a lost pass recomputes to the same Decision.
+The service shell reads the facts, calls `Plan`, and commits the Decision
+through idempotent Task admission and compare-and-set transitions. `Plan`,
+binding resolution, and the transition validators are the pure core in
+`internal/core/workflow`; the shell that leases, reads, and commits is
+`internal/service/workflow`.
+
+This keeps one plane rather than two schedulers. A model never decides inside a
+reconciliation pass. A model's choice — a typed route value or a planner list —
+is produced by an ordinary `agent_task` TaskRun, folded into its node as an
+accepted output (section 9), and only then read by a later `Plan` as one more
+persisted fact. Readiness for a static edge is instead derived on demand from
+`needs` and succeeded nodes and need not be stored. The dividing rule is
+recomputability: a value that cannot be cheaply and deterministically
+recomputed — every model output — must be a persisted fact before `Plan`
+depends on it; a value that can be is derived.
+
+Adding model-decided control is therefore adding a node type and its pure
+evaluator to `Plan`, not adding a second, model-calling scheduler beside the
+deterministic one. There is no `Scheduler` interface with a graph
+implementation and an LLM implementation. A model call placed inside the
+decision path would couple model latency into the transaction and forfeit the
+free replay that recovery depends on.
 
 ## 11. Dispatch And Idempotency
 

@@ -276,6 +276,14 @@ type CreateInput struct {
 	InitialRunSandboxFilesystemTier *string
 	IssueID                         *string
 	ScheduleID                      *string
+	// AdmissionKey makes task creation idempotent for a caller that owns a
+	// durable objective and may replay its dispatch — a Workflow node whose
+	// coordinator can crash between admitting the Task and recording the link.
+	// Empty (the common case) creates a task unconditionally. Non-empty binds
+	// the task under a unique key scoped to its space, so a replay returns the
+	// first call's task instead of a duplicate. See AdmitTask and
+	// docs/design/workflow-runtime.md §11.
+	AdmissionKey string
 }
 
 // UpdateInput updates a task to the given status with optional fields.
@@ -335,6 +343,14 @@ type Store interface {
 	GetTaskBySessionID(ctx context.Context, sessionID string) (*Task, error)
 	// CreateTask creates a new task and its first Run (input, title, PENDING). Returns the task with last_run_id set.
 	CreateTask(ctx context.Context, in *CreateInput) (*Task, error)
+	// AdmitTask idempotently creates a task and its first Run for in.AdmissionKey,
+	// which must be non-empty and is unique within the task's space. The first
+	// call creates them; a replay with the same key and an identical admitted
+	// payload returns that same task; a replay with a conflicting payload returns
+	// ErrTaskAdmissionConflict. It is the durable-recovery admission a Workflow
+	// node dispatch uses so a retried or concurrent dispatch cannot duplicate
+	// execution. See docs/design/workflow-runtime.md §11.
+	AdmitTask(ctx context.Context, in *CreateInput) (*Task, error)
 	UpdateTask(ctx context.Context, in UpdateInput) error
 	ClaimTask(ctx context.Context, in ClaimInput) (updated bool, err error)
 }

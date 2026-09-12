@@ -10,7 +10,7 @@ verification:
   - ./make test mysql -run TestWorkflowTaskAdmission
   - ./make test mysql
   - ./make test
-claim:
+claim: gougoujiang 2026-09-12
 ---
 
 ## Outcome

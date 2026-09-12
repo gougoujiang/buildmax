@@ -230,14 +230,21 @@ The database coverage is broader than the previous assessment reported:
 | Artifact soft deletion, concurrent deletion, expiry, byte accounting, and purge lifecycle | [artifact_retention_test.go](../internal/infra/db/artifact_retention_test.go) |
 | Checkpoint head advancement and partial checkpoint retention | [workspace_checkpoint_test.go](../internal/infra/db/workspace_checkpoint_test.go) |
 | Workflow guarded run/step transitions and atomic failure finalization | [workflow_test.go](../internal/infra/db/workflow_test.go) |
+| Idempotent Workflow Task admission, replay, payload conflict, space scope, and its contention winner | [task_admission_test.go](../internal/infra/db/task_admission_test.go) |
 | Workflow initial revision and revision queries | [revision_query_test.go](../internal/infra/db/revision_query_test.go) |
 | Space isolation for secrets and independent invitations | [secret_test.go](../internal/infra/db/secret_test.go), [space_invitation_test.go](../internal/infra/db/space_invitation_test.go) |
 
 The guarded transitions prevent illegal terminal rewrites and make failed-step,
-later-step blocking, and failed-run finalization atomic. They do not yet create
-a durable reconciler: progress still depends on callbacks, so restart and lost-
-callback recovery remain open. This is also not exhaustive proof of cross-Space
-store behavior or Workflow revision advancement under edits and contention.
+later-step blocking, and failed-run finalization atomic. Workflow step dispatch
+now admits its Task idempotently through `AdmitTask`, keyed
+`workflow/<workflow_run_id>/node/<step_id>` and unique within the space, so a
+retried or concurrent dispatch — the crash window between admitting the Task and
+linking it onto the step run — resolves to the one Task instead of duplicating
+the agent's execution. This does not yet create a durable reconciler: progress
+still depends on callbacks, so restart and lost-callback recovery remain open,
+and nothing yet replays that admission key on recovery. This is also not
+exhaustive proof of cross-Space store behavior or Workflow revision advancement
+under edits and contention.
 External dependency recovery still needs scenario-specific evidence. The
 removed result-delivery queue has no remaining restart-recovery obligation of
 its own.

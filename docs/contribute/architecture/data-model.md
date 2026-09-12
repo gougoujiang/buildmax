@@ -788,13 +788,26 @@ The durable unit of background work. One task, many attempts.
 | `agent_id` | `bigint unsigned` | yes | `agent.id` this task runs as |
 | `workspace_head_checkpoint_id` | `bigint unsigned` | yes | `workspace_checkpoint.id` accepted as the Task's recoverable workspace; its seed, then each successful result. Null until the first run commits one |
 | `plugin_environment_head_id` | `bigint unsigned` | yes | Immutable Plugin environment the next Continue uses; null for a Task that installs nothing autonomously |
+| `admission_key` | `varchar(191)` | yes | A coordinator's stable idempotency key, unique within the space; `NULL` for the ordinary task no coordinator replays. A Workflow node dispatch uses `workflow/<workflow_run_id>/node/<step_id>` |
+| `admission_fingerprint` | `char(64)` | yes | Digest of the admitted payload, compared on replay to tell an identical admission from a conflicting reuse of the same key; `NULL` when `admission_key` is |
 
 Indexes: PK `id`; index `agent_id`; index `conversation_id`; index `issue_id`;
 index `schedule_id`; index `last_run_id`; index `workspace_head_checkpoint_id`;
 index `plugin_environment_head_id`; index `idx_task_space_created` on
-(`space_id`, `created_at`); unique `public_id`.
+(`space_id`, `created_at`); unique `public_id`; unique `uq_task_admission_key`
+on (`space_id`, `admission_key`).
 
 Status values are `task.RunStatus` — uppercase, and shared with `task_run`.
+
+`AdmitTask` makes creation idempotent for a coordinator that can replay its
+dispatch. The unique `(space_id, admission_key)` index is the arbiter: the first
+insert wins, and a replayed or concurrent admission that loses the race reads
+the winner's task back and returns it, so a Workflow node dispatch retried
+across the crash window between admitting the task and linking it cannot
+duplicate execution. A `NULL` key is not a duplicate of another `NULL` in a
+MySQL unique index, so every ordinary task coexists freely. A different payload
+under an existing key is refused with a conflict rather than adopting unrelated
+work.
 
 ### `task_run`
 
