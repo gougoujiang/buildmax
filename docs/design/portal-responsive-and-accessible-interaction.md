@@ -36,7 +36,7 @@ scrolling, or inaccessible modal and navigation behavior.
 - The current narrow rule stacks the shell and constrains the entire sidebar to
   a short scroll region. Logo, Space switcher, navigation, and account actions
   then compete for the same vertical area.
-- Workspace Files uses a fixed-width tree beside its content, with no narrow
+- Files uses a fixed-width tree beside its content, with no narrow
   interaction model.
 - Shared modal tabs use a fixed side rail and long modal content can be clipped
   by overflow behavior.
@@ -74,7 +74,7 @@ ancestors may collapse into an overflow control, but the Space context remains
 visible in the shell. Primary page actions stay near the title or in a labeled
 overflow menu; they do not disappear solely because of width.
 
-Workspace Files uses progressive navigation on narrow layouts: the user sees
+Files uses progressive navigation on narrow layouts: the user sees
 either the folder list or the selected item, with a clear Back action. Wide
 layouts may keep the tree and content side by side. No narrow page requires
 simultaneous horizontal and vertical scrolling to select a file.
@@ -124,7 +124,7 @@ tests; a global stylesheet rule alone is not evidence of support.
 ## Acceptance criteria
 
 - At 390, 768, and 1280 CSS pixels, a user can switch Space, start Chat, open an
-  Issue and its latest run, browse Workspace Files, and reach Space settings.
+  Issue and its latest run, browse Files, and reach Space settings.
 - There is no horizontal document scroll at 390 pixels or at 200% zoom; any
   component-local horizontal region is labeled and keyboard operable.
 - Navigation and modal interactions pass keyboard-only tests, including focus

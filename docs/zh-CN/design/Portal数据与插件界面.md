@@ -2,13 +2,13 @@
 
 > **翻译说明：** 本文是[英文原文](../../design/portal-data-and-plugin-surfaces.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 > **受众：** Portal、Plugin 与 Artifact 贡献者 · **状态：** 已实现 —— Explore
-> 更名为 Workspace Files，并移入侧边栏 Data 分组，作为 Portal 导航记录自身第
+> 更名为 Files，并移入侧边栏 Data 分组，作为 Portal 导航记录自身第
 > 1 阶段的连带结果上线；重复的 Account plugin 入口已移除；Files、Artifacts、
 > Marketplace、Space Plugins、Agent Plugins 均已说明各自的作用域；Chat、
 > Issue、Artifact、Marketplace 与 Agent Plugins 均已具备本记录规定的上下文链
 > 接；一次运行实际解析到的 plugin pin 与发布的 artifact 已对外暴露并展示
 
-本文定义 Workspace Files、Artifacts、Marketplace、Space Plugins 与 Agent plugin
+本文定义 Files、Artifacts、Marketplace、Space Plugins 与 Agent plugin
 选择的名称和边界。这是一项可以独立交付的 R3 信息架构改进，不改变路线图优先级或
 底层所有权模型。
 
@@ -31,7 +31,7 @@ Space、Agent 还是本地安装。Portal 对每个概念只使用一个名称�
 
 ## 证据与约束
 
-- Workspace Files 现在在侧边栏 Data 分组中拥有自己的入口，页面标题与
+- Files 现在在侧边栏 Data 分组中拥有自己的入口，页面标题与
   breadcrumb 均已统一，不再表现为 Chat 编辑器附件功能。路由本身
   （`#/explore`）尚未迁移。Account 下已不再保留重复的 plugin 入口，
   `#/account/plugins` 会重定向到 Marketplace。
@@ -50,16 +50,16 @@ Portal 始终使用以下术语：
 
 | 界面 | 作用域 | 可变性 | 用途 |
 |---|---|---|---|
-| Workspace Files | Space | 在授权工作期间可变 | 为执行 materialize 的输入和工作状态 |
+| Files | Space | 在授权工作期间可变 | 为执行 materialize 的输入和工作状态 |
 | Artifacts | Space，可选公开 capability | 发布后不可变 | 用于消费或分享的持久结果 |
 
-Workspace Files 是 Space **数据**导航组的一等目的地。Chat 可以嵌入 file picker 或
+Files 是 Space **数据**导航组的一等目的地。Chat 可以嵌入 file picker 或
 最近文件视图，但它只是进入同一 Files 界面的上下文入口，并不是主要所有权位置。路由、
-页面标题、breadcrumb 与空状态都使用“Workspace Files”；移除作为竞争产品名称的
+页面标题、breadcrumb 与空状态都使用“Files”；移除作为竞争产品名称的
 “Explore”。
 
 Artifacts 保持为单独的 Space 集合。Artifact 页面说明对象是已发布结果，在可用时显示
-media/type 与来源，并链接到 Artifact 设计记录治理的分享和预览动作。Workspace Files
+media/type 与来源，并链接到 Artifact 设计记录治理的分享和预览动作。Files
 不会仅因二者都展示文件而继承 Artifact 的不可变或公开分享行为。
 
 ## Plugin 界面
@@ -91,7 +91,7 @@ Space Plugins 保持在 Space 管理中，并展示策略、激活状态、解�
 
 主要位置保持唯一，同时用上下文链接保留工作流：
 
-- 当用户需要检查或选择工作数据时，Chat 与 Issue 输入链接到 Workspace Files。
+- 当用户需要检查或选择工作数据时，Chat 与 Issue 输入链接到 Files。
 - Artifact detail 在有记录时链接到生成它的 Issue、Task 与 TaskRun。
 - TaskRun 链接到它发布的 Artifact，并列出该次尝试使用的 plugin resolution。
 - 当用户已选择 Space 且权限足够时，Marketplace 链接到 Space activation。
@@ -102,7 +102,7 @@ Space Plugins 保持在 Space 管理中，并展示策略、激活状态、解�
 
 ## 实施切片
 
-1. **名称与导航。** 将 Explore 改为 Workspace Files，把它加入数据分组，保持 Artifact
+1. **名称与导航。** 将 Explore 改为 Files，把它加入数据分组，保持 Artifact
    独立，并移除重复 Account plugin 目的地。此项不需要 API 变更。
 2. **作用域解释。** 为 Files、Artifacts、Marketplace、Space Plugins 与 Agent Plugins
    增加简短页面说明和空状态。
@@ -116,10 +116,10 @@ plugin 与 Artifact 模型，不引入 Portal 专用记录。
 
 ## 验收标准
 
-- 导航、路由标题、breadcrumb 与文档对可变 Space 文件界面使用“Workspace Files”，
+- 导航、路由标题、breadcrumb 与文档对可变 Space 文件界面使用“Files”，
   对已发布结果使用“Artifacts”。
-- 用户无需先打开 Chat 就能进入 Workspace Files。
-- Artifact 与 Workspace File 页面解释不同的可变性和分享行为。
+- 用户无需先打开 Chat 就能进入 Files。
+- Artifact 与 Files 页面解释不同的可变性和分享行为。
 - 只有一个全局 Marketplace 入口，不存在 Account 作用域的 catalog 重复项。
 - Space 和 Agent plugin 页面说明其作用域，且只提供在该作用域有效的动作。
 - Agent selection 不暗示 activation，Space activation 不暗示本地安装。
@@ -128,7 +128,7 @@ plugin 与 Artifact 模型，不引入 Portal 专用记录。
 
 ## 被否决的替代方案
 
-- **合并 Workspace Files 与 Artifacts。** 相似的渲染不足以抵消二者在可变性、发布、
+- **合并 Files 与 Artifacts。** 相似的渲染不足以抵消二者在可变性、发布、
   分享和保留语义上的差异。
 - **把所有 plugin 控件放进 Marketplace。** 部署发现、Space 策略、Agent 选择和本地
   安装具有不同权限。

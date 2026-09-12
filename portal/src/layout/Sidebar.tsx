@@ -314,7 +314,7 @@ export function SidebarNavContent({
             onClick={() => go({ name: "explore", spaceId: currentSpaceId! })}
           >
             <FilesIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">Workspace Files</span>
+            <span className="sidebar__nav-item-text">Files</span>
           </button>
           <button
             type="button"

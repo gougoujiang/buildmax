@@ -169,7 +169,7 @@ export function NewConversation({
           {activeTab === "files" && (
             <div className="page-new-chat__files-link">
               <p className="page-new-chat__files-copy">
-                This space&apos;s working files live in Workspace Files, so an agent
+                This space&apos;s working files live in Files, so an agent
                 started here can already read anything uploaded there.
               </p>
               <button
@@ -177,7 +177,7 @@ export function NewConversation({
                 className="page-activity__action-btn"
                 onClick={() => navigate({ name: "explore", spaceId })}
               >
-                Open Workspace Files
+                Open Files
               </button>
             </div>
           )}

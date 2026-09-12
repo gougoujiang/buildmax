@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Portal数据与插件界面.md)
 > **Audience:** Portal, plugin, and artifact contributors · **Status:** implemented —
-> Explore renamed to Workspace Files and moved into the sidebar's Data group as
+> Explore renamed to Files and moved into the sidebar's Data group as
 > a side effect of the Portal navigation record's own slice 1; the duplicate
 > Account plugin destination is removed; each of Files, Artifacts, Marketplace,
 > Space Plugins, and Agent Plugins states its scope; Chat, Issue, Artifact,
@@ -10,7 +10,7 @@
 > specifies; a run's resolved plugin pins and published artifacts are exposed
 > and shown
 
-This record defines the names and boundaries for Workspace Files, Artifacts,
+This record defines the names and boundaries for Files, Artifacts,
 Marketplace, Space Plugins, and Agent plugin selection. It is an independently
 deliverable R3 information-architecture improvement and does not change roadmap
 priority or the underlying ownership model.
@@ -36,7 +36,7 @@ concept.
 
 ## Evidence and constraints
 
-- Workspace Files now has its own sidebar entry, in the Data group, with a
+- Files now has its own sidebar entry, in the Data group, with a
   matching page title and breadcrumb, so it no longer reads as a Chat
   composer attachment feature. The route itself (`#/explore`) has not moved.
   Account no longer exposes a separate plugin destination; `#/account/plugins`
@@ -59,19 +59,19 @@ Portal uses these terms consistently:
 
 | Surface | Scope | Mutability | Purpose |
 |---|---|---|---|
-| Workspace Files | Space | Mutable during authorized work | Inputs and working state materialized for execution |
+| Files | Space | Mutable during authorized work | Inputs and working state materialized for execution |
 | Artifacts | Space, with optional public capability | Immutable after publication | Durable outputs intended for consumption or sharing |
 
-Workspace Files is a first-class destination in the Space **Data** navigation
+Files is a first-class destination in the Space **Data** navigation
 group. Chat may embed a file picker or recent-file view, but that is a contextual
 entry into the same Files surface rather than its primary ownership location.
-The route, page title, breadcrumb, and empty-state wording all use “Workspace
-Files”; “Explore” is removed as a competing product name.
+The route, page title, breadcrumb, and empty-state wording all use “Files”;
+“Explore” is removed as a competing product name.
 
 Artifacts remain a separate Space collection. Artifact pages state that the
 object is a published output, show its media/type and origin when available, and
 link to sharing and preview actions governed by the artifact design records.
-Workspace Files do not inherit artifact immutability or public sharing merely
+Files do not inherit artifact immutability or public sharing merely
 because both surfaces display files.
 
 ## Plugin surfaces
@@ -105,7 +105,7 @@ to hold account identity and invitations, not deployment or Space plugin state.
 
 Primary locations stay singular, while contextual links preserve workflow:
 
-- Chat and Issue inputs link to Workspace Files when a user needs to inspect or
+- Chat and Issue inputs link to Files when a user needs to inspect or
   choose working data.
 - Artifact detail links to its producing Issue, Task, and TaskRun when recorded.
 - A TaskRun links to the artifacts it published and lists the plugin resolutions
@@ -120,7 +120,7 @@ state feedback follow
 
 ## Implementation slices
 
-1. **Names and navigation.** Rename Explore to Workspace Files, add it to the
+1. **Names and navigation.** Rename Explore to Files, add it to the
    Data group, keep Artifacts separate, and remove the duplicate Account plugin
    destination. No API change is required.
 2. **Scope explanations.** Add concise page introductions and empty states for
@@ -136,10 +136,10 @@ and artifact models rather than introducing a Portal-only record.
 
 ## Acceptance criteria
 
-- The navigation, route title, breadcrumb, and documentation use “Workspace
-  Files” for the mutable Space file surface and “Artifacts” for published output.
-- Users can reach Workspace Files without first opening Chat.
-- Artifact and Workspace File pages explain their different mutability and
+- The navigation, route title, breadcrumb, and documentation use “Files”
+  for the mutable Space file surface and “Artifacts” for published output.
+- Users can reach Files without first opening Chat.
+- Artifact and Files pages explain their different mutability and
   sharing behavior.
 - There is one global Marketplace entry and no Account-scoped catalog duplicate.
 - Space and Agent plugin pages state their scope and only offer actions valid at
@@ -153,7 +153,7 @@ and artifact models rather than introducing a Portal-only record.
 
 ## Alternatives rejected
 
-- **Merge Workspace Files and Artifacts.** Similar rendering does not outweigh
+- **Merge Files and Artifacts.** Similar rendering does not outweigh
   their different mutability, publication, sharing, and retention semantics.
 - **Put all plugin controls in Marketplace.** Deployment discovery, Space policy,
   Agent selection, and local installation have different authorities.

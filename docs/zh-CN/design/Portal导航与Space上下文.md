@@ -2,8 +2,8 @@
 
 > **翻译说明：** 本文是[英文原文](../../design/portal-navigation-and-space-context.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 > **受众：** Portal 贡献者与产品设计者 · **状态：** 已实现 —— 第 1 阶段（导航
-> 用语：Home 更名为 Chat，侧边栏按 Work/Reuse/Data/Manage 分组，暴露 Workspace
-> Files，将部署管理从 Space 范围中分离）、第 2 阶段（规范化的 `#/spaces/{space_id}/...`
+> 用语：Home 更名为 Chat，侧边栏按 Work/Reuse/Data/Manage 分组，暴露 Files，
+> 将部署管理从 Space 范围中分离）、第 2 阶段（规范化的 `#/spaces/{space_id}/...`
 > 路由；每个 Space 拥有的页面都从路由本身读取 Space，而不是此前选中的 Space）、
 > 第 3 阶段（Space 切换会把每个 Space 拥有的路由都重定向到目标 Space 中有效的
 > 目的地，由同一张穷举、经类型检查的表驱动——补上了此前 Agent 与 Task 在切换时
@@ -64,7 +64,7 @@ Space 主导航按用户意图分组：
 |---|---|
 | 工作 | Issues、Chat |
 | 复用 | Agents、Workflows |
-| 数据 | Workspace Files、Artifacts |
+| 数据 | Files、Artifacts |
 | 管理 | Space 设置以及有权访问的管理界面 |
 
 “Home”更名为“Chat”。在 Space 聚合查询和运维者路径证据明确应该显示哪些结果之前，
@@ -110,7 +110,7 @@ Artifact 保留[统一 Artifact](统一工件.md)和
 
 每个切片可按顺序独立合并：
 
-1. **导航语言。** 将 Home 改为 Chat，整理侧栏分组，暴露 Workspace Files，并分开
+1. **导航语言。** 将 Home 改为 Chat，整理侧栏分组，暴露 Files，并分开
    全局动作；此步不改变路由。
 2. **规范路由解析器。** 引入带类型的 Space 前缀路由生成和匹配，并逐个迁移资源族。
 3. **Space 切换。** 为所有 Space 路由集中实现切换目标规则，移除页面级重定向列表。

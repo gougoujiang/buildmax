@@ -3,7 +3,7 @@
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Portal导航与Space上下文.md)
 > **Audience:** Portal contributors and product designers · **Status:**
 > implemented — slice 1 (navigation language: Home renamed to Chat, sidebar
-> grouped into Work/Resources/Manage, Workspace Files exposed, deployment
+> grouped into Work/Resources/Manage, Files exposed, deployment
 > Administration separated from Space scope), slice 2 (canonical
 > `#/spaces/{space_id}/...` routes; every Space-owned page reads its Space from
 > the route, not a previously selected one), slice 3 (Space switching
@@ -76,7 +76,7 @@ The primary Space navigation is grouped by user intent:
 | Group | Destinations |
 |---|---|
 | Work | Chat, Issues, Agents, Workflows, Schedules |
-| Resources | Workspace Files, Artifacts |
+| Resources | Files, Artifacts |
 | Manage | Space settings and permitted administrative surfaces |
 
 “Home” becomes “Chat.” A true Overview is not added until a Space-wide query
@@ -133,7 +133,7 @@ Route handling follows these rules:
 Each slice can merge independently in order:
 
 1. **Navigation language.** Rename Home to Chat, group the sidebar, expose
-   Workspace Files, and separate global actions without changing routes.
+   Files, and separate global actions without changing routes.
 2. **Canonical route parser.** Introduce typed Space-prefixed route generation
    and matching, then migrate one resource family at a time.
 3. **Space switching.** Centralize the switch destination rule for all Space
