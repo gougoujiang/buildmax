@@ -41,17 +41,16 @@ assigned to every item.
 
 ### R0. Close The Supported Worker Contract
 
-**One engineering rule and candidate proof remain.** Official worker images
+**Candidate proof remains.** Official worker images
 select and probe the worker sandbox baseline; Bash confinement, process limits,
 hook transport policy, worker API isolation, trace boundary presentation, and
-resolved plugin presentation are implemented. Stdio MCP servers still launch as
-direct worker child processes outside the Bash boundary even though the Beta
-gate requires the supported worker profile to confine or disable them.
+resolved plugin presentation are implemented. The supported unattended-worker
+profile now disables stdio MCP fail-closed: a resolved stdio server fails the
+run during assembly, before its command runs, and the treatment is legible in
+TaskRun diagnostics beside the run boundary.
 
-**Next:** make the supported unattended-worker profile reject stdio MCP unless
-the child enters its declared boundary, expose that treatment beside the
-already-visible run boundary, and verify the Bash, process-limit, hook, MCP, and
-worker API controls with the candidate artifacts.
+**Next:** verify the Bash, process-limit, hook, MCP, and worker API controls
+with the candidate artifacts on a deployed worker profile.
 
 **Done when:** no stdio MCP child runs outside the boundary claimed by the
 supported worker profile; unavailable required enforcement fails closed; the
@@ -180,8 +179,10 @@ ordered place here is not permission to skip a proposal's acceptance decision.
 2. Add [Space Secret](design/space-secrets.md) credential-file delivery before
    widening plugins that commonly need credential files.
 3. Add [executable Space plugin content](design/plugin-space-distribution.md)
-   only after R0 has a supported hook/MCP process and network boundary; preserve
-   release eligibility, exact pins, and run-scoped materialization.
+   only after R0 has a supported, confined hook/MCP process and network boundary
+   — the unattended-worker profile disables stdio MCP today rather than confining
+   it — while preserving release eligibility, exact pins, and run-scoped
+   materialization.
 4. Add Task-scoped autonomous plugin acquisition only after fixed plugin
    environments and executable distribution are proven. It creates a later
    TaskRun and never hot-loads a running process.
