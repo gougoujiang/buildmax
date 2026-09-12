@@ -65,13 +65,14 @@
 
 | 功能 | 测试数据 |
 |---|---|
-| 账户与隔离 | Alice、Bob 保留有数据的个人 Space；Carol、Dave 的个人 Space 为空 |
+| 账户与隔离 | Alice、Bob 保留有数据的个人 Space；Carol、Dave 的个人 Space 为空；Alice 持有系统管理员权限，以便访问管理界面 |
 | 协作 | Alice 为 owner，Bob 为 admin，Carol 为 member，Dave 有待接受邀请；邮箱后缀均为 `@buildmax.local` |
 | Issue | 三种状态；未分配、人、Agent、Workflow 分配；父 Issue 与进度不同的两个子 Issue；Markdown、中文、空描述及评论 |
 | Agent / Workflow | 个人 Docs Writer/Release Notes；共享 QA Writer/QA Reviewer；两步骤 Workflow 的 draft、published、archived 状态与生命周期修订记录 |
 | 文件 | `fixtures/` 下五个文件，包含嵌套 Markdown、CSV、JSON、中文文件名和空文本 |
 | Artifact | 合成文本、HTML 沙箱预览、二进制下载 |
 | Space 设置 | 非空 Agent instructions、active/disabled 的虚构 Secret；API 操作自然产生审计事件 |
+| 插件与 Marketplace | 将 `sample-plugins/` 三个插件发布到部署目录，其中一个在 BuildMax QA 中启用，其余保留供启用 |
 | 分页 | 独立 Space 中有 105 个 Issue，每种状态 35 个，并有 25 条评论的线程 |
 | 执行（`--runs`） | Conversation 对话、含 Continue/Retry 的 Task、Issue Agent 结果、两步骤 Workflow 结果、worker trace 与 workspace checkpoint |
 
@@ -88,10 +89,11 @@
 列表读取全部分页，评论逐条按正文补齐，支持中断恢复。
 保留已有 Issue 状态、描述、文件内容、Agent 定义和成员角色；校准测试 Issue 的
 分配、Workflow 生命周期状态、Secret 状态，仅在 Space instructions 为空时填入。
+已发布的插件版本和已存在的启用记录保持原样，不会重新发布。
 不要重命名希望复用的测试资源。该命令不是并发事务，应一次运行一个实例。
 不支持服务端幂等键的创建请求若丢失响应，下次运行通过稳定的测试资源标识查找恢复。
 
-测试数据不等于所有功能均已验证：不初始化需要目录来源的 plugin/托管模型授权，
+测试数据不等于所有功能均已验证：不初始化需要目录来源的托管模型授权，
 不发送 webhook，不伪造 running/failed/canceled 状态。worker 边界和取消检查使用
 `kind smoke`，托管网关使用 `kind smoke managed`，浏览器流程使用 `e2e kind`。
 Artifact 分享应从已有测试 Artifact 手动或通过测试创建，初始化不生成公开链接。

@@ -140,6 +140,9 @@ func seedTeamFixtures(ctx context.Context, client *http.Client, target smokeTarg
 	if err := ensureFixtureSecrets(ctx, client, base, token); err != nil {
 		return err
 	}
+	if err := seedPluginFixtures(ctx, client, target, team.ID, token); err != nil {
+		return err
+	}
 	var instructions struct {
 		Instructions string `json:"instructions"`
 	}

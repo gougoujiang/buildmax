@@ -97,13 +97,14 @@ scenarios and **BuildMax QA Pagination** for long lists.
 
 | Area | Fixture coverage |
 |---|---|
-| Accounts and isolation | Alice and Bob retain their populated personal Spaces; Carol and Dave have empty personal Spaces |
+| Accounts and isolation | Alice and Bob retain their populated personal Spaces; Carol and Dave have empty personal Spaces; Alice holds System Administrator authority so the admin surfaces are reachable |
 | Collaboration | Alice owns BuildMax QA, Bob is admin, Carol is member, Dave has a pending invitation; all emails end in `@buildmax.local` |
 | Issues | All three statuses; unassigned, person, Agent, and Workflow assignment; parent with two children and mixed progress; Markdown, Unicode, empty descriptions, comment threads |
 | Agents and Workflows | Personal Docs Writer/Release Notes; shared QA Writer/QA Reviewer; two-step draft, published, and archived Workflows, with lifecycle revision history |
 | Files | Five files under `fixtures/`: nested Markdown, CSV, JSON, Unicode filename, and empty text |
 | Artifacts | Synthetic text, HTML sandbox preview, and binary download fixtures |
 | Space settings | Nonempty Agent instructions and active/disabled Secrets containing explicitly fake values; API changes also populate audit events |
+| Plugins and Marketplace | The three `sample-plugins/` published to the deployment catalog, one activated in BuildMax QA and the rest left available to activate |
 | Pagination | Separate Space with 105 Issues (35 per status), including a 25-comment thread |
 | Execution (`--runs`) | Conversation transcript, a Task with Continue and Retry, Issue Agent result, two-step Workflow result, worker traces and workspace checkpoints |
 
@@ -124,14 +125,16 @@ comments are matched individually by body, so an interrupted comment seed can
 resume. Existing Issue statuses, descriptions, file contents, Agent definitions,
 and member roles are preserved. Fixture Issue assignments, Workflow lifecycle
 states, and Secret states are reconciled; empty Space instructions are filled.
+An already-published plugin version and an existing activation are left as they
+are rather than republished.
 Do not rename fixture resources if you want them reused. These are named test
 data in a development cluster, not a concurrent seed transaction: run one
 fixture command at a time. A lost response to a create without a server
 idempotency key is recovered by looking up its stable fixture identity on rerun.
 
 This is populated test data, not proof of every product feature. It does not
-seed plugins or managed-model grants (those need an explicit catalog), send
-webhooks, or manufacture running/failed/canceled records. Use `kind smoke` for
+seed managed-model grants (those need an explicit catalog), send webhooks, or
+manufacture running/failed/canceled records. Use `kind smoke` for
 worker failure-boundary and cancellation checks, `kind smoke managed` for the
 managed gateway, and `e2e kind` for browser journeys. Artifact public sharing
 remains an action to test from the seeded artifact rather than creating public
