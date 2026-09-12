@@ -47,6 +47,7 @@ HTTP API 提供自描述文档：`GET /openapi.json`，可在 `/swagger/` 浏览
 | [contribute/conventions.md](contribute/conventions.md) | 命名、ID、工具输出、提交信息与变更日志条目 |
 | [contribute/repo-layout.md](contribute/repo-layout.md) | 仓库目录结构与依赖方向 |
 | [contribute/testing.md](contribute/testing.md) | 各类变更应运行的测试套件、所需条件，以及 CI 的运行时机 |
+| [contribute/exploratory-testing.md](contribute/exploratory-testing.md) | 自主探索用户旅程，留下固定测试用例之外的可复现发现 |
 | [evaluation/README.md](../../evaluation/README.md) | 如何评估一个构建：本地套件、外部基准及结果包内容 |
 | [changelog/README.md](changelog/README.md) | 如何添加变更日志条目，以及发布时如何汇总条目 |
 | [contribute/architecture/](contribute/architecture/README.md) | 各子系统当前的工作方式 |

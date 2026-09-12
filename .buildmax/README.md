@@ -18,6 +18,13 @@ project, and as a real, non-toy example of what these files look like.
 | `skills/drive-desktop/` | An ad hoc Playwright REPL against `./make run desktop-dev`'s browser bridge — click, type, screenshot, read bound Go methods. Not a pass/fail check; use `./make e2e desktop-ui` for that. |
 | `skills/drive-portal/` | The same ad hoc REPL pattern for Portal, against an already-running `./make kind up` or `./make compose smoke` deployment: signs in with a login code minted by `./make kind login`, then click/type/screenshot/read console errors. Not a pass/fail check; use `./make e2e {local,kind,compose}` for that. |
 
+For the exploration method above these drivers — choosing a user journey,
+following observations, judging findings, and preserving evidence — use
+[Agent exploratory testing](../docs/contribute/exploratory-testing.md).
+It also records the drivers' interaction and screenshot limitations. The
+Portal driver's automatic login helper targets kind; attaching its browser
+to Compose requires login preparation for that deployment.
+
 ## Why This Is Committed While `.claude/` And `.vibe/` Are Not
 
 `.gitignore` excludes `.claude/`, `.cursor/`, and `.vibe/` because those are

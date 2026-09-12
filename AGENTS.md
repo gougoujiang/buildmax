@@ -179,6 +179,14 @@ surface; details belong there rather than being copied into this file.
   task runner isolates `BUILDMAX_HOME` from the contributor's real data.
 - Start with the narrowest relevant check, then run every scope needed to prove
   the change. A passing unrelated or skipped scope is not evidence.
+- For autonomous product exploration or hands-on review of a user journey,
+  follow [`docs/contribute/exploratory-testing.md`](docs/contribute/exploratory-testing.md).
+  Choose a bounded journey, adapt actions to observations, and preserve
+  reproducible findings and untested limits. This complements the required
+  suites; it does not replace them. Exploratory testing may use configured
+  real models, including paid inference, within the task's scope and budget
+  without separate confirmation for each run. Record the model and available
+  usage/cost evidence as the guide describes.
 - Any `internal/infra/db` change requires the MySQL scope against a real MySQL;
   the ordinary suite skips those tests.
 - When a Portal, worker, or deployment outcome crosses boundaries that unit

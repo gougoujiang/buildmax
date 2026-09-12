@@ -14,6 +14,7 @@
 | [conventions.md](conventions.md) | 持久化数据命名、表名、实体 ID、工具输出、提交消息、变更日志条目 |
 | [repo-layout.md](repo-layout.md) | 仓库目录树与依赖方向。**唯一权威来源**——其他文档应链接到这里，不要重复目录树。 |
 | [testing.md](testing.md) | 各类变更应运行哪些测试套件、各套件的要求、产物位置，以及 CI 在何时运行什么 |
+| [exploratory-testing.md](exploratory-testing.md) | Agent 驱动的用户旅程：根据观察选择分支，保留发现，并沉淀为回归证据 |
 | [architecture/](architecture/README.md) | 各子系统当前的工作方式，每个包或领域一篇文档 |
 | [documentation.md](documentation.md) | 文档结构、约定，以及何时更新什么 |
 | [dependency-licenses.md](dependency-licenses.md) | Go 和 npm 许可证审计及重新运行方式 |
