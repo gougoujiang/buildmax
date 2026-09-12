@@ -13,6 +13,9 @@ For autonomous, observation-led review of a user journey, use
 branches while operating the product, judge findings, preserve evidence, and
 turn discoveries into regressions. Use it alongside the required suites below;
 it has no blanket PASS result and does not replace scripted verification.
+Exploratory journeys may use configured real models, including paid inference,
+within the task's scope and budget; record model and usage evidence as that
+guide describes.
 
 ## The Short Version
 

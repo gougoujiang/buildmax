@@ -76,9 +76,22 @@ boundary described there.
   are useful for boundary checks but may not support arbitrary exploratory
   prompts. Do not interpret a scenario mismatch as a product failure, or a
   scripted response as evidence of real-model quality. Ad hoc development
-  sessions are not automatically backed by the E2E mock. Use paid inference
-  only when the task authorizes it; otherwise explore supported no-cost paths
-  and report the blocked portion.
+  sessions are not automatically backed by the E2E mock. Use a configured
+  real model when the journey depends on actual generation, tool choices,
+  streaming, or model-error recovery. A request for exploratory testing
+  includes using available real models, including paid inference, within the
+  task's scope and budget; no separate confirmation is needed for each run.
+  Respect an explicit no-cost restriction or spending limit. Without a stated
+  cost limit, keep trials small and directed at the charter's questions rather
+  than launching bulk evaluation. If credentials are unavailable, report that
+  blocker and continue independent branches.
+- For real-model trials, record the provider/model, relevant settings, redacted
+  prompts and outputs or trace references, elapsed time, and available token
+  usage and cost. Mark unavailable costs as unknown. Judge the user's outcome
+  from observable state and results; investigate whether a failure comes from
+  the product, provider, model behavior, or their interaction. Model variability
+  does not make an observed user failure irrelevant, and one successful trial
+  does not establish a reliability score.
 - Check that the chosen account, Space role, services, and seed data support
   the starting journey. Record fixture creation and privileged login setup as
   preparation, not proof that a new user could perform those steps.
@@ -180,7 +193,9 @@ Use this compact report shape; omit inapplicable fields rather than invent data:
 ```text
 Charter: journey, rationale, role, success condition, scope, time spent
 Environment: date, commit/dirty state, build identity, surface, target,
-             account role, starting data, model mode, owned/attached resources
+             account role, starting data, owned/attached resources
+Model: scripted/real, provider/model and settings, prompts/outputs or traces,
+       elapsed time, token usage and cost when available, applicable budget
 Explored: action -> observation -> next question; outcome of each branch
 Findings (one entry each):
   Title, classification, user impact, confidence/repeatability
