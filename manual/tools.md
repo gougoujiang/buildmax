@@ -134,6 +134,10 @@ ranges via `offset` and `limit` rather than all at once. A successful read of a
 zero-byte file returns `(file is empty)` so it is distinguishable from missing
 tool output.
 
+**`Write` confirms the resolved path and UTF-8 byte count.** This lets the
+agent verify which file changed and how much content was written without a
+follow-up read.
+
 **`NoteWrite` and `TodoWrite` outlive the conversation history.** Both replace
 what they store rather than adding to it, so each call carries the complete
 list. What they hold is shown to the agent on every turn and is not part of the
