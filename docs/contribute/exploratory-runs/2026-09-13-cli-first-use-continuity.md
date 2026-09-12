@@ -1,5 +1,7 @@
 # CLI first-use and continuity — 2026-09-13
 
+> **简体中文：** [阅读中文镜像](../../zh-CN/contribute/exploratory-runs/2026-09-13-cli-first-use-continuity.md)
+
 **Charter.** Journey: CLI first-use plus "interrupt work and continue later".
 Rationale: single-binary CLI first experience and recoverability are core
 promises. Role: new user, isolated `BUILDMAX_HOME=./testing-sandbox`, disposable
