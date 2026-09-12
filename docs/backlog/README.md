@@ -78,6 +78,15 @@ neighbours. Reordering is a rename; there is no separate index to keep in sync.
 Only `NN-slug.md` files are live tasks. [`TEMPLATE.md`](TEMPLATE.md) is the
 starting point for a new one and is not itself a task.
 
+The frontmatter is also the machine-readable status signal. `./make board`
+derives the project status view from it — a task is in progress when `claim` is
+set, in review when `pr` is set, ready when it is unclaimed and every
+`depends_on` file has already merged and been deleted, and blocked while a
+`depends_on` file still exists. `NN` order groups it by priority and `roadmap`
+groups it by Roadmap theme. An architecture test rejects a live task whose
+frontmatter is missing a field or uses a malformed `roadmap`, `claim`, or `pr`
+value, so the view cannot silently go stale.
+
 Keep a short ready horizon rather than decomposing the whole Roadmap. There
 should be enough unblocked work for the next few Agent sessions, while later
 themes stay at Roadmap or design granularity until their dependencies and
@@ -105,8 +114,12 @@ Replenish the queue from the highest active Roadmap priority:
   draft it, but the maintainer's priority decides its `NN` and whether it enters
   the queue at all.
 - **Claim** a task by setting `claim` in its frontmatter before starting work,
-  so two sessions do not pick the same one. Clear it if the work is abandoned.
-  At most one live claim per task.
+  so two sessions do not pick the same one. Write it as `<handle> <YYYY-MM-DD>`
+  (e.g. `gougoujiang 2026-09-13`). Clear it if the work is abandoned. At most one
+  live claim per task.
+- **Open a pull request** and record its number in the `pr` frontmatter field, so
+  a claimed task that is being written is distinguishable from one already in
+  review. Clear `pr` only if the pull request closes without merging.
 - **Delete** the file when the work merges. The backlog holds only pending work;
   the permanent record is its pull request, applicable current-state and
   documentation updates, and a changelog entry when the change is user-visible.
