@@ -112,13 +112,29 @@ Proposed rules, most already followed:
    (create, list) hang off the parent path; reading or mutating one entity that
    owns a durable id uses the flat `.../{entity}-runs/{id}` form. Write this
    down so both `task-runs` and `workflow-runs` are covered by one rule.
-5. **State transitions.** Choose one house style for the whole surface. The two
-   candidates are an explicit state sub-resource (`PUT .../state`, as Space
-   secrets already use) or an RPC-style action suffix (`POST .../cancel`). The
-   recommendation is the state sub-resource where a transition is a simple
-   enable/disable/activate toggle, and an action suffix only where the verb
-   carries semantics a state field cannot (`retry`, `accept`). Whichever wins,
-   secrets and tasks must stop disagreeing.
+5. **State transitions.** Decided. A transition that only sets a stored
+   lifecycle flag — a boolean or small enum the resource already carries — is
+   expressed as a state sub-resource, `PUT .../state`, the shape Space secrets
+   already use. An `POST .../{verb}` action is reserved for an operation that
+   `set attribute = X` cannot express: one that creates a new entity or acts on
+   a live execution. The boundary is idempotence and side effects, not the
+   English verb.
+
+   Applying the rule to today's routes:
+
+   | Current route | Disposition |
+   |---|---|
+   | `POST .../users/{id}/disable`, `.../enable` | → `PUT .../users/{id}/state` (stored `disabled` flag) |
+   | `POST .../llm/models/{id}/enable`, `.../disable` | → `PUT .../llm/models/{id}/state` |
+   | `POST .../plugins/{name}/archive`, `.../unarchive` | → `PUT .../plugins/{name}/state` |
+   | `POST .../plugins/{name}/releases/{version}/yank` | → `PUT .../releases/{version}/state` (`yanked`) |
+   | `POST .../tasks/{id}/cancel` | stays an action — commands a live run |
+   | `POST .../tasks/{id}/retry` | stays an action — creates a new run |
+   | `POST .../invitations/{id}/accept` | stays an action — creates a membership |
+   | `POST .../revisions/{revision}/restore` | stays an action — creates a new revision |
+
+   The renames are deferred to backlog tasks; new routes follow the rule
+   immediately.
 6. **Authorization by record where a resource is globally identified.**
    Artifacts are the reference pattern: a route addressed by artifact id takes
    the Space from the record, not the path.
@@ -184,9 +200,6 @@ document.
 
 ## 7. Open Questions
 
-- Which state-transition style wins for the reconciliation in §3.5, and is it
-  worth changing the already-shipped routes on the losing side during Alpha, or
-  only holding new routes to the rule?
 - Does `webhook-keys` belong under a Space or at the subject level? The answer
   determines whether it moves.
 - Should the two OpenAPI documents live as separate committed files, or as one

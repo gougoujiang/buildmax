@@ -96,11 +96,25 @@ worker)都从本仓库发布并与 server 一起部署，现在是以最低成�
 4. **集合寻址与单实体寻址。** 集合操作(创建、列举)挂在父路径下;读取或修改
    一个拥有持久 id 的实体使用平铺的 `.../{entity}-runs/{id}` 形态。把它写下来,
    使 `task-runs` 和 `workflow-runs` 都被同一条规则覆盖。
-5. **状态迁移。** 为整个表面选定一种统一风格。两个候选是显式的状态子资源
-   (`PUT .../state`,Space secret 已在用)或 RPC 式动作后缀
-   (`POST .../cancel`)。建议:当迁移是简单的 enable/disable/activate 开关时用
-   状态子资源,仅当动词承载状态字段无法表达的语义时才用动作后缀(`retry`、
-   `accept`)。无论哪种胜出,secret 与 task 都必须停止彼此不一致。
+5. **状态迁移。** 已决策。仅设置一个存储型生命周期标志的迁移——资源本已携带的
+   布尔或小枚举——用状态子资源 `PUT .../state` 表达,即 Space secret 已在用的
+   形态。`POST .../{动词}` 动作保留给 `set attribute = X` 无法表达的操作:创建
+   新实体,或作用于活跃执行。判据是幂等性与副作用,不是英文动词本身。
+
+   把规则套到当前路由:
+
+   | 当前路由 | 处置 |
+   |---|---|
+   | `POST .../users/{id}/disable`、`.../enable` | → `PUT .../users/{id}/state`(存储的 `disabled` 标志) |
+   | `POST .../llm/models/{id}/enable`、`.../disable` | → `PUT .../llm/models/{id}/state` |
+   | `POST .../plugins/{name}/archive`、`.../unarchive` | → `PUT .../plugins/{name}/state` |
+   | `POST .../plugins/{name}/releases/{version}/yank` | → `PUT .../releases/{version}/state`(`yanked`) |
+   | `POST .../tasks/{id}/cancel` | 保留为动作——命令一个活跃 run |
+   | `POST .../tasks/{id}/retry` | 保留为动作——创建一个新 run |
+   | `POST .../invitations/{id}/accept` | 保留为动作——创建一个 membership |
+   | `POST .../revisions/{revision}/restore` | 保留为动作——创建一个新 revision |
+
+   这些重命名推迟到 backlog 任务;新路由立即遵循规则。
 6. **对全局标识的资源按记录授权。** Artifact 是范式:按 artifact id 定位的
    路由从记录而非路径取 Space。
 
@@ -150,8 +164,6 @@ URL 版本化(`/api/v1/...`)是一种兼容工具,面向的是无法与 server �
 
 ## 7. 开放问题
 
-- §3.5 的调和中,哪种状态迁移风格胜出;在 Alpha 期是否值得改动失败一方已经发布
-  的路由,还是只让新路由遵循规则?
 - `webhook-keys` 归属 Space 还是主体层?答案决定它是否移动。
 - 两份 OpenAPI 文档是作为两个独立提交文件存在,还是作为一份源生成两个视图?两者
   都满足边界;选择关乎"与路由对应"的校验如何接线。
