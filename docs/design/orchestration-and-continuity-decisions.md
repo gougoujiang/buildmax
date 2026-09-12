@@ -129,17 +129,16 @@ session, plugin environment), not a log line.
 
 **Decision.** The ownership and authorization boundary is named **Space**, not
 Team, everywhere: domain, database, API, public identifiers, tests, fixtures,
-documentation, and UI. The current code and most records still say Team; the UI
-is half-migrated. This is a deliberate rename made under the Alpha rule that no
-compatibility layer is owed.
+documentation, and UI. This was a deliberate rename made under the Alpha rule
+that no compatibility layer is owed.
 
-The rename is a large but mechanical change and lands as **its own dedicated
-pull request** with a reviewed change checklist (domain package, table names,
-`team_id`→`space_id` columns and `AutoMigrate`, `/api/teams`→`/api/spaces`
-routes and the OpenAPI exact-match test, the `tm_`→`sp_` public-id prefix,
-handlers and worker wire types, mocks and fixtures, then docs and the remaining
-UI). It is not folded into any other change. Until it lands, records may still
-read "Team"; that is the term being replaced, not a second concept.
+The rename has landed: the domain package, the `space` table with `space_id`
+columns, the `/api/spaces` routes and the OpenAPI exact-match test, handlers and
+worker wire types, mocks, fixtures, docs, and the UI all say Space, with no
+`team_id` remnant in `internal/`. It was a large but mechanical change that
+shipped as its own dedicated pull request rather than folded into any other.
+Older records that still read "Team" name the term that was replaced, not a
+second concept.
 
 ## 7. Structured Output — On The Roadmap
 
@@ -159,12 +158,11 @@ Landed with this record (one pull request):
 
 Tracked as separate, dedicated changes:
 
-3. **The Space rename** (§6) — its own pull request, checklist first.
-4. **SSE for the Task page** — wire the Portal Task page to the existing
-   `GET /api/teams/{…}/tasks/{…}/stream` endpoint (the worker already streams
-   deltas into the in-process hub; only the frontend does not subscribe). Ships
-   for the single-replica deployment now; a shared pub/sub for multi-instance is
-   the separate R1 work and is not a prerequisite.
+3. **The Space rename** (§6) — shipped in its own pull request.
+4. **SSE for the Task page** — shipped. The Portal Task detail page now
+   subscribes to `GET /api/spaces/{…}/tasks/{…}/stream` (layered over a poll).
+   A shared pub/sub for multi-instance remains the separate R1 work and is not a
+   prerequisite.
 5. **The workspace-checkpoint implementation** — shipped. Continue restores the
    Task head, Retry restores the repeated run's base, and restore/checkpoint
    outcomes are recorded and surfaced. Candidate restore qualification remains

@@ -285,16 +285,18 @@ explicitly justified list of work streams.
 
 The task SSE endpoint emits a named `draining` event before the server closes
 the connection. Clients that consume that API must treat it as a reconnect
-signal rather than run completion. Portal no longer consumes the endpoint; it
-uses space WebSocket events as invalidations and reloads task state.
+signal rather than run completion. The Portal's Task detail page now consumes
+this endpoint (layered over a poll), so it honors the `draining` reconnect
+signal; space WebSocket events remain the primary invalidation channel
+elsewhere.
 
 ### 5.1 The bigger hole was not a stream at all
 
-The task SSE endpoint has no live consumer in the Portal, which watches a run
-over the WebSocket instead. That does not make rung 4 pointless — the endpoint
-remains API surface — but it means the connection that actually carries
-user-visible work during a shutdown is the socket, and a socket is worse than
-an SSE stream in two ways.
+The task SSE endpoint does have a live consumer — the Portal's Task detail
+page — but that stream is drained cleanly at rung 4 and its clients reconnect
+on the `draining` event. The connection that actually carries user-visible
+*work* during a shutdown is the socket, and a socket is worse than an SSE stream
+in two ways.
 
 It is **hijacked**, so `http.Server.Shutdown` returns without waiting for it.
 And it carries **Tier 1 turns**: `conversation.create` and
