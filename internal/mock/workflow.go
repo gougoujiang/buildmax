@@ -3,6 +3,7 @@ package mock
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
@@ -233,6 +234,9 @@ func (m *MockWorkflowStore) TransitionWorkflowRun(_ context.Context, in corework
 		if in.ErrorMessage != nil {
 			m.Runs[i].ErrorMessage = in.ErrorMessage
 		}
+		if coreworkflow.RunStatusTerminal(in.NewStatus) {
+			clearRunLease(&m.Runs[i])
+		}
 		return true, nil
 	}
 	return false, nil
@@ -342,10 +346,108 @@ func (m *MockWorkflowStore) FinalizeFailedWorkflowRun(_ context.Context, in core
 			if in.ErrorMessage != nil {
 				m.Runs[i].ErrorMessage = in.ErrorMessage
 			}
+			clearRunLease(&m.Runs[i]) // in.RunStatus is always terminal here
 		}
 		break
 	}
 	return true, nil
+}
+
+// clearRunLease drops the reconciliation lease and schedule, as the store does
+// when a run reaches a terminal status.
+func clearRunLease(run *coreworkflow.Run) {
+	run.ReconcileOwner = nil
+	run.LeaseExpiresAt = nil
+	run.NextReconcileAt = nil
+}
+
+func (m *MockWorkflowStore) ListDueWorkflowRuns(_ context.Context, now time.Time, limit int) ([]coreworkflow.Run, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	var out []coreworkflow.Run
+	for _, run := range m.Runs {
+		if coreworkflow.RunStatusTerminal(coreworkflow.RunStatus(run.Status)) {
+			continue
+		}
+		leaseExpired := run.LeaseExpiresAt != nil && !run.LeaseExpiresAt.After(now)
+		if run.NextReconcileAt == nil || !run.NextReconcileAt.After(now) || leaseExpired {
+			out = append(out, run)
+		}
+	}
+	// Oldest-due first with never-scheduled runs leading, matching the store.
+	sort.SliceStable(out, func(i, j int) bool {
+		a, b := out[i].NextReconcileAt, out[j].NextReconcileAt
+		switch {
+		case a == nil && b == nil:
+			return out[i].ID < out[j].ID
+		case a == nil:
+			return true
+		case b == nil:
+			return false
+		case a.Equal(*b):
+			return out[i].ID < out[j].ID
+		default:
+			return a.Before(*b)
+		}
+	})
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+func (m *MockWorkflowStore) ClaimWorkflowRunLease(_ context.Context, in coreworkflow.ClaimLeaseInput) (bool, error) {
+	for i := range m.Runs {
+		if m.Runs[i].ID != in.WorkflowRunID {
+			continue
+		}
+		if coreworkflow.RunStatusTerminal(coreworkflow.RunStatus(m.Runs[i].Status)) {
+			return false, nil
+		}
+		held := m.Runs[i].ReconcileOwner != nil &&
+			(m.Runs[i].LeaseExpiresAt == nil || m.Runs[i].LeaseExpiresAt.After(in.Now))
+		if held {
+			return false, nil
+		}
+		owner := in.Owner
+		expiry := in.LeaseExpiresAt
+		m.Runs[i].ReconcileOwner = &owner
+		m.Runs[i].LeaseExpiresAt = &expiry
+		return true, nil
+	}
+	return false, nil
+}
+
+func (m *MockWorkflowStore) RenewWorkflowRunLease(_ context.Context, in coreworkflow.RenewLeaseInput) (bool, error) {
+	for i := range m.Runs {
+		if m.Runs[i].ID != in.WorkflowRunID {
+			continue
+		}
+		if m.Runs[i].ReconcileOwner == nil || *m.Runs[i].ReconcileOwner != in.Owner {
+			return false, nil
+		}
+		expiry := in.LeaseExpiresAt
+		m.Runs[i].LeaseExpiresAt = &expiry
+		return true, nil
+	}
+	return false, nil
+}
+
+func (m *MockWorkflowStore) ReleaseWorkflowRunLease(_ context.Context, in coreworkflow.ReleaseLeaseInput) (bool, error) {
+	for i := range m.Runs {
+		if m.Runs[i].ID != in.WorkflowRunID {
+			continue
+		}
+		if m.Runs[i].ReconcileOwner == nil || *m.Runs[i].ReconcileOwner != in.Owner {
+			return false, nil
+		}
+		m.Runs[i].ReconcileOwner = nil
+		m.Runs[i].LeaseExpiresAt = nil
+		m.Runs[i].NextReconcileAt = in.NextReconcileAt
+		return true, nil
+	}
+	return false, nil
 }
 
 func (m *MockWorkflowStore) GetWorkflowStepRunByTaskID(_ context.Context, taskID string) (*coreworkflow.StepRun, error) {
