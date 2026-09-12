@@ -415,7 +415,7 @@ func (s *Store) UpdateWorkflow(ctx context.Context, workflowID, spaceID string, 
 		updated.Definition == workflow.Definition && updated.Status == workflow.Status {
 		return workflow, nil
 	}
-	updated.Revision = nextRevision(workflow.Revision)
+	updated.Revision = nextRevision(in.ExpectedRevision)
 	updated.UpdatedAt = time.Now().UTC()
 	updates := map[string]interface{}{
 		"name":        updated.Name,
@@ -425,14 +425,28 @@ func (s *Store) UpdateWorkflow(ctx context.Context, workflowID, spaceID string, 
 		"revision":    updated.Revision,
 		"updated_at":  updated.UpdatedAt,
 	}
+	// The revision guard lives in the WHERE clause, not a read-then-check: only the
+	// database can decide which of two edits that started from the same revision
+	// commits. Guarding the row update and appending the matching revision in one
+	// transaction makes the loser write nothing -- so it cannot overwrite the
+	// winner's definition, and the append never collides with the unique
+	// (workflow_id, revision) index to leak a duplicate-key error.
+	applied := false
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		workflowKey, err := lookupKey(ctx, tx, "workflow", workflowID)
 		if err != nil {
 			return err
 		}
-		if err := tx.Model(&workflowRow{}).Where("id = ?", workflowKey).Updates(updates).Error; err != nil {
-			return err
+		res := tx.Model(&workflowRow{}).
+			Where("id = ? AND revision = ?", workflowKey, in.ExpectedRevision).
+			Updates(updates)
+		if res.Error != nil {
+			return res.Error
 		}
+		if res.RowsAffected == 0 {
+			return nil // another writer advanced the revision first; write nothing
+		}
+		applied = true
 		updatedBy, err := lookupKey(ctx, tx, "user", in.UpdatedBy)
 		if err != nil {
 			return err
@@ -441,6 +455,9 @@ func (s *Store) UpdateWorkflow(ctx context.Context, workflowID, spaceID string, 
 	})
 	if err != nil {
 		return nil, err
+	}
+	if !applied {
+		return nil, coreworkflow.ErrRevisionConflict
 	}
 	return s.GetWorkflow(ctx, workflowID)
 }

@@ -91,6 +91,11 @@ func (m *MockWorkflowStore) UpdateWorkflow(_ context.Context, workflowID, spaceI
 			updated.Definition == m.Workflows[i].Definition && updated.Status == m.Workflows[i].Status {
 			return &m.Workflows[i], nil
 		}
+		// Guard the write on the revision the caller observed, as the real store
+		// does, so a stale edit is refused rather than overwriting a newer one.
+		if m.Workflows[i].Revision != in.ExpectedRevision {
+			return nil, coreworkflow.ErrRevisionConflict
+		}
 		if updated.Revision < 1 {
 			updated.Revision = 1
 		}

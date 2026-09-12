@@ -1,6 +1,10 @@
 package workflow
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+)
 
 // ErrInvalidRunTransition and ErrInvalidStepRunTransition are returned when a
 // caller asks a run or step run to move between statuses that
@@ -12,3 +16,11 @@ var (
 	ErrInvalidRunTransition     = errors.New("invalid workflow run status transition")
 	ErrInvalidStepRunTransition = errors.New("invalid workflow step run status transition")
 )
+
+// ErrRevisionConflict means the workflow advanced between the revision the
+// service observed and the write it guarded on it: another edit already appended
+// the next revision. The caller re-reads and retries from the current revision.
+// It is the conflict every content edit, status transition, and restore returns
+// so a stale write is refused rather than overwriting a newer definition or
+// leaking the duplicate-key error the append would otherwise raise.
+var ErrRevisionConflict = apierr.New(apierr.KindConflict, "workflow changed since it was read")

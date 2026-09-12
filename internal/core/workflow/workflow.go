@@ -208,6 +208,12 @@ type UpdateInput struct {
 	Description *string
 	Definition  *string
 	Status      *string
+	// ExpectedRevision is the revision the service observed before this edit. The
+	// store guards the workflow row update on it and appends the next revision in
+	// the same transaction, so a second writer that started from the same revision
+	// loses the compare-and-set and gets ErrRevisionConflict rather than
+	// overwriting the winner or leaking the duplicate-key error.
+	ExpectedRevision int
 	// UpdatedBy is recorded as the author of the revision this update appends.
 	UpdatedBy string
 }
