@@ -987,6 +987,36 @@ Indexes: PK `id`; unique `public_id`; unique `(source_task_run_id, kind)`;
 index `space_id`; index `base_checkpoint_id`; index
 `idx_workspace_checkpoint_task_created` on (`task_id`, `created_at`).
 
+### `plugin_environment`
+
+An immutable Plugin environment revision: the exact, ordered set of packages a
+TaskRun loaded, frozen at a capability boundary. It is the durable object behind
+`task.plugin_environment_head_id` and the `task_run` base and result pointers;
+the materialized `buildmax-home/plugins/` directory is a disposable projection of
+it. See [plugin space distribution](../../design/plugin-space-distribution.md)
+§16 and [task workspace checkpoints](../../design/task-workspace-checkpoints.md)
+§5.4.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
+| `space_id` | `bigint unsigned` | no | Authorization owner |
+| `task_id` | `bigint unsigned` | no | Environment owner |
+| `source_task_run_id` | `bigint unsigned` | no | The run whose committed install created it |
+| `base_environment_id` | `bigint unsigned` | yes | Lineage predecessor; null for the first revision |
+| `entries` | `text` | no | JSON array of `{plugin_name, version, digest, source, installer, scope}`, written once and read whole |
+| `created_at` | `datetime(6)` | no | UTC commit time |
+
+Uniqueness is `source_task_run_id`: a run commits at most one environment.
+`entries` is a JSON document rather than a child table for the reason
+`plugin_release.inspection` and `task_run.plugin_pins` are: it is written once,
+read whole, and nothing queries inside it.
+
+Indexes: PK `id`; unique `public_id`; unique `source_task_run_id`; index
+`space_id`; index `base_environment_id`; index
+`idx_plugin_environment_task_created` on (`task_id`, `created_at`).
+
 ### `artifact`
 
 One durable file the space owns, with one immutable content object. Content
