@@ -573,6 +573,37 @@ func TestReconcile_RecoversLostCallback(t *testing.T) {
 	}
 }
 
+// TestReconcile_UnwiredTaskRunReaderErrors proves a service that dispatches but
+// was built without a TaskRun reader fails a running step's fold loudly instead
+// of masquerading it as still-executing. That silent nil once left every run of
+// the deployed Server stranded in running because the terminal callback's
+// service was constructed without the reader.
+func TestReconcile_UnwiredTaskRunReaderErrors(t *testing.T) {
+	svc, workflowStore, _, taskRuns, run, steps := twoStepReconcileSvc(t)
+
+	output := "collected"
+	taskRuns.Runs = append(taskRuns.Runs, coretask.Run{
+		ID:     *steps[0].TaskRunID,
+		TaskID: *steps[0].TaskID,
+		Status: string(coretask.RunStatusSucceeded),
+		Output: &output,
+	})
+	// Drop the reader the way the buggy wiring did: dispatch still works, but the
+	// running step can never be observed.
+	svc.TaskRuns = nil
+
+	if err := svc.Reconcile(context.Background(), run.ID); err == nil {
+		t.Fatal("Reconcile with no TaskRun reader succeeded, want an error")
+	}
+	updated, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.ID)
+	if err != nil {
+		t.Fatalf("ListWorkflowStepRuns: %v", err)
+	}
+	if updated[0].Status != string(coreworkflow.StepRunStatusRunning) {
+		t.Fatalf("step[0] status = %q, want still running (unfolded)", updated[0].Status)
+	}
+}
+
 // TestReconcile_IdempotentDoesNotDoubleDispatch proves repeating a pass over the
 // same terminal fact does not accept the outcome twice or admit a second Task.
 func TestReconcile_IdempotentDoesNotDoubleDispatch(t *testing.T) {
