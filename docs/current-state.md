@@ -24,9 +24,11 @@ before the first model call, while remote transports and local surfaces are
 unaffected. TaskRun diagnostics present that treatment beside the recorded
 boundary in Portal Run Details. The remaining R0 work is candidate deployment
 evidence for the supported worker controls. Worker-wide network
-egress is a documented, accepted limit for the first private Beta. Durable
-Workflow reconciliation, trace retention, and candidate failure/recovery
-evidence also remain open. Shared Redis coordination is implemented, including
+egress is a documented, accepted limit for the first private Beta. The linear
+Workflow reconciler now folds terminal facts and dispatches from durable state;
+the Server-owned background due-run sweep and restart loop that would drive it
+without an in-process callback, trace retention, and candidate failure/recovery
+evidence remain open. Shared Redis coordination is implemented, including
 distributed lease fencing at message-history writes. The worker API already
 has a separate listener, TLS support, and a shipped ingress NetworkPolicy; that
 bounded network slice must not be confused with unrestricted worker egress.
@@ -232,6 +234,7 @@ The database coverage is broader than the previous assessment reported:
 | Workflow guarded run/step transitions and atomic failure finalization | [workflow_test.go](../internal/infra/db/workflow_test.go) |
 | Idempotent Workflow Task admission, replay, payload conflict, space scope, and its contention winner | [task_admission_test.go](../internal/infra/db/task_admission_test.go) |
 | Workflow due-run discovery and reconciliation lease claim/renew/release under contention | [workflow_reconciliation_test.go](../internal/infra/db/workflow_reconciliation_test.go) |
+| Linear reconciler folding terminal TaskRun facts: step advance, final success, failure/cancel distinction and later-step blocking, lost-callback recovery, and one outcome under concurrent reconciliation | [reconcile_mysql_test.go](../internal/service/workflow/reconcile_mysql_test.go), [service_test.go](../internal/service/workflow/service_test.go) |
 | Workflow revision advancement under edits and contention (guarded compare-and-set) | [workflow_test.go](../internal/infra/db/workflow_test.go) |
 | Workflow initial revision and revision queries | [revision_query_test.go](../internal/infra/db/revision_query_test.go) |
 | Space isolation for secrets and independent invitations | [secret_test.go](../internal/infra/db/secret_test.go), [space_invitation_test.go](../internal/infra/db/space_invitation_test.go) |
@@ -246,11 +249,21 @@ the agent's execution. The store also discovers due non-terminal runs and hands
 out a bounded, takeover-safe reconciliation lease, so the durable state a
 reconciler needs exists. A concurrent Workflow edit now loses a compare-and-set
 and receives a conflict rather than overwriting a newer definition or leaking a
-duplicate-key error. The reconciler itself is not yet built: nothing folds
-terminal facts, dispatches the next step, or sweeps due runs on a loop, so
-progress still depends on callbacks, restart and lost-callback recovery remain
-open, and nothing yet replays that admission key on recovery. This is also not
-exhaustive proof of cross-Space store behavior.
+duplicate-key error. The linear reconciler now exists:
+[`Service.Reconcile`](../internal/service/workflow/service.go) claims that lease,
+reads the run and its steps, folds a running step's terminal TaskRun — read from
+the TaskRun store, not a pushed callback — into the guarded step and run
+transitions, dispatches the next pending step by re-admitting its Task under the
+stable key (recovering the crash window between admitting a Task and linking it),
+and sets the run's next reconcile time while work remains.
+`StartWorkflowRun` dispatches its first step through the same `Reconcile`, and
+`HandleTaskRunTerminal` is now only a wake-up that maps the finished TaskRun to
+its run and reconciles, so a lost callback loses a wake-up rather than the
+outcome and a later `Reconcile` recovers it from persisted state alone. What
+remains open is the Server-owned background due-run sweep and startup/restart
+loop that would call `Reconcile` without an in-process callback — the store's
+due-run query exists but nothing drives it on a schedule yet (item 60). This is
+also not exhaustive proof of cross-Space store behavior.
 External dependency recovery still needs scenario-specific evidence. The
 removed result-delivery queue has no remaining restart-recovery obligation of
 its own.

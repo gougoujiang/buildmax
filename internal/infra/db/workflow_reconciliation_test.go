@@ -106,10 +106,15 @@ func TestWorkflowReconciliationLease_DueSelection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListDueWorkflowRuns: %v", err)
 	}
-	got := runIDs(due)
+	// ListDueWorkflowRuns is a global scanner, and this scope shares its database
+	// with the service-layer reconciliation tests, so the due set may hold their
+	// runs too. Restrict the exact comparison to the runs this test created; the
+	// query cannot assume it is the only writer in the schema.
+	mine := []string{never, pastDue, leaseExpired, notDue, terminalPast}
+	got := filterIDs(runIDs(due), mine)
 	want := []string{never, pastDue, leaseExpired}
 	if !equalIDs(got, want) {
-		t.Fatalf("due = %v, want %v (never/pastDue/leaseExpired in oldest-due order)", got, want)
+		t.Fatalf("due (this test's runs) = %v, want %v (never/pastDue/leaseExpired in oldest-due order)", got, want)
 	}
 	if contains(got, notDue) {
 		t.Errorf("a future-scheduled run with no lease appeared in the due set")
@@ -118,14 +123,33 @@ func TestWorkflowReconciliationLease_DueSelection(t *testing.T) {
 		t.Errorf("a terminal run with a past schedule appeared in the due set")
 	}
 
-	// The batch bound caps the returned rows.
+	// The batch bound caps the returned rows. Ordering — that the NULL-scheduled
+	// run leads — is already proven by got above; here only the cap is at stake,
+	// and the globally oldest-due row may belong to another writer in the schema.
 	one, err := s.ListDueWorkflowRuns(ctx, base, 1)
 	if err != nil {
 		t.Fatalf("ListDueWorkflowRuns limit=1: %v", err)
 	}
-	if len(one) != 1 || one[0].ID != never {
-		t.Fatalf("bounded due = %v, want exactly [%s]", runIDs(one), never)
+	if len(one) != 1 {
+		t.Fatalf("bounded due returned %d rows, want the batch bound of 1", len(one))
 	}
+}
+
+// filterIDs keeps the ids that appear in keep, preserving order. A shared scope
+// database means a global query can return rows another test wrote; a test that
+// asserts an exact set restricts the result to the ids it owns first.
+func filterIDs(ids, keep []string) []string {
+	want := make(map[string]bool, len(keep))
+	for _, id := range keep {
+		want[id] = true
+	}
+	var out []string
+	for _, id := range ids {
+		if want[id] {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 func TestWorkflowReconciliationLease_ConcurrentClaimHasOneWinner(t *testing.T) {

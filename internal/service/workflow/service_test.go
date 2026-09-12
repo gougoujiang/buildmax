@@ -48,6 +48,7 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 		}},
 	}
 	taskStore := &mock.MockTaskStore{}
+	taskRuns := &mock.MockTaskRunStore{}
 	agentStore := &mock.MockAgentStore{
 		Agents: []agentdef.Agent{
 			{ID: "a_1", SpaceID: "tm_1", Name: "Collector", Instructions: "collect"},
@@ -57,9 +58,11 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 	svc := &Service{
 		Workflows: workflowStore,
 		Agents:    agentStore,
+		TaskRuns:  taskRuns,
 		TaskService: &task.Service{
-			Agents: agentStore,
-			Tasks:  taskStore,
+			Agents:   agentStore,
+			Tasks:    taskStore,
+			TaskRuns: taskRuns,
 		},
 	}
 	run, steps, err := svc.StartWorkflowRun(context.Background(), StartWorkflowRunCmd{
@@ -83,7 +86,15 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 		t.Fatal("expected first step task run id")
 	}
 
+	// The fold reads the step's terminal outcome from the TaskRun store, not the
+	// callback payload, so the run must be terminal there before the wake-up.
 	output := "done"
+	taskRuns.Runs = append(taskRuns.Runs, coretask.Run{
+		ID:     *steps[0].TaskRunID,
+		TaskID: *steps[0].TaskID,
+		Status: string(coretask.RunStatusSucceeded),
+		Output: &output,
+	})
 	if err := svc.HandleTaskRunTerminal(context.Background(), coretask.RunTerminalInfo{
 		TaskRunID: *steps[0].TaskRunID,
 		TaskID:    *steps[0].TaskID,
@@ -117,6 +128,7 @@ func TestStartWorkflowRun_StepsUseAgentSnapshot(t *testing.T) {
 		}},
 	}
 	taskStore := &mock.MockTaskStore{}
+	taskRuns := &mock.MockTaskRunStore{}
 	agentStore := &mock.MockAgentStore{
 		Agents: []agentdef.Agent{
 			{ID: "a_1", SpaceID: "tm_1", Name: "Collector", Description: "collects", Instructions: "collect carefully", Revision: 1},
@@ -126,9 +138,11 @@ func TestStartWorkflowRun_StepsUseAgentSnapshot(t *testing.T) {
 	svc := &Service{
 		Workflows: workflowStore,
 		Agents:    agentStore,
+		TaskRuns:  taskRuns,
 		TaskService: &task.Service{
-			Agents: agentStore,
-			Tasks:  taskStore,
+			Agents:   agentStore,
+			Tasks:    taskStore,
+			TaskRuns: taskRuns,
 		},
 	}
 	run, steps, err := svc.StartWorkflowRun(context.Background(), StartWorkflowRunCmd{
@@ -158,6 +172,12 @@ func TestStartWorkflowRun_StepsUseAgentSnapshot(t *testing.T) {
 	}
 
 	output := "done"
+	taskRuns.Runs = append(taskRuns.Runs, coretask.Run{
+		ID:     *steps[0].TaskRunID,
+		TaskID: *steps[0].TaskID,
+		Status: string(coretask.RunStatusSucceeded),
+		Output: &output,
+	})
 	if err := svc.HandleTaskRunTerminal(context.Background(), coretask.RunTerminalInfo{
 		TaskRunID: *steps[0].TaskRunID,
 		TaskID:    *steps[0].TaskID,
@@ -303,6 +323,7 @@ func TestDeletedAgent_RunFinishesButNextStepIsRefused(t *testing.T) {
 		}},
 	}
 	taskStore := &mock.MockTaskStore{}
+	taskRuns := &mock.MockTaskRunStore{}
 	agentStore := &mock.MockAgentStore{
 		Agents: []agentdef.Agent{
 			{ID: "a_1", SpaceID: "tm_1", Name: "Collector", Instructions: "collect carefully", Revision: 1},
@@ -312,9 +333,11 @@ func TestDeletedAgent_RunFinishesButNextStepIsRefused(t *testing.T) {
 	svc := &Service{
 		Workflows: workflowStore,
 		Agents:    agentStore,
+		TaskRuns:  taskRuns,
 		TaskService: &task.Service{
-			Agents: agentStore,
-			Tasks:  taskStore,
+			Agents:   agentStore,
+			Tasks:    taskStore,
+			TaskRuns: taskRuns,
 		},
 	}
 	run, steps, err := svc.StartWorkflowRun(context.Background(), StartWorkflowRunCmd{
@@ -329,6 +352,12 @@ func TestDeletedAgent_RunFinishesButNextStepIsRefused(t *testing.T) {
 	}
 
 	output := "done"
+	taskRuns.Runs = append(taskRuns.Runs, coretask.Run{
+		ID:     *steps[0].TaskRunID,
+		TaskID: *steps[0].TaskID,
+		Status: string(coretask.RunStatusSucceeded),
+		Output: &output,
+	})
 	if err := svc.HandleTaskRunTerminal(context.Background(), coretask.RunTerminalInfo{
 		TaskRunID: *steps[0].TaskRunID,
 		TaskID:    *steps[0].TaskID,
@@ -422,10 +451,12 @@ func TestHandleTaskRunTerminal_CancelStopsTheRunWithoutFailingIt(t *testing.T) {
 			{ID: "a_2", SpaceID: "tm_1", Name: "Summarizer", Instructions: "summarize"},
 		},
 	}
+	taskRuns := &mock.MockTaskRunStore{}
 	svc := &Service{
 		Workflows:   workflowStore,
 		Agents:      agentStore,
-		TaskService: &task.Service{Agents: agentStore, Tasks: &mock.MockTaskStore{}},
+		TaskRuns:    taskRuns,
+		TaskService: &task.Service{Agents: agentStore, Tasks: &mock.MockTaskStore{}, TaskRuns: taskRuns},
 	}
 	run, steps, err := svc.StartWorkflowRun(context.Background(), StartWorkflowRunCmd{
 		SpaceID: "tm_1", UserID: "u1", WorkflowID: "w_1",
@@ -434,6 +465,11 @@ func TestHandleTaskRunTerminal_CancelStopsTheRunWithoutFailingIt(t *testing.T) {
 		t.Fatalf("StartWorkflowRun: %v", err)
 	}
 
+	taskRuns.Runs = append(taskRuns.Runs, coretask.Run{
+		ID:     *steps[0].TaskRunID,
+		TaskID: *steps[0].TaskID,
+		Status: string(coretask.RunStatusCanceled),
+	})
 	if err := svc.HandleTaskRunTerminal(context.Background(), coretask.RunTerminalInfo{
 		TaskRunID: *steps[0].TaskRunID,
 		TaskID:    *steps[0].TaskID,
@@ -459,5 +495,170 @@ func TestHandleTaskRunTerminal_CancelStopsTheRunWithoutFailingIt(t *testing.T) {
 	}
 	if updatedRun.Status != string(coreworkflow.RunStatusCanceled) {
 		t.Errorf("run status = %q, want canceled", updatedRun.Status)
+	}
+}
+
+// twoStepReconcileSvc builds a service over in-memory doubles for a published
+// two-step workflow, starts a run, and returns the handles a reconciliation test
+// drives. The started run has step 0 running against its TaskRun.
+func twoStepReconcileSvc(t *testing.T) (svc *Service, workflowStore *mock.MockWorkflowStore, taskStore *mock.MockTaskStore, taskRuns *mock.MockTaskRunStore, run *coreworkflow.Run, steps []coreworkflow.StepRun) {
+	t.Helper()
+	workflowStore = &mock.MockWorkflowStore{
+		Workflows: []coreworkflow.Workflow{{
+			ID:         "w_1",
+			SpaceID:    "tm_1",
+			Name:       "WF",
+			Definition: `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`,
+			Status:     coreworkflow.StatusPublished,
+		}},
+	}
+	taskStore = &mock.MockTaskStore{}
+	taskRuns = &mock.MockTaskRunStore{}
+	agentStore := &mock.MockAgentStore{
+		Agents: []agentdef.Agent{
+			{ID: "a_1", SpaceID: "tm_1", Name: "Collector", Instructions: "collect"},
+			{ID: "a_2", SpaceID: "tm_1", Name: "Summarizer", Instructions: "summarize"},
+		},
+	}
+	svc = &Service{
+		Workflows: workflowStore,
+		Agents:    agentStore,
+		TaskRuns:  taskRuns,
+		TaskService: &task.Service{
+			Agents:   agentStore,
+			Tasks:    taskStore,
+			TaskRuns: taskRuns,
+		},
+	}
+	var err error
+	run, steps, err = svc.StartWorkflowRun(context.Background(), StartWorkflowRunCmd{
+		SpaceID: "tm_1", UserID: "u1", WorkflowID: "w_1",
+	})
+	if err != nil {
+		t.Fatalf("StartWorkflowRun: %v", err)
+	}
+	if steps[0].TaskRunID == nil || steps[0].TaskID == nil {
+		t.Fatal("expected first step to be dispatched with a task and run id")
+	}
+	return svc, workflowStore, taskStore, taskRuns, run, steps
+}
+
+// TestReconcile_RecoversLostCallback proves the fold reads persisted TaskRun
+// facts: with step 0's TaskRun already succeeded, a direct Reconcile — never a
+// callback — advances the run. A lost callback costs a wake-up, not the outcome.
+func TestReconcile_RecoversLostCallback(t *testing.T) {
+	svc, workflowStore, _, taskRuns, run, steps := twoStepReconcileSvc(t)
+
+	output := "collected"
+	taskRuns.Runs = append(taskRuns.Runs, coretask.Run{
+		ID:     *steps[0].TaskRunID,
+		TaskID: *steps[0].TaskID,
+		Status: string(coretask.RunStatusSucceeded),
+		Output: &output,
+	})
+
+	if err := svc.Reconcile(context.Background(), run.ID); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+
+	updated, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.ID)
+	if err != nil {
+		t.Fatalf("ListWorkflowStepRuns: %v", err)
+	}
+	if updated[0].Status != string(coreworkflow.StepRunStatusSucceeded) {
+		t.Fatalf("step[0] status = %q, want succeeded from persisted state", updated[0].Status)
+	}
+	if updated[1].Status != string(coreworkflow.StepRunStatusRunning) {
+		t.Fatalf("step[1] status = %q, want running after recovery", updated[1].Status)
+	}
+}
+
+// TestReconcile_IdempotentDoesNotDoubleDispatch proves repeating a pass over the
+// same terminal fact does not accept the outcome twice or admit a second Task.
+func TestReconcile_IdempotentDoesNotDoubleDispatch(t *testing.T) {
+	svc, workflowStore, taskStore, taskRuns, run, steps := twoStepReconcileSvc(t)
+
+	output := "collected"
+	taskRuns.Runs = append(taskRuns.Runs, coretask.Run{
+		ID:     *steps[0].TaskRunID,
+		TaskID: *steps[0].TaskID,
+		Status: string(coretask.RunStatusSucceeded),
+		Output: &output,
+	})
+
+	for pass := 0; pass < 2; pass++ {
+		if err := svc.Reconcile(context.Background(), run.ID); err != nil {
+			t.Fatalf("Reconcile pass %d: %v", pass, err)
+		}
+	}
+
+	// Step 0's task plus step 1's next task: exactly two, never a duplicate from
+	// the second pass. The admission key names the logical node, so re-admission
+	// resolves to the one task.
+	if len(taskStore.List) != 2 {
+		t.Fatalf("tasks created = %d, want 2 (no double dispatch)", len(taskStore.List))
+	}
+	updated, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.ID)
+	if err != nil {
+		t.Fatalf("ListWorkflowStepRuns: %v", err)
+	}
+	if updated[0].Status != string(coreworkflow.StepRunStatusSucceeded) {
+		t.Fatalf("step[0] status = %q, want succeeded", updated[0].Status)
+	}
+	runningCount := 0
+	for i := range updated {
+		if updated[i].Status == string(coreworkflow.StepRunStatusRunning) {
+			runningCount++
+		}
+	}
+	if runningCount != 1 {
+		t.Fatalf("running steps = %d, want exactly 1", runningCount)
+	}
+	updatedRun, err := workflowStore.GetWorkflowRun(context.Background(), run.ID)
+	if err != nil {
+		t.Fatalf("GetWorkflowRun: %v", err)
+	}
+	if updatedRun.Status != string(coreworkflow.RunStatusRunning) {
+		t.Fatalf("run status = %q, want a legal running state", updatedRun.Status)
+	}
+}
+
+// TestReconcile_FailedTaskRunFailsRunAndBlocksLaterSteps proves a failed TaskRun
+// folds to a failed run and blocks the later pending step.
+func TestReconcile_FailedTaskRunFailsRunAndBlocksLaterSteps(t *testing.T) {
+	svc, workflowStore, taskStore, taskRuns, run, steps := twoStepReconcileSvc(t)
+
+	msg := "collector crashed"
+	taskRuns.Runs = append(taskRuns.Runs, coretask.Run{
+		ID:           *steps[0].TaskRunID,
+		TaskID:       *steps[0].TaskID,
+		Status:       string(coretask.RunStatusFailed),
+		ErrorMessage: &msg,
+	})
+
+	if err := svc.Reconcile(context.Background(), run.ID); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+
+	updated, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.ID)
+	if err != nil {
+		t.Fatalf("ListWorkflowStepRuns: %v", err)
+	}
+	if updated[0].Status != string(coreworkflow.StepRunStatusFailed) {
+		t.Fatalf("step[0] status = %q, want failed", updated[0].Status)
+	}
+	if updated[1].Status != string(coreworkflow.StepRunStatusBlocked) {
+		t.Fatalf("step[1] status = %q, want blocked after an upstream failure", updated[1].Status)
+	}
+	// No task was dispatched for the blocked step.
+	if len(taskStore.List) != 1 {
+		t.Fatalf("tasks created = %d, want only the failed first step's task", len(taskStore.List))
+	}
+	updatedRun, err := workflowStore.GetWorkflowRun(context.Background(), run.ID)
+	if err != nil {
+		t.Fatalf("GetWorkflowRun: %v", err)
+	}
+	if updatedRun.Status != string(coreworkflow.RunStatusFailed) {
+		t.Fatalf("run status = %q, want failed", updatedRun.Status)
 	}
 }

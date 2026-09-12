@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Workflow运行时.md)
 
-> **Audience:** contributors, product reviewers, and operators · **Status:** planned — the direction is accepted; the current implementation remains a linear, callback-driven precursor. Guarded compare-and-set run/step transitions and atomic failed-step finalization have shipped; durable reconciliation and restart recovery remain open
+> **Audience:** contributors, product reviewers, and operators · **Status:** planned — the direction is accepted; the current implementation remains a linear precursor. Guarded compare-and-set run/step transitions, atomic failed-step finalization, idempotent Task admission, the reconciliation lease, and the linear reconciler have shipped — `Service.Reconcile` folds a step's terminal TaskRun from durable state, dispatches the next step, and schedules the run, and both `StartWorkflowRun` and the terminal-callback wake-up route through it. The Server-owned background due-run sweep and restart recovery remain open
 
 Related: [roadmap](../ROADMAP.md),
 [product vision](product-vision.md),
