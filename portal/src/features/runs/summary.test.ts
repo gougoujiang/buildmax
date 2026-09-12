@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { ApiTaskRunTrace } from "../../lib/api/types"
-import { describeBoundary, formatDuration, runElapsed } from "./summary"
+import { describeBoundary, describeMCP, formatDuration, runElapsed } from "./summary"
 
 // The sandbox is off by default on every surface today, so most runs report
 // false. A viewer who cannot tell a confined run from an unconfined one has no
@@ -37,6 +37,28 @@ describe("describeBoundary", () => {
     const got = describeBoundary({ sandboxed: true, backend: "bwrap", downgraded: true })
     expect(got.tone).toBe("sandboxed")
     expect(got.text).toContain("weaker than configured")
+  })
+})
+
+describe("describeMCP", () => {
+  it("states that the worker profile disabled stdio and names the remote transports", () => {
+    const got = describeMCP({ stdio_disabled: true, remote_transports: ["http", "sse"] })
+    expect(got.tone).toBe("enforced")
+    expect(got.text).toContain("stdio MCP disabled")
+    expect(got.text).toContain("http, sse")
+  })
+
+  it("says so when a worker had no remote MCP servers", () => {
+    const got = describeMCP({ stdio_disabled: true })
+    expect(got.tone).toBe("enforced")
+    expect(got.text).toContain("No remote MCP servers")
+  })
+
+  it("does not treat an unrecorded treatment as stdio-allowed", () => {
+    // Unknown and allowed are different facts; only one is a decision the run
+    // recorded. Collapsing them would read an old trace as permissive.
+    expect(describeMCP(undefined).tone).toBe("unknown")
+    expect(describeMCP({ stdio_disabled: false }).tone).toBe("open")
   })
 })
 

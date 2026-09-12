@@ -5,6 +5,7 @@ import type {
   ApiTaskRunLLMCall,
   ApiTaskRunTrace,
   ApiTraceBoundary,
+  ApiTraceMCP,
   ApiTraceToolCall,
   ApiTraceWorkspace,
 } from "../../lib/api/types"
@@ -19,7 +20,7 @@ import {
   inputMatchesMessage,
 } from "./origin"
 import { cacheSaving, callElapsed, describeSpend, formatAmount, summarizeSpend } from "./spend"
-import { describeBoundary, formatDuration, runElapsed } from "./summary"
+import { describeBoundary, describeMCP, formatDuration, runElapsed } from "./summary"
 
 interface RunTraceModalProps {
   open: boolean
@@ -48,6 +49,19 @@ function BoundaryLine({ boundary }: { boundary?: ApiTraceBoundary }) {
   )
 }
 
+/**
+ * The MCP treatment, shown beside the boundary because it answers the same
+ * question about a different transport: what BuildMax launched, and what it
+ * refused. Distinct copy for the profile-enforced, allowed, and unknown cases
+ * keeps a trace that never recorded the treatment from reading as "allowed".
+ */
+function MCPLine({ mcp }: { mcp?: ApiTraceMCP }) {
+  const described = describeMCP(mcp)
+  return (
+    <p className={`run-trace__mcp run-trace__mcp--${described.tone}`}>{described.text}</p>
+  )
+}
+
 function ToolRow({ tool }: { tool: ApiTraceToolCall }) {
   return (
     <li className={tool.denied ? "run-trace__tool run-trace__tool--denied" : "run-trace__tool"}>
@@ -70,6 +84,7 @@ function TraceBody({ trace }: { trace: ApiTaskRunTrace }) {
   return (
     <>
       <BoundaryLine boundary={trace.boundary} />
+      <MCPLine mcp={trace.mcp} />
 
       {/* An unfinished run is not a successful one. Say so before the numbers,
           which otherwise read as a complete accounting. */}

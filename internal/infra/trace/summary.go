@@ -30,6 +30,11 @@ type Summary struct {
 	// trace always has one, including for an unsandboxed run.
 	Boundary *BoundarySummary `json:"boundary,omitempty"`
 
+	// MCP is how the run's MCP transports were treated. Nil for a trace written
+	// before the mcp_boundary record existed — unknown, which a reader must not
+	// resolve as stdio-allowed or as confined.
+	MCP *MCPTreatment `json:"mcp,omitempty"`
+
 	LLMCalls  int `json:"llm_calls"`
 	ToolCalls int `json:"tool_calls"`
 	// ToolFailures counts calls that could not complete. It is not a count of
@@ -131,6 +136,11 @@ func (s *Summary) apply(rec Record) {
 			b.Sandboxed = *rec.Sandboxed
 		}
 		s.Boundary = &b
+	case "mcp_boundary":
+		s.MCP = &MCPTreatment{
+			StdioDisabled:    rec.MCPStdioDisabled,
+			RemoteTransports: rec.MCPRemoteTransports,
+		}
 	case "llm_start":
 		s.LLMCalls++
 	case "tool_end":

@@ -200,6 +200,18 @@
           "downgraded": { "type": "boolean" }
         }
       },
+      "TraceMCP": {
+        "type": "object",
+        "description": "How the run's MCP transports were treated. Absent means the trace predates this record — unknown, not stdio-allowed.",
+        "properties": {
+          "stdio_disabled": { "type": "boolean", "description": "The unattended-worker profile refused stdio MCP for this run" },
+          "remote_transports": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Resolved remote transport kinds active for the run, a sorted subset of http and sse"
+          }
+        }
+      },
       "TraceToolCall": {
         "type": "object",
         "properties": {
@@ -219,6 +231,7 @@
           "started_at": { "type": "string", "format": "date-time" },
           "ended_at": { "type": "string", "format": "date-time" },
           "boundary": { "$ref": "#/components/schemas/TraceBoundary" },
+          "mcp": { "$ref": "#/components/schemas/TraceMCP" },
           "llm_calls": { "type": "integer" },
           "tool_calls": { "type": "integer" },
           "compactions": { "type": "integer" },

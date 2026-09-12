@@ -497,6 +497,17 @@ export interface ApiTraceBoundary {
   downgraded?: boolean
 }
 
+/**
+ * How a run's MCP transports were treated. Absent means the trace predates this
+ * record — unknown, not stdio-allowed and not confined.
+ */
+export interface ApiTraceMCP {
+  /** The unattended-worker profile refused stdio MCP for this run. */
+  stdio_disabled: boolean
+  /** Resolved remote transport kinds active for the run, a subset of http/sse. */
+  remote_transports?: string[]
+}
+
 /** One tool call in a run. */
 export interface ApiTraceToolCall {
   name: string
@@ -519,6 +530,8 @@ export interface ApiTaskRunTrace {
   started_at?: string
   ended_at?: string
   boundary?: ApiTraceBoundary
+  /** How the run's MCP transports were treated. Absent means unknown. */
+  mcp?: ApiTraceMCP
   llm_calls: number
   tool_calls: number
   compactions: number

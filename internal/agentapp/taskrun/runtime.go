@@ -576,6 +576,13 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGl
 			SandboxSurface:        config.WorkerSandboxSurface(),
 			SandboxNetworkTier:    sandboxNetworkTier,
 			SandboxFilesystemTier: sandboxFilesystemTier,
+			// This is the official unattended-worker profile, whatever the
+			// sandbox backend marker resolved: a resolved stdio MCP server fails
+			// the run before any child process or model call, because the worker
+			// would otherwise launch it outside the Bash boundary. Remote MCP
+			// transports and local surfaces are unaffected. See
+			// docs/design/trust-harness.md §3.9.
+			UnattendedWorker: true,
 			// The grants are set in the run's environment by withRunEnv above;
 			// their names are admitted past env scrubbing so a secret-shaped
 			// grant like GH_TOKEN actually reaches the agent's commands, and

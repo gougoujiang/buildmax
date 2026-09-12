@@ -65,6 +65,17 @@ type Record struct {
 	Sources     []string `json:"sources,omitempty"`
 	Downgraded  bool     `json:"downgraded,omitempty"`
 
+	// mcp_boundary
+	//
+	// How this run's MCP transports were treated, recorded beside the sandbox
+	// boundary so an operator reads it from the trace rather than re-deriving it
+	// from configuration. Like sandbox_boundary the record is written for every
+	// run that reaches this point, so an absent record reads as "written before
+	// this existed", not as "stdio was allowed". It names transport kinds only,
+	// never a command, argument, environment value, or url.
+	MCPStdioDisabled    bool     `json:"mcp_stdio_disabled,omitempty"`
+	MCPRemoteTransports []string `json:"mcp_remote_transports,omitempty"`
+
 	// context_sources
 	//
 	// What the run was given before its first model call, each source named by
@@ -373,6 +384,32 @@ func boundaryRecord(info *agent.SandboxInfo) Record {
 		rec.Downgraded = info.Downgraded
 	}
 	rec.Sandboxed = &sandboxed
+	return rec
+}
+
+// MCPTreatment is how a run's MCP transports were treated. It is both the
+// recorder input (Meta.MCP) and the reader-facing summary field (Summary.MCP):
+// the shape is the same on the way in and out, so it is one type rather than
+// two. A nil *MCPTreatment on a summary means the trace predates the record —
+// unknown, not "stdio allowed".
+type MCPTreatment struct {
+	// StdioDisabled reports that the unattended-worker profile refused stdio MCP
+	// for this run. False on a local surface, where stdio is allowed.
+	StdioDisabled bool `json:"stdio_disabled"`
+	// RemoteTransports are the resolved remote transport kinds active for the
+	// run, a sorted subset of "http" and "sse". Empty when none were configured.
+	RemoteTransports []string `json:"remote_transports,omitempty"`
+}
+
+// mcpBoundaryRecord builds the mcp_boundary record written immediately after
+// sandbox_boundary. It is skipped only when the surface computed no treatment,
+// which keeps an absent record meaning "written before this existed".
+func mcpBoundaryRecord(t *MCPTreatment) Record {
+	rec := Record{TS: now(), Type: "mcp_boundary"}
+	if t != nil {
+		rec.MCPStdioDisabled = t.StdioDisabled
+		rec.MCPRemoteTransports = append([]string(nil), t.RemoteTransports...)
+	}
 	return rec
 }
 

@@ -18,9 +18,12 @@ checkpoints, managed inference, and operator administration. This is not yet
 proof of production multi-tenant readiness or of a qualified Beta candidate.
 The [Beta readiness record](deploy/beta-readiness.md) remains unqualified.
 
-MCP stdio child processes run outside the Bash sandbox today. The supported
-worker profile must confine or disable them before Beta; this is the remaining
-R0 engineering rule, not merely a qualification checkbox. Worker-wide network
+The supported unattended-worker profile now disables stdio MCP: a resolved
+stdio server fails a worker run during assembly, before its command runs and
+before the first model call, while remote transports and local surfaces are
+unaffected. TaskRun diagnostics present that treatment beside the recorded
+boundary in Portal Run Details. The remaining R0 work is candidate deployment
+evidence for the supported worker controls. Worker-wide network
 egress is a documented, accepted limit for the first private Beta. Durable
 Workflow reconciliation, trace retention, and candidate failure/recovery
 evidence also remain open. Shared Redis coordination is implemented, including
@@ -143,14 +146,16 @@ Remaining limits:
 
 - MCP stdio servers launch with `exec.Command` and do not pass through the Bash
   sandbox ([`internal/infra/mcp/transport.go`](../internal/infra/mcp/transport.go)).
-  The supported worker profile must confine or refuse them; that fail-closed
-  treatment is not implemented yet.
+  The unattended-worker profile refuses them fail-closed before any child or
+  model call ([`internal/agentapp/mcp_manager.go`](../internal/agentapp/mcp_manager.go));
+  local surfaces still run stdio inside that same unsandboxed boundary.
 - `local_process` remains in the Server's host trust domain even when its Bash
   commands are sandboxed.
 - `buildmax sandbox overrides` is not implemented. Portal exposes Agent tiers
-  and Space defaults. Run Details shows the boundary recorded by the trace and
-  the resolved plugin pins, but not the requested/resolved tier pair or stdio
-  MCP treatment as distinct diagnostic fields.
+  and Space defaults. Run Details shows the boundary recorded by the trace, the
+  resolved plugin pins, and the worker MCP treatment (stdio disabled by the
+  profile, plus the resolved remote transports), but not the requested/resolved
+  tier pair as a distinct diagnostic field.
 - No worker RuntimeClass selection is wired in the Job builder. gVisor remains
   conditional post-Beta hardening, not a shipped supported worker profile or a
   first-Beta requirement.

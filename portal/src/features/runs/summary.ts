@@ -1,4 +1,4 @@
-import type { ApiTaskRunTrace, ApiTraceBoundary } from "../../lib/api/types"
+import type { ApiTaskRunTrace, ApiTraceBoundary, ApiTraceMCP } from "../../lib/api/types"
 
 /** How a boundary should read to someone deciding whether to trust a run. */
 export interface BoundaryDescription {
@@ -40,6 +40,42 @@ export function describeBoundary(boundary?: ApiTraceBoundary): BoundaryDescripti
   text += "."
   if (boundary.downgraded) text += " The boundary resolved weaker than configured."
   return { tone: "sandboxed", text, sources }
+}
+
+/** How a run's MCP treatment should read beside the boundary. */
+export interface MCPDescription {
+  /**
+   * enforced — the unattended-worker profile disabled stdio.
+   * open — stdio was allowed (a local surface).
+   * unknown — the trace predates MCP-treatment recording.
+   *
+   * "unknown" is deliberately not folded into "open": a run whose treatment was
+   * never recorded and a run recorded as allowing stdio are different facts.
+   */
+  tone: "enforced" | "open" | "unknown"
+  text: string
+}
+
+export function describeMCP(mcp?: ApiTraceMCP): MCPDescription {
+  if (!mcp) {
+    return {
+      tone: "unknown",
+      text: "This trace predates MCP-treatment recording, so how MCP transports were treated is unknown.",
+    }
+  }
+  const remote = mcp.remote_transports?.length
+    ? `Remote transports in use: ${mcp.remote_transports.join(", ")}.`
+    : "No remote MCP servers were configured."
+  if (mcp.stdio_disabled) {
+    return {
+      tone: "enforced",
+      text: `stdio MCP disabled by the unattended-worker profile. ${remote}`,
+    }
+  }
+  return {
+    tone: "open",
+    text: `stdio MCP allowed on this surface. ${remote}`,
+  }
 }
 
 export function formatDuration(ms?: number): string {

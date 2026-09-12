@@ -48,6 +48,10 @@ type Meta struct {
 	// Sandbox is the execution boundary resolved for this run. Nil is recorded
 	// as unsandboxed rather than unknown — see boundaryRecord.
 	Sandbox *agent.SandboxInfo
+	// MCP is how this run's MCP transports were treated. Nil means the surface
+	// computed none and no mcp_boundary record is written; a reader then sees
+	// the treatment as unknown rather than as stdio-allowed.
+	MCP *MCPTreatment
 	// Sources are the instruction, memory, and history-projection inputs this
 	// run started with.
 	Sources agent.ContextSources
@@ -123,6 +127,9 @@ func NewRecorder(dir string, meta Meta) *Recorder {
 		RetryOfTaskRunID: meta.RetryOfTaskRunID,
 	})
 	r.write(boundaryRecord(meta.Sandbox))
+	if meta.MCP != nil {
+		r.write(mcpBoundaryRecord(meta.MCP))
+	}
 	r.write(sourcesRecord(meta.Sources))
 	r.write(pluginsRecord(meta.Plugins))
 	return r

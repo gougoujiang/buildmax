@@ -72,6 +72,16 @@ type AppConfig struct {
 	// SandboxFilesystemTier's non-workspace tiers add. See
 	// config.SandboxSharedPaths.
 	SandboxSharedPaths config.SandboxSharedPaths
+	// UnattendedWorker marks this run as an official unattended-worker run and
+	// selects the supported worker MCP contract: a resolved stdio MCP server
+	// fails construction before any child process or the model starts, because
+	// the worker would otherwise launch it outside its declared Bash boundary.
+	// It is an explicit surface fact, not inferred from the sandbox backend
+	// marker, which config.WorkerSandboxSurface deliberately lets fall back —
+	// the marker may pick a sandbox implementation but must not decide the
+	// security contract. Every local surface (CLI, TUI, Desktop) and eval
+	// leaves it false and keeps stdio. See docs/design/trust-harness.md §3.9.
+	UnattendedWorker bool
 	// SecretEnvNames are the environment variable names this run declared as
 	// Space Secret grants. The sandbox admits them past its secret-shaped
 	// denylist, so a grant like GH_TOKEN reaches the agent's commands.
@@ -206,13 +216,21 @@ type AgentApp struct {
 	// memoryDisabled is the user's per-run switch, which is not the same as
 	// having no Project: one is a choice, the other is a surface that never
 	// had one.
-	memoryDisabled       bool
-	worktrees            *worktree.Manager
-	settings             config.Settings
-	llmClients           *LLMClientCache
-	toolRegistriesMu     sync.Mutex
-	toolRegistries       map[string]cllm.ToolRegistry
-	mcpManager           *MCPManager
+	memoryDisabled   bool
+	worktrees        *worktree.Manager
+	settings         config.Settings
+	llmClients       *LLMClientCache
+	toolRegistriesMu sync.Mutex
+	toolRegistries   map[string]cllm.ToolRegistry
+	mcpManager       *MCPManager
+	// unattendedWorker records that this run is the official unattended-worker
+	// profile, which disables stdio MCP. Kept so the run's trace can report the
+	// MCP treatment beside its sandbox boundary. See mcpTreatment.
+	unattendedWorker bool
+	// mcpRemoteTransports are the resolved remote transport kinds (a sorted
+	// subset of "http","sse") active for this run, recorded in the trace's MCP
+	// treatment. It names kinds only, never a command, url, or credential.
+	mcpRemoteTransports  []string
 	skillsRegistry       *SkillRegistry
 	subagentsRegistry    *SubAgentRegistry
 	plugins              PluginSnapshot
@@ -961,6 +979,21 @@ func (a *AgentApp) sandboxInfo() *agent.SandboxInfo {
 	}
 }
 
+// mcpTreatment snapshots how this run's MCP transports were treated for the
+// trace, beside the sandbox boundary. It is always non-nil for a built app, so
+// every current trace records the treatment and an absent record means the
+// trace predates it — unknown, not stdio-allowed. It carries transport kinds
+// only, never a command, url, or credential.
+func (a *AgentApp) mcpTreatment() *trace.MCPTreatment {
+	if a == nil {
+		return nil
+	}
+	return &trace.MCPTreatment{
+		StdioDisabled:    a.unattendedWorker,
+		RemoteTransports: append([]string(nil), a.mcpRemoteTransports...),
+	}
+}
+
 func (a *AgentApp) EstimateRunUsage(sess *SessionContext) (RunUsage, error) {
 	if a == nil {
 		return RunUsage{}, fmt.Errorf("app is nil")
@@ -1125,6 +1158,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 			Workspace:        a.workspace.Root(),
 			Model:            modelName,
 			Sandbox:          a.sandboxInfo(),
+			MCP:              a.mcpTreatment(),
 			Sources:          a.contextSources(sess, promptLayers),
 			Plugins:          a.plugins.Provenance(ctx),
 			SecretValues:     a.secretEnvValues,
@@ -1574,6 +1608,7 @@ func (a *AgentApp) newSubAgentTrace(ctx context.Context, sessionID string, opts 
 		Model:            modelName,
 		IsSubagent:       true,
 		Sandbox:          a.sandboxInfo(),
+		MCP:              a.mcpTreatment(),
 		SecretValues:     a.secretEnvValues,
 		Sources: agent.ContextSources{
 			ProjectID:    a.project.ID,

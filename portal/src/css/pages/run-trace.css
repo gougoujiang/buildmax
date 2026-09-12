@@ -1,6 +1,7 @@
 /* Run trace modal: what a run used, touched, spent, and what confined it. */
 
-.run-trace__boundary {
+.run-trace__boundary,
+.run-trace__mcp {
   margin: 0 0 0.75rem;
   padding: 0.6rem 0.75rem;
   border-radius: 8px;
@@ -20,13 +21,28 @@
   color: var(--color-warning);
 }
 
-.run-trace__boundary--sandboxed {
+.run-trace__boundary--sandboxed,
+/* stdio MCP disabled by the worker profile is the confined case, so it reads
+   like a sandboxed boundary rather than the unconfined warning treatment. */
+.run-trace__mcp--enforced {
   border-color: var(--color-border-subtle);
   color: var(--color-text-muted);
 }
 
-.run-trace__boundary--unknown {
+/* stdio MCP left enabled is the unconfined case, matching the open boundary. */
+.run-trace__mcp--open {
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
+.run-trace__boundary--unknown,
+.run-trace__mcp--unknown {
   color: var(--color-text-subtle);
+}
+
+/* Sits directly under the boundary line, so tighten the gap between them. */
+.run-trace__mcp {
+  margin-top: -0.4rem;
 }
 
 .run-trace__sources {

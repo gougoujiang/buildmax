@@ -151,6 +151,42 @@ func TestGetTaskRunTraceHandler(t *testing.T) {
 	}
 }
 
+// A worker trace's MCP treatment reaches the operator through the trace
+// response: stdio disabled by the profile, with the resolved remote transports.
+func TestGetTaskRunTraceHandler_SurfacesMCPTreatment(t *testing.T) {
+	tracePath := util.Ptr("traces/c_s1/rt_mcp.jsonl")
+	body := `{"ts":"t0","type":"run_start","run_id":"rt_mcp","session_id":"c_s1","model":"test-model"}
+{"ts":"t1","type":"sandbox_boundary","sandboxed":true,"backend":"bwrap","sources":["default:worker"]}
+{"ts":"t2","type":"mcp_boundary","mcp_stdio_disabled":true,"mcp_remote_transports":["http","sse"]}
+{"ts":"t3","type":"run_end","tool_calls":0}
+`
+	persist := mock.NewMockPersistStorage()
+	persist.RunGlobal[traceTestSpaceID+"/"+traceTestTaskID+"/"+traceTestTaskRunID+"/"+*tracePath] = []byte(body)
+	mux, token, spaceID, taskRunID := traceTestFixture(t, tracePath, persist, "")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/task-runs/"+taskRunID+"/trace", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	var got TraceResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.MCP == nil {
+		t.Fatal("worker trace must surface its MCP treatment")
+	}
+	if !got.MCP.StdioDisabled {
+		t.Error("worker MCP treatment must say stdio is disabled")
+	}
+	if strings.Join(got.MCP.RemoteTransports, ",") != "http,sse" {
+		t.Errorf("remote transports wrong: %+v", got.MCP.RemoteTransports)
+	}
+}
+
 // TestGetTaskRunTraceHandler_DistinguishesNeverWrittenFromLost asserts the two
 // absent cases stay distinguishable. Both are 404, but a reader debugging a
 // deployment needs to know whether the trace was never recorded or has since

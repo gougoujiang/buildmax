@@ -12,7 +12,7 @@ the environment, because they must be known before any file can be read.
 | `<BUILDMAX_HOME>/server.yaml` | Server, Worker | Port, auth, database, storage, worker, Tier 1 model |
 | `<BUILDMAX_HOME>/policy.yaml` | CLI, Desktop, Worker | Operator policy: sandbox settings that override `settings.yaml`, and which plugin sources may load |
 | `<workspace>/.buildmax/hooks.yaml` | CLI, Desktop | Per-workspace hook overlay, additive to global hooks |
-| `<BUILDMAX_HOME>/mcp.json` | CLI, Desktop, Worker | MCP servers, merged with the workspace file |
+| `<BUILDMAX_HOME>/mcp.json` | CLI, Desktop, Worker | MCP servers, merged with the workspace file. A worker rejects `stdio` entries — see [MCP transports on a worker](#mcp-transports-on-a-worker) |
 | `<workspace>/.buildmax/mcp.json` | CLI, Desktop | Per-workspace MCP servers; wins on a duplicate server id |
 | `<BUILDMAX_HOME>/plugins/<name>/` | CLI, Desktop, Worker | An installed local plugin, or an exact Space-activated release materialized into a run-scoped worker home; see [manual/plugins.md](../../manual/plugins.md) |
 | `<workspaces_dir>/.marketplace/` | Server | Published plugin packages, when the deployment has no object store |
@@ -180,7 +180,27 @@ see `deployment/compose/compose.yaml`'s `security_opt` and
 `local_process` does not get, and `k8s_job` does, is the worker running as a
 *different process* than the server at all.
 
-### Contributor-local files: `.local/`
+### MCP Transports On A Worker
+
+A worker accepts only remote MCP transports (`http` and `sse`). A resolved
+`stdio` server — from `<BUILDMAX_HOME>/mcp.json`, the workspace file, or an
+activated plugin — fails the run during assembly, before the configured command
+runs and before the first model call. The run's terminal error names the
+rejected server ids and points to the supported transports.
+
+The reason is the same trust boundary the pod section describes: a worker runs a
+`stdio` server as a direct child process, outside the `bwrap` sandbox that
+confines model-chosen Bash commands, so the supported unattended-worker profile
+disables the transport rather than launch it unconfined. This is an explicit
+property of the worker profile, not a side effect of whether the image installs
+the sandbox backend. CLI, Desktop, and evaluation runs keep `stdio`
+unchanged. This confines the transport BuildMax itself launches; it is not a
+Pod-wide egress control, and the residual worker egress limit still stands.
+
+Portal Run Details shows this treatment beside the run's sandbox boundary: that
+`stdio` is disabled by the profile and which remote transports the run resolved.
+A run refused before its trace exists still records the policy in the TaskRun's
+terminal error.
 
 Everything a contributor configures for their own machine lives in one
 gitignored directory at the repository root. `./make setup local` creates it and

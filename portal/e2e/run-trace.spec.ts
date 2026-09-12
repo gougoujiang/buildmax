@@ -120,6 +120,15 @@ test("Portal states what confined a run, and what the run spent", async ({ page 
   // the day it lands rather than failing as though something broke.
   await expect(boundary).not.toHaveClass(/run-trace__boundary--unknown/)
 
+  // The MCP treatment sits beside the boundary. This is a worker run, so the
+  // unattended-worker profile disables stdio — the line must say so, and must
+  // not report the treatment as unknown, which would mean it stopped being
+  // recorded.
+  const mcp = dialog.locator(".run-trace__mcp")
+  await expect(mcp).toBeVisible()
+  await expect(mcp).not.toHaveClass(/run-trace__mcp--unknown/)
+  await expect(mcp).toContainText(/stdio MCP disabled/)
+
   // What the run spent. The mock model in the smoke deployments reports both a
   // model name and token usage, so "—" here means the trace lost them rather
   // than that the deployment never had them.
