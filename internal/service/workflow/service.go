@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -408,6 +409,16 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	return run, stepRuns, nil
 }
 
+// ListDueWorkflowRuns exposes the store's due-run scan so the Server's recovery
+// loop depends on this service -- which also owns Reconcile -- rather than
+// reaching into the store for one half of the pair.
+func (s *Service) ListDueWorkflowRuns(ctx context.Context, now time.Time, limit int) ([]coreworkflow.Run, error) {
+	if s.Workflows == nil {
+		return nil, ErrWorkflowsNotConfigured
+	}
+	return s.Workflows.ListDueWorkflowRuns(ctx, now, limit)
+}
+
 // HandleTaskRunTerminal is only a wake-up now: it maps the finished TaskRun to
 // its WorkflowRun and asks the reconciler to advance it. The reconciler reads
 // the TaskRun's terminal facts from durable state itself, so a callback that is
@@ -588,11 +599,17 @@ func (s *Service) foldTerminalStep(ctx context.Context, run *coreworkflow.Run, s
 
 // stepTaskRun reads the TaskRun a running step owns. A running step was linked
 // to its TaskRun in the same transaction that made it running, so the id is
-// present; a missing reader or id yields (nil, nil), which reconcilePass treats
-// as not-yet-terminal and observes again later.
+// present; a step without one yet yields (nil, nil), which reconcilePass treats
+// as not-yet-terminal and observes again later. A running step that has an id
+// but no reader is a wiring bug, not a transient state: without the reader the
+// step can never be folded and the run strands, so it errors loudly rather than
+// masquerading as still-executing.
 func (s *Service) stepTaskRun(ctx context.Context, step *coreworkflow.StepRun) (*coretask.Run, error) {
-	if s.TaskRuns == nil || step.TaskRunID == nil || *step.TaskRunID == "" {
+	if step.TaskRunID == nil || *step.TaskRunID == "" {
 		return nil, nil
+	}
+	if s.TaskRuns == nil {
+		return nil, errors.New("workflow: TaskRun reader is not configured, cannot fold a running step")
 	}
 	return s.TaskRuns.GetTaskRun(ctx, *step.TaskRunID)
 }

@@ -389,7 +389,11 @@ func buildOnTaskRunTerminal(cfg Config) func(ctx context.Context, info coretask.
 			Agents:      cfg.Stores.AgentStore,
 			Issues:      cfg.Stores.IssueStore,
 			TaskService: taskSvc,
-			Audit:       cfg.Audit,
+			// Reconcile from the terminal callback reads the finished step's
+			// TaskRun to fold it; without this reader it can never observe a
+			// terminal step and every run strands in running.
+			TaskRuns: cfg.Stores.TaskRunStore,
+			Audit:    cfg.Audit,
 		}
 	}
 	var runReporter *issue.RunReporter

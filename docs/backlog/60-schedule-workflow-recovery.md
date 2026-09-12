@@ -10,7 +10,7 @@ verification:
   - ./make test mysql -run TestWorkflowRestartRecovery
   - ./make test mysql
   - ./make kind smoke
-claim:
+claim: gougoujiang 2026-09-13
 ---
 
 ## Outcome
