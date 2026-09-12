@@ -9,6 +9,7 @@ import (
 
 	"github.com/icloudbb/buildmax/internal/server/access"
 
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/mock"
 	"github.com/icloudbb/buildmax/internal/server/authtoken"
@@ -63,6 +64,28 @@ func workerRouteConfig() Config {
 			Runs:     []coretask.Run{{ID: "r_1", TaskID: "t_1", Status: string(coretask.RunStatusScheduled), CreatedAt: time.Unix(1, 0).UTC()}},
 			TaskList: []coretask.Task{{ID: "t_1", ConversationID: "c_1", SpaceID: llmTestSpace, CreatedBy: llmTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
+	}
+}
+
+// A run-scoped route tags its request with the run, so an audit event a route
+// records downstream — a worker uploading an artifact — names the run that
+// caused it without the handler threading the id by hand.
+func TestRunScopedMiddlewareTagsContextWithRun(t *testing.T) {
+	h := New(Config{JWTSecret: workerTestSecret})
+	var seen string
+	next := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		seen = coreaudit.RunFromContext(r.Context())
+	})
+	mux := http.NewServeMux()
+	mux.Handle("GET /api/worker/task-runs/{task_run_id}/probe", h.runScopedWorkerMiddleware(next))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/r_1/probe", nil)
+	req.Header.Set("Authorization", "Bearer "+runTokenFor(t, "r_1", "t_1"))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if seen != "r_1" {
+		t.Errorf("downstream context run = %q, want r_1", seen)
 	}
 }
 

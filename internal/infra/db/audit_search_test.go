@@ -79,3 +79,49 @@ func TestSearchAuditEvents(t *testing.T) {
 		t.Errorf("ListAuditEvents = %d of %d, %v", len(spaceScoped), total, err)
 	}
 }
+
+// An event recorded while serving a run inherits that run's id from the context,
+// so a governance action a run caused is reachable from the run without every
+// call site threading the id — and an event that names a run explicitly keeps
+// its own id rather than the ambient one.
+func TestRecordAuditEventStampsRunFromContext(t *testing.T) {
+	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
+	if dsn == "" {
+		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
+	}
+	ctx := context.Background()
+	s, err := New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	actor := newTestUser(t, s, "auditrun")
+	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
+
+	runCtx := coreaudit.ContextWithRun(ctx, "r_ctx")
+	// Inherits the run from the context.
+	if err := s.RecordAuditEvent(runCtx, coreaudit.Event{ActorType: coreaudit.ActorWorker, ActorID: actor, Action: coreaudit.ArtifactCreated}); err != nil {
+		t.Fatalf("RecordAuditEvent: %v", err)
+	}
+	// Names its own run, which wins over the context's.
+	if err := s.RecordAuditEvent(runCtx, coreaudit.Event{ActorType: coreaudit.ActorWorker, ActorID: actor, Action: coreaudit.ArtifactDeleted, TaskRunID: "r_explicit"}); err != nil {
+		t.Fatalf("RecordAuditEvent: %v", err)
+	}
+	// No run in context and none named: the id stays empty.
+	if err := s.RecordAuditEvent(ctx, coreaudit.Event{ActorType: coreaudit.ActorUser, ActorID: actor, Action: coreaudit.UserLogin}); err != nil {
+		t.Fatalf("RecordAuditEvent: %v", err)
+	}
+
+	byRun, total, err := s.SearchAuditEvents(ctx, coreaudit.Filter{ActorID: actor, TaskRunID: "r_ctx"}, 50, 0)
+	if err != nil || total != 1 || byRun[0].Action != coreaudit.ArtifactCreated {
+		t.Fatalf("filter by inherited run = %+v, %d, %v", byRun, total, err)
+	}
+	explicit, total, err := s.SearchAuditEvents(ctx, coreaudit.Filter{ActorID: actor, TaskRunID: "r_explicit"}, 50, 0)
+	if err != nil || total != 1 || explicit[0].Action != coreaudit.ArtifactDeleted {
+		t.Fatalf("filter by explicit run = %+v, %d, %v", explicit, total, err)
+	}
+	login, _, err := s.SearchAuditEvents(ctx, coreaudit.Filter{ActorID: actor, Action: coreaudit.UserLogin}, 50, 0)
+	if err != nil || len(login) != 1 || login[0].TaskRunID != "" {
+		t.Fatalf("login should carry no run: %+v, %v", login, err)
+	}
+}

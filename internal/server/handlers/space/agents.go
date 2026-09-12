@@ -128,7 +128,7 @@ func (h *Handler) agentService() *agent.Service {
 }
 
 func newSpaceAgentService(cfg Config, workflowUsage *workflow.Service) *agent.Service {
-	svc := &agent.Service{Agents: cfg.Agents, Spaces: cfg.Spaces}
+	svc := &agent.Service{Agents: cfg.Agents, Spaces: cfg.Spaces, Audit: cfg.Audit}
 	if workflowUsage != nil {
 		svc.Workflows = workflowUsage
 	}
@@ -343,7 +343,7 @@ func (h *Handler) deleteAgentHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := h.agentService().DeleteAgent(r.Context(), spaceID, agentID); err != nil {
+	if err := h.agentService().DeleteAgent(r.Context(), spaceID, agentID, userID); err != nil {
 		if h.writeAgentServiceError(w, err) {
 			return
 		}

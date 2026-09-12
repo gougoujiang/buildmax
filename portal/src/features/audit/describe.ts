@@ -144,6 +144,60 @@ export function describeEvent(event: ApiAuditEvent): AuditEventDescription {
         denied: false,
         target,
       }
+    case "space.created":
+      return {
+        summary: event.detail ? `Created the space on the ${event.detail} tier` : "Created the space",
+        denied: false,
+        target,
+      }
+    case "webhook_key.created":
+      return { summary: "Created a webhook key", denied: false, target }
+    case "webhook_key.revoked":
+      return { summary: "Revoked a webhook key", denied: false, target }
+    case "agent.created":
+      return {
+        summary: event.detail ? `Created the agent ${event.detail}` : "Created an agent",
+        denied: false,
+        target,
+      }
+    case "agent.updated":
+      return {
+        summary: event.detail ? `Updated the agent ${event.detail}` : "Updated an agent",
+        denied: false,
+        target,
+      }
+    case "agent.deleted":
+      return { summary: "Deleted an agent", denied: false, target }
+    case "workflow.created":
+      return {
+        summary: event.detail ? `Created the workflow ${event.detail}` : "Created a workflow",
+        denied: false,
+        target,
+      }
+    case "workflow.updated":
+      return {
+        summary: event.detail ? `Updated the workflow ${event.detail}` : "Updated a workflow",
+        denied: false,
+        target,
+      }
+    case "workflow.published":
+      return {
+        summary: event.detail ? `Published the workflow ${event.detail}` : "Published a workflow",
+        denied: false,
+        target,
+      }
+    case "workflow.archived":
+      return {
+        summary: event.detail ? `Archived the workflow ${event.detail}` : "Archived a workflow",
+        denied: false,
+        target,
+      }
+    case "workflow.unpublished":
+      return {
+        summary: event.detail ? `Returned the workflow ${event.detail} to draft` : "Returned a workflow to draft",
+        denied: false,
+        target,
+      }
     case "access.denied":
       return {
         summary: event.target_id ? `Was refused: ${event.target_id}` : "Was refused a request",

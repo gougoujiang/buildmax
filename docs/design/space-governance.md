@@ -22,10 +22,13 @@
 ## Status
 
 - roadmap_priority: `P4`
-- status: `partially_implemented` — roles, quota, workflow lifecycle, the
-  authorization matrix, the audit trail, its retention window, its export, and
-  quota alerting are shipped; the §4.4 second slice of actions and the
-  correlation identifiers of open question 7 remain open
+- status: `implemented` — roles, quota, workflow lifecycle, the authorization
+  matrix, the audit trail, its retention window, its export, and quota alerting
+  are shipped; the §4.4 second slice of actions (space creation, webhook keys,
+  agent definitions, and workflow lifecycle) now records, and open question 7's
+  run correlation is answered by the `task_run_id` an event inherits from the
+  run it was recorded on behalf of. Open questions 3–5 and 9–10 remain policy
+  decisions, not missing implementation
 - follows: [enterprise-deployment.md](./enterprise-deployment.md)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-05-17`
@@ -131,24 +134,32 @@ The lifecycle exists, but it should be obvious in Portal:
 
 The UI should avoid making users learn this by failed requests.
 
-### 4.4 Sensitive Assets Are Not Traceable — PARTLY RESOLVED
+### 4.4 Sensitive Assets Are Not Traceable — RESOLVED
 
-The audit trail described in §5.4 now exists, but it covers the identity and
-model-catalog half of the list. Of the shared assets that affect space
-execution:
+**This gap is closed.** Of the shared assets that affect space execution:
 
 - space members and roles — **recorded**
 - the model catalog, which holds provider credentials — **recorded**
-- webhook keys — not recorded
-- agent definitions — not recorded
-- workflows, including publish and archive — not recorded
-- quota tier assignment — not recorded
+- space creation, with its quota tier — **recorded** (`space.created`)
+- webhook keys — **recorded** (`webhook_key.created`, `webhook_key.revoked`)
+- agent definitions — **recorded** (`agent.created`, `agent.updated`,
+  `agent.deleted`; a revision restore is an update)
+- workflows, including publish and archive — **recorded** (`workflow.created`,
+  `workflow.updated`, `workflow.published`, `workflow.archived`,
+  `workflow.unpublished`)
 
-The first slice was chosen for what a compromise costs rather than for how
-often the asset changes: a membership change grants access to everything a space
-holds, and a catalog change moves prompts and spending. The rest is additive —
-each one is a `Record` call at the point of change plus a permanent action
-string — and is the obvious second slice.
+The first slice was chosen for what a compromise costs rather than for how often
+the asset changes: a membership change grants access to everything a space holds,
+and a catalog change moves prompts and spending. The second slice was the rest —
+each one a `Record` call at the point of change plus a permanent action string.
+
+Quota tier is the one item that resolved by observation rather than a new event
+of its own. A space's tier is assigned once, at creation, to the deployment
+default; there is no reassignment path, so there is no later change to record.
+The tier is therefore carried in the detail of `space.created`, which is the one
+place the tier a space runs under is decided. If a tier-reassignment capability
+is ever built, its own action is where that change would be recorded — see open
+question 4.
 
 ## 5. In Scope
 
@@ -193,7 +204,7 @@ Polish workflow list/detail copy and controls:
 - keep archived workflows inspectable
 - make publish/archive transitions explicit
 
-### 5.4 Small Audit/Event Model — SHIPPED, first slice
+### 5.4 Small Audit/Event Model — SHIPPED
 
 `audit.Event` in `internal/core/audit/audit.go` is the shipped shape. It
 differs from what this section originally sketched in three ways that were
@@ -207,24 +218,27 @@ decisions, not drift:
   role name, a model alias — and nothing more.
 - **A `SpaceID` that may be empty.** A login is not space-scoped, and forcing one
   would have meant inventing a space for the event.
+- **A `TaskRunID` that may be empty.** It names the run an action was taken on
+  behalf of, when there is one, so a governed action a run caused is reachable
+  from the run. See §5.9.
 
 The event carries no prompts, no generated content, no tool output, and no
 credentials: only who did what to which object. Run diagnostics live in the
 durable run trace and per-call accounting in the `llm_call` ledger, because
 those are different questions with different retention answers.
 
-`AuditStore` is append-only by interface — there is no update or delete, since
-a record that can be edited is not evidence. Action strings are persisted and
+The `Store` interface is append-only — there is no update or delete, since a
+record that can be edited is not evidence. Action strings are persisted and
 therefore permanent; renaming one rewrites history for every reader filtering
 on it.
 
-The actions that shipped are `user.login`, `space.member_added`,
-`space.member_removed`, `llm_model.created`, `llm_model.enabled`,
-`llm_model.disabled`, and `access.denied`. Two are worth stating for anyone
-extending the list: a failed login is deliberately *not* recorded, because it
-says nothing about who the actor was and would turn the trail into a place to
-write arbitrary strings; and `access.denied` is the one action written on
-failure, because a denial is what shows someone probing at a boundary.
+The action list is the `const` block in `internal/core/audit/audit.go`, which
+is the source of truth; it began with identity and model-catalog actions and now
+covers the §4.4 second slice as well. Two rules are worth stating for anyone
+extending it: a failed login is deliberately *not* recorded, because it says
+nothing about who the actor was and would turn the trail into a place to write
+arbitrary strings; and `access.denied` is the one action written on failure,
+because a denial is what shows someone probing at a boundary.
 
 A failed write is logged and dropped rather than failing the action that
 triggered it. That is the decision, not a gap: refusing the action would turn a
@@ -233,8 +247,6 @@ logging outage into an outage of the thing being logged. It is a real limit and
 database was reachable, which is not the same as guaranteeing every action was
 recorded. Whether any one action should instead be recorded transactionally is
 the residue of open question 2.
-
-The remaining actions from §4.4 are the second slice.
 
 ### 5.5 Event Visibility — SHIPPED
 
@@ -318,6 +330,32 @@ the limit.
 
 Portal states the same thing in space settings, computed from the usage figures
 it already has. That is the fast answer; the trail is the durable one.
+
+### 5.9 Run Correlation — SHIPPED
+
+An event carries an optional `task_run_id`: the run an action was taken on behalf
+of, when there is one. It answers open question 7 — an investigation that starts
+at an audit event can now reach the run that caused it, and the reverse, every
+governed action a run caused, is a filter over the trail.
+
+It is stored the way the actor and the target are: an opaque public handle, not a
+foreign key. The trail deliberately does not join to the execution plane, whose
+rows have their own retention — so a run that has since been pruned does not
+break the evidence, and reaching the run's trace and `llm_call` ledger is by that
+one id rather than a join. An architecture test records this as a deliberate
+exception to the numeric-reference rule.
+
+It is populated from the context, not by every call site. A run-scoped worker
+request is tagged with its run once, in the worker middleware, so any event a
+route records downstream — a worker uploading an artifact, the gateway meeting a
+quota while serving a run — inherits the id. An event that names a run explicitly
+keeps its own, because a caller that knows the run better than the ambient
+context should not be overridden by it. The events a person takes directly carry
+no run, which is most of them.
+
+What this does *not* do is retrofit a run onto actions that have none: a login,
+a membership change, and a model-catalog edit are not run-caused, so they stay
+uncorrelated rather than being given a run they did not have.
 
 ## 6. Out Of Scope
 
@@ -517,13 +555,14 @@ it:
    operational responsibility?~~ **Decided: configuration, defaulting to keep
    everything** — `audit.retention_days`, applied by the deployment rather than
    by a space, with each sweep recording what it removed. See §5.6.
-7. What correlation identifiers may connect a task, worker, model call, and
-   artifact? Partly answered: a run's trace and the `llm_call` rows it produced
-   are now joined in Portal's run details, so what a run did and what the
-   deployment served for it are read side by side. The audit trail is still not
-   joined to either — no audit action names a run today — so an investigation
-   that starts at an audit event still cannot mechanically reach the run that
-   caused it.
+7. ~~What correlation identifiers may connect a task, worker, model call, and
+   artifact?~~ **Answered.** A run's trace and the `llm_call` rows it produced
+   were already joined in Portal's run details; the audit trail now joins to them
+   too, through the optional `task_run_id` an event carries. An investigation
+   that starts at an audit event can reach the run that caused it, and every
+   governed action a run caused is a filter over the trail. The id is populated
+   from a run-scoped context rather than by every call site, and is not
+   retrofitted onto actions that have no run. See §5.9.
 8. ~~Does export need at-least-once delivery, and how would a consumer detect
    gaps?~~ **Sidestepped, not answered.** §5.7 ships a pull export, which has
    neither problem. The question stands for any future push integration, and a

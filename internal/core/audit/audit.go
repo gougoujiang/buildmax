@@ -174,6 +174,39 @@ const (
 	// submitting does not turn its own trail into a log of retries.
 	QuotaThresholdReached = "quota.threshold_reached"
 	QuotaExceeded         = "quota.exceeded"
+	// SpaceCreated records a new space coming into existence, with its quota
+	// tier in the detail. A space is an authorization boundary, so its creation
+	// is a governed act; and because a space's tier is only ever assigned at
+	// creation — there is no reassignment path — this is also the one place the
+	// quota tier a space runs under is decided, and so the one place worth
+	// recording it.
+	SpaceCreated = "space.created"
+	// WebhookKeyCreated and WebhookKeyRevoked record a webhook credential being
+	// minted and withdrawn. A webhook key admits work under its owner's
+	// identity, so its life is worth the trail; the key material never is, so the
+	// target is the key id and nothing else. These are account-scoped, not
+	// space-scoped, so SpaceID is empty.
+	WebhookKeyCreated = "webhook_key.created"
+	WebhookKeyRevoked = "webhook_key.revoked"
+	// AgentCreated, AgentUpdated, and AgentDeleted record changes to a space's
+	// agent definitions. A definition is instructions plus a tool and model
+	// selection that later runs execute, so a change to one changes what the
+	// space's automation will do. The target is the agent id; the prompt and
+	// configuration are not in the trail. A revision restore is an update.
+	AgentCreated = "agent.created"
+	AgentUpdated = "agent.updated"
+	AgentDeleted = "agent.deleted"
+	// The workflow actions record a space's reusable plans changing and moving
+	// through their lifecycle. Create and update cover content; published,
+	// archived, and unpublished cover the state that decides whether shared work
+	// may run against the plan. They are distinct actions rather than one
+	// state_changed with the state in the detail so that "was this ever
+	// published" is a filter over the trail, not a scan of it.
+	WorkflowCreated     = "workflow.created"
+	WorkflowUpdated     = "workflow.updated"
+	WorkflowPublished   = "workflow.published"
+	WorkflowArchived    = "workflow.archived"
+	WorkflowUnpublished = "workflow.unpublished"
 )
 
 // ActorOperator is the ActorID for an action taken by an operator command
@@ -205,6 +238,13 @@ type Event struct {
 	Action     string `json:"action"`
 	TargetType string `json:"target_type,omitempty"`
 	TargetID   string `json:"target_id,omitempty"`
+	// TaskRunID names the run an action was taken on behalf of, when there is
+	// one — a worker writing an artifact, the gateway refusing a call. It is the
+	// run's public handle, stored opaquely like the actor and the target rather
+	// than as a resolved foreign key, so an investigation that starts at an event
+	// can reach the run's trace and llm_call ledger by that one id. It is empty
+	// for the actions a person takes directly, which are most of them.
+	TaskRunID string `json:"task_run_id,omitempty"`
 	// Detail is a short, non-sensitive note — a role name, a model alias. It
 	// is not a place for request bodies.
 	Detail    string    `json:"detail,omitempty"`
@@ -228,6 +268,10 @@ type Filter struct {
 	WithoutSpace bool
 	ActorID      string
 	Action       string
+	// TaskRunID matches the events recorded on behalf of one run. It is how an
+	// investigation pivots the other way — from a run to every governed action
+	// it caused — the counterpart to the id an event carries.
+	TaskRunID string
 	// Since and Until bound created_at, inclusive and exclusive respectively.
 	// Zero means unbounded.
 	Since time.Time

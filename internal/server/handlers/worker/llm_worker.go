@@ -5,6 +5,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/server/handlers/llmhttp"
 	"net/http"
 
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 	"github.com/icloudbb/buildmax/internal/infra/llmwire"
 	"github.com/icloudbb/buildmax/internal/server/httputil"
 	"github.com/icloudbb/buildmax/internal/service/llmgateway"
@@ -36,6 +37,9 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
+	// Tag the request with its run so an audit event the gateway records — a
+	// quota threshold or refusal met while serving this call — names the run.
+	r = r.WithContext(coreaudit.ContextWithRun(r.Context(), taskRunID))
 	if !llmhttp.RequireGateway(w, h.cfg.Gateway) {
 		return
 	}

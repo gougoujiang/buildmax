@@ -2603,7 +2603,8 @@
           {"name": "actor_id", "in": "query", "required": false, "schema": {"type": "string"}},
           {"name": "action", "in": "query", "required": false, "schema": {"type": "string"}},
           {"name": "target_type", "in": "query", "required": false, "schema": {"type": "string"}},
-          {"name": "target_id", "in": "query", "required": false, "schema": {"type": "string"}}
+          {"name": "target_id", "in": "query", "required": false, "schema": {"type": "string"}},
+          {"name": "task_run_id", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Events recorded on behalf of one task run"}
         ],
         "responses": {
           "200": {
@@ -2639,7 +2640,8 @@
           {"name": "actor_id", "in": "query", "required": false, "schema": {"type": "string"}},
           {"name": "action", "in": "query", "required": false, "schema": {"type": "string"}},
           {"name": "target_type", "in": "query", "required": false, "schema": {"type": "string"}},
-          {"name": "target_id", "in": "query", "required": false, "schema": {"type": "string"}}
+          {"name": "target_id", "in": "query", "required": false, "schema": {"type": "string"}},
+          {"name": "task_run_id", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Events recorded on behalf of one task run"}
         ],
         "responses": {
           "200": {

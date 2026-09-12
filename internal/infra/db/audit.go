@@ -38,7 +38,15 @@ type auditEventRow struct {
 	Action     string `gorm:"type:varchar(64);not null;index"`
 	TargetType string `gorm:"type:varchar(32)"`
 	TargetID   string `gorm:"type:varchar(64)"`
-	Detail     string `gorm:"type:varchar(255)"`
+
+	// TaskRunID is the run an action was taken on behalf of, empty for the
+	// actions a person takes directly. It is an opaque public handle like the
+	// actor and target, not a foreign key, so an investigation reaches the run's
+	// trace and ledger by it without this table joining to the run plane. The
+	// index is what lets the pivot run the other way — every event a run caused.
+	TaskRunID string `gorm:"column:task_run_id;type:varchar(20);index"`
+
+	Detail string `gorm:"type:varchar(255)"`
 }
 
 func (auditEventRow) TableName() string { return "audit_event" }
@@ -68,6 +76,7 @@ func toAuditEvent(row *auditEventReadRow) *coreaudit.Event {
 		Action:     row.Row.Action,
 		TargetType: row.Row.TargetType,
 		TargetID:   row.Row.TargetID,
+		TaskRunID:  row.Row.TaskRunID,
 		Detail:     row.Row.Detail,
 		CreatedAt:  row.Row.CreatedAt,
 	}
@@ -91,6 +100,13 @@ func (s *Store) RecordAuditEvent(ctx context.Context, in coreaudit.Event) error 
 			spaceKey = &key
 		}
 	}
+	// An event that already names a run keeps that id; otherwise it inherits the
+	// run the request is serving, so a downstream write need not thread the id by
+	// hand to be reachable from the run.
+	taskRunID := in.TaskRunID
+	if taskRunID == "" {
+		taskRunID = coreaudit.RunFromContext(ctx)
+	}
 	row := auditEventRow{
 		PublicID:   publicID,
 		SpaceID:    spaceKey,
@@ -99,6 +115,7 @@ func (s *Store) RecordAuditEvent(ctx context.Context, in coreaudit.Event) error 
 		Action:     in.Action,
 		TargetType: in.TargetType,
 		TargetID:   in.TargetID,
+		TaskRunID:  taskRunID,
 		Detail:     truncateDetail(in.Detail),
 		CreatedAt:  time.Now().UTC(),
 	}
@@ -205,6 +222,9 @@ func applyAuditFilter(q *gorm.DB, col string, filter coreaudit.Filter, spaceKey 
 	}
 	if filter.Action != "" {
 		q = q.Where(col+"action = ?", filter.Action)
+	}
+	if filter.TaskRunID != "" {
+		q = q.Where(col+"task_run_id = ?", filter.TaskRunID)
 	}
 	if !filter.Since.IsZero() {
 		q = q.Where(col+"created_at >= ?", filter.Since)

@@ -185,6 +185,7 @@ func newWorkflowService(cfg Config, tasks *task.Service) *workflow.Service {
 		Agents:      cfg.Agents,
 		Issues:      cfg.Issues,
 		TaskService: tasks,
+		Audit:       cfg.Audit,
 	}
 }
 
