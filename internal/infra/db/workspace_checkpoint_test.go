@@ -30,6 +30,7 @@ func seedTaskForCheckpoint(t *testing.T) (*Store, string, string, string) {
 	}
 	t.Cleanup(func() {
 		_ = s.db.WithContext(ctx).Delete(&workspaceCheckpointRow{}, "task_id = (SELECT id FROM task WHERE public_id = ?)", task.ID)
+		_ = s.db.WithContext(ctx).Delete(&pluginEnvironmentRow{}, "task_id = (SELECT id FROM task WHERE public_id = ?)", task.ID)
 		_ = s.db.WithContext(ctx).Delete(&taskRunRow{}, "task_id = (SELECT id FROM task WHERE public_id = ?)", task.ID)
 		_ = s.db.WithContext(ctx).Delete(&taskRow{}, "public_id = ?", task.ID)
 	})
