@@ -102,8 +102,12 @@ func parseOffsetLimit(args map[string]any) (offset, limit int) {
 }
 
 // extractLineRange returns lines [offset, offset+limit) (1-based offset), joined by newline.
-// If the range is past the end of the file, returns available lines and a trailing note if there were more lines.
+// An empty file returns an explicit success sentinel. If the range is past the end of a
+// non-empty file, it returns a length diagnostic; truncated ranges include a trailing note.
 func extractLineRange(data []byte, offset, limit int) (string, error) {
+	if len(data) == 0 {
+		return "(file is empty)", nil
+	}
 	lines := strings.Split(string(data), "\n")
 	total := len(lines)
 	// offset is 1-based; start index is offset-1

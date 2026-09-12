@@ -130,7 +130,9 @@ cross-host redirect it returns the redirect URL instead of following it, so the
 agent decides whether to fetch the new host.
 
 **`Read` returns the first 1000 lines by default.** Large files are read in
-ranges via `offset` and `limit` rather than all at once.
+ranges via `offset` and `limit` rather than all at once. A successful read of a
+zero-byte file returns `(file is empty)` so it is distinguishable from missing
+tool output.
 
 **`NoteWrite` and `TodoWrite` outlive the conversation history.** Both replace
 what they store rather than adding to it, so each call carries the complete
