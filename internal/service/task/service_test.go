@@ -266,3 +266,55 @@ func TestCreateTaskRefusesOutOfRunsBeforeGeneratingATitle(t *testing.T) {
 		t.Errorf("title generator ran %d times; a refused run must not spend a title call", gen.calls)
 	}
 }
+
+// AdmitWorkflowTask without a key is a caller error: idempotent admission is
+// meaningless without one, and falling through to a plain create would hide the
+// mistake behind a task that a replay then duplicates.
+func TestAdmitWorkflowTaskRequiresAKey(t *testing.T) {
+	svc := &Service{Tasks: &mock.MockTaskStore{}}
+	if _, err := svc.AdmitWorkflowTask(context.Background(), CreateTaskCmd{
+		UserID: "u1", SpaceID: "tm_1", Input: "step work",
+	}); !errors.Is(err, ErrAdmissionKeyRequired) {
+		t.Fatalf("AdmitWorkflowTask with no key: err = %v, want ErrAdmissionKeyRequired", err)
+	}
+}
+
+// AdmitWorkflowTask carries the key to the store and a replay under the same key
+// returns the first task rather than creating a second -- the idempotency a
+// Workflow node dispatch relies on when it is retried or recovered.
+func TestAdmitWorkflowTaskIsIdempotentByKey(t *testing.T) {
+	taskStore := &mock.MockTaskStore{}
+	svc := &Service{Tasks: taskStore}
+	cmd := CreateTaskCmd{
+		UserID:        "u1",
+		SpaceID:       "tm_1",
+		Input:         "step work",
+		CreatedByType: coretask.RunCreatedByTypeUser,
+		TriggerSource: coretask.RunTriggerSourceWorkflowStep,
+		AdmissionKey:  "workflow/wr_1/node/research",
+	}
+	first, err := svc.AdmitWorkflowTask(context.Background(), cmd)
+	if err != nil {
+		t.Fatalf("AdmitWorkflowTask (first): %v", err)
+	}
+	if len(taskStore.Created) != 1 {
+		t.Fatalf("store recorded %d creates, want 1", len(taskStore.Created))
+	}
+	if taskStore.Created[0].AdmissionKey != cmd.AdmissionKey {
+		t.Fatalf("store saw admission key %q, want %q", taskStore.Created[0].AdmissionKey, cmd.AdmissionKey)
+	}
+	if taskStore.Created[0].InitialRunTriggerSource != coretask.RunTriggerSourceWorkflowStep {
+		t.Errorf("trigger source = %q, want %q", taskStore.Created[0].InitialRunTriggerSource, coretask.RunTriggerSourceWorkflowStep)
+	}
+
+	replay, err := svc.AdmitWorkflowTask(context.Background(), cmd)
+	if err != nil {
+		t.Fatalf("AdmitWorkflowTask (replay): %v", err)
+	}
+	if replay.ID != first.ID {
+		t.Errorf("replay task = %q, want the original %q", replay.ID, first.ID)
+	}
+	if len(taskStore.Created) != 1 {
+		t.Errorf("store created %d tasks, want 1: a replay must not create a second", len(taskStore.Created))
+	}
+}

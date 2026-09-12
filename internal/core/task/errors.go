@@ -1,9 +1,20 @@
 package task
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+)
 
 // ErrRunInProgress is returned by CreateTaskRun when the task already has a run in PENDING, SCHEDULED, or RUNNING.
 var ErrRunInProgress = errors.New("task has a run already in progress")
+
+// ErrTaskAdmissionConflict is returned by AdmitTask when an admission key is
+// already bound to a task whose admitted payload differs from the one now
+// presented. A repeat of the same logical admission returns the existing task;
+// a different payload under the same key is a caller error, not a silent reuse
+// of unrelated work. It carries KindConflict so a handler answers 409.
+var ErrTaskAdmissionConflict = apierr.New(apierr.KindConflict, "admission key already bound to a task with a different payload")
 
 // ErrInvalidRunTransition is returned when a caller asks a task run to move
 // between statuses that are not adjacent in its lifecycle.

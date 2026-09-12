@@ -2,6 +2,7 @@ package mock
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
@@ -16,6 +17,14 @@ type MockTaskStore struct {
 	// Created records what each CreateTask was asked for. The returned Task
 	// drops most of it, so provenance a caller set can only be asserted here.
 	Created []coretask.CreateInput
+	// admissions records the task and payload fingerprint each admission key
+	// resolved to, so AdmitTask replays the same idempotency the store does.
+	admissions map[string]mockAdmission
+}
+
+type mockAdmission struct {
+	taskID      string
+	fingerprint string
 }
 
 func (m *MockTaskStore) ListTasksByConversation(_ context.Context, conversationID string, order string) ([]coretask.Task, error) {
@@ -157,6 +166,35 @@ func (m *MockTaskStore) CreateTask(_ context.Context, in *coretask.CreateInput) 
 	}
 	task.LastRunID = &lastRunID
 	m.List = append(m.List, *task)
+	return task, nil
+}
+
+func (m *MockTaskStore) AdmitTask(ctx context.Context, in *coretask.CreateInput) (*coretask.Task, error) {
+	if m.CreateErr != nil {
+		return nil, m.CreateErr
+	}
+	if in == nil {
+		return nil, nil
+	}
+	if in.AdmissionKey == "" {
+		return nil, errors.New("AdmitTask requires an admission key")
+	}
+	fingerprint := coretask.AdmissionFingerprint(in)
+	key := in.SpaceID + "\x00" + in.AdmissionKey
+	if prev, ok := m.admissions[key]; ok {
+		if prev.fingerprint != fingerprint {
+			return nil, coretask.ErrTaskAdmissionConflict
+		}
+		return m.GetTask(ctx, prev.taskID)
+	}
+	task, err := m.CreateTask(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	if m.admissions == nil {
+		m.admissions = map[string]mockAdmission{}
+	}
+	m.admissions[key] = mockAdmission{taskID: task.ID, fingerprint: fingerprint}
 	return task, nil
 }
 
