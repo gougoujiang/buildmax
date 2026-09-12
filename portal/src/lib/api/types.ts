@@ -647,6 +647,8 @@ export interface ApiAuditEvent {
   action: string
   target_type?: string
   target_id?: string
+  /** The task run this action was taken on behalf of, when there is one. */
+  task_run_id?: string
   /** A short non-sensitive note — a role name, a model alias. */
   detail?: string
   created_at: string

@@ -39,7 +39,7 @@ const auditExportMax = 200_000
 // formats use.
 var auditExportHeader = []string{
 	"audit_event_id", "created_at", "space_id", "actor_type", "actor_id",
-	"action", "target_type", "target_id", "detail",
+	"action", "target_type", "target_id", "task_run_id", "detail",
 }
 
 // auditPageFunc fetches one page of events after a cursor. It is what separates
@@ -125,6 +125,7 @@ func exportRow(e coreaudit.Event) []string {
 		e.Action,
 		e.TargetType,
 		e.TargetID,
+		e.TaskRunID,
 		e.Detail,
 	}
 }
@@ -142,11 +143,12 @@ func Detail(written int, truncated bool) string {
 // AdminFilter reads the deployment-scoped filters from a query.
 func AdminFilter(q url.Values) coreaudit.Filter {
 	filter := coreaudit.Filter{
-		SpaceID: q.Get("space_id"),
-		ActorID: q.Get("actor_id"),
-		Action:  q.Get("action"),
-		Since:   parseTimeParam(q.Get("since")),
-		Until:   parseTimeParam(q.Get("until")),
+		SpaceID:   q.Get("space_id"),
+		ActorID:   q.Get("actor_id"),
+		Action:    q.Get("action"),
+		TaskRunID: q.Get("task_run_id"),
+		Since:     parseTimeParam(q.Get("since")),
+		Until:     parseTimeParam(q.Get("until")),
 	}
 	// space_id=none asks for the events no space-scoped reader can ever see:
 	// logins, grants, account actions. An empty space_id already means "any

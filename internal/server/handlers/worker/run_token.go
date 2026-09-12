@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 	"github.com/icloudbb/buildmax/internal/server/authtoken"
 	"github.com/icloudbb/buildmax/internal/server/httputil"
 )
@@ -62,6 +63,9 @@ func (h *Handler) runScopedWorkerMiddleware(next http.Handler) http.Handler {
 		if _, ok := h.requireRunToken(w, r, taskRunID); !ok {
 			return
 		}
+		// Tag the request with its run so any audit event a route records — a
+		// worker uploading an artifact — names the run that caused it.
+		r = r.WithContext(coreaudit.ContextWithRun(r.Context(), taskRunID))
 		next.ServeHTTP(w, r)
 	})
 }

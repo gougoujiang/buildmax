@@ -389,6 +389,7 @@ func buildOnTaskRunTerminal(cfg Config) func(ctx context.Context, info coretask.
 			Agents:      cfg.Stores.AgentStore,
 			Issues:      cfg.Stores.IssueStore,
 			TaskService: taskSvc,
+			Audit:       cfg.Audit,
 		}
 	}
 	var runReporter *issue.RunReporter

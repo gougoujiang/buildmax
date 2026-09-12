@@ -9,9 +9,11 @@ import (
 
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
 	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
+	"github.com/icloudbb/buildmax/internal/service/audit"
 	"github.com/icloudbb/buildmax/internal/service/task"
 	"github.com/icloudbb/buildmax/internal/util"
 )
@@ -41,6 +43,10 @@ type Service struct {
 	Agents      agentdef.Store
 	Issues      coreissue.Store
 	TaskService *task.Service
+	// Audit is optional; nil discards the events. A workflow is a reusable plan
+	// that shared work runs against, so its creation, edits, and lifecycle moves
+	// are governed acts worth the trail.
+	Audit *audit.Recorder
 }
 
 type CreateWorkflowCmd struct {
@@ -96,7 +102,12 @@ func (s *Service) CreateWorkflow(ctx context.Context, cmd CreateWorkflowCmd) (*c
 	if _, _, err := s.parseAndValidateDefinition(ctx, cmd.SpaceID, cmd.Definition); err != nil {
 		return nil, err
 	}
-	return s.Workflows.CreateWorkflow(ctx, cmd.SpaceID, cmd.UserID, strings.TrimSpace(cmd.Name), strings.TrimSpace(cmd.Description), cmd.Definition)
+	created, err := s.Workflows.CreateWorkflow(ctx, cmd.SpaceID, cmd.UserID, strings.TrimSpace(cmd.Name), strings.TrimSpace(cmd.Description), cmd.Definition)
+	if err != nil {
+		return nil, err
+	}
+	s.Audit.UserAction(ctx, cmd.UserID, cmd.SpaceID, coreaudit.WorkflowCreated, "workflow", created.ID, created.Name)
+	return created, nil
 }
 
 func (s *Service) GetWorkflow(ctx context.Context, spaceID, workflowID string) (*coreworkflow.Workflow, error) {
@@ -145,7 +156,28 @@ func (s *Service) UpdateWorkflow(ctx context.Context, cmd UpdateWorkflowCmd) (*c
 	if workflow == nil {
 		return nil, ErrWorkflowNotFound
 	}
+	// A lifecycle move is recorded as the state it reached, so "was this ever
+	// published" is a filter rather than a scan. A content edit with no status
+	// change is the plain update. A call carrying both records the lifecycle
+	// move, which is the more sensitive of the two.
+	s.Audit.UserAction(ctx, cmd.UserID, cmd.SpaceID, workflowUpdateAction(cmd.Status), "workflow", workflow.ID, workflow.Name)
 	return workflow, nil
+}
+
+// workflowUpdateAction names the action for an update: the lifecycle state it
+// reached when the status changed, or the plain update when it did not.
+func workflowUpdateAction(status *string) string {
+	if status == nil {
+		return coreaudit.WorkflowUpdated
+	}
+	switch *status {
+	case coreworkflow.StatusPublished:
+		return coreaudit.WorkflowPublished
+	case coreworkflow.StatusArchived:
+		return coreaudit.WorkflowArchived
+	default:
+		return coreaudit.WorkflowUnpublished
+	}
 }
 
 func (s *Service) ListWorkflowRevisions(ctx context.Context, spaceID, workflowID string, limit, offset int) ([]coreworkflow.Revision, int, error) {

@@ -27,6 +27,7 @@ var opaqueColumns = map[string]string{
 	// something that is not a table at all.
 	"audit_event.actor_id":         "actor_type admits an operator and a worker, neither a user row",
 	"audit_event.target_id":        "target_type admits a permission name and a model alias",
+	"audit_event.task_run_id":      "an opaque run handle by design: the trail does not take a foreign key into the execution plane, whose rows have their own retention, so an investigation reaches the run without a join and a pruned run does not break the evidence",
 	"issue.executor_id":            "executor_kind admits agent or workflow",
 	"issue_comment.author_id":      "author_kind admits an agent as well as a person",
 	"artifact.created_by_id":       "created_by_type admits a worker",

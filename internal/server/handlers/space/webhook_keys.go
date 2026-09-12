@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 	"github.com/icloudbb/buildmax/internal/server/httputil"
 )
 
@@ -42,6 +43,8 @@ func (h *Handler) createWebhookKeyHandler(w http.ResponseWriter, r *http.Request
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_webhook_key", "user_id", userID)
 		return
 	}
+	// A webhook key is account-scoped, so the event carries no space.
+	h.cfg.Audit.UserAction(r.Context(), userID, "", coreaudit.WebhookKeyCreated, "webhook_key", keyID, "")
 	httputil.WriteJSON(w, http.StatusCreated, createWebhookKeyResponse{Key: plaintextKey, ID: keyID})
 }
 
@@ -77,5 +80,6 @@ func (h *Handler) revokeWebhookKeyHandler(w http.ResponseWriter, r *http.Request
 		httputil.WriteJSONError(w, http.StatusNotFound, "webhook key not found")
 		return
 	}
+	h.cfg.Audit.UserAction(r.Context(), userID, "", coreaudit.WebhookKeyRevoked, "webhook_key", keyID, "")
 	w.WriteHeader(http.StatusNoContent)
 }

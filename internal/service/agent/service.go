@@ -16,9 +16,11 @@ import (
 	coreagent "github.com/icloudbb/buildmax/internal/core/agent"
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
 	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
+	"github.com/icloudbb/buildmax/internal/service/audit"
 )
 
 var (
@@ -95,6 +97,10 @@ type Service struct {
 	// it; unlike a plugin, an unresolvable model has a defined fallback (the
 	// deployment default) at run time, so it is accepted rather than refused.
 	Models ModelCatalog
+	// Audit is optional; nil discards the events. An agent definition is
+	// instructions plus a tool and model selection that later runs execute, so a
+	// change to one is a governed act worth the trail.
+	Audit *audit.Recorder
 }
 
 func (s *Service) validateInstructions(ctx context.Context, spaceID, instructions string) error {
@@ -218,7 +224,7 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateCmd) (*agentdef.Age
 	if err != nil {
 		return nil, err
 	}
-	return s.Agents.CreateAgentInSpace(ctx, agentdef.CreateInput{
+	created, err := s.Agents.CreateAgentInSpace(ctx, agentdef.CreateInput{
 		SpaceID: cmd.SpaceID,
 		UserID:  cmd.UserID,
 		Def: agentdef.Definition{
@@ -232,6 +238,11 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateCmd) (*agentdef.Age
 			SecretConsumption:     cmd.SecretConsumption.Canonical(),
 		},
 	})
+	if err != nil {
+		return nil, err
+	}
+	s.Audit.UserAction(ctx, cmd.UserID, cmd.SpaceID, coreaudit.AgentCreated, "agent", created.ID, created.Name)
+	return created, nil
 }
 
 // resolvePlugins checks a selection before it is stored and returns the names
@@ -342,6 +353,7 @@ func (s *Service) UpdateAgent(ctx context.Context, cmd UpdateCmd) (*agentdef.Age
 	if updated == nil {
 		return nil, ErrAgentNotFound
 	}
+	s.Audit.UserAction(ctx, cmd.UserID, cmd.SpaceID, coreaudit.AgentUpdated, "agent", updated.ID, updated.Name)
 	return updated, nil
 }
 
@@ -386,7 +398,7 @@ func (s *Service) RestoreRevision(ctx context.Context, cmd RestoreRevisionCmd) (
 // Deleting it anyway would leave that workflow unable to run and the operator
 // would only find out at its next step. The refusal names the workflows so they
 // can be fixed or archived first.
-func (s *Service) DeleteAgent(ctx context.Context, spaceID, agentID string) error {
+func (s *Service) DeleteAgent(ctx context.Context, spaceID, agentID, userID string) error {
 	if s.Agents == nil {
 		return ErrAgentsNotConfigured
 	}
@@ -405,6 +417,7 @@ func (s *Service) DeleteAgent(ctx context.Context, spaceID, agentID string) erro
 		}
 		return err
 	}
+	s.Audit.UserAction(ctx, userID, spaceID, coreaudit.AgentDeleted, "agent", agentID, "")
 	return nil
 }
 

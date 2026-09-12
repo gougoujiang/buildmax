@@ -192,7 +192,7 @@ func TestDeleteNamesTheWorkflowsBlockingIt(t *testing.T) {
 	a := create(t, s, "tm_1")
 	s.Workflows = usedBy{{ID: "w_1", Name: "nightly"}, {ID: "w_2", Name: "release"}}
 
-	err := s.DeleteAgent(ctx, "tm_1", a.ID)
+	err := s.DeleteAgent(ctx, "tm_1", a.ID, "u_1")
 
 	if !errors.Is(err, agent.ErrUsedByPublishedFlows) {
 		t.Fatalf("err = %v, want ErrUsedByPublishedFlows", err)
@@ -213,7 +213,7 @@ func TestDeleteProceedsWithoutAWorkflowSource(t *testing.T) {
 	s, _, ctx := newService(t)
 	a := create(t, s, "tm_1")
 
-	if err := s.DeleteAgent(ctx, "tm_1", a.ID); err != nil {
+	if err := s.DeleteAgent(ctx, "tm_1", a.ID, "u_1"); err != nil {
 		t.Fatalf("DeleteAgent: %v", err)
 	}
 	if _, err := s.GetAgent(ctx, "tm_1", a.ID); !errors.Is(err, agent.ErrAgentNotFound) {
@@ -225,7 +225,7 @@ func TestDeletingAnotherSpacesAgentIsNotFound(t *testing.T) {
 	s, _, ctx := newService(t)
 	other := create(t, s, "tm_other")
 
-	if err := s.DeleteAgent(ctx, "tm_mine", other.ID); !errors.Is(err, agent.ErrAgentNotFound) {
+	if err := s.DeleteAgent(ctx, "tm_mine", other.ID, "u_1"); !errors.Is(err, agent.ErrAgentNotFound) {
 		t.Errorf("err = %v, want ErrAgentNotFound", err)
 	}
 }
@@ -245,7 +245,7 @@ func TestNoStoreIsReportedNotPanicked(t *testing.T) {
 	checks = append(checks, err)
 	_, err = s.UpdateAgent(ctx, agent.UpdateCmd{SpaceID: "tm_1", AgentID: "a_1", Name: "x"})
 	checks = append(checks, err)
-	checks = append(checks, s.DeleteAgent(ctx, "tm_1", "a_1"))
+	checks = append(checks, s.DeleteAgent(ctx, "tm_1", "a_1", "u_1"))
 
 	for i, err := range checks {
 		if !errors.Is(err, agent.ErrAgentsNotConfigured) {

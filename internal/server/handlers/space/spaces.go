@@ -139,6 +139,9 @@ func (h *Handler) createSpaceHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_space", "user_id", userID)
 		return
 	}
+	// The detail is the tier the space runs under. It is decided here and nowhere
+	// else — there is no reassignment path — so this is the record of it.
+	h.cfg.Audit.UserAction(r.Context(), userID, space.ID, coreaudit.SpaceCreated, "space", space.ID, space.QuotaTier)
 	httputil.WriteJSON(w, http.StatusCreated, spaceToResponse(*space))
 }
 

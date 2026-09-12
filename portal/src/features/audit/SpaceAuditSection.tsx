@@ -28,6 +28,11 @@ function AuditRow({ event, currentUserId }: { event: ApiAuditEvent; currentUserI
       </div>
       <div className="audit-row__meta">
         {described.target ? <span className="audit-row__target">{described.target}</span> : null}
+        {event.task_run_id ? (
+          <span className="audit-row__target" title="The task run this action was taken on behalf of">
+            run {event.task_run_id}
+          </span>
+        ) : null}
         <time className="audit-row__time">{formatEventTime(event.created_at)}</time>
       </div>
     </li>
