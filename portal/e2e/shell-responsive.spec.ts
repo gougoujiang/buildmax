@@ -75,3 +75,25 @@ test("a tabbed dialog becomes a full-height sheet with a horizontal, arrow-key t
   await page.keyboard.press("Escape")
   await expect(dialog).toBeHidden()
 })
+
+test("the compact header shows a state label, never a fabricated 'My Space', when the Space list fails", async ({ page }) => {
+  // The compact header names the current Space. When the Space summary cannot
+  // resolve it must fall back to the shared unresolved-state label, not a
+  // fabricated "My Space" — see docs/design/portal-state-and-permission-feedback.md.
+  const current = await session(page)
+
+  // The id persists in storage, but failing the list means its summary cannot
+  // resolve, so the header has no Space name to show.
+  await page.route(/\/api\/spaces(\?|$)/, (route) =>
+    route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "injected failure" }),
+    }),
+  )
+  await page.goto(`/#/spaces/${current.spaceId}/agents`)
+
+  const compactSpace = page.locator(".shell__compact-space")
+  await expect(compactSpace).toBeVisible()
+  await expect(compactSpace).toHaveText("Space unavailable")
+})
