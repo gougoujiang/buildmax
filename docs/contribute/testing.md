@@ -8,6 +8,12 @@ The reasoning behind this split — why end-to-end suites are a local feedback
 loop rather than a pull-request gate — is in
 [../design/end-to-end-testing.md](../design/end-to-end-testing.md).
 
+For autonomous, observation-led review of a user journey, use
+[Agent exploratory testing](exploratory-testing.md). It explains how to choose
+branches while operating the product, judge findings, preserve evidence, and
+turn discoveries into regressions. Use it alongside the required suites below;
+it has no blanket PASS result and does not replace scripted verification.
+
 ## The Short Version
 
 ```bash

@@ -51,6 +51,7 @@ The HTTP API describes itself: `GET /openapi.json`, browsable at `/swagger/`.
 | [contribute/conventions.md](contribute/conventions.md) | Naming, IDs, tool output, commit messages, changelog entries |
 | [contribute/repo-layout.md](contribute/repo-layout.md) | The repository tree and dependency direction |
 | [contribute/testing.md](contribute/testing.md) | Which suite to run for a change, what it needs, and what CI runs when |
+| [contribute/exploratory-testing.md](contribute/exploratory-testing.md) | Explore user journeys autonomously and leave reproducible findings beyond fixed test cases |
 | [contribute/agent-autonomous-e2e-assessment.md](contribute/agent-autonomous-e2e-assessment.md) | The 2026-09-09 field assessment of autonomous verification and the remediation that followed |
 | [evaluation/README.md](../evaluation/README.md) | How to measure a build: the local suite, the external benchmark, and what a bundle holds |
 | [changelog/README.md](changelog/README.md) | How to add a changelog entry, and how a release folds them |

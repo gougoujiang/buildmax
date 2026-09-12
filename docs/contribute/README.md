@@ -19,6 +19,7 @@ path from clone to review.
 | [conventions.md](conventions.md) | Persisted-data naming, table names, entity IDs, tool output, commit messages, changelog entries |
 | [repo-layout.md](repo-layout.md) | The repository tree and dependency direction. **Single source of truth** — other docs link here instead of repeating it. |
 | [testing.md](testing.md) | Which suite to run for a change, what each needs, where its artifacts land, and what CI runs when |
+| [exploratory-testing.md](exploratory-testing.md) | Agent-driven user journeys: choose branches from observations, preserve findings, and turn them into regression evidence |
 | [architecture/](architecture/README.md) | How each subsystem works today, one document per package or area |
 | [architecture-review.md](architecture-review.md) | A repeatable health check for the type system and package structure — when to run it, the dimensions to examine, and what it produces |
 | [documentation.md](documentation.md) | Documentation structure, conventions, and what to update when |
