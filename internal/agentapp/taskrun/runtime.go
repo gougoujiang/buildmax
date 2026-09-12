@@ -17,17 +17,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp"
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
-	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
-	tool "github.com/gougoujiang/buildmax/internal/tool"
-	"github.com/gougoujiang/buildmax/internal/util"
-	"github.com/gougoujiang/buildmax/internal/util/secretscan"
+	"github.com/icloudbb/buildmax/internal/agentapp"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/llm"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	blob "github.com/icloudbb/buildmax/internal/infra/objectstore"
+	"github.com/icloudbb/buildmax/internal/infra/workerclient"
+	tool "github.com/icloudbb/buildmax/internal/tool"
+	"github.com/icloudbb/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/util/secretscan"
 )
 
 // Identity belongs in an attr, not in every message string.

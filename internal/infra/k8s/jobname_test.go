@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 func TestWorkerJobNameForTaskRunAt(t *testing.T) {

@@ -61,7 +61,7 @@ buildmax/
 `./make kind` 命令，而这张表和 [deploy/local-kind.md](../deploy/local-kind.md)
 定义了它的范围。`compose/` 不同，因为它是设计给运维人员运行的——它的受众
 是运维人员，`README.md` 把它归在"为一个 Space 运行它"之下，
-`compose.yaml` 拉取的是 `ghcr.io/gougoujiang/buildmax`。`smoke/` 是两个
+`compose.yaml` 拉取的是 `ghcr.io/icloudbb/buildmax`。`smoke/` 是两个
 冒烟测试共用的测试脚手架。
 
 本仓库没有 `scripts/` 目录。仓库工具——发布归档校验、第三方声明生成、

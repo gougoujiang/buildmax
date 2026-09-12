@@ -10,13 +10,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coresecret "github.com/gougoujiang/buildmax/internal/core/secret"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	infrasecret "github.com/gougoujiang/buildmax/internal/infra/secret"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	secretsvc "github.com/gougoujiang/buildmax/internal/service/secret"
-	"github.com/gougoujiang/buildmax/internal/testsupport"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coresecret "github.com/icloudbb/buildmax/internal/core/secret"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	infrasecret "github.com/icloudbb/buildmax/internal/infra/secret"
+	"github.com/icloudbb/buildmax/internal/mock"
+	secretsvc "github.com/icloudbb/buildmax/internal/service/secret"
+	"github.com/icloudbb/buildmax/internal/testsupport"
 )
 
 const secretTestSecret = "secret-test-secret"

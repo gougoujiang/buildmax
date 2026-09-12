@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 // scopeOrder is the order `all` and `ci` run their scopes in: the Go gate

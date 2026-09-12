@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/session"
-	"github.com/gougoujiang/buildmax/internal/infra/sessionstore"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/session"
+	"github.com/icloudbb/buildmax/internal/infra/sessionstore"
 )
 
 // seedProjectSession writes a session bundle belonging to projectID. It goes straight

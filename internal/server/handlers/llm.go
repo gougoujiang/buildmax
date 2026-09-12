@@ -2,12 +2,12 @@ package handlers
 
 import (
 	"encoding/json"
-	"github.com/gougoujiang/buildmax/internal/server/handlers/llmhttp"
+	"github.com/icloudbb/buildmax/internal/server/handlers/llmhttp"
 	"net/http"
 
-	"github.com/gougoujiang/buildmax/internal/infra/llmwire"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
+	"github.com/icloudbb/buildmax/internal/infra/llmwire"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	"github.com/icloudbb/buildmax/internal/service/llmgateway"
 )
 
 // The managed inference wire contract lives in internal/infra/llmwire, so the

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
+	coreartifact "github.com/icloudbb/buildmax/internal/core/artifact"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 )
 
 // fakeArtifactStore is the purge half of the store, holding just enough state

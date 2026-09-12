@@ -3,8 +3,8 @@ package db
 import (
 	"testing"
 
-	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
 // A direct Agent run names a Space and an Agent and no Conversation at all —

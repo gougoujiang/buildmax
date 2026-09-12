@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/evaluation/contract"
+	"github.com/icloudbb/buildmax/evaluation/contract"
 )
 
 // FilesConfig asserts over the final workspace.

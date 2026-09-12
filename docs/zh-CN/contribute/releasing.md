@@ -83,8 +83,8 @@ git push origin v0.2.0-alpha.1
 2. 下载一个归档，验证校验和，并运行 `buildmax version`。
 3. 确认归档包含 `LICENSE`、`NOTICE-THIRD-PARTY`、`README.md`、`SECURITY.md`、`CHANGELOG.md` 和 `config-examples/`。
 4. 按[安装指南](../../../manual/install.md)验证 GitHub 证明。
-5. 通过 digest 拉取 `ghcr.io/gougoujiang/buildmax:<version>`，确认容器可启动。alpha 版本不得移动 `latest` 标签。镜像扫描在发布前已通过，因此此时发布工作流失败，表示推送后的某个步骤失败，而不是镜像存在漏洞。
-6. 确认 `ghcr.io/gougoujiang/buildmax-portal:<version>` 存在，且版本**相同**。它由同一标签触发的独立工作流（`.github/workflows/portal-image.yml`）发布，因此该工作流失败会造成二进制已发布但 Portal 镜像缺失。这是有意的取舍，但必须检查，不能假定成功。设置 `BUILDMAX_API_BASE` 后运行它，确认 `/config.js` 包含该值，且 `/third-party-notices.txt` 提供 npm 许可证归属声明。
+5. 通过 digest 拉取 `ghcr.io/icloudbb/buildmax:<version>`，确认容器可启动。alpha 版本不得移动 `latest` 标签。镜像扫描在发布前已通过，因此此时发布工作流失败，表示推送后的某个步骤失败，而不是镜像存在漏洞。
+6. 确认 `ghcr.io/icloudbb/buildmax-portal:<version>` 存在，且版本**相同**。它由同一标签触发的独立工作流（`.github/workflows/portal-image.yml`）发布，因此该工作流失败会造成二进制已发布但 Portal 镜像缺失。这是有意的取舍，但必须检查，不能假定成功。设置 `BUILDMAX_API_BASE` 后运行它，确认 `/config.js` 包含该值，且 `/third-party-notices.txt` 提供 npm 许可证归属声明。
 
 Wails 桌面应用不属于发布工作流，因为原生 bundle 尚未签名或公证。
 

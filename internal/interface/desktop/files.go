@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/core/session"
+	"github.com/icloudbb/buildmax/internal/core/session"
 )
 
 // maxFilePreviewBytes bounds a file preview so opening a huge file in the tree

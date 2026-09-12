@@ -3,9 +3,9 @@ package agentapp
 import (
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // TestConfiguredPolicy_LayersOverFallback checks the wiring that makes

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	"github.com/gougoujiang/buildmax/internal/util"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	"github.com/icloudbb/buildmax/internal/util"
 	"gorm.io/gorm"
 )
 

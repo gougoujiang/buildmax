@@ -8,8 +8,8 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coresecret "github.com/gougoujiang/buildmax/internal/core/secret"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coresecret "github.com/icloudbb/buildmax/internal/core/secret"
 )
 
 // secretRow is one Space-owned Secret: a group of named items stored as one

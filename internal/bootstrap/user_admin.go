@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	"github.com/gougoujiang/buildmax/internal/infra/db"
-	"github.com/gougoujiang/buildmax/internal/service/audit"
+	"github.com/icloudbb/buildmax/internal/config"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	"github.com/icloudbb/buildmax/internal/infra/db"
+	"github.com/icloudbb/buildmax/internal/service/audit"
 )
 
 // The operator-side half of authentication. BuildMax has no way to email

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // span records when a call entered and left Execute, which is how the tests

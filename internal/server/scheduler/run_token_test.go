@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/server/authtoken"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/server/authtoken"
 )
 
 // recordingRunner captures what the scheduler handed a worker.

@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp/worktree"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/agentapp/worktree"
+	"github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // movableTestRoot is the session root the manager moves, standing in for

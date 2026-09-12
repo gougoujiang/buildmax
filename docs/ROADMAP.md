@@ -73,7 +73,7 @@ finalization made atomic. Message-history writes now enforce lease fencing, so a
 stale writer is rejected rather than corrupting a conversation. Workflow progress
 still depends on callbacks rather than durable reconciliation; and a title-token
 quota refusal can still leave an
-[orphan Conversation](https://github.com/gougoujiang/buildmax/issues/278).
+[orphan Conversation](https://github.com/icloudbb/buildmax/issues/278).
 
 **Next:** make the linear Workflow precursor recover after a lost callback or
 restart, close the orphan-Conversation window, and prove their races against real
@@ -98,10 +98,10 @@ ordinary execution and cancellation. Trace files have no retention lifecycle,
 and no candidate has proved hard worker loss, dependency denial, paired restore,
 schema upgrade, binary rollback, or credential rotation.
 
-**Next:** add [trace retention](https://github.com/gougoujiang/buildmax/issues/140)
+**Next:** add [trace retention](https://github.com/icloudbb/buildmax/issues/140)
 with an explicit keep-forever default and visible prune evidence; extend
 real-MySQL coverage for Workflow revision advancement,
-[quota windows](https://github.com/gougoujiang/buildmax/issues/498), and
+[quota windows](https://github.com/icloudbb/buildmax/issues/498), and
 cross-Space scenarios; and make the failure and recovery
 drills in the Beta readiness record executable. Retire plans for removed
 mechanisms, including the old result-delivery queue, rather than recreate them
@@ -235,12 +235,12 @@ priority to make a useful contribution.
 
 | If you want to… | A useful contribution |
 |---|---|
-| Make a first contribution | Follow a local setup or operator journey and improve unclear documentation; browse [good first issues](https://github.com/gougoujiang/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). |
+| Make a first contribution | Follow a local setup or operator journey and improve unclear documentation; browse [good first issues](https://github.com/icloudbb/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). |
 | Improve reliability | Reproduce a failure and add a focused regression test, especially for the R1–R2 state and recovery paths. |
 | Help qualify private deployment | Run a documented deployment journey and report versions, topology, expected/actual behavior, and redacted evidence. |
-| Shape a feature | Describe the user problem, a concrete example, and why existing behavior is insufficient in [Discussions](https://github.com/gougoujiang/buildmax/discussions). |
+| Shape a feature | Describe the user problem, a concrete example, and why existing behavior is insufficient in [Discussions](https://github.com/icloudbb/buildmax/discussions). |
 
-Search [existing issues](https://github.com/gougoujiang/buildmax/issues) before
+Search [existing issues](https://github.com/icloudbb/buildmax/issues) before
 opening a bug or implementation proposal. For substantial work, link the
 relevant R priority and design record and discuss scope before implementing it.
 An entry here does not imply an assigned owner or an open implementation issue.

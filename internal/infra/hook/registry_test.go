@@ -3,7 +3,7 @@ package hook
 import (
 	"testing"
 
-	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
+	corehook "github.com/icloudbb/buildmax/internal/core/hook"
 )
 
 // TestNewDriverRegistry_NoDeps asserts the baseline registry exposes

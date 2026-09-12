@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
+	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
 )
 
 // StoreCatalog serves the model catalog from persistent storage.

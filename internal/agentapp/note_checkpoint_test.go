@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // scriptedClient returns a queued response per call and records what it was sent.

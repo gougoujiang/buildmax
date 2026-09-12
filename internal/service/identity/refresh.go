@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 )
 
 // Refusals a refresh can produce.

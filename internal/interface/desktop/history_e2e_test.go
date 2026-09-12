@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/testsupport/mockllm"
+	"github.com/icloudbb/buildmax/internal/testsupport/mockllm"
 )
 
 // Rewind and fork through the bridge, against a session a real run left behind.

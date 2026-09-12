@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	spacesvc "github.com/gougoujiang/buildmax/internal/service/space"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	spacesvc "github.com/icloudbb/buildmax/internal/service/space"
 )
 
 type spaceResponse struct {

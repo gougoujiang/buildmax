@@ -5,9 +5,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
-	"github.com/gougoujiang/buildmax/internal/infra/hook"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	corehook "github.com/icloudbb/buildmax/internal/core/hook"
+	"github.com/icloudbb/buildmax/internal/infra/hook"
 )
 
 // concurrentDriver is trackingDriver without the slice: Run reaches it from

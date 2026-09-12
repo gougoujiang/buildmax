@@ -12,7 +12,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gougoujiang/buildmax/evaluation/contract"
+	"github.com/icloudbb/buildmax/evaluation/contract"
 )
 
 // Input is everything a grader may read about one trial.

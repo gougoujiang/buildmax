@@ -1,17 +1,17 @@
 blank_issues_enabled: true
 contact_links:
   - name: Questions and discussion
-    url: https://github.com/gougoujiang/buildmax/discussions
+    url: https://github.com/icloudbb/buildmax/discussions
     about: Ask for setup help or discuss an idea before opening an issue.
   - name: Security vulnerability
-    url: https://github.com/gougoujiang/buildmax/blob/main/SECURITY.md
+    url: https://github.com/icloudbb/buildmax/blob/main/SECURITY.md
     about: Report privately. Do not open a public issue.
   - name: Contributing guide
-    url: https://github.com/gougoujiang/buildmax/blob/main/CONTRIBUTING.md
+    url: https://github.com/icloudbb/buildmax/blob/main/CONTRIBUTING.md
     about: Local checks, architectural boundaries, and pull request guidance.
   - name: Support matrix
-    url: https://github.com/gougoujiang/buildmax/blob/main/manual/support.md
+    url: https://github.com/icloudbb/buildmax/blob/main/manual/support.md
     about: Supported platforms, deployment paths, current non-goals, and alpha boundaries.
   - name: Support guide
-    url: https://github.com/gougoujiang/buildmax/blob/main/.github/SUPPORT.md
+    url: https://github.com/icloudbb/buildmax/blob/main/.github/SUPPORT.md
     about: Choose the right channel and learn what details to include.

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
 func startTaskRunForTest(t testing.TB, s *Store, ctx context.Context, taskRunID string) {

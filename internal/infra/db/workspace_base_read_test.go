@@ -3,7 +3,7 @@ package db
 import (
 	"testing"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
 // GetRunWorkspaceBase returns the checkpoint a run may restore from, and nil for

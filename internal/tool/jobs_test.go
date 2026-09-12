@@ -2,15 +2,15 @@ package tool
 
 import (
 	"context"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/util"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp/job"
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	"github.com/gougoujiang/buildmax/internal/core/session"
+	"github.com/icloudbb/buildmax/internal/agentapp/job"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/session"
 )
 
 func sleepCommandForTest() string {

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
 )
 
 // AdminUser is one account as an administrator sees it.

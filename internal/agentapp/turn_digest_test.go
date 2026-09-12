@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 func digestApp(t *testing.T, cfg config.TurnDigestConfig) *AgentApp {

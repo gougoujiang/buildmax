@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	"github.com/gougoujiang/buildmax/internal/interface/client"
-	"github.com/gougoujiang/buildmax/internal/tool"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	"github.com/icloudbb/buildmax/internal/interface/client"
+	"github.com/icloudbb/buildmax/internal/tool"
 )
 
 // IssueSession is one local session's link to one space Issue.

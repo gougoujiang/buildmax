@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // compactSessionClient answers the compaction call with a summary and every other call —

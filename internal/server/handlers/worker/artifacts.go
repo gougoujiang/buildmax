@@ -3,9 +3,9 @@ package worker
 import (
 	"net/http"
 
-	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
-	artifactroutes "github.com/gougoujiang/buildmax/internal/server/handlers/artifact"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	coreartifact "github.com/icloudbb/buildmax/internal/core/artifact"
+	artifactroutes "github.com/icloudbb/buildmax/internal/server/handlers/artifact"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
 )
 
 // postArtifact publishes a file a run's agent chose to keep.

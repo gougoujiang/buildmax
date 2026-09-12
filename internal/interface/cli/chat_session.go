@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp"
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/session"
+	"github.com/icloudbb/buildmax/internal/agentapp"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/session"
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"

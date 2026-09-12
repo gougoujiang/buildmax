@@ -9,19 +9,19 @@ package worker
 
 import (
 	"context"
-	"github.com/gougoujiang/buildmax/internal/server/handlers/runterminal"
+	"github.com/icloudbb/buildmax/internal/server/handlers/runterminal"
 	"net/http"
 
-	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
-	"github.com/gougoujiang/buildmax/internal/server/websocket"
-	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
-	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
-	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
-	workspacesvc "github.com/gougoujiang/buildmax/internal/service/workspace"
+	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/infra/workerclient"
+	"github.com/icloudbb/buildmax/internal/server/websocket"
+	artifactsvc "github.com/icloudbb/buildmax/internal/service/artifact"
+	"github.com/icloudbb/buildmax/internal/service/llmgateway"
+	pluginsvc "github.com/icloudbb/buildmax/internal/service/plugin"
+	workspacesvc "github.com/icloudbb/buildmax/internal/service/workspace"
 )
 
 // SpaceSandboxDefaultsReader is the only space capability a run token receives

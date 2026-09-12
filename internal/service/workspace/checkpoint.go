@@ -12,7 +12,7 @@ import (
 	"errors"
 	"fmt"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
 // MetadataStore records the authoritative checkpoint pointer atomically with

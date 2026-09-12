@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/infra/llmremote"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/infra/llmremote"
 )
 
 // TestWorkerModeCallsTheRunRoute covers the routing decision that lets a task

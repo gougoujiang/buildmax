@@ -8,7 +8,7 @@ import (
 
 	"gorm.io/gorm"
 
-	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
+	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
 )
 
 // llmModelRow is the managed model catalog.

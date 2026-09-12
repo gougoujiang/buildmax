@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
 )
 
 // MockIssueCommentStore is an in-memory IssueCommentStore for tests.

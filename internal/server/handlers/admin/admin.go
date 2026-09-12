@@ -3,8 +3,8 @@ package admin
 import (
 	"net/http"
 
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
 )
 
 // AdminMeResponse describes the caller's deployment-scoped authority.

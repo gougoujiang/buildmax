@@ -1,14 +1,14 @@
 package space
 
 import (
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	"net/http"
 	"time"
 
-	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	"github.com/gougoujiang/buildmax/internal/service/agent"
-	"github.com/gougoujiang/buildmax/internal/service/workflow"
+	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	"github.com/icloudbb/buildmax/internal/service/agent"
+	"github.com/icloudbb/buildmax/internal/service/workflow"
 )
 
 type AgentResponse struct {

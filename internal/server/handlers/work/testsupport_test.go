@@ -7,10 +7,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/mock"
 
-	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
+	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
 )
 
 // llmStubLedger accepts every write and keeps the last one so a test can check

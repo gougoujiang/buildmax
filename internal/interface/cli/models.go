@@ -12,11 +12,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp"
-	"github.com/gougoujiang/buildmax/internal/config"
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/infra/llm"
-	"github.com/gougoujiang/buildmax/internal/interface/auth"
+	"github.com/icloudbb/buildmax/internal/agentapp"
+	"github.com/icloudbb/buildmax/internal/config"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/infra/llm"
+	"github.com/icloudbb/buildmax/internal/interface/auth"
 )
 
 func newModelsCommand() *cobra.Command {

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp/worktree"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/agentapp/worktree"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // Worktree creates, enters, leaves, lists, and removes Git worktrees, moving

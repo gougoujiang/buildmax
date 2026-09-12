@@ -4,9 +4,9 @@ import (
 	"context"
 	"slices"
 
-	"github.com/gougoujiang/buildmax/internal/core/agentdef"
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coresecret "github.com/gougoujiang/buildmax/internal/core/secret"
+	"github.com/icloudbb/buildmax/internal/core/agentdef"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coresecret "github.com/icloudbb/buildmax/internal/core/secret"
 )
 
 // SecretLookup answers what Secret consumption validation needs: a space's

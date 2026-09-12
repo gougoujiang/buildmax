@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp"
+	"github.com/icloudbb/buildmax/internal/agentapp"
 )
 
 // blockingHost is a RunHost whose turn blocks until released or its context is

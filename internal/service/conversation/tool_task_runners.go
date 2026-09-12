@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/service/task"
-	"github.com/gougoujiang/buildmax/internal/util"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/service/task"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // sourceMessageID is bound per turn because the model must not choose, or omit,

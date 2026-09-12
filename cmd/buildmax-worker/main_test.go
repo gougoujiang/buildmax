@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/bootstrap"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/bootstrap"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
 // Exit status is what the scheduler reads, and under Kubernetes it decides

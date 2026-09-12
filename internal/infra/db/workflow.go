@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/util"
 	"gorm.io/gorm"
 )
 

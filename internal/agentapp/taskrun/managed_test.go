@@ -3,7 +3,7 @@ package taskrun
 import (
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 func testManaged() ManagedInference {

@@ -13,8 +13,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gougoujiang/buildmax/internal/core/localproject"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/core/localproject"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // MetaFile is the file name inside a Project directory. It is authoritative for

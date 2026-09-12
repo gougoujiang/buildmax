@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	httpserver "github.com/gougoujiang/buildmax/internal/server"
+	httpserver "github.com/icloudbb/buildmax/internal/server"
 )
 
 // recordingServer records the ladder's calls in order.

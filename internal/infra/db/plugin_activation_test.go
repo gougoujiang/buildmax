@@ -4,9 +4,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	pluginsvc "github.com/icloudbb/buildmax/internal/service/plugin"
 )
 
 // The store is the only implementation of the activation contract, so a

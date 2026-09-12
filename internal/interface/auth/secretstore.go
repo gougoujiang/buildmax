@@ -10,7 +10,7 @@ import (
 
 	"github.com/zalando/go-keyring"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 // Where a login's two bearer secrets are kept.

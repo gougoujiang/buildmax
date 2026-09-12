@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
-	"github.com/gougoujiang/buildmax/internal/util"
+	coreartifact "github.com/icloudbb/buildmax/internal/core/artifact"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // MockArtifactShareStore is an in-memory coreartifact.ShareStore for tests. It

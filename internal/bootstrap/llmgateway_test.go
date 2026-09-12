@@ -10,11 +10,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
-	httpserver "github.com/gougoujiang/buildmax/internal/server"
-	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
+	"github.com/icloudbb/buildmax/internal/config"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
+	httpserver "github.com/icloudbb/buildmax/internal/server"
+	"github.com/icloudbb/buildmax/internal/service/llmgateway"
 )
 
 func conversationModel() config.ServerModelEntry {

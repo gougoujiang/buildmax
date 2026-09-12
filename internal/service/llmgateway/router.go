@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // ErrFactoryNotConfigured is returned when a router has no way to build clients.

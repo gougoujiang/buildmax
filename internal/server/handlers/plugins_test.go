@@ -11,14 +11,14 @@ import (
 	"testing/fstest"
 	"time"
 
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
-	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/service/audit"
-	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
-	"github.com/gougoujiang/buildmax/internal/testsupport"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	archive "github.com/icloudbb/buildmax/internal/infra/pluginarchive"
+	"github.com/icloudbb/buildmax/internal/infra/pluginwire"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/service/audit"
+	pluginsvc "github.com/icloudbb/buildmax/internal/service/plugin"
+	"github.com/icloudbb/buildmax/internal/testsupport"
 )
 
 const (

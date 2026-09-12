@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // A one-pixel PNG, so a fixture carries a real image without carrying a payload.

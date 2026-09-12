@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 func TestBuildEffectiveSystemPromptIncludesCurrentModel(t *testing.T) {

@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/testsupport/mockllm"
+	"github.com/icloudbb/buildmax/internal/testsupport/mockllm"
 )
 
 // binary is built once for the whole suite: the boundary under test is the

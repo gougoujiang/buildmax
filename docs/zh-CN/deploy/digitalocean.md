@@ -111,8 +111,8 @@ BUILDMAX_OCEAN_ALLOWED_CIDRS=203.0.113.7/32
 
 | 变量 | 默认产物 |
 |---|---|
-| `BUILDMAX_OCEAN_IMAGE` | `ghcr.io/gougoujiang/buildmax@sha256:64e6775796b4bf0cb1145e3aaa79084e170f1ec340bd5af1cddc1a28cc0336dd` |
-| `BUILDMAX_OCEAN_PORTAL_IMAGE` | `ghcr.io/gougoujiang/buildmax-portal@sha256:82165de877e4cae3c5a1c598b6f39b37a94db114ab6ce315b237d5913f7e2e2b` |
+| `BUILDMAX_OCEAN_IMAGE` | `ghcr.io/icloudbb/buildmax@sha256:64e6775796b4bf0cb1145e3aaa79084e170f1ec340bd5af1cddc1a28cc0336dd` |
+| `BUILDMAX_OCEAN_PORTAL_IMAGE` | `ghcr.io/icloudbb/buildmax-portal@sha256:82165de877e4cae3c5a1c598b6f39b37a94db114ab6ce315b237d5913f7e2e2b` |
 | `BUILDMAX_OCEAN_EDGE_IMAGE` | `caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d` |
 
 `deploy` 刷新 OpenTofu 的只读数据库 CA 输出，将该 CA 与镜像的公共信任证书包合并，再以 `database.tls: "true"` 启动 BuildMax。因此服务器会验证 DigitalOcean MySQL 和公共 HTTPS 依赖，绝不使用 `skip-verify`。数据库、Spaces 和生成的 JWT 凭证通过内存组装的 Secret 传入 Kubernetes。渲染后的 Secret 不会写入检出目录。

@@ -8,8 +8,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/config"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 
 	openai "github.com/sashabaranov/go-openai"
 )

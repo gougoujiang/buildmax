@@ -6,7 +6,7 @@ import (
 
 	mysqldriver "github.com/go-sql-driver/mysql"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 // The gate's whole purpose is that an unset DSN stops the run. Falling back to

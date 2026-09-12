@@ -10,12 +10,12 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp"
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
-	"github.com/gougoujiang/buildmax/internal/interface/auth"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/agentapp"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
+	"github.com/icloudbb/buildmax/internal/interface/auth"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // printOptions controls the behavior of runPrintMode. Built from CLI flags.

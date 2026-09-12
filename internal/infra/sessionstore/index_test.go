@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/session"
+	"github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/session"
 )
 
 func TestReadIndexMissingFileIsEmptyNotError(t *testing.T) {

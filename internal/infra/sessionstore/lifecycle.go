@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gougoujiang/buildmax/internal/core/session"
+	"github.com/icloudbb/buildmax/internal/core/session"
 )
 
 // TracesDirName is where a session's run traces live inside its bundle. One

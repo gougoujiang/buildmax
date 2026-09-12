@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/gougoujiang/buildmax/evaluation/contract"
+	"github.com/icloudbb/buildmax/evaluation/contract"
 )
 
 // TaskEntry is a loaded task and the directory it came from. The two travel

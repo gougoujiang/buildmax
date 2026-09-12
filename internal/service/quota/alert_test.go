@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	"github.com/gougoujiang/buildmax/internal/mock"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	corequota "github.com/icloudbb/buildmax/internal/core/quota"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	"github.com/icloudbb/buildmax/internal/mock"
 )
 
 func alertingService(runs, tokens int, maxRuns, maxTokens int) (*Service, *mock.MockAuditStore) {

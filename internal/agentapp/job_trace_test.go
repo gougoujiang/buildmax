@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp/job"
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/agentapp/job"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 // A background job leaves a durable event log: job_start with launch

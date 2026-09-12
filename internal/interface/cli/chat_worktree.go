@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp/worktree"
+	"github.com/icloudbb/buildmax/internal/agentapp/worktree"
 
 	tea "charm.land/bubbletea/v2"
 )

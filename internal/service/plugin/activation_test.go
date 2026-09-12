@@ -5,11 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/service/audit"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/service/audit"
 )
 
 const (

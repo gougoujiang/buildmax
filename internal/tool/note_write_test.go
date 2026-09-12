@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // fakeStore is a minimal agent.NoteStore for exercising the write path without a session.

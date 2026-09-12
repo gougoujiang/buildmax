@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	buildmaxlog "github.com/gougoujiang/buildmax/internal/infra/log"
-	"github.com/gougoujiang/buildmax/internal/server/authtoken"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	buildmaxlog "github.com/icloudbb/buildmax/internal/infra/log"
+	"github.com/icloudbb/buildmax/internal/server/authtoken"
 )
 
 // The independent scheduler loops tag their records by subsystem. Loggers are

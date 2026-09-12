@@ -9,11 +9,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
-	"github.com/gougoujiang/buildmax/internal/core/plugin"
-	"github.com/gougoujiang/buildmax/internal/infra/git"
-	tools "github.com/gougoujiang/buildmax/internal/tool"
+	"github.com/icloudbb/buildmax/internal/config"
+	corehook "github.com/icloudbb/buildmax/internal/core/hook"
+	"github.com/icloudbb/buildmax/internal/core/plugin"
+	"github.com/icloudbb/buildmax/internal/infra/git"
+	tools "github.com/icloudbb/buildmax/internal/tool"
 )
 
 // writePluginStatus reports what each plugin contributes and what happened to

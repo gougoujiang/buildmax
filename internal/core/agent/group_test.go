@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // readOnlyTool declares AccessReadOnly, making it eligible to share a group.

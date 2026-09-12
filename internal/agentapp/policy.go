@@ -3,9 +3,9 @@ package agentapp
 import (
 	"log/slog"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // configuredPolicy answers from the user's tools.permissions block, deferring to

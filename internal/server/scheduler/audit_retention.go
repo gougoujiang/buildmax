@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 )
 
 // defaultAuditSweepInterval is how often the retention window is applied.

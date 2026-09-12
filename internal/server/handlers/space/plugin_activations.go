@@ -2,14 +2,14 @@ package space
 
 import (
 	"errors"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	"net/http"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	"github.com/icloudbb/buildmax/internal/infra/pluginwire"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	pluginsvc "github.com/icloudbb/buildmax/internal/service/plugin"
 )
 
 // Activation routes are space-scoped where the catalog routes are

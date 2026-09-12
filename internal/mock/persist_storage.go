@@ -2,10 +2,10 @@ package mock
 
 import (
 	"context"
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
 	"io"
 
-	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
+	blob "github.com/icloudbb/buildmax/internal/infra/objectstore"
 )
 
 // MockPersistStorage is an in-memory blob.PersistStorage for tests. Only the

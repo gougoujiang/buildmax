@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
 type fakeMetadata struct {

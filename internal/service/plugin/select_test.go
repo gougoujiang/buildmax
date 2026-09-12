@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	"github.com/gougoujiang/buildmax/internal/util"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 func release(version string, opts ...func(*coreplugin.Release)) coreplugin.Release {

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 )
 
 // The row must never be able to yield a working credential, so this is worth

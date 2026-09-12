@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 )
 
 // MockRefreshToken is one issued token in MockRefreshTokenStore.

@@ -15,7 +15,7 @@ import (
 
 	mysqldriver "github.com/go-sql-driver/mysql"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 // mysqlScopePackages is what the persistence gate runs. It is the store package

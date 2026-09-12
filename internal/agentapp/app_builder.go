@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp/job"
-	"github.com/gougoujiang/buildmax/internal/agentapp/worktree"
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/localproject"
-	"github.com/gougoujiang/buildmax/internal/infra/hook"
-	"github.com/gougoujiang/buildmax/internal/util/secretscan"
+	"github.com/icloudbb/buildmax/internal/agentapp/job"
+	"github.com/icloudbb/buildmax/internal/agentapp/worktree"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	corehook "github.com/icloudbb/buildmax/internal/core/hook"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/localproject"
+	"github.com/icloudbb/buildmax/internal/infra/hook"
+	"github.com/icloudbb/buildmax/internal/util/secretscan"
 )
 
 // resolvedAgentAppConfig is the immutable input to runtime construction. File,

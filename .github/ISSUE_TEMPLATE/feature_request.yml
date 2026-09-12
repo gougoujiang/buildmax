@@ -7,7 +7,7 @@ body:
       value: |
         For anything that adds a runtime provider or tool, or that touches
         security, persistence, or a public API, please open this issue before
-        writing code — see [CONTRIBUTING.md](https://github.com/gougoujiang/buildmax/blob/main/CONTRIBUTING.md).
+        writing code — see [CONTRIBUTING.md](https://github.com/icloudbb/buildmax/blob/main/CONTRIBUTING.md).
 
   - type: textarea
     id: problem

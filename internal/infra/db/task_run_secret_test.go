@@ -3,9 +3,9 @@ package db
 import (
 	"testing"
 
-	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	coresecret "github.com/gougoujiang/buildmax/internal/core/secret"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	coresecret "github.com/icloudbb/buildmax/internal/core/secret"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
 // TestRecordEnvGrant_Idempotent proves the audit write records one row per

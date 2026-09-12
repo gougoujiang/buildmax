@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	"github.com/gougoujiang/buildmax/internal/mock"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	"github.com/icloudbb/buildmax/internal/mock"
 )
 
 // TestRecorderSurvivesAMissingStore covers the two configurations that must not

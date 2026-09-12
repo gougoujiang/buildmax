@@ -12,7 +12,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
+	coreartifact "github.com/icloudbb/buildmax/internal/core/artifact"
 	"io"
 	"mime"
 	"path"
@@ -20,10 +20,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	"github.com/gougoujiang/buildmax/internal/service/audit"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	"github.com/icloudbb/buildmax/internal/service/audit"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 var (

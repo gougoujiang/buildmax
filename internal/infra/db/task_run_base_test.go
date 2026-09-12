@@ -3,7 +3,7 @@ package db
 import (
 	"testing"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
 // baseCheckpointOf reads a run's recorded workspace base as a checkpoint public

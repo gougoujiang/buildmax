@@ -11,7 +11,7 @@ minute, including the full test suite and the pre-pull-request gate.
 ## 1. Clone And Build
 
 ```bash
-git clone https://github.com/gougoujiang/buildmax.git
+git clone https://github.com/icloudbb/buildmax.git
 cd buildmax
 ./make doctor
 ./make setup local
@@ -149,6 +149,6 @@ Windows machine.
 ## If You Get Stuck
 
 - [manual/troubleshooting.md](../../manual/troubleshooting.md) for runtime problems
-- [GitHub Discussions](https://github.com/gougoujiang/buildmax/discussions) for
+- [GitHub Discussions](https://github.com/icloudbb/buildmax/discussions) for
   questions — an unfinished pull request with a question in it is also fine
 - [../../.github/SUPPORT.md](../../.github/SUPPORT.md) for which channel to use

@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"testing"
 
-	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
-	"github.com/gougoujiang/buildmax/internal/service/task"
+	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
+	"github.com/icloudbb/buildmax/internal/core/llm"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/mock"
+	convchannel "github.com/icloudbb/buildmax/internal/service/conversation/channel"
+	"github.com/icloudbb/buildmax/internal/service/task"
 )
 
 // toolThenReplyClient calls one tool on its first completion and answers with

@@ -3,7 +3,7 @@ package session
 import (
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 func statsSession() State {

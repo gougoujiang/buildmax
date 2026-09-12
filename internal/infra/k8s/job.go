@@ -17,9 +17,9 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/config"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // JobCreator creates Kubernetes Jobs. Used by K8sJobRunner; can be implemented by a clientset wrapper or a fake in tests.

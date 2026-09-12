@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/mock"
-	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
+	"github.com/icloudbb/buildmax/internal/mock"
+	artifactsvc "github.com/icloudbb/buildmax/internal/service/artifact"
 )
 
 func (f *fixture) createShare(t *testing.T, userID, artifactID string) shareResponse {

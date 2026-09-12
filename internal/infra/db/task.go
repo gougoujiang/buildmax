@@ -5,10 +5,10 @@ import (
 	"errors"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/session"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	"github.com/icloudbb/buildmax/internal/core/session"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/util"
 
 	"gorm.io/gorm"
 )

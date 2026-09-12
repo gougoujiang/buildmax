@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // asJSON renders converted messages the way the request encodes them, so a test

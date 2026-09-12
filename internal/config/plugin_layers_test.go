@@ -1,13 +1,13 @@
 package config
 
 import (
-	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
+	corehook "github.com/icloudbb/buildmax/internal/core/hook"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/plugin"
+	"github.com/icloudbb/buildmax/internal/core/plugin"
 )
 
 func writePluginFile(t *testing.T, root, dir, name, body string) {

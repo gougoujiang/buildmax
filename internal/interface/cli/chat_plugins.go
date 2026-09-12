@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	"github.com/icloudbb/buildmax/internal/config"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
 
 	tea "charm.land/bubbletea/v2"
 )

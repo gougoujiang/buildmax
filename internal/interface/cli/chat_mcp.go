@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	mcp "github.com/gougoujiang/buildmax/internal/infra/mcp"
+	mcp "github.com/icloudbb/buildmax/internal/infra/mcp"
 
 	tea "charm.land/bubbletea/v2"
 )

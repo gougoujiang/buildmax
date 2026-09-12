@@ -1,12 +1,12 @@
 package space
 
 import (
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	"net/http"
 	"strconv"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
 )
 
 // AuditEventsResponse is a page of a space's audit trail.

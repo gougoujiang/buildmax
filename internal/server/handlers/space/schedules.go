@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"time"
 
-	coreschedule "github.com/gougoujiang/buildmax/internal/core/schedule"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	schedulesvc "github.com/gougoujiang/buildmax/internal/service/schedule"
+	coreschedule "github.com/icloudbb/buildmax/internal/core/schedule"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	schedulesvc "github.com/icloudbb/buildmax/internal/service/schedule"
 )
 
 // ScheduleResponse is the wire shape of a recurring schedule.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gougoujiang/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/agent"
 )
 
 const eventApprovalRequest = "desktop/approval-request"

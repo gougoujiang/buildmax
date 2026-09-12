@@ -99,7 +99,7 @@ datasets — an access log, an expense ledger, a book catalog — each with a RE
 listing its columns:
 
 ```bash
-git clone https://github.com/gougoujiang/buildmax
+git clone https://github.com/icloudbb/buildmax
 buildmax --workspace buildmax/sample-data/access_log \
   -p "Which paths return the most 5xx responses, and how slow are they?"
 ```

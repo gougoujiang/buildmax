@@ -5,10 +5,10 @@ import (
 	"errors"
 	"net/http"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	"github.com/gougoujiang/buildmax/internal/service/systemadmin"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	"github.com/icloudbb/buildmax/internal/service/systemadmin"
 )
 
 // AdminGrantsResponse lists who can operate the deployment.

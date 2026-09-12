@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp"
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/agentapp"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // OutputFormat is the print-mode output format selected by --output.

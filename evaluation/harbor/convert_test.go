@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/evaluation/contract"
+	"github.com/icloudbb/buildmax/evaluation/contract"
 )
 
 const jobFixture = "testdata/job"

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
+	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
 )
 
 // MockConversationStore is an in-memory ConversationStore for tests.

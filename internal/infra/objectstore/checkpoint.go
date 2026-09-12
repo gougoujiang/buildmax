@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
 )
 
 // A checkpoint payload is one immutable archive, addressed by the SHA-256 of its

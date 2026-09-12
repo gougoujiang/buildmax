@@ -5,10 +5,10 @@ import (
 	"errors"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
 
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/util"
 	"gorm.io/gorm"
 )
 

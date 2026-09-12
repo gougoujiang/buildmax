@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
-	"github.com/gougoujiang/buildmax/internal/service/conversation"
+	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
+	"github.com/icloudbb/buildmax/internal/server/turnqueue"
+	"github.com/icloudbb/buildmax/internal/service/conversation"
 
 	gws "github.com/gorilla/websocket"
 )

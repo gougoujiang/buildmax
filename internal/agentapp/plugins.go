@@ -3,9 +3,9 @@ package agentapp
 import (
 	"context"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/plugin"
-	"github.com/gougoujiang/buildmax/internal/infra/git"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/plugin"
+	"github.com/icloudbb/buildmax/internal/infra/git"
 )
 
 // PluginSnapshot is the plugin inventory one runtime resolved when it was

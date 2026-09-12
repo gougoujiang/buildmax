@@ -14,7 +14,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // TypeAccess separates an access token from anything else this key might ever

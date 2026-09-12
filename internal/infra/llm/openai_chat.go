@@ -7,7 +7,7 @@ import (
 	"io"
 	"strings"
 
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 	openai "github.com/sashabaranov/go-openai"
 )
 

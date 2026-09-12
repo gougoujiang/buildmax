@@ -3,13 +3,13 @@ package task
 import (
 	"context"
 	"fmt"
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
 
-	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
-	"github.com/gougoujiang/buildmax/internal/util"
+	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	"github.com/icloudbb/buildmax/internal/core/llm"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 const defaultTitleRunes = 50

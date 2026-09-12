@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	buildmaxlog "github.com/gougoujiang/buildmax/internal/infra/log"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	buildmaxlog "github.com/icloudbb/buildmax/internal/infra/log"
 )
 
 // defaultRunTimeout is how long a run may sit in SCHEDULED or RUNNING before it

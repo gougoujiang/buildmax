@@ -5,8 +5,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
 // runSummaryLimit bounds the body of an agent-authored comment.

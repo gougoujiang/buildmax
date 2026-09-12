@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 const settingsValidOne = `

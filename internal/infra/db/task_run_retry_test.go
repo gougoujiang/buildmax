@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
 // A retry is only distinguishable from any other run by what it stores, so the

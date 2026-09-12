@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/util"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )

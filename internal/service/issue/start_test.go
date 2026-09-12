@@ -5,11 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/service/issue"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/service/issue"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 type refusingAdmitter struct{ err error }

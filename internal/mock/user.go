@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 )
 
 // MockUserStore is an in-memory UserStore for tests.

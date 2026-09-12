@@ -6,8 +6,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
 )
 
 // MockPluginActivationStore is an in-memory space activation store for tests.

@@ -287,7 +287,7 @@ agentapp.RunPrompt(ctx, sess, prompt, stream, approval, eventSink)
   model or task failed. `/readyz` answers whether a dependency is down now; it
   cannot answer why one run failed then. Classifying the failure needs a typed
   cause on `run_end`, which the event stream does not carry.
-- Retention/rotation/GC of the traces directory ([issue #140](https://github.com/gougoujiang/buildmax/issues/140)). **Consequence to accept
+- Retention/rotation/GC of the traces directory ([issue #140](https://github.com/icloudbb/buildmax/issues/140)). **Consequence to accept
   knowingly:** tracing is on by default and nothing ever deletes a trace, so
   the session bundles grow without bound — one trace file per run, each capped
   at 10000 records × ~4KB of bounded fields. Local use is unlikely to notice;

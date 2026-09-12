@@ -6,9 +6,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coresecret "github.com/gougoujiang/buildmax/internal/core/secret"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coresecret "github.com/icloudbb/buildmax/internal/core/secret"
 )
 
 // The db Store must satisfy the domain contract.

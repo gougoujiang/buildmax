@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"time"
 
-	coresecret "github.com/gougoujiang/buildmax/internal/core/secret"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	secretsvc "github.com/gougoujiang/buildmax/internal/service/secret"
+	coresecret "github.com/icloudbb/buildmax/internal/core/secret"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	secretsvc "github.com/icloudbb/buildmax/internal/service/secret"
 )
 
 // secretResponse is a Secret's metadata. It never carries an item value:

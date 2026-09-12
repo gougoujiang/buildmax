@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/evaluation/contract"
+	"github.com/icloudbb/buildmax/evaluation/contract"
 )
 
 // WriteReport renders one subject's result.

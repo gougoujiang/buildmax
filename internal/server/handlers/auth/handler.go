@@ -10,9 +10,9 @@ import (
 	"net/http"
 	"time"
 
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	"github.com/gougoujiang/buildmax/internal/server/access"
-	"github.com/gougoujiang/buildmax/internal/service/audit"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	"github.com/icloudbb/buildmax/internal/server/access"
+	"github.com/icloudbb/buildmax/internal/service/audit"
 )
 
 type Config struct {

@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/testsupport"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/testsupport"
 )
 
 const commentTestSecret = "comment-test-secret"

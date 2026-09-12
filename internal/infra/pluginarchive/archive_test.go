@@ -14,7 +14,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	inspect "github.com/gougoujiang/buildmax/internal/service/plugininspect"
+	inspect "github.com/icloudbb/buildmax/internal/service/plugininspect"
 )
 
 func file(body string) *fstest.MapFile { return &fstest.MapFile{Data: []byte(body)} }

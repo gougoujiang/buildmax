@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	llm "github.com/gougoujiang/buildmax/internal/infra/llm"
-	"github.com/gougoujiang/buildmax/internal/infra/llmremote"
-	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
-	"github.com/gougoujiang/buildmax/internal/testsupport"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	llm "github.com/icloudbb/buildmax/internal/infra/llm"
+	"github.com/icloudbb/buildmax/internal/infra/llmremote"
+	"github.com/icloudbb/buildmax/internal/service/llmgateway"
+	"github.com/icloudbb/buildmax/internal/testsupport"
 )
 
 // The managed contract: a call through the gateway must produce the same core

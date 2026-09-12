@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	coreschedule "github.com/gougoujiang/buildmax/internal/core/schedule"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	coreschedule "github.com/icloudbb/buildmax/internal/core/schedule"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
 // The db Store must satisfy the schedule domain's persistence contract.

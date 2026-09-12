@@ -7,16 +7,16 @@ import (
 	"testing"
 	"time"
 
-	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	streamhub "github.com/gougoujiang/buildmax/internal/server/websocket"
-	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
-	"github.com/gougoujiang/buildmax/internal/service/audit"
-	issuesvc "github.com/gougoujiang/buildmax/internal/service/issue"
-	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
-	"github.com/gougoujiang/buildmax/internal/util"
+	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/mock"
+	streamhub "github.com/icloudbb/buildmax/internal/server/websocket"
+	artifactsvc "github.com/icloudbb/buildmax/internal/service/artifact"
+	"github.com/icloudbb/buildmax/internal/service/audit"
+	issuesvc "github.com/icloudbb/buildmax/internal/service/issue"
+	pluginsvc "github.com/icloudbb/buildmax/internal/service/plugin"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // lifecycleMatrixConfig wires every worker route over in-memory stores with the

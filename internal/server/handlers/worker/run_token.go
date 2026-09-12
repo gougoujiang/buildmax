@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/server/authtoken"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	"github.com/icloudbb/buildmax/internal/server/authtoken"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
 )
 
 // requireRunToken authenticates a worker as the executor of one specific run.

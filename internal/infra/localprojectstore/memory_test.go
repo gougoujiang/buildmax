@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/localproject"
+	"github.com/icloudbb/buildmax/internal/core/localproject"
 )
 
 func memoryStore(t *testing.T) (*FileStore, string) {

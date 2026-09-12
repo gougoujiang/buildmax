@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/util"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // hierarchyService builds a service over the given issues. Every test here uses

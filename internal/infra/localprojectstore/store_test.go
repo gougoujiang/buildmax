@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/localproject"
+	"github.com/icloudbb/buildmax/internal/core/localproject"
 )
 
 func gitKey(commonDir string) localproject.Key {

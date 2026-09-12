@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 )
 
 // spaceAuditExport drives the space-scoped export as one user.

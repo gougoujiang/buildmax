@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
-	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	"github.com/icloudbb/buildmax/internal/core/llm"
+	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
 )
 
 // TestValidateCredentialRule pins which catalog targets may be added

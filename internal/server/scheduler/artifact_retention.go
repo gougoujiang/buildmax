@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
+	coreartifact "github.com/icloudbb/buildmax/internal/core/artifact"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 )
 
 // defaultArtifactSweepInterval is how often retention is applied.

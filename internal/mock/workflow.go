@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
+	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 )
 
 // MockWorkflowStore is an in-memory WorkflowStore for tests. It records

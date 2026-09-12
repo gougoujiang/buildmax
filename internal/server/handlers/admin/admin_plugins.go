@@ -5,12 +5,12 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
-	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	archive "github.com/icloudbb/buildmax/internal/infra/pluginarchive"
+	"github.com/icloudbb/buildmax/internal/infra/pluginwire"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	pluginsvc "github.com/icloudbb/buildmax/internal/service/plugin"
 )
 
 // The catalog as an administrator sees it includes archived entries and yanked

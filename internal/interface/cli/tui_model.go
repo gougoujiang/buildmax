@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp"
-	"github.com/gougoujiang/buildmax/internal/agentapp/job"
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	"github.com/gougoujiang/buildmax/internal/infra/git"
-	"github.com/gougoujiang/buildmax/internal/interface/auth"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/agentapp"
+	"github.com/icloudbb/buildmax/internal/agentapp/job"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/infra/git"
+	"github.com/icloudbb/buildmax/internal/interface/auth"
+	"github.com/icloudbb/buildmax/internal/util"
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"

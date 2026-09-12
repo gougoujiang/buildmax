@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // recordingCheckpointer captures what it was handed and optionally writes a note, standing in

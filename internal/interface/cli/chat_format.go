@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 
 	"github.com/charmbracelet/glamour"
 )

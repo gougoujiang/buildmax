@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 // TestSeatbeltProfile_Golden asserts the generated profile is the shape

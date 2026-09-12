@@ -2,13 +2,13 @@ package issue
 
 import (
 	"context"
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
 	"log/slog"
 
-	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
+	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 )
 
 var (

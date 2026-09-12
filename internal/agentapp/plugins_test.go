@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/plugin"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/plugin"
 )
 
 // installPlugin writes one plugin directory under a fresh BUILDMAX_HOME and

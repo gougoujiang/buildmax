@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/interface/auth"
-	"github.com/gougoujiang/buildmax/internal/interface/client"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/interface/auth"
+	"github.com/icloudbb/buildmax/internal/interface/client"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/term"

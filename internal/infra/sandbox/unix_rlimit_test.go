@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 // TestUlimitPrefix_Empty asserts no limits set means no prefix at all, so an

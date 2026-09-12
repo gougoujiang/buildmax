@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
-	llm "github.com/gougoujiang/buildmax/internal/infra/llm"
-	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
+	"github.com/icloudbb/buildmax/internal/config"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
+	llm "github.com/icloudbb/buildmax/internal/infra/llm"
+	"github.com/icloudbb/buildmax/internal/service/llmgateway"
 )
 
 // conversationTargetID is the catalog ID of the target derived from

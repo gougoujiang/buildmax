@@ -11,7 +11,7 @@ import (
 	"context"
 	"log/slog"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 )
 
 // Recorder writes audit events. A nil Recorder, or one with no store, discards

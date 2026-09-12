@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	coremcp "github.com/gougoujiang/buildmax/internal/core/mcp"
-	"github.com/gougoujiang/buildmax/internal/core/plugin"
+	coremcp "github.com/icloudbb/buildmax/internal/core/mcp"
+	"github.com/icloudbb/buildmax/internal/core/plugin"
 )
 
 // MCPVarWorkspaceRoot is the variable name available in mcp.json $VAR expansion

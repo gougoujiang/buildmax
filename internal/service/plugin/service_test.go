@@ -8,12 +8,12 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/service/audit"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	archive "github.com/icloudbb/buildmax/internal/infra/pluginarchive"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/service/audit"
 )
 
 func file(body string) *fstest.MapFile { return &fstest.MapFile{Data: []byte(body)} }

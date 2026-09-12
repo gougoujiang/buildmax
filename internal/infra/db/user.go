@@ -5,10 +5,10 @@ import (
 	"errors"
 	"time"
 
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
 
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/util"
 	"gorm.io/gorm"
 )
 

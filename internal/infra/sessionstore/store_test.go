@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/session"
+	"github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/session"
 )
 
 var ctx = context.Background()

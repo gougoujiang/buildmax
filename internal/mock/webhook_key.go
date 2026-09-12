@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 )
 
 // MockUserWebhookKeyStore is an in-memory UserWebhookKeyStore for tests.

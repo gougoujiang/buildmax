@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/session"
-	"github.com/gougoujiang/buildmax/internal/infra/sessionstore"
-	"github.com/gougoujiang/buildmax/internal/infra/trace"
+	"github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/session"
+	"github.com/icloudbb/buildmax/internal/infra/sessionstore"
+	"github.com/icloudbb/buildmax/internal/infra/trace"
 )
 
 // SessionStats is one session's statistics, assembled from the two records

@@ -16,15 +16,15 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	"github.com/gougoujiang/buildmax/internal/infra/git"
-	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
-	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
-	"github.com/gougoujiang/buildmax/internal/interface/auth"
-	"github.com/gougoujiang/buildmax/internal/interface/client"
-	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
-	inspect "github.com/gougoujiang/buildmax/internal/service/plugininspect"
+	"github.com/icloudbb/buildmax/internal/config"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	"github.com/icloudbb/buildmax/internal/infra/git"
+	archive "github.com/icloudbb/buildmax/internal/infra/pluginarchive"
+	"github.com/icloudbb/buildmax/internal/infra/pluginwire"
+	"github.com/icloudbb/buildmax/internal/interface/auth"
+	"github.com/icloudbb/buildmax/internal/interface/client"
+	pluginsvc "github.com/icloudbb/buildmax/internal/service/plugin"
+	inspect "github.com/icloudbb/buildmax/internal/service/plugininspect"
 )
 
 // Reserved directories inside the plugins directory. Dot-prefixed so discovery

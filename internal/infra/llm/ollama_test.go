@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/config"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // ollamaUpstream is a fake daemon that answers /api/chat, /api/tags, and

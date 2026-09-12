@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp"
-	"github.com/gougoujiang/buildmax/internal/agentapp/job"
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/agentapp"
+	"github.com/icloudbb/buildmax/internal/agentapp/job"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 // recordingEmitter captures frontend events for assertions.

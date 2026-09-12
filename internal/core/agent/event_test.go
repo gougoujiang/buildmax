@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // recordingEventSink collects all events emitted during a RunLoop call.

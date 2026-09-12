@@ -15,12 +15,12 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
-	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
-	"github.com/gougoujiang/buildmax/internal/interface/auth"
-	"github.com/gougoujiang/buildmax/internal/testsupport"
+	"github.com/icloudbb/buildmax/internal/config"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	archive "github.com/icloudbb/buildmax/internal/infra/pluginarchive"
+	"github.com/icloudbb/buildmax/internal/infra/pluginwire"
+	"github.com/icloudbb/buildmax/internal/interface/auth"
+	"github.com/icloudbb/buildmax/internal/testsupport"
 )
 
 // fakeMarketplace serves one plugin's catalog entry and its packaged bytes.

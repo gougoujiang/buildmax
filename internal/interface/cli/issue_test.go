@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	"github.com/gougoujiang/buildmax/internal/interface/auth"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	"github.com/icloudbb/buildmax/internal/interface/auth"
 )
 
 // A session working a space issue says so before it does anything: which

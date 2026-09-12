@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
-	"github.com/gougoujiang/buildmax/internal/infra/hook"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	corehook "github.com/icloudbb/buildmax/internal/core/hook"
+	"github.com/icloudbb/buildmax/internal/infra/hook"
 )
 
 // trackingDriver records every Run call and lets the test choose the

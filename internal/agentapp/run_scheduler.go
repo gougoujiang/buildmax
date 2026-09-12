@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/gougoujiang/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/agent"
 )
 
 // RunHost is the slice of AgentApp the scheduler drives for one run. *AgentApp

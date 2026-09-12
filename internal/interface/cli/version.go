@@ -2,7 +2,7 @@ package cli
 
 import (
 	"fmt"
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/config"
 	"os"
 
 	"github.com/spf13/cobra"

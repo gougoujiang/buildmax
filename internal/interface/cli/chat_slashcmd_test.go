@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/interface/slashcmd"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/interface/slashcmd"
+	"github.com/icloudbb/buildmax/internal/util"
 
 	tea "charm.land/bubbletea/v2"
 )

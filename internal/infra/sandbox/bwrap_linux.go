@@ -7,7 +7,7 @@ import (
 	"errors"
 	"os/exec"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 // newBackend returns the platform backend for the resolved deps report.

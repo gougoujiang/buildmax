@@ -6,11 +6,11 @@ import (
 	"log/slog"
 	"time"
 
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	coreschedule "github.com/gougoujiang/buildmax/internal/core/schedule"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	schedulesvc "github.com/gougoujiang/buildmax/internal/service/schedule"
-	tasksvc "github.com/gougoujiang/buildmax/internal/service/task"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	coreschedule "github.com/icloudbb/buildmax/internal/core/schedule"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	schedulesvc "github.com/icloudbb/buildmax/internal/service/schedule"
+	tasksvc "github.com/icloudbb/buildmax/internal/service/task"
 )
 
 func (d *ScheduleDispatcher) log() *slog.Logger { return componentLog("schedule_dispatcher") }

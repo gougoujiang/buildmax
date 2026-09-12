@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
+	coreartifact "github.com/icloudbb/buildmax/internal/core/artifact"
 )
 
 // ContentStore holds one immutable content object per artifact.

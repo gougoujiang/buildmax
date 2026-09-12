@@ -16,7 +16,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/gougoujiang/buildmax/internal/infra/k8s"
+	"github.com/icloudbb/buildmax/internal/infra/k8s"
 )
 
 // decodeManifest returns every YAML document in a manifest as a generic map.

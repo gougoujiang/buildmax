@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 // hashLoginCode is the only thing this package stores, so it is worth pinning

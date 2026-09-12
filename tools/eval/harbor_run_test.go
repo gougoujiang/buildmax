@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/evaluation/harbor"
+	"github.com/icloudbb/buildmax/evaluation/harbor"
 )
 
 func runPins(t *testing.T) harbor.Pins {

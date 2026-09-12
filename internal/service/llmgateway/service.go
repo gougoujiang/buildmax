@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"time"
 
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
 )
 
 // Service-level failures, in addition to the resolution errors in resolve.go.

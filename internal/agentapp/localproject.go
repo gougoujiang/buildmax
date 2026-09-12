@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/localproject"
-	"github.com/gougoujiang/buildmax/internal/infra/git"
-	"github.com/gougoujiang/buildmax/internal/infra/localprojectstore"
+	"github.com/icloudbb/buildmax/internal/core/localproject"
+	"github.com/icloudbb/buildmax/internal/infra/git"
+	"github.com/icloudbb/buildmax/internal/infra/localprojectstore"
 )
 
 // ProjectManager resolves a Workspace to the local Project that owns it. It is

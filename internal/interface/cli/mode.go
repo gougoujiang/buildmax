@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/gougoujiang/buildmax/internal/interface/auth"
+	"github.com/icloudbb/buildmax/internal/interface/auth"
 )
 
 // resolveModelSource fetches what this session's models are, turning an expired

@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/util"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 func reporterFor(task coretask.Task, comments *mock.MockIssueCommentStore) *RunReporter {

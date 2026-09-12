@@ -119,7 +119,7 @@ func TestReleaseNotesRenderTheReleasedVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("releaseNotes: %v", err)
 	}
-	for _, want := range []string{"## Install", "go install github.com/gougoujiang/buildmax/cmd/buildmax@v", "## Before you deploy this"} {
+	for _, want := range []string{"## Install", "go install github.com/icloudbb/buildmax/cmd/buildmax@v", "## Before you deploy this"} {
 		if !strings.Contains(notes, want) {
 			t.Errorf("notes do not contain %q", want)
 		}

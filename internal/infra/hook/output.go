@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	corehook "github.com/icloudbb/buildmax/internal/core/hook"
 )
 
 // parseHookOutput tries to decode an agent.HookOutput from a hook's textual

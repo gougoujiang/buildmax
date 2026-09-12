@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/agent"
 )
 
 // okEcho returns 200 OK with a tiny HTML body so WebFetch's HTML→text

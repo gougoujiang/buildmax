@@ -9,9 +9,9 @@ import (
 	"context"
 	"time"
 
-	infra "github.com/gougoujiang/buildmax/internal/infra/coordination"
-	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
-	wsconn "github.com/gougoujiang/buildmax/internal/server/websocket"
+	infra "github.com/icloudbb/buildmax/internal/infra/coordination"
+	"github.com/icloudbb/buildmax/internal/server/turnqueue"
+	wsconn "github.com/icloudbb/buildmax/internal/server/websocket"
 )
 
 const (

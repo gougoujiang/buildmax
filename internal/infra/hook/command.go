@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	corehook "github.com/icloudbb/buildmax/internal/core/hook"
 )
 
 // BlockingExitCode is the exit status a command hook can use to deny an

@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/gougoujiang/buildmax/internal/infra/httpclient"
-	"github.com/gougoujiang/buildmax/internal/tool"
+	"github.com/icloudbb/buildmax/internal/infra/httpclient"
+	"github.com/icloudbb/buildmax/internal/tool"
 )
 
 // artifactResponse is the part of the server's answer a local surface reports.

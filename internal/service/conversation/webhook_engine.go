@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 
-	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
-	"github.com/gougoujiang/buildmax/internal/service/task"
+	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	convchannel "github.com/icloudbb/buildmax/internal/service/conversation/channel"
+	"github.com/icloudbb/buildmax/internal/service/task"
 )
 
 var ErrWebhookChannelRequired = errors.New("webhook engine only accepts webhook channel")

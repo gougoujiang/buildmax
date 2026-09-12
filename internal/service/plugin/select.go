@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
 )
 
 // Reasons a release cannot be handed over.

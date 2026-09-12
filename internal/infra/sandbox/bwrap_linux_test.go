@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 // TestBwrapArgs_Golden asserts the documented argv shape: ro-bind / first,

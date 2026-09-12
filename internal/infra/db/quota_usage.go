@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
 )
 
 // SpaceUsageInWindow returns run count and total tokens for the space in [since, until].

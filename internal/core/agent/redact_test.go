@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // TestRunLoop_RedactsToolResult proves a run's Secret value is removed from a

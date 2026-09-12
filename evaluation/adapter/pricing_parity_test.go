@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 // The trial home's price list is declared twice: config.ModelPricing is what

@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
-	"github.com/gougoujiang/buildmax/internal/server/authtoken"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/infra/workerclient"
+	"github.com/icloudbb/buildmax/internal/server/authtoken"
 )
 
 func managedServerConfig() config.ServerConfig {

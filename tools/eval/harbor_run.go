@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/evaluation/contract"
-	"github.com/gougoujiang/buildmax/evaluation/harbor"
-	"github.com/gougoujiang/buildmax/evaluation/runner"
+	"github.com/icloudbb/buildmax/evaluation/contract"
+	"github.com/icloudbb/buildmax/evaluation/harbor"
+	"github.com/icloudbb/buildmax/evaluation/runner"
 )
 
 const harborRunUsage = `usage: eval harbor run --model <provider/model> [flags] [harbor flags]

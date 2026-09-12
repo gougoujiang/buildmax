@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/core/plugin"
+	"github.com/icloudbb/buildmax/internal/core/plugin"
 )
 
 // PluginVarRoot names the plugin-root variable, defined with the rest of the

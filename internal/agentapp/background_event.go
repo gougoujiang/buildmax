@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp/job"
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/infra/proc"
+	"github.com/icloudbb/buildmax/internal/agentapp/job"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/infra/proc"
 )
 
 // maxBackgroundPayloadRunes bounds what one background event may inject into

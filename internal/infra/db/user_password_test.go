@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 )
 
 func TestPasswordLifecycle(t *testing.T) {

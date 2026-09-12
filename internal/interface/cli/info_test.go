@@ -4,10 +4,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp"
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/session"
-	"github.com/gougoujiang/buildmax/internal/infra/trace"
+	"github.com/icloudbb/buildmax/internal/agentapp"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/session"
+	"github.com/icloudbb/buildmax/internal/infra/trace"
 )
 
 func renderStats(s agentapp.SessionStats) string {

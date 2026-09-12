@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // pricedCompactor reports what its summarization cost, the way the real one does.

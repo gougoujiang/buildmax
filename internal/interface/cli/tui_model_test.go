@@ -3,21 +3,21 @@ package cli
 import (
 	"context"
 	"errors"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/util"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp"
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/session"
+	"github.com/icloudbb/buildmax/internal/agentapp"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/session"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	mcp "github.com/gougoujiang/buildmax/internal/infra/mcp"
-	"github.com/gougoujiang/buildmax/internal/infra/sessionstore"
+	mcp "github.com/icloudbb/buildmax/internal/infra/mcp"
+	"github.com/icloudbb/buildmax/internal/infra/sessionstore"
 
 	tea "charm.land/bubbletea/v2"
 )

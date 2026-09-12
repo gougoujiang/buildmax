@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 // makePlugin writes one plugin under a fresh BUILDMAX_HOME and returns the

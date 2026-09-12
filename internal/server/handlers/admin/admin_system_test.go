@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	coreschema "github.com/gougoujiang/buildmax/internal/core/schema"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/service/audit"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	coreschema "github.com/icloudbb/buildmax/internal/core/schema"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/service/audit"
 )
 
 // stubSchemaStore reports a fixed migration history.

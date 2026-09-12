@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/infra/llm"
-	"github.com/gougoujiang/buildmax/internal/testsupport/mockllm"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/infra/llm"
+	"github.com/icloudbb/buildmax/internal/testsupport/mockllm"
 )
 
 // The suites this harness serves drive the real adapters, so the tests do too:

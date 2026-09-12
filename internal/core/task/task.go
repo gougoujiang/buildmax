@@ -2,7 +2,7 @@ package task
 
 import (
 	"context"
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
 	"time"
 )
 

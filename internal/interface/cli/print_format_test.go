@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp"
-	"github.com/gougoujiang/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/agentapp"
+	"github.com/icloudbb/buildmax/internal/core/agent"
 )
 
 func TestClassifyExit(t *testing.T) {

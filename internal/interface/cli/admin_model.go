@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/gougoujiang/buildmax/internal/interface/client"
+	"github.com/icloudbb/buildmax/internal/interface/client"
 )
 
 // newAdminModelCommand groups the managed-model catalog verbs, reached over the

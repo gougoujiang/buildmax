@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/testsupport"
+	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
+	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/testsupport"
 )
 
 func ptr[T any](v T) *T { return &v }

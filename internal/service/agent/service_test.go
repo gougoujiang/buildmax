@@ -6,12 +6,12 @@ import (
 	"strings"
 	"testing"
 
-	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/service/agent"
+	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/service/agent"
 )
 
 func newService(t *testing.T) (*agent.Service, *mock.MockAgentStore, context.Context) {

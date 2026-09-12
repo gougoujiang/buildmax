@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreartifact "github.com/icloudbb/buildmax/internal/core/artifact"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	artifactsvc "github.com/icloudbb/buildmax/internal/service/artifact"
 )
 
 // uploadFormField is the multipart field carrying the file.

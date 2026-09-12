@@ -2,21 +2,21 @@ package handlers
 
 import (
 	"context"
-	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
-	artifactroutes "github.com/gougoujiang/buildmax/internal/server/handlers/artifact"
-	authroutes "github.com/gougoujiang/buildmax/internal/server/handlers/auth"
-	spaceroutes "github.com/gougoujiang/buildmax/internal/server/handlers/space"
-	"github.com/gougoujiang/buildmax/internal/server/handlers/work"
-	"github.com/gougoujiang/buildmax/internal/server/handlers/worker"
-	agentsvc "github.com/gougoujiang/buildmax/internal/service/agent"
-	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
-	"github.com/gougoujiang/buildmax/internal/service/conversation"
-	issuesvc "github.com/gougoujiang/buildmax/internal/service/issue"
-	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
-	"github.com/gougoujiang/buildmax/internal/service/task"
+	"github.com/icloudbb/buildmax/internal/server/handlers/admin"
+	artifactroutes "github.com/icloudbb/buildmax/internal/server/handlers/artifact"
+	authroutes "github.com/icloudbb/buildmax/internal/server/handlers/auth"
+	spaceroutes "github.com/icloudbb/buildmax/internal/server/handlers/space"
+	"github.com/icloudbb/buildmax/internal/server/handlers/work"
+	"github.com/icloudbb/buildmax/internal/server/handlers/worker"
+	agentsvc "github.com/icloudbb/buildmax/internal/service/agent"
+	artifactsvc "github.com/icloudbb/buildmax/internal/service/artifact"
+	"github.com/icloudbb/buildmax/internal/service/conversation"
+	issuesvc "github.com/icloudbb/buildmax/internal/service/issue"
+	"github.com/icloudbb/buildmax/internal/service/llmgateway"
+	"github.com/icloudbb/buildmax/internal/service/task"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/server/access"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/server/access"
 )
 
 // guard answers who is calling and whether they may proceed.

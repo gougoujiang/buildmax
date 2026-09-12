@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	"github.com/gougoujiang/buildmax/internal/server/access"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	identitysvc "github.com/gougoujiang/buildmax/internal/service/identity"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	"github.com/icloudbb/buildmax/internal/server/access"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	identitysvc "github.com/icloudbb/buildmax/internal/service/identity"
 )
 
 // LoginRequest is the JSON body for POST /api/login. Exactly one of Password

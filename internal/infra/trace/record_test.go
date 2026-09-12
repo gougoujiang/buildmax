@@ -7,9 +7,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/util/secretscan"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/util/secretscan"
 )
 
 func TestRecordFromEvent_Mapping(t *testing.T) {

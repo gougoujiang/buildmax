@@ -11,15 +11,15 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 
-	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	infra "github.com/gougoujiang/buildmax/internal/infra/coordination"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	servercoord "github.com/gougoujiang/buildmax/internal/server/coordination"
-	wsconn "github.com/gougoujiang/buildmax/internal/server/websocket"
-	"github.com/gougoujiang/buildmax/internal/testsupport"
-	"github.com/gougoujiang/buildmax/internal/util"
+	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	infra "github.com/icloudbb/buildmax/internal/infra/coordination"
+	"github.com/icloudbb/buildmax/internal/mock"
+	servercoord "github.com/icloudbb/buildmax/internal/server/coordination"
+	wsconn "github.com/icloudbb/buildmax/internal/server/websocket"
+	"github.com/icloudbb/buildmax/internal/testsupport"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // serveTaskStreamReplica stands up one server replica: a work handler wired with

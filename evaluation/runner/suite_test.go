@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/evaluation/contract"
+	"github.com/icloudbb/buildmax/evaluation/contract"
 )
 
 // validTask is a task that loads, so each test below can break exactly one

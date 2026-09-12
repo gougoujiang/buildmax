@@ -3,8 +3,8 @@ package worker
 import (
 	"net/http"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
 )
 
 // requireRunning gates the routes an agent exercises only while its run is

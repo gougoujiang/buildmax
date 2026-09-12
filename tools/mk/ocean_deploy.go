@@ -22,8 +22,8 @@ const (
 	// These are the immutable multi-platform release manifests, not mutable
 	// tags. A later candidate is selected explicitly through the matching env
 	// variables and recorded in the qualification evidence.
-	defaultOceanBuildMaxImage = "ghcr.io/gougoujiang/buildmax@sha256:64e6775796b4bf0cb1145e3aaa79084e170f1ec340bd5af1cddc1a28cc0336dd"
-	defaultOceanPortalImage   = "ghcr.io/gougoujiang/buildmax-portal@sha256:82165de877e4cae3c5a1c598b6f39b37a94db114ab6ce315b237d5913f7e2e2b"
+	defaultOceanBuildMaxImage = "ghcr.io/icloudbb/buildmax@sha256:64e6775796b4bf0cb1145e3aaa79084e170f1ec340bd5af1cddc1a28cc0336dd"
+	defaultOceanPortalImage   = "ghcr.io/icloudbb/buildmax-portal@sha256:82165de877e4cae3c5a1c598b6f39b37a94db114ab6ce315b237d5913f7e2e2b"
 	defaultOceanEdgeImage     = "caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d"
 )
 

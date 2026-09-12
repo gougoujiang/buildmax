@@ -7,7 +7,7 @@ does not currently provide a guaranteed response or resolution time.
 
 - **Setup and usage:** check [docs/](../docs/README.md), especially the
   [troubleshooting guide](../manual/troubleshooting.md), then start a
-  [GitHub Discussion](https://github.com/gougoujiang/buildmax/discussions) with
+  [GitHub Discussion](https://github.com/icloudbb/buildmax/discussions) with
   the relevant environment and configuration details.
 - **Confirmed bugs:** use the bug report issue template and include the BuildMax
   version, operating system, reproduction steps, and redacted logs.

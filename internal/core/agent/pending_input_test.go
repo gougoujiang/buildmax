@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // enqueueingTool queues a message while it runs, which is what a user typing

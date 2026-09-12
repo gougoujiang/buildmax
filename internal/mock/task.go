@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
 // MockTaskStore is an in-memory TaskStore for tests.

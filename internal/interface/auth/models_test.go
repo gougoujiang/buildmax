@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/infra/llmwire"
-	"github.com/gougoujiang/buildmax/internal/testsupport"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/infra/llmwire"
+	"github.com/icloudbb/buildmax/internal/testsupport"
 )
 
 // deploymentOffering is a server that answers the model listing with what the

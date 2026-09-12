@@ -3,7 +3,7 @@ package tool
 import (
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // testWorkspace resolves a workspace root string for test use. Fails the test on error.

@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // MetaVersion is the meta.json format this build writes and is the only one it

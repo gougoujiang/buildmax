@@ -10,10 +10,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	"github.com/gougoujiang/buildmax/internal/core/session"
-	"github.com/gougoujiang/buildmax/internal/infra/flock"
-	"github.com/gougoujiang/buildmax/internal/infra/git"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/session"
+	"github.com/icloudbb/buildmax/internal/infra/flock"
+	"github.com/icloudbb/buildmax/internal/infra/git"
 )
 
 // Root is the session's workspace root: the value tools resolve against, and

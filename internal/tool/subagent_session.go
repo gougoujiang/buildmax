@@ -3,9 +3,9 @@ package tool
 import (
 	"context"
 
-	coreagent "github.com/gougoujiang/buildmax/internal/core/agent"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/session"
+	coreagent "github.com/icloudbb/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/session"
 )
 
 // WithSubAgentSessionFactory supplies the private session each subagent run

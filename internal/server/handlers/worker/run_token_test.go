@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/server/access"
+	"github.com/icloudbb/buildmax/internal/server/access"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/server/authtoken"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/server/authtoken"
 )
 
 // TestRunTokenIsNotAUserLogin is the half of the credential separation this

@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	issuesvc "github.com/gougoujiang/buildmax/internal/service/issue"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	issuesvc "github.com/icloudbb/buildmax/internal/service/issue"
 )
 
 // issueCommentWindow is how much of the thread a run reads. A long-running

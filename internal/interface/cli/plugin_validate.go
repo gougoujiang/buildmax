@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/plugin"
-	inspect "github.com/gougoujiang/buildmax/internal/service/plugininspect"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/plugin"
+	inspect "github.com/icloudbb/buildmax/internal/service/plugininspect"
 )
 
 // invalidPluginExit ends the command non-zero without printing a second time:

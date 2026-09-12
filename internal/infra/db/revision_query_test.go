@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
+	"github.com/icloudbb/buildmax/internal/config"
+	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
 )
 
 // listRevisions and getRevision resolve their table from a type parameter, so

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
 // buildHelper compiles a stand-in worker. A real program rather than a shell

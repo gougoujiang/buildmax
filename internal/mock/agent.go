@@ -6,9 +6,9 @@ import (
 	"slices"
 	"time"
 
-	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/util"
+	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // MockAgentStore is an in-memory AgentStore for tests. It records revisions the

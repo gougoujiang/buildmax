@@ -5,13 +5,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp/job"
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/subagent"
-	tools "github.com/gougoujiang/buildmax/internal/tool"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/agentapp/job"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/subagent"
+	tools "github.com/icloudbb/buildmax/internal/tool"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // MaxAdditionalSystemPromptChars bounds the additional system prompt. It sits in the system

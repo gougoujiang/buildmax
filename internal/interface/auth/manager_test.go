@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/testsupport"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/testsupport"
 )
 
 // storeLogin writes credentials into an isolated BUILDMAX_HOME.

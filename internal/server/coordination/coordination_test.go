@@ -7,8 +7,8 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 
-	infra "github.com/gougoujiang/buildmax/internal/infra/coordination"
-	wsconn "github.com/gougoujiang/buildmax/internal/server/websocket"
+	infra "github.com/icloudbb/buildmax/internal/infra/coordination"
+	wsconn "github.com/icloudbb/buildmax/internal/server/websocket"
 )
 
 // twoBackends returns two independent backends over one shared Redis, standing

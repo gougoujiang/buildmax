@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/infra/git"
+	"github.com/icloudbb/buildmax/internal/infra/git"
 
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"

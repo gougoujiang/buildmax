@@ -6,7 +6,7 @@ import (
 	"io"
 	"testing"
 
-	coresecret "github.com/gougoujiang/buildmax/internal/core/secret"
+	coresecret "github.com/icloudbb/buildmax/internal/core/secret"
 )
 
 func testKEK(t *testing.T) KEKProvider {

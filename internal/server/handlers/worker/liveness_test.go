@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/mock"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/mock"
 )
 
 // livenessFixture serves one RUNNING run through the real route table, so the

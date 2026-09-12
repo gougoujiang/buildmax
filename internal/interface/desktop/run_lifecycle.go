@@ -3,8 +3,8 @@ package desktop
 import (
 	"context"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp"
-	"github.com/gougoujiang/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/agentapp"
+	"github.com/icloudbb/buildmax/internal/core/agent"
 )
 
 // desktopRun adapts one scheduled run's lifecycle to the desktop's Wails events.

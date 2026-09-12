@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
-	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/testsupport"
-	"github.com/gougoujiang/buildmax/internal/util"
+	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	blob "github.com/icloudbb/buildmax/internal/infra/objectstore"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/testsupport"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 const testTraceBody = `{"ts":"t0","type":"run_start","run_id":"rt_abc","session_id":"c_s1","model":"test-model"}

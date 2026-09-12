@@ -4,9 +4,9 @@ package tool
 import (
 	"context"
 	"errors"
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/util"
 	"github.com/k3a/html2text"
 	"io"
 	"net/http"

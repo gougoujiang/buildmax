@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	corehook "github.com/icloudbb/buildmax/internal/core/hook"
 )
 
 // Identity belongs in an attr, not in every message string.

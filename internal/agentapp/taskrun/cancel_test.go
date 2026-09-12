@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/infra/workerclient"
 )
 
 // fakeUpdater records the one status report a run makes.

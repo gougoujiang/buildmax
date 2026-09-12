@@ -4,7 +4,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/interface/slashcmd"
+	"github.com/icloudbb/buildmax/internal/interface/slashcmd"
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"

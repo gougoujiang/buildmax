@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coresecret "github.com/gougoujiang/buildmax/internal/core/secret"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/util"
+	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coresecret "github.com/icloudbb/buildmax/internal/core/secret"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // fakeMaterializer answers Materialize from a fixed set, or a typed error.

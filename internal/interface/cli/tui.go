@@ -7,10 +7,10 @@ import (
 	"os"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/gougoujiang/buildmax/internal/agentapp"
-	"github.com/gougoujiang/buildmax/internal/core/agent"
-	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
-	"github.com/gougoujiang/buildmax/internal/interface/auth"
+	"github.com/icloudbb/buildmax/internal/agentapp"
+	"github.com/icloudbb/buildmax/internal/core/agent"
+	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
+	"github.com/icloudbb/buildmax/internal/interface/auth"
 	"github.com/muesli/termenv"
 )
 

@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/testsupport"
-	"github.com/gougoujiang/buildmax/internal/util"
+	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/testsupport"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {

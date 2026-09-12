@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp"
+	"github.com/icloudbb/buildmax/internal/agentapp"
 )
 
 func writeAgentDef(t *testing.T, ws, name, body string) {

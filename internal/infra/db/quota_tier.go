@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
+	corequota "github.com/icloudbb/buildmax/internal/core/quota"
 
 	"gorm.io/gorm"
 )

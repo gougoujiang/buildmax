@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
 // TestTaskRunLivenessQueries covers the pair that turns a worker's existing

@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
+	"github.com/icloudbb/buildmax/internal/server/turnqueue"
 
-	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	"github.com/gougoujiang/buildmax/internal/service/conversation"
-	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
-	"github.com/gougoujiang/buildmax/internal/service/task"
+	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
+	"github.com/icloudbb/buildmax/internal/service/conversation"
+	convchannel "github.com/icloudbb/buildmax/internal/service/conversation/channel"
+	"github.com/icloudbb/buildmax/internal/service/task"
 )
 
 type conversationListResponse struct {

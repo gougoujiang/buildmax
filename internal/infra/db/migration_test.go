@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
+	"github.com/icloudbb/buildmax/internal/config"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
 	"gorm.io/gorm"
 )
 

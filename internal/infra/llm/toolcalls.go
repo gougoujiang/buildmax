@@ -3,7 +3,7 @@ package llm
 import (
 	"slices"
 
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // toolCallAccumulator assembles tool calls that arrive in pieces across stream

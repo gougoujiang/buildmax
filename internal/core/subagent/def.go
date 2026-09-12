@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/core/plugin"
+	"github.com/icloudbb/buildmax/internal/core/plugin"
 )
 
 // Def represents one parsed sub-agent definition file.

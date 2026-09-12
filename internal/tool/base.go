@@ -4,7 +4,7 @@ import (
 	"errors"
 	"os"
 
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // workspaceTool is embedded by tools that operate on files under a workspace root.

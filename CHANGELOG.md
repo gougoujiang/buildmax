@@ -2774,15 +2774,15 @@ its Portal image exists. This version replaces it.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.9...HEAD
-[0.2.0-alpha.9]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.8...v0.2.0-alpha.9
-[0.2.0-alpha.8]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.7...v0.2.0-alpha.8
-[0.2.0-alpha.7]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.6...v0.2.0-alpha.7
-[0.2.0-alpha.6]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.4...v0.2.0-alpha.6
-[0.2.0-alpha.4]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.3...v0.2.0-alpha.4
-[0.2.0-alpha.3]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.2...v0.2.0-alpha.3
-[0.2.0-alpha.2]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.1...v0.2.0-alpha.2
-[0.2.0-alpha.1]: https://github.com/gougoujiang/buildmax/compare/v0.1.0-alpha.2...v0.2.0-alpha.1
-[0.1.0-alpha.2]: https://github.com/gougoujiang/buildmax/compare/v0.1.0-alpha.1...v0.1.0-alpha.2
-[0.1.0-alpha.1]: https://github.com/gougoujiang/buildmax/compare/v0.1.0-alpha...v0.1.0-alpha.1
-[0.1.0-alpha]: https://github.com/gougoujiang/buildmax/releases/tag/v0.1.0-alpha
+[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.9...HEAD
+[0.2.0-alpha.9]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.8...v0.2.0-alpha.9
+[0.2.0-alpha.8]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.7...v0.2.0-alpha.8
+[0.2.0-alpha.7]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.6...v0.2.0-alpha.7
+[0.2.0-alpha.6]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.4...v0.2.0-alpha.6
+[0.2.0-alpha.4]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.3...v0.2.0-alpha.4
+[0.2.0-alpha.3]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.2...v0.2.0-alpha.3
+[0.2.0-alpha.2]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.1...v0.2.0-alpha.2
+[0.2.0-alpha.1]: https://github.com/icloudbb/buildmax/compare/v0.1.0-alpha.2...v0.2.0-alpha.1
+[0.1.0-alpha.2]: https://github.com/icloudbb/buildmax/compare/v0.1.0-alpha.1...v0.1.0-alpha.2
+[0.1.0-alpha.1]: https://github.com/icloudbb/buildmax/compare/v0.1.0-alpha...v0.1.0-alpha.1
+[0.1.0-alpha]: https://github.com/icloudbb/buildmax/releases/tag/v0.1.0-alpha

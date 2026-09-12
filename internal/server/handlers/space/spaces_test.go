@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	corespace "github.com/gougoujiang/buildmax/internal/core/space"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/testsupport"
-	"github.com/gougoujiang/buildmax/internal/util"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/testsupport"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 const spaceTestSecret = "space-test-secret"

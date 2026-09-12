@@ -5,10 +5,10 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp"
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/localproject"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/agentapp"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/localproject"
+	"github.com/icloudbb/buildmax/internal/util"
 
 	tea "charm.land/bubbletea/v2"
 )

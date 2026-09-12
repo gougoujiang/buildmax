@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	"github.com/gougoujiang/buildmax/internal/mock"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	"github.com/icloudbb/buildmax/internal/mock"
 )
 
 const testPassword = "correct horse battery staple"

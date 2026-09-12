@@ -13,10 +13,10 @@ import (
 	"sync"
 	"time"
 
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/infra/httpclient"
-	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/infra/httpclient"
+	"github.com/icloudbb/buildmax/internal/infra/pluginwire"
 )
 
 // StreamSender sends run output deltas to the server (e.g. for live streaming). Optional; when nil, run output is not streamed.

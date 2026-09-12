@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 func TestBuildWorkerListenerTLS(t *testing.T) {

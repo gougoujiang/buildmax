@@ -63,7 +63,7 @@ the short name matches the `./make kind` command, while this table and
 [deploy/local-kind.md](../deploy/local-kind.md) define its scope. `compose/` is
 different because an operator is meant to run it — its audience is operators,
 `README.md` files it under "Running it for a space", and `compose.yaml` pulls
-`ghcr.io/gougoujiang/buildmax`. `smoke/` is test scaffolding shared by both
+`ghcr.io/icloudbb/buildmax`. `smoke/` is test scaffolding shared by both
 smokes.
 
 There is no `scripts/` directory. Repository tooling — release-archive

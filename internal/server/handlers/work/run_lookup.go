@@ -3,8 +3,8 @@ package work
 import (
 	"net/http"
 
-	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
 )
 
 // runAndTaskForSpace resolves a task run and its task, and confirms the task

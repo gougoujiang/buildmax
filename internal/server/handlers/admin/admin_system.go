@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	"github.com/icloudbb/buildmax/internal/server/httputil"
 )
 
 // systemProbeTimeout bounds the whole status response. It mirrors the readiness

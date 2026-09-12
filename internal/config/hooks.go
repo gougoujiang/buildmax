@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/viper"
 
-	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
-	"github.com/gougoujiang/buildmax/internal/core/plugin"
+	corehook "github.com/icloudbb/buildmax/internal/core/hook"
+	"github.com/icloudbb/buildmax/internal/core/plugin"
 )
 
 // WorkspaceHooksPath returns the per-workspace hooks config path

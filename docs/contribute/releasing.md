@@ -134,11 +134,11 @@ After the workflow completes:
    `SECURITY.md`, `CHANGELOG.md`, and `config-examples/`.
 4. Verify the GitHub attestation as described in
    [the installation guide](../../manual/install.md).
-5. Pull `ghcr.io/gougoujiang/buildmax:<version>` by digest and confirm the
+5. Pull `ghcr.io/icloudbb/buildmax:<version>` by digest and confirm the
    container starts. Alpha versions must not move the `latest` tag. The image
    scan already passed before publication, so a red release workflow here means
    something after the push failed, not a vulnerable image.
-6. Confirm `ghcr.io/gougoujiang/buildmax-portal:<version>` exists and carries
+6. Confirm `ghcr.io/icloudbb/buildmax-portal:<version>` exists and carries
    the **same** version. It is published by a separate workflow
    (`.github/workflows/portal-image.yml`) triggered by the same tag, so a
    failure there leaves the binaries released and the Portal image missing —

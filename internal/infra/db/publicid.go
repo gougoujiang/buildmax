@@ -9,8 +9,8 @@ import (
 	mysqldriver "github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // This file is the translation boundary. A public ID is what every caller

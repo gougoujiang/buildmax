@@ -3,8 +3,8 @@ package agentapp
 import (
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/agent"
 )
 
 // TestSandboxInfoDowngraded_ConfigOnly asserts a configuration downgrade

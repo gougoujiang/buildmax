@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/core/agent"
 )
 
 // TestAgentApp_MergesWorkspaceHooks verifies that NewAgentApp loads both the

@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"io"
 
-	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // cacheKeyVersion prefixes every derived key.

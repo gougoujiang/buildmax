@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // GetTaskRunner is the interface used by the GetTask tool. Callers implement this

@@ -8,10 +8,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/service/issue"
-	"github.com/gougoujiang/buildmax/internal/service/task"
-	"github.com/gougoujiang/buildmax/internal/service/workflow"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	"github.com/icloudbb/buildmax/internal/service/issue"
+	"github.com/icloudbb/buildmax/internal/service/task"
+	"github.com/icloudbb/buildmax/internal/service/workflow"
 )
 
 func write(t *testing.T, err error) (*httptest.ResponseRecorder, bool) {

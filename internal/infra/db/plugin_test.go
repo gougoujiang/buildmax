@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	pluginsvc "github.com/icloudbb/buildmax/internal/service/plugin"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // The store is the only implementation of the catalog contract, so a mismatch

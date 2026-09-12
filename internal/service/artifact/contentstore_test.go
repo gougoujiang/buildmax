@@ -3,8 +3,8 @@ package artifact
 import (
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/infra/objectstore"
-	"github.com/gougoujiang/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/infra/objectstore"
+	"github.com/icloudbb/buildmax/internal/mock"
 )
 
 // TestAdaptersSatisfyContentStore keeps every implementation answering the

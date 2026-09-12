@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
-	"github.com/gougoujiang/buildmax/internal/mock"
+	coreartifact "github.com/icloudbb/buildmax/internal/core/artifact"
+	"github.com/icloudbb/buildmax/internal/mock"
 
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 func newService(t *testing.T) (*Service, *mock.MockArtifactStore, *mock.MockArtifactStorage) {

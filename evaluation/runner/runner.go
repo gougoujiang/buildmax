@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gougoujiang/buildmax/evaluation/adapter"
-	"github.com/gougoujiang/buildmax/evaluation/contract"
-	"github.com/gougoujiang/buildmax/evaluation/grader"
+	"github.com/icloudbb/buildmax/evaluation/adapter"
+	"github.com/icloudbb/buildmax/evaluation/contract"
+	"github.com/icloudbb/buildmax/evaluation/grader"
 )
 
 // DefaultResamples is how many bootstrap draws a comparison takes. Two thousand

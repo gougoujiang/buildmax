@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
+	coreartifact "github.com/icloudbb/buildmax/internal/core/artifact"
 )
 
 // These need a real database: a share's whole contract is the join to its

@@ -62,7 +62,7 @@ worker 配置拒绝它；在已经可见的运行边界旁展示这种处理；�
 Conversation 回合租约，参考清单运行两个协调后的 Server 副本。Workflow run 与
 step-run 转换现在使用带保护的 compare-and-set 写入，失败步骤的收口也已原子化。
 消息历史写入现在已执行租约 fencing，陈旧写入者会被拒绝而非损坏会话。Workflow 推进
-仍依赖 callback 而非持久化协调；title token 配额拒绝仍可能留下[孤立 Conversation](https://github.com/gougoujiang/buildmax/issues/278)。
+仍依赖 callback 而非持久化协调；title token 配额拒绝仍可能留下[孤立 Conversation](https://github.com/icloudbb/buildmax/issues/278)。
 
 **下一步：** 让线性 Workflow 前身能在 callback 丢失或重启后恢复，关闭孤立 Conversation
 窗口，并用真实 MySQL 验证这些竞争。之后在候选拓扑中演练 worker 更新、重连、并发回合与
@@ -82,8 +82,8 @@ Redis 故障。进程内双副本测试不能算作集群演练。
 数据库与存储桶配对恢复、模式升级、二进制回滚或凭据轮换。
 
 **下一步：** 增加默认明确为永久保留、且能看到清理证据的
-[轨迹保留策略](https://github.com/gougoujiang/buildmax/issues/140)；扩展真实 MySQL 覆盖，
-包含 Workflow 修订推进、[配额窗口](https://github.com/gougoujiang/buildmax/issues/498)
+[轨迹保留策略](https://github.com/icloudbb/buildmax/issues/140)；扩展真实 MySQL 覆盖，
+包含 Workflow 修订推进、[配额窗口](https://github.com/icloudbb/buildmax/issues/498)
 和跨 Space 场景；让 Beta 就绪记录中的
 故障与恢复演练可直接执行。删除针对已移除机制的计划，包括旧结果投递队列；不要为了
 检查表重新引入机制。
@@ -192,12 +192,12 @@ Desktop 打磨、SSO、可执行 Space 插件内容、更多模型提供商及�
 
 | 你想做什么 | 有用的贡献 |
 |---|---|
-| 第一次贡献 | 跟随本地安装或运维流程，改进不清楚的文档；浏览 [good first issue](https://github.com/gougoujiang/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)。 |
+| 第一次贡献 | 跟随本地安装或运维流程，改进不清楚的文档；浏览 [good first issue](https://github.com/icloudbb/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)。 |
 | 提高可靠性 | 复现故障并添加聚焦的回归测试，尤其是 R1–R2 的状态与恢复路径。 |
 | 帮助验证私有部署 | 执行文档中的部署流程，报告版本、拓扑、预期与实际行为及脱敏证据。 |
-| 参与功能方向讨论 | 在 [Discussions](https://github.com/gougoujiang/buildmax/discussions) 描述用户问题、具体例子，以及现有行为为何不足。 |
+| 参与功能方向讨论 | 在 [Discussions](https://github.com/icloudbb/buildmax/discussions) 描述用户问题、具体例子，以及现有行为为何不足。 |
 
-提交缺陷或实现建议前，先搜索[已有 issue](https://github.com/gougoujiang/buildmax/issues)。
+提交缺陷或实现建议前，先搜索[已有 issue](https://github.com/icloudbb/buildmax/issues)。
 较大改动应关联对应 R 优先项与设计记录，并在实现前讨论范围。
 路线图条目不表示已有负责人或对应的实现 issue。
 

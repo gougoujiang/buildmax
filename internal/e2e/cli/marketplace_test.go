@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
-	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	"github.com/gougoujiang/buildmax/internal/infra/objectstore"
-	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/server/handlers"
-	"github.com/gougoujiang/buildmax/internal/service/audit"
-	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
-	"github.com/gougoujiang/buildmax/internal/testsupport"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	"github.com/icloudbb/buildmax/internal/infra/objectstore"
+	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/server/handlers"
+	"github.com/icloudbb/buildmax/internal/service/audit"
+	pluginsvc "github.com/icloudbb/buildmax/internal/service/plugin"
+	"github.com/icloudbb/buildmax/internal/testsupport"
 )
 
 // The Marketplace loop is only real when it crosses every boundary at once: the

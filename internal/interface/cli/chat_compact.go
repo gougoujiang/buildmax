@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp"
+	"github.com/icloudbb/buildmax/internal/agentapp"
 
 	tea "charm.land/bubbletea/v2"
 )

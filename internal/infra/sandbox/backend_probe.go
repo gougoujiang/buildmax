@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/config"
 )
 
 // probeMarker and probeEscaped are printed by probeCommand and never appear

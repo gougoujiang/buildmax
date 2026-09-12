@@ -3,7 +3,7 @@ package tool
 import (
 	"context"
 	"fmt"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/icloudbb/buildmax/internal/util"
 	"os"
 	"path/filepath"
 	"testing"
