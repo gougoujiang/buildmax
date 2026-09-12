@@ -270,9 +270,13 @@ func (t *TaskTool) Parameters() any {
 		}
 	}
 	if t.jobs != nil {
+		backgroundDesc := "Run the sub-agent as a background job and return its job ID immediately instead of waiting. Read its final reply with JobOutput; stop it with JobStop. By default the sub-agent shares this workspace, so avoid delegating edits that would race yours."
+		if t.worktrees != nil && t.toolsAt != nil {
+			backgroundDesc += " Give it its own worktree to isolate its writes."
+		}
 		properties["run_in_background"] = map[string]any{
 			"type":        "boolean",
-			"description": "Run the sub-agent as a background job and return its job ID immediately instead of waiting. Read its final reply with JobOutput; stop it with JobStop. The sub-agent shares this workspace, so avoid delegating edits that would race yours.",
+			"description": backgroundDesc,
 		}
 		properties["deliver_result"] = map[string]any{
 			"type":        "boolean",

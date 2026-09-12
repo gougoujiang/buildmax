@@ -77,7 +77,7 @@ function isAdminActive(route: Route): boolean {
  * a Space name (e.g. the old "My Space" fallback while loading failed) — see
  * docs/design/portal-state-and-permission-feedback.md.
  */
-function unresolvedSpaceLabel(spacesState: ResourceState<unknown>): string {
+export function unresolvedSpaceLabel(spacesState: ResourceState<unknown>): string {
   switch (spacesState.kind) {
     case "loading":
     case "refreshing":

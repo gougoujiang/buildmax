@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react"
 import type { Conversation, Route } from "../lib/types"
 import type { LoginUser } from "../lib/api"
-import { Sidebar, SidebarNavContent } from "./Sidebar"
+import { Sidebar, SidebarNavContent, unresolvedSpaceLabel } from "./Sidebar"
 import { Breadcrumbs, useBreadcrumbs } from "./Breadcrumbs"
 import { Drawer, ThemeToggle } from "@buildmax/gui"
 import { navigate } from "../router"
@@ -30,7 +30,7 @@ export function Layout({
 }: LayoutProps) {
   const narrow = useMediaQuery(NARROW_QUERY)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const { currentSpace } = useSpace()
+  const { currentSpace, spacesState } = useSpace()
   const crumbs = useBreadcrumbs(route, conversations)
   const pageTitle = crumbs[crumbs.length - 1]?.label ?? ""
 
@@ -67,7 +67,7 @@ export function Layout({
           <MenuIcon className="shell__menu-icon" />
         </button>
         <div className="shell__compact-title">
-          <span className="shell__compact-space">{currentSpace?.name ?? "My Space"}</span>
+          <span className="shell__compact-space">{currentSpace?.name ?? unresolvedSpaceLabel(spacesState)}</span>
           <span className="shell__compact-page">{pageTitle}</span>
         </div>
       </header>
