@@ -104,10 +104,14 @@ Proposed rules, most already followed:
    [Entity identity](../design/entity-identity.md).
 3. **Ownership rule for top-level versus space-scoped.** A resource is
    space-scoped (`/api/spaces/{space_id}/...`) when it is managed within one
-   Space. A top-level route (`/api/...`) is reserved for the acting subject's
-   cross-Space view — "everything I can see" aggregates such as `/api/usage`
-   and the invitations I received. `webhook-keys` must resolve to one of these
-   two readings explicitly rather than staying ambiguous.
+   Space. A top-level route (`/api/...`) is reserved for the acting subject —
+   the authenticated account — and its cross-Space view: "everything I own or
+   can see" aggregates such as `/api/usage` and the invitations I received.
+   `webhook-keys` is account-owned (the `user_webhook_key` table keys every row
+   by `user_id`), so it belongs at the top level exactly where it is and does
+   not move; it only read as ambiguous because the rule was unwritten. (Its
+   handler currently lives in the `space` package despite being account-scoped;
+   relocating it to a fitting package is a follow-up, not a route change.)
 4. **Collection versus single-entity addressing.** Collection operations
    (create, list) hang off the parent path; reading or mutating one entity that
    owns a durable id uses the flat `.../{entity}-runs/{id}` form. Write this
@@ -200,8 +204,6 @@ document.
 
 ## 7. Open Questions
 
-- Does `webhook-keys` belong under a Space or at the subject level? The answer
-  determines whether it moves.
 - Should the two OpenAPI documents live as separate committed files, or as one
   source generated into two views? Either satisfies the boundary; the choice is
   about how the match-the-routes check is wired.
