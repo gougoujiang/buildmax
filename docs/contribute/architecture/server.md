@@ -41,7 +41,7 @@ it for every call back, managed inference included. See
 |------|----------------|------|
 | Server wrapper | `internal/server/server.go` | Builds `http.Server`, middleware, static OpenAPI/Swagger routes |
 | Handlers | `internal/server/handlers` | Portal API, worker API, webhook, WebSocket handlers |
-| Scheduler | `internal/server/scheduler` | Claims pending task runs and launches workers; also runs the background sweeps — expired credentials, abandoned runs, and audit retention |
+| Scheduler | `internal/server/scheduler` | Claims pending task runs and launches workers; also runs the background sweeps — expired credentials, abandoned runs, audit retention, and Workflow recovery (reconciling due runs stranded by a lost callback or restart) |
 | Bootstrap | `internal/bootstrap/server.go` | Wires DB, storage, LLM, quota, handlers, scheduler |
 
 ## Main Route Groups

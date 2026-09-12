@@ -71,13 +71,14 @@ step-run transitions now use guarded compare-and-set writes, with failed-step
 finalization made atomic. Message-history writes now enforce lease fencing, so a
 stale writer is rejected rather than corrupting a conversation. A task is no
 longer refused for the tokens its generated title spent, so a space under its run
-limit no longer strands a Conversation on a token refusal. Workflow progress
-still depends on callbacks rather than durable reconciliation.
+limit no longer strands a Conversation on a token refusal. The linear Workflow
+precursor is now durably reconciled: a Server-owned recovery loop sweeps due
+runs from stored state, so a lost callback or a restart no longer strands one,
+proven against real MySQL.
 
-**Next:** make the linear Workflow precursor recover after a lost callback or
-restart and prove its races against real MySQL. Then exercise worker updates,
-reconnects, concurrent turns, and Redis failure in the candidate topology. Do not
-count an in-process two-replica test as a cluster exercise.
+**Next:** exercise worker updates, reconnects, concurrent turns, and Redis
+failure in the candidate topology. Do not count an in-process two-replica test
+as a cluster exercise.
 
 **Done when:** stale writers cannot commit, persisted work converges after a
 process interruption without duplicate execution, refused work leaves no

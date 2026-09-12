@@ -25,10 +25,12 @@ unaffected. TaskRun diagnostics present that treatment beside the recorded
 boundary in Portal Run Details. The remaining R0 work is candidate deployment
 evidence for the supported worker controls. Worker-wide network
 egress is a documented, accepted limit for the first private Beta. The linear
-Workflow reconciler now folds terminal facts and dispatches from durable state;
-the Server-owned background due-run sweep and restart loop that would drive it
-without an in-process callback, trace retention, and candidate failure/recovery
-evidence remain open. Shared Redis coordination is implemented, including
+Workflow reconciler now folds terminal facts and dispatches from durable state,
+and a Server-owned recovery loop sweeps due runs at startup and on an interval,
+so a lost terminal callback or a Server restart no longer strands a run.
+Automatic re-dispatch of a worker TaskRun lost after it was claimed is a
+documented, accepted first-Beta limit, distinct from that Workflow-progression
+recovery. Trace retention and candidate failure/recovery evidence remain open. Shared Redis coordination is implemented, including
 distributed lease fencing at message-history writes. The worker API already
 has a separate listener, TLS support, and a shipped ingress NetworkPolicy; that
 bounded network slice must not be confused with unrestricted worker egress.
@@ -235,6 +237,7 @@ The database coverage is broader than the previous assessment reported:
 | Idempotent Workflow Task admission, replay, payload conflict, space scope, and its contention winner | [task_admission_test.go](../internal/infra/db/task_admission_test.go) |
 | Workflow due-run discovery and reconciliation lease claim/renew/release under contention | [workflow_reconciliation_test.go](../internal/infra/db/workflow_reconciliation_test.go) |
 | Linear reconciler folding terminal TaskRun facts: step advance, final success, failure/cancel distinction and later-step blocking, lost-callback recovery, and one outcome under concurrent reconciliation | [reconcile_mysql_test.go](../internal/service/workflow/reconcile_mysql_test.go), [service_test.go](../internal/service/workflow/service_test.go) |
+| Server-owned Workflow recovery loop: startup sweep, per-run reconcile, tolerance of a due-scan error, Start/Stop lifecycle, and end-to-end restart recovery of a run stranded by a lost callback | [workflow_recovery_test.go](../internal/server/scheduler/workflow_recovery_test.go), [workflow_restart_recovery_mysql_test.go](../internal/server/scheduler/workflow_restart_recovery_mysql_test.go) |
 | Workflow revision advancement under edits and contention (guarded compare-and-set) | [workflow_test.go](../internal/infra/db/workflow_test.go) |
 | Workflow initial revision and revision queries | [revision_query_test.go](../internal/infra/db/revision_query_test.go) |
 | Space isolation for secrets and independent invitations | [secret_test.go](../internal/infra/db/secret_test.go), [space_invitation_test.go](../internal/infra/db/space_invitation_test.go) |
@@ -259,11 +262,16 @@ and sets the run's next reconcile time while work remains.
 `StartWorkflowRun` dispatches its first step through the same `Reconcile`, and
 `HandleTaskRunTerminal` is now only a wake-up that maps the finished TaskRun to
 its run and reconciles, so a lost callback loses a wake-up rather than the
-outcome and a later `Reconcile` recovers it from persisted state alone. What
-remains open is the Server-owned background due-run sweep and startup/restart
-loop that would call `Reconcile` without an in-process callback — the store's
-due-run query exists but nothing drives it on a schedule yet (item 60). This is
-also not exhaustive proof of cross-Space store behavior.
+outcome and a later `Reconcile` recovers it from persisted state alone. A
+Server-owned recovery loop
+([`WorkflowRecoveryLoop`](../internal/server/scheduler/workflow_recovery.go))
+now drives that recovery without a callback: it sweeps the store's due-run query
+once at startup and then on a fixed interval, reconciling each due run, and is
+stopped with the other background loops on graceful shutdown. Every replica runs
+it; the reconciliation lease, not process-local election, keeps two from
+advancing one run. Automatic re-dispatch of a worker TaskRun lost after it was
+claimed is an accepted first-Beta limit, distinct from this progression
+recovery. This is also not exhaustive proof of cross-Space store behavior.
 External dependency recovery still needs scenario-specific evidence. The
 removed result-delivery queue has no remaining restart-recovery obligation of
 its own.

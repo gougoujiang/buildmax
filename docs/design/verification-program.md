@@ -39,9 +39,10 @@ Related records: [Local end-to-end verification](end-to-end-testing.md),
   idempotency; Artifact tombstoning and retention, retry lineage, direct Task
   admission, checkpoint head advancement, initial Workflow revisions, the
   Workflow reconciliation lease (due-run discovery plus concurrent
-  claim/renew/release with takeover), and Workflow revision advancement under
-  edits and contention also have real-MySQL coverage. Remaining database work
-  includes restart recovery, broader cross-Space
+  claim/renew/release with takeover), Workflow revision advancement under
+  edits and contention, and the Workflow recovery loop finishing a run stranded
+  by a lost callback also have real-MySQL coverage. Remaining database work
+  includes broader cross-Space
   store cases, and fixtures for the candidate’s declared starting schema. The
   unified matrix, expanded failure paths, and complete release rehearsal
   described here are not implemented
@@ -217,10 +218,10 @@ Still to write:
   destructive-cutover recovery, as required by the Beta readiness record;
 - Agent revision authority through the Workflow reconciler (R2): that a step
   sends the pinned Agent revision even when the live Agent is edited mid-run.
-  The linear reconciler itself, idempotent step admission, and lost/concurrent
-  terminal callbacks are now covered (above); the Server-owned background
-  due-run sweep and restart loop that would drive `Reconcile` without an
-  in-process callback remain to be built and verified.
+  The linear reconciler itself, idempotent step admission, lost/concurrent
+  terminal callbacks, and the Server-owned recovery loop (startup sweep, per-run
+  reconcile, and end-to-end restart recovery of a run stranded by a lost
+  callback) are now covered (above).
 
 One item from this list is withdrawn rather than pending. **Quota reservation
 and charging boundaries** describes a design that does not exist: there is no

@@ -408,6 +408,16 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	return run, stepRuns, nil
 }
 
+// ListDueWorkflowRuns exposes the store's due-run scan so the Server's recovery
+// loop depends on this service -- which also owns Reconcile -- rather than
+// reaching into the store for one half of the pair.
+func (s *Service) ListDueWorkflowRuns(ctx context.Context, now time.Time, limit int) ([]coreworkflow.Run, error) {
+	if s.Workflows == nil {
+		return nil, ErrWorkflowsNotConfigured
+	}
+	return s.Workflows.ListDueWorkflowRuns(ctx, now, limit)
+}
+
 // HandleTaskRunTerminal is only a wake-up now: it maps the finished TaskRun to
 // its WorkflowRun and asks the reconciler to advance it. The reconciler reads
 // the TaskRun's terminal facts from durable state itself, so a callback that is

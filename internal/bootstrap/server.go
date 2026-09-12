@@ -33,6 +33,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/service/quota"
 	secretsvc "github.com/icloudbb/buildmax/internal/service/secret"
 	tasksvc "github.com/icloudbb/buildmax/internal/service/task"
+	workflowsvc "github.com/icloudbb/buildmax/internal/service/workflow"
 )
 
 // RunServer loads server.yaml, resolves the listen port (flag overrides config),
@@ -185,6 +186,24 @@ func RunServer(ctx context.Context, portOverride int) error {
 	// minting Tasks that would only fail at dispatch.
 	dispatcher.WithUserStore(store).Start()
 
+	// Recovers Workflow runs stranded by a lost terminal callback or a Server
+	// restart: each sweep reconciles due runs from durable state. It reuses the
+	// Task service above, so a recovered step is admitted and metered exactly like
+	// any other run. Every replica runs it; the reconciliation lease, not
+	// process-local election, keeps two from advancing one run at once.
+	workflowRecovery := &workflowsvc.Service{
+		Workflows:   store,
+		Agents:      store,
+		Issues:      store,
+		TaskService: scheduleAdmitter,
+		TaskRuns:    store,
+	}
+	recovery, err := scheduler.NewWorkflowRecoveryLoop(workflowRecovery, 0)
+	if err != nil {
+		return fmt.Errorf("workflow recovery loop: %w", err)
+	}
+	recovery.Start()
+
 	s := httpserver.New(serverConfig)
 	s.StartBackground()
 	slog.Info("server starting",
@@ -204,7 +223,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 	case err := <-serveErr:
 		// The listener failed before any signal — a taken port, a bad address.
 		// Nothing has started serving, so there is nothing to drain.
-		shutdownServer(context.Background(), targetsFor(s, sched, dispatcher, cleaner, reaper, retainer, traceRetainer, artifacts, checkpoints), budget)
+		shutdownServer(context.Background(), targetsFor(s, sched, dispatcher, cleaner, reaper, retainer, traceRetainer, artifacts, checkpoints, recovery), budget)
 		return err
 	case <-signalCtx.Done():
 	}
@@ -214,7 +233,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 	// handler that is already running one.
 	stopSignals()
 	slog.Info("shutdown requested", "grace", sc.ShutdownGrace)
-	shutdownServer(ctx, targetsFor(s, sched, dispatcher, cleaner, reaper, retainer, traceRetainer, artifacts, checkpoints), budget)
+	shutdownServer(ctx, targetsFor(s, sched, dispatcher, cleaner, reaper, retainer, traceRetainer, artifacts, checkpoints, recovery), budget)
 
 	slog.Info("server stopped")
 	return <-serveErr
@@ -249,7 +268,7 @@ type shutdownTargets struct {
 }
 
 // targetsFor names what RunServer started in the order the ladder stops it.
-func targetsFor(s *httpserver.Server, sched *scheduler.Scheduler, dispatcher *scheduler.ScheduleDispatcher, cleaner *scheduler.CredentialCleaner, reaper *scheduler.StaleRunReaper, retainer *scheduler.AuditRetainer, traceRetainer *scheduler.TraceRetainer, artifacts *scheduler.ArtifactRetainer, checkpoints *scheduler.CheckpointOrphanSweeper) shutdownTargets {
+func targetsFor(s *httpserver.Server, sched *scheduler.Scheduler, dispatcher *scheduler.ScheduleDispatcher, cleaner *scheduler.CredentialCleaner, reaper *scheduler.StaleRunReaper, retainer *scheduler.AuditRetainer, traceRetainer *scheduler.TraceRetainer, artifacts *scheduler.ArtifactRetainer, checkpoints *scheduler.CheckpointOrphanSweeper, recovery *scheduler.WorkflowRecoveryLoop) shutdownTargets {
 	return shutdownTargets{
 		server:    s,
 		scheduler: namedStop{name: "scheduler", stop: func(ctx context.Context) { sched.Stop(ctx) }},
@@ -258,6 +277,10 @@ func targetsFor(s *httpserver.Server, sched *scheduler.Scheduler, dispatcher *sc
 			// keeps a shutdown from creating Tasks nothing will dispatch until the
 			// next start.
 			{name: "schedule dispatcher", stop: ignoringContext(dispatcher.Stop)},
+			// Stopped early with the dispatcher: it too dispatches Workflow steps,
+			// so it is quieted before the sweeps rather than left advancing runs
+			// into a draining server.
+			{name: "workflow recovery", stop: ignoringContext(recovery.Stop)},
 			{name: "checkpoint orphan sweeper", stop: ignoringContext(checkpoints.Stop)},
 			{name: "audit retainer", stop: ignoringContext(retainer.Stop)},
 			{name: "trace retainer", stop: ignoringContext(traceRetainer.Stop)},

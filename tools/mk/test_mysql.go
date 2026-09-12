@@ -24,7 +24,7 @@ import (
 // store's transactions rather than a mock. A service or handler scope joins this
 // list when it grows tests that need the database rather than a mock. See
 // docs/design/verification-program.md §4.1.
-var mysqlScopePackages = []string{"./internal/infra/db", "./internal/service/workflow"}
+var mysqlScopePackages = []string{"./internal/infra/db", "./internal/service/workflow", "./internal/server/scheduler"}
 
 // tempDatabasePrefix marks a database this command created. Nothing without it
 // is ever dropped: the DSN a contributor exports usually names a database they
