@@ -46,7 +46,6 @@ last column says so, and the paper's own delivery phases hold the detail.
 | [Local Issue work bridge](local-issue-work-bridge.md) | Local Experience | How should connected local surfaces work with Space Issues? | R5 item 1 schedules the remaining Phase 1 decision; the durable Issue-to-Session link and later phases remain open |
 | [Session tree, agent mailbox, and branched workspaces](session-tree-and-agent-mailbox.md) | Local Experience | Should sessions fork isolated workspaces and resume parents through a durable mailbox? | Nothing |
 | [Agent 原生协作底座](agent-native-collaboration-substrate.md) | Product and Execution Model | 不同规模和不同专业背景的参与者，是否需要一套统一的意图、执行、提议、证据、决策、集成与知识生命周期？ | 尚未建设；当前 Issue、Task/TaskRun、Artifact、Space 与本地 workspace 是待验证的基础构件 |
-| [Scheduled Agent execution](scheduled-agent-execution.md) | Product and Execution Model | Should a Space run an Agent on a recurring time schedule, and what is the smallest shape that delivers it on the Task plane? | Nothing; `ChannelCron` is an unbacked placeholder and no time trigger exists |
 
 Retired proposals do not remain in this live index. Accepted rationale moves to
 [design records](../design/README.md), and rejected or superseded discussion

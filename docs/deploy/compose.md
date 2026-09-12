@@ -142,8 +142,9 @@ This stack is shaped for a laptop. Before it faces anyone else:
   then set `BUILDMAX_API_BASE=/` on the Portal so it calls its own origin —
   which also removes the CORS pairing below.
 - **The agent runs shell commands.** The worker executes what the model asks
-  for, inside the server container, with the sandbox
-  [off by default](../../manual/sandbox.md).
+  for, inside the server container. The official image selects the worker
+  sandbox baseline; this Compose local-process path does not create a separate
+  host trust boundary. See [sandbox boundaries](../../manual/sandbox.md).
 - **Storage is a Docker volume.** `docker compose down -v` deletes every
   workspace, artifact, and account with it.
 

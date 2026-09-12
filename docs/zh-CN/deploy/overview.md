@@ -131,7 +131,7 @@ Agent 运行时执行模型选择的 shell 命令和文件编辑。请将每个�
 
 - 为服务器和 Worker 分配专用、最小权限凭证
 - 将 `workspaces_dir` 和 Blob 存储放在重要宿主机路径之外
-- 明确决定 Worker 的网络策略；[沙箱](../../../manual/sandbox.md) 可限制出站流量，但**默认关闭**
+- 明确决定 Worker 的网络策略；[沙箱](../../../manual/sandbox.md) 可限制 Bash 出站流量。官方 worker 镜像会选择它，本地 CLI/Desktop 默认关闭；worker API/集群策略是独立边界
 - 不要把凭证提交到版本控制中的 `server.yaml`
 - 清楚所用边界：`local_process` 在同一宿主机上把 Worker 作为服务器子进程运行，属于一个信任域；减少继承内容并不会改变这一点。`k8s_job` 才会隔离服务器与模型选择的代码
 

@@ -31,7 +31,7 @@ const (
 // There is no cron channel: a recurring schedule is not a conversation
 // transport. It runs an Agent directly on the Task plane through a schedule
 // trigger source, not by delivering a turn to a conversation. See
-// docs/proposals/scheduled-agent-execution.md §11.
+// docs/design/scheduled-agent-execution.md §11.
 func ValidChannels() []string {
 	return []string{ChannelPortal, ChannelTelegram, ChannelWebhook}
 }

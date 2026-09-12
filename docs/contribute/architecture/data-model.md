@@ -482,7 +482,7 @@ row a way to corrupt a database.
 
 The table also tells a binary that the database is ahead of it: an ID here that
 the binary does not know is a migration from a later release. See
-[Forward Only, One Release Back](#forward-only-one-release-back).
+[Forward Only During Alpha](#forward-only-during-alpha).
 
 ## Work Objects
 
@@ -731,7 +731,7 @@ A space-owned recurring time trigger. On each due time the dispatcher admits one
 ordinary Task through the Task service, so a schedule owns no execution state —
 its firings are Tasks with `trigger_source = schedule` and this schedule's
 `schedule_id`. See
-[Scheduled Agent execution](../../proposals/scheduled-agent-execution.md).
+[Scheduled Agent execution](../../design/scheduled-agent-execution.md).
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -1442,43 +1442,22 @@ Three rules govern that list:
 **Do not** add a third automatic mechanism, and do not reach for a migration
 framework for an additive change `AutoMigrate` already handles.
 
-### Forward Only, One Release Back
+### Forward Only During Alpha
 
-The schema moves forward only. There are no down migrations, and `Migration`
-has no `Down` field to write one in.
+The schema moves forward only; `Migration` has no `Down` field. Alpha has no
+required migration path or N-1 binary compatibility guarantee. Correct a wrong
+stored shape coherently rather than retain it for hypothetical older clients.
+Document destructive changes and their recovery limits in the changelog.
 
-What is supported is rolling the **binary** back one release. Schema version N
-must keep serving code from release N-1, which puts one requirement on every
-change:
+`llm_model_credential_encryption` drops plaintext keys, and
+`issue_owner_executor_split` backfills the split fields and drops old assignee
+columns. Neither operation makes an old binary safe against the new schema.
+The unknown-migration warning does not verify compatibility or prevent startup.
 
-> Do not remove or rename anything in the same release that stops using it.
-
-A removal takes two releases. In the first, the code stops reading and writing
-the column or table but the schema keeps it. In the second, a migration drops
-it. Between the two, either release's binary runs against either schema.
-
-That is a discipline, not a mechanism. The forward-only half is structural —
-there is no `Down` to write — but nothing fails a build when a change removes a
-column in one release, and during alpha it may be removed in one deliberately.
-BuildMax is alpha and owes no migration path: when a stored shape is wrong, the
-fix is to correct it everywhere at once rather than carry the wrong one for a
-release. What that spends is the binary rollback, and what it owes in exchange
-is a changelog entry saying so.
-
-Take the two-release path by default — it is nearly free, and it is what lets a
-bad upgrade be undone by redeploying the previous image. Spend the rollback only
-when keeping the wrong shape costs more than losing it, and say in the entry
-which one you did.
-
-A binary that starts against a database carrying migrations it does not know
-logs a warning and continues, because that is the N-1 promise working: a server
-one release behind a migrated database is supposed to keep serving. A server
-several releases behind has no such promise, and that log line is the only
-signal an operator gets that they are in that position.
-
-Rolling a database *back* is not supported at all. Recovery from a bad upgrade
-is a restore from backup, and the deployment documentation says so rather than
-implying an undo exists.
+If a release later promises binary rollback, name and test the version pair;
+an additive, staged removal can support that contract where needed. For current
+Alpha cutovers, recovery is a clean installation or restoration of a coordinated
+database/bucket backup with matching binaries. There are no database down-migrations.
 
 **After any schema change**, update this document in the same commit, and check
 whether [store.md](store.md) or the design record for the subsystem also needs

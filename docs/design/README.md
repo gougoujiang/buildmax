@@ -47,6 +47,7 @@ the individual record rather than being duplicated here.
 | [Agent execution and Task threads](agent-execution-and-task-threads.md) | Direction | Task and TaskRun as the durable Agent execution plane, independent of Conversation |
 | [Orchestration and continuity decisions](orchestration-and-continuity-decisions.md) | Direction | Decisions connecting Task continuity, Space ownership, structured output, and orchestration |
 | [Portal execution model](portal-execution-model.md) | Specification | Outcome-projection rationale; execution ownership is superseded by Agent execution and Task threads |
+| [Scheduled Agent execution](scheduled-agent-execution.md) | Specification | Recurring Agent runs on the Task plane: the Schedule entity, exactly-once firing across replicas, and runaway control |
 
 ## Agent Runtime and Models
 

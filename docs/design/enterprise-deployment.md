@@ -555,9 +555,10 @@ exercises and their still-open evidence live in the
 7. Has a restore actually been exercised? Recovering a space and a completed run
    needs the database and the bucket restored *together*, and nothing has proven
    that the pair comes back consistent.
-8. Has an upgrade and rollback been exercised across at least one schema change?
-   The N-1 promise in `manual/support.md` is a rule the code follows, not a
-   run anyone has performed.
+8. Has the candidate's declared schema path and recovery been exercised?
+   Alpha migrations can drop compatibility. Name the starting schema and test
+   any claimed binary rollback, or prove the destructive-cutover restore path;
+   `manual/support.md` does not promise blanket N-1 compatibility.
 9. ~~Which metrics make a deployment supportable?~~ **Decided for the first
    Beta: a metrics endpoint is not a prerequisite.** The minimum diagnostic set
    is logs, `/readyz`, System Status, TaskRun and artifact state, the run trace,

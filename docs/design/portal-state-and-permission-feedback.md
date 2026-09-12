@@ -20,8 +20,10 @@
 > component from
 > [portal-navigation-and-space-context.md](portal-navigation-and-space-context.md),
 > so this record does not add a competing detail-page treatment. Remaining:
-> per-task Retry/Stop granular errors on Issue detail, and Playwright coverage
-> for these state paths.
+> per-task Retry/Stop granular errors on Issue detail and broader state-path
+> coverage; `portal/e2e/resource-states.spec.ts` already covers audit-fetch
+> error/stale and a failed role lookup through injected responses, which
+> proves presentation rather than backend recovery.
 
 This record defines how Portal distinguishes loading, absence, failure, and
 authorization. It supports the R3 candidate operator journey and can be

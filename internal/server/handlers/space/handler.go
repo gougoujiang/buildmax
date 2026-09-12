@@ -48,7 +48,7 @@ type Config struct {
 	// has.
 	Workflows coreworkflow.Store
 	// Schedules backs the recurring-schedule routes. Nil leaves them reporting
-	// the feature is off. See docs/proposals/scheduled-agent-execution.md.
+	// the feature is off. See docs/design/scheduled-agent-execution.md.
 	Schedules coreschedule.Store
 
 	Quota *quota.Service

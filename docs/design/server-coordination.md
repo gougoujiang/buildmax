@@ -256,3 +256,9 @@ coordination:
 - Per-space Pub/Sub channels, backpressure metrics on a slow subscriber, and a
   Redis-outage readiness signal that degrades rather than exits are deferred until
   a running multi-replica deployment shows they are needed.
+- Lease renewal discards Redis errors and does not cancel or notify the running
+  turn when ownership is lost (`internal/infra/coordination/lock.go`). The
+  write-path fence makes such a turn a wasted one rather than a corrupted
+  conversation: its later appends fail with `ErrStaleTurnWrite`. Propagating
+  lease loss to the turn is a candidate-evidence question, not a data-safety
+  gap.

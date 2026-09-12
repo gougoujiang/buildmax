@@ -70,6 +70,25 @@ Workflow 一经发布，就可用 **Run Workflow** 运行它。你会被带到�
 和 Agent 一样，Workflow 也保留一份带编号的历史，一次运行会记录它所展开的
 Workflow 版本，从而使过去运行的记录保持准确。
 
+## 定时运行一个 Agent
+
+Agent 可以按时间表运行，无需有人点击 Run。打开 Agent 的详情视图，使用
+**Schedules** 区块：给 schedule 起个名字，填写每次要交给 Agent 的输入、
+一个五字段的 cron 表达式（例如 `0 9 * * 1-5`），以及解读该表达式所用的
+IANA 时区（例如 `Asia/Shanghai`）。
+
+每次触发都会为该 Agent 创建一个普通的 Task，因此它会出现在 Task 列表中，
+拥有自己的状态、轨迹与 Artifact。该区块列出每个 schedule 的下次与上次触发
+时间和它创建的 Task，并允许你禁用、重新启用或删除它。删除 schedule 会保留
+它已经创建的 Task。
+
+连续五次触发都未能启动 Task，或创建者的账号被禁用时，schedule 会自行暂停；
+排除原因后重新启用即可。如果服务器在某个触发时刻处于停机状态，恢复后它会
+触发一次，然后回到常规时间表，而不会回放每一个错过的时刻。
+
+侧边栏中的 **Schedules** 入口展示该 Space 中所有 Agent 的全部 schedule，
+让你看到设置了哪些无人值守的工作，并可暂停其中任何一个。
+
 ## 来自 Marketplace 的插件
 
 顶部栏中的 **Marketplace** 图标列出此部署发布的插件——技能、子 Agent、

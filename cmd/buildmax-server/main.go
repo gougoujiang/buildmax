@@ -11,7 +11,7 @@ import (
 	// (e.g. "Asia/Shanghai") resolves through time.LoadLocation even in a
 	// container image that ships no /usr/share/zoneinfo. Without it the server
 	// accepts only "UTC" and rejects every named zone as unknown. See
-	// docs/proposals/scheduled-agent-execution.md.
+	// docs/design/scheduled-agent-execution.md.
 	_ "time/tzdata"
 
 	"github.com/gougoujiang/buildmax/internal/bootstrap"

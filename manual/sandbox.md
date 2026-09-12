@@ -5,7 +5,9 @@ The sandbox confines the subprocesses started by the `Bash` tool: which paths th
 Two things to be clear about before you rely on it:
 
 - **It covers `Bash` only.** Other tools (`Read`, `Write`, `Edit`, `Glob`, `Grep`) keep their own path checks — the workspace root boundary — and are not affected by these settings.
-- **It is disabled by default,** including on workers. Turning it on is a deliberate act.
+- **Local CLI/Desktop disable it by default.** Official worker images select an enabled,
+  fail-closed worker baseline; an unmarked bare worker host inherits the local
+  default unless configured otherwise. Turning it on locally is a deliberate act.
 
 ## Availability
 

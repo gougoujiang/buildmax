@@ -2,11 +2,11 @@
 
 > **英文原文：** [BuildMax Current State](../current-state.md)
 >
-> **读者：** 用户、运维人员与贡献者 · **状态：** 截至 2026-09-10 当前有效
+> **读者：** 用户、运维人员与贡献者 · **状态：** 截至 2026-09-12 当前有效
 >
 > 本文是英文原文的简体中文镜像；如有差异，以英文原文为准。
 
-本次评估对照了仓库 `2041cbec` 的代码，描述已实现行为、测试覆盖和剩余限制。
+本次评估对照了仓库 `0bd7e5bf` 的代码，描述已实现行为、测试覆盖和剩余限制。
 优先级与后续顺序由[路线图](ROADMAP.md)维护，本页不再另列一套优先级。
 设计记录解释决策；其中尚未勾选的清单不能证明代码尚未实现。
 
@@ -163,8 +163,9 @@ worker 可以使用配置的 CA 与客户端身份，仍须通过每次 Run 的�
 架构测试拒绝没有协调后端的多副本部署。多副本流与租约行为已有自动化测试；
 候选版本的重连、竞争、中断与恢复仍需运行证据。
 租约提供 fencing token，且消息历史写入会校验它：携带的 token 低于会话已接受值的
-写入会被拒绝，因此租约丢失后的陈旧写入者无法追加到新持有者之后。
-参见[服务器协调设计](design/服务器协调.md)。
+写入会被拒绝，因此租约丢失后的陈旧写入者无法追加到新持有者之后。续租本身会丢弃
+Redis 错误，所有权丢失时也不会取消正在运行的回合，因此这样的回合会一直跑到写入
+被拒绝，而不是被提前停止。参见[服务器协调设计](design/服务器协调.md)。
 
 调度器每个实例只有一个并发 dispatch 槽位。local-process 模式下，该槽位在执行期间
 持续占用；Kubernetes dispatch 创建 Job 后就返回，因此这一设置**不意味着集群只能
@@ -230,8 +231,15 @@ Workflow 定义仍是线性的 `agent_task` 步骤，具有版本化定义和持
 但定义契约没有分支、并行图、人工审批、循环或类型化输入/输出映射
 （[Workflow 契约](../../internal/core/workflow/workflow.go)）。
 
-Portal 与入站 webhook 执行已组装。Telegram 和 cron 仍只是渠道词汇，
-webhook 回调发送器未组装进 Server。Space 插件激活支持 skill/subagent 内容，
+Portal 与入站 webhook 执行已组装。Telegram 仍只是渠道词汇，
+webhook 回调发送器未组装进 Server。周期性 schedule 通过 `schedule` 触发来源与
+`/api/spaces/{space_id}/schedules` API 在 Task 平面上运行 Agent，由常驻循环分发：
+每个到期时刻跨副本只认领一次，错过的触发合并为一次补触发，连续五次触发失败或
+创建者被禁用时暂停该 schedule。Portal 在 Agent 详情页创建和管理 schedule，并在
+Schedules 页面列出 Space 内的全部 schedule；暂停原因只写日志，不展示。它们不是
+对话渠道（[`internal/core/schedule`](../../internal/core/schedule/schedule.go)、
+[`internal/server/scheduler`](../../internal/server/scheduler)、
+[设计记录](design/定时Agent执行.md)）。Space 插件激活支持 skill/subagent 内容，
 但拒绝包含 hook 或 MCP 服务的发布版本
 （[激活服务](../../internal/service/plugin/activation.go)）。前台 Conversation 不加载 Space 插件。
 
@@ -259,10 +267,10 @@ Compose、kind、生产 Kubernetes 清单、发布验证、SBOM、镜像扫描�
 ## 本次复核的验证
 
 本次是源码与测试复核，不是重新进行部署资格验证。
-最新 `main` 在 `2041cbec` 上的 CI、CodeQL、Windows 与部署冒烟工作流均已通过。
-本次文档更新的本地定向测试覆盖 `internal/agentapp` 与 `internal/core/workflow`；
-`./make check docs` 和 `git diff --check` 也已通过。文档检查覆盖链接与格式，
-不证明运行时行为。
+最新 `main` 在 `0bd7e5bf` 上的 CI、CodeQL、Windows 与部署冒烟工作流均已通过。
+本次文档更新在本地通过了 `./make check docs`、`./make check portal`、
+`./make test ./internal/architecture`、注释有改动的 Go 包测试以及
+`git diff --check`。文档检查覆盖链接与格式，不证明运行时行为。
 
 本次未运行真实 MySQL 测试（未提供 `BUILDMAX_TEST_DSN`）、全量构建、
 前端/浏览器测试、Compose/kind 部署冒烟、外部恢复演练或付费模型评估。
