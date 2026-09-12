@@ -14,6 +14,47 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.10] - 2026-09-12
+
+### Added
+
+- A Space can run an Agent on a recurring cron schedule: create, list, edit,
+  enable/disable, and delete schedules under
+  `/api/spaces/{space_id}/schedules`, and each due time starts one Task
+  automatically.
+
+- `buildmax info --json` now reports a per-turn usage and cost breakdown under
+  `stats.turns`, recorded in the session file so a session describes what each
+  turn cost from its own record.
+
+- `buildmax usage` sums token and cost totals across your local sessions,
+  grouped by day, workspace, or model and narrowed with `--since`, so a week of
+  use answers as one figure instead of one session at a time.
+
+### Changed
+
+- The project moved to the `icloudbb` GitHub organization. The Go module path
+  is now `github.com/icloudbb/buildmax`, container images publish to
+  `ghcr.io/icloudbb/buildmax` and `ghcr.io/icloudbb/buildmax-portal`, and the
+  old `gougoujiang` GitHub and GHCR locations remain read-only for one Alpha
+  cycle. Update imports, `go install` targets, and image references.
+
+### Fixed
+
+- The `Read` tool now reports `(file is empty)` after successfully reading a
+  zero-byte file instead of returning indistinguishable empty output.
+
+- Schedules now accept any IANA timezone (for example `Asia/Shanghai`), not only
+  `UTC`: the server binary embeds the timezone database, so a named zone resolves
+  in container deployments that ship no system zoneinfo.
+
+- On a multi-replica Server, a conversation turn whose coordination lease
+  expired and was taken over can no longer write behind the new holder: message
+  writes now carry the lease's fencing token and a stale one is rejected.
+
+- Write now reports the resolved file path and number of UTF-8 bytes written on
+  success, making its result directly verifiable by the agent.
+
 ## [0.2.0-alpha.9] - 2026-09-10
 
 ### Added
@@ -2774,7 +2815,8 @@ its Portal image exists. This version replaces it.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.9...HEAD
+[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.10...HEAD
+[0.2.0-alpha.10]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.9...v0.2.0-alpha.10
 [0.2.0-alpha.9]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.8...v0.2.0-alpha.9
 [0.2.0-alpha.8]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.7...v0.2.0-alpha.8
 [0.2.0-alpha.7]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.6...v0.2.0-alpha.7
