@@ -30,7 +30,7 @@
 
 - 当前窄屏规则把 shell 堆叠起来，并将整个侧栏限制为很短的滚动区域。Logo、Space
   切换器、导航和账号动作因而争夺同一块垂直空间。
-- Workspace Files 在内容旁使用固定宽度 tree，没有窄屏交互模型。
+- Files 在内容旁使用固定宽度 tree，没有窄屏交互模型。
 - 共享 modal tab 使用固定侧边栏，较长 modal 内容可能被 overflow 行为裁剪。
 - 一些设置 tab 会水平滚动，但该模式并不一致，而且本身不能保证动作可见。
 - Portal 浏览器测试当前未设置有代表性的窄 viewport。
@@ -61,7 +61,7 @@ Breadcrumb 保留当前对象和最近的有用 parent。更早祖先可以折�
 Space 上下文始终在 shell 可见。页面主要动作靠近标题或进入带标签的 overflow menu；
 不能只因宽度而消失。
 
-Workspace Files 在窄屏使用渐进式导航：用户看到 folder list 或选中 item 其中之一，并
+Files 在窄屏使用渐进式导航：用户看到 folder list 或选中 item 其中之一，并
 有清晰 Back 动作。宽屏可以并排保留 tree 与内容。窄屏页面不要求同时水平和垂直滚动才能
 选择文件。
 
@@ -103,7 +103,7 @@ Modal 在窄屏变成全高 sheet 或接近全 viewport 的 dialog。Body 滚动
 ## 验收标准
 
 - 在 390、768 和 1280 CSS pixels 下，用户可以切换 Space、启动 Chat、打开 Issue
-  及其最新 run、浏览 Workspace Files 并进入 Space 设置。
+  及其最新 run、浏览 Files 并进入 Space 设置。
 - 在 390 pixels 或 200% zoom 下没有文档级水平滚动；组件局部水平区域有标签且键盘
   可操作。
 - Navigation 和 modal 交互通过纯键盘测试，包括焦点进入、约束、关闭与恢复。

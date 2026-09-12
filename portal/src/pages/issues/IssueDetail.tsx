@@ -719,7 +719,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                       className="page-activity__action-btn"
                       onClick={() => navigate({ name: "explore", spaceId })}
                     >
-                      Workspace Files
+                      Files
                     </button>
                   </div>
                 </div>

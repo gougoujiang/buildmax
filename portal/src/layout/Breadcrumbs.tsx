@@ -27,7 +27,7 @@ export function useBreadcrumbs(route: Route, conversations: Conversation[] = [])
   const { currentSpaceId } = useSpace()
 
   if (route.name === "explore") {
-    return [{ label: "Workspace Files", route: { name: "explore", spaceId: route.spaceId } }]
+    return [{ label: "Files", route: { name: "explore", spaceId: route.spaceId } }]
   }
   if (route.name === "agents") {
     return [{ label: "Agents", route: { name: "agents", spaceId: route.spaceId } }]

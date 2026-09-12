@@ -5,7 +5,7 @@ import { patchJSON, postJSON, reportLeftovers, session, tagged, type Session } f
 /**
  * The design's own acceptance criteria, run literally: "At 390, 768, and 1280
  * CSS pixels, a user can switch Space, start Chat, open an Issue and its
- * latest run, browse Workspace Files, and reach Space settings." One test,
+ * latest run, browse Files, and reach Space settings." One test,
  * one seed, three widths — reseeding per width would only spend the run's
  * budget on repeating the same worker turn.
  *
@@ -82,7 +82,7 @@ async function withSpaceSwitcher(page: Page, width: number, fn: (switcher: Retur
   await fn(sidebar.getByLabel("Space", { exact: true }))
 }
 
-test("switch Space, start Chat, open an Issue's latest run, browse Workspace Files, and reach Space settings — at 390, 768, and 1280px", async ({
+test("switch Space, start Chat, open an Issue's latest run, browse Files, and reach Space settings — at 390, 768, and 1280px", async ({
   page,
 }) => {
   test.setTimeout(RUN_TIMEOUT_MS + 60_000)
@@ -136,10 +136,10 @@ test("switch Space, start Chat, open an Issue's latest run, browse Workspace Fil
     await expect(runDialog).toBeHidden()
     await expectNoHorizontalOverflow(page, `${width}px open Issue and its latest run`)
 
-    // --- Browse Workspace Files ---
+    // --- Browse Files ---
     await page.goto(`/#/spaces/${current.spaceId}/files`)
-    await expect(page.getByRole("heading", { name: "Workspace Files" })).toBeVisible()
-    await expectNoHorizontalOverflow(page, `${width}px browse Workspace Files`)
+    await expect(page.getByRole("heading", { name: "Files" })).toBeVisible()
+    await expectNoHorizontalOverflow(page, `${width}px browse Files`)
 
     // --- Reach Space settings ---
     await page.goto(`/#/spaces/${current.spaceId}/settings`)

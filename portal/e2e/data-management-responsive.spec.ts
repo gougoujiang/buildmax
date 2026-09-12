@@ -16,7 +16,7 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
   expect(overflow).toBeLessThanOrEqual(0)
 }
 
-test("Workspace Files shows either the folder list or the selected file, with a working Back action", async ({
+test("Files shows either the folder list or the selected file, with a working Back action", async ({
   page,
 }) => {
   const current = await session(page)
@@ -25,7 +25,7 @@ test("Workspace Files shows either the folder list or the selected file, with a 
   reportLeftovers(current.spaceId, [`file ${name}`])
 
   await page.goto(`/#/spaces/${current.spaceId}/files`)
-  await expect(page.getByRole("heading", { name: "Workspace Files" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Files" })).toBeVisible()
 
   // No side tree at narrow width, and the folder list is what's shown first.
   await expect(page.getByLabel("Directory tree")).toBeHidden()

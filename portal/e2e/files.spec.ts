@@ -13,7 +13,7 @@ import { RUN_ID, reportLeftovers, session, uploadFile } from "./fixtures"
 
 const CONTENT = "explorer probe content\n"
 
-test("an uploaded file is listed and readable in Workspace Files", async ({ page }) => {
+test("an uploaded file is listed and readable in Files", async ({ page }) => {
   const current = await session(page)
   const name = `explorer-probe-${RUN_ID}.txt`
   await uploadFile(page, current, name, CONTENT)
@@ -22,7 +22,7 @@ test("an uploaded file is listed and readable in Workspace Files", async ({ page
   // Straight to the URL: a view reachable only by clicking cannot be linked,
   // and the specs beside this one hold routing to the same rule.
   await page.goto(`/#/spaces/${current.spaceId}/files`)
-  await expect(page.getByRole("heading", { name: "Workspace Files" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Files" })).toBeVisible()
 
   // The root folder is selected on load, which is where an upload lands.
   const entry = page.getByRole("button", { name })
