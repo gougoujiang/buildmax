@@ -3,9 +3,11 @@
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Portal状态与权限反馈.md)
 > **Audience:** Portal and API contributors · **Status:** in progress. The
 > shared resource/permission/mutation state vocabulary and the Alert/EmptyState
-> presenters have shipped, along with slice 2 (Space bootstrap: no synthetic
-> "My Space", a spacesState-driven gate that distinguishes a failed Space
-> lookup from an empty account, with Retry), slice 3 (every collection —
+> presenters have shipped, along with slice 2 (Space bootstrap: a
+> spacesState-driven gate that distinguishes a failed Space lookup from an empty
+> account, with Retry; the sidebar's synthetic "My Space" label is gone, though
+> the compact narrow header still falls back to it while the Space summary is
+> unresolved), slice 3 (every collection —
 > Issues, Workflows, Agents, Conversations, Files, the Space members,
 > invitations, secrets, and audit trail, and the plugin catalog on Marketplace,
 > the Space Plugins tab, and the admin model catalog — distinguishes loading,
@@ -20,7 +22,8 @@
 > component from
 > [portal-navigation-and-space-context.md](portal-navigation-and-space-context.md),
 > so this record does not add a competing detail-page treatment. Remaining:
-> per-task Retry/Stop granular errors on Issue detail and broader state-path
+> the compact narrow header's "My Space" fallback (`portal/src/layout/Layout.tsx`),
+> per-task Retry/Stop granular errors on Issue detail, and broader state-path
 > coverage; `portal/e2e/resource-states.spec.ts` already covers audit-fetch
 > error/stale and a failed role lookup through injected responses, which
 > proves presentation rather than backend recovery.

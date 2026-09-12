@@ -700,10 +700,12 @@ remain elastic; each TaskRun materializes the state it needs and terminates.
 ## 16. Deferred Questions
 
 The core boundary is decided. These questions require implementation or usage
-evidence and do not reopen it:
+evidence and do not reopen it. (Task session restoration failing closed is no
+longer among them: the code commits to fail-closed restore, per
+[task-workspace-checkpoints.md](task-workspace-checkpoints.md) and
+[orchestration-and-continuity-decisions.md](orchestration-and-continuity-decisions.md)
+§5.2.)
 
-- whether Task session restoration should fail closed or continue with an
-  explicit degraded-continuity state;
 - whether retained writable workspace or browser state is valuable enough for
   a separate design;
 - whether users need to pin an older Agent revision for a new Continue run;

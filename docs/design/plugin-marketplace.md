@@ -40,10 +40,11 @@
   commands, and the Marketplace itself — packaging, the catalog and its
   releases, package storage, publication, browse, download, and install, plus
   the Portal and Desktop surfaces. Phase D, space and worker distribution, is
-  under way: D1 ships space activation, agent selection, Portal management,
-  server-side pinning, and worker materialization for skills and subagents. The
-  Agent modal still lacks its plugin field; executable hooks/MCP and secret
-  delivery remain open. Its record is
+  under way: D1 ships space activation, agent selection (including the Agent
+  modal's plugin field), Portal management, server-side pinning, and worker
+  materialization for skills and subagents. Executable hooks/MCP remain open, as
+  does credential-file secret delivery; environment-variable secret delivery has
+  shipped. Its record is
   [plugin-space-distribution.md](./plugin-space-distribution.md)
 - follows: [enterprise-deployment.md](./enterprise-deployment.md),
   [space-governance.md](./space-governance.md), and

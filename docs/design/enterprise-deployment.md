@@ -171,6 +171,11 @@ Still open:
 - worker launch mode valid
 - LLM config available for conversation title/runtime paths where required
 
+Both are already validated at **bootstrap** (§5.4): an invalid worker mode or a
+model the deployment cannot serve fails startup (`internal/bootstrap/server.go`).
+What is open is surfacing them as distinct `/readyz` checks rather than only as
+fatal startup errors.
+
 Storage write permission is a **deployment-initialization** concern, not a
 readiness concern. The production reference requires read, write, and list
 access on the dedicated bucket/prefix, while `/readyz` deliberately verifies

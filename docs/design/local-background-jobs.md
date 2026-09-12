@@ -7,8 +7,9 @@
 > backpressure, typed non-user provenance, serialized wake-up
 > (`deliver_result`, per-monitor `react`) with per-session parking on both
 > TUI and Desktop, and durable job event logs under `<traces>/jobs/`.
-> Durability beyond the process — spool, supervisor, worktree writers,
-> scheduling — is not planned
+> Durability beyond the process — spool, supervisor, guaranteed worktree
+> writers, scheduling — is not planned (opt-in delegate worktrees ship
+> separately)
 
 Related: [durable run trace](durable-run-trace.md); [queued
 messages](queued-messages.md); [tool permissions](tool-permissions.md); [hook
@@ -210,9 +211,11 @@ That is a correctness risk, not a detail: two writers can race, and the
 parent's view can go stale. The first version **states the shared-workspace
 boundary in tool output and UI and recommends rather than requires
 isolation**; requiring worktree isolation would gate the capability on
-infrastructure it does not need for read-mostly delegation. Worktree-isolated
-writers would have made it a guarantee; they are [not
-planned](#durability-is-not-planned).
+infrastructure it does not need for read-mostly delegation. A delegate may now
+*opt into* its own worktree — the `Task` tool takes a `worktree` parameter, owned
+by [workspace-root-and-worktrees.md](workspace-root-and-worktrees.md) Phase 5 —
+but automatic worktree isolation as a guarantee for every background writer is
+still [not planned](#durability-is-not-planned).
 
 ## Monitor Jobs
 
@@ -371,8 +374,11 @@ behavior must not.
 
 A fourth stage was named here as the durability follow-up: an output spool
 and job metadata recovery, a local supervisor if jobs must survive UI exit,
-Desktop system notifications, worktree-isolated writers, and scheduling on
-the same inbox and job model. It is not being built and it is not queued.
+Desktop system notifications, automatic worktree isolation for every background
+writer (opt-in delegate worktrees shipped separately; see
+[workspace-root-and-worktrees.md](workspace-root-and-worktrees.md) Phase 5), and
+scheduling on the same inbox and job model. It is not being built and it is not
+queued.
 
 The spool was the piece that looked independently useful, on the argument
 that durable output and metadata help after a crash whether or not a

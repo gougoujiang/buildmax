@@ -644,16 +644,16 @@ must determine whether the supported deployment topology is acceptable.
 
 ### M5. Worker Adoption And Governance
 
-Done: the run-scoped entry point and credential, and removing the provider
-credential from a managed worker. Space-run token counting stays separate from
-the call ledger, so quota still aggregates `task_run` totals only — do not add
-the ledger to that sum without resolving the double count.
+Done: the run-scoped entry point and credential, removing the provider
+credential from a managed worker, soft quota enforcement, and audit events for
+model-policy changes (model create, enable, disable). Space-run token counting
+stays separate from the call ledger, so quota still aggregates `task_run` totals
+only — do not add the ledger to that sum without resolving the double count.
 
 Remaining:
 
-- Add soft quota enforcement, bounded requests, concurrency limits, and
-  operator diagnostics.
-- Add audit events for model-policy and credential changes.
+- Add bounded requests, concurrency limits, and operator diagnostics.
+- Add audit events for credential changes and denied model use.
 - Pin an approved alias to a task or workflow at creation time, so a run's model
   is reproducible rather than whatever the deployment default is at dispatch.
 
