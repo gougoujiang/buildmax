@@ -28,6 +28,9 @@ export function WorkflowModal({ open, agents = [], loading, error, onClose, onSu
     addStep,
     removeStep,
     changeStep,
+    addBinding,
+    removeBinding,
+    changeBinding,
     toggleAdvanced,
     setDefinitionText,
     hydrate,
@@ -65,6 +68,9 @@ export function WorkflowModal({ open, agents = [], loading, error, onClose, onSu
             onAddStep={addStep}
             onRemoveStep={removeStep}
             onChangeStep={changeStep}
+            onAddBinding={addBinding}
+            onRemoveBinding={removeBinding}
+            onChangeBinding={changeBinding}
             onToggleAdvanced={toggleAdvanced}
             onDefinitionTextChange={setDefinitionText}
           />

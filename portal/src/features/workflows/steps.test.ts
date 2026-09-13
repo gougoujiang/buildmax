@@ -97,4 +97,40 @@ describe("validateSteps", () => {
   it("requires a prompt", () => {
     expect(validateSteps([step({ prompt: "  " })], agents)[0].message).toContain("prompt")
   })
+
+  // The form and the advanced JSON both run this, so these mirror the server's
+  // binding rules exactly: an input names a distinct value read from a step
+  // that already ran.
+  it("accepts a binding to an earlier step", () => {
+    const steps = [step({ id: "collect" }), step({ id: "summarize", bindings: [{ name: "research", fromStep: "collect" }] })]
+    expect(validateSteps(steps, agents)).toEqual([])
+  })
+
+  it("refuses a binding to a later step", () => {
+    const steps = [step({ id: "collect", bindings: [{ name: "x", fromStep: "summarize" }] }), step({ id: "summarize" })]
+    expect(validateSteps(steps, agents).some((e) => e.index === 0 && /earlier step/.test(e.message))).toBe(true)
+  })
+
+  it("refuses a binding to the step itself", () => {
+    const steps = [step({ id: "a" }), step({ id: "b", bindings: [{ name: "x", fromStep: "b" }] })]
+    expect(validateSteps(steps, agents).some((e) => e.index === 1 && /earlier step/.test(e.message))).toBe(true)
+  })
+
+  it("refuses a binding with no name", () => {
+    const steps = [step({ id: "a" }), step({ id: "b", bindings: [{ name: "  ", fromStep: "a" }] })]
+    expect(validateSteps(steps, agents).some((e) => e.index === 1 && /needs a name/.test(e.message))).toBe(true)
+  })
+
+  it("refuses a binding with no source step chosen", () => {
+    const steps = [step({ id: "a" }), step({ id: "b", bindings: [{ name: "x", fromStep: "" }] })]
+    expect(validateSteps(steps, agents).some((e) => e.index === 1 && /earlier step/.test(e.message))).toBe(true)
+  })
+
+  it("refuses two bindings sharing a name on one step", () => {
+    const steps = [
+      step({ id: "a" }),
+      step({ id: "b", bindings: [{ name: "x", fromStep: "a" }, { name: "x", fromStep: "a" }] }),
+    ]
+    expect(validateSteps(steps, agents).filter((e) => /more than once/.test(e.message))).toHaveLength(1)
+  })
 })

@@ -77,6 +77,26 @@
   color: var(--color-text);
 }
 
+.workflow-page__step-bindings {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.workflow-page__binding {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.workflow-page__binding > .issues-page__input:first-child {
+  flex: 1 1 0;
+}
+
+.workflow-page__binding > select.issues-page__input {
+  flex: 1 1 0;
+}
+
 .workflow-page__step-output {
   margin: 0;
   white-space: pre-wrap;

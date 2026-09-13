@@ -52,6 +52,9 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
     addStep,
     removeStep,
     changeStep,
+    addBinding,
+    removeBinding,
+    changeBinding,
     toggleAdvanced,
     setDefinitionText,
     hydrate: hydrateSteps,
@@ -358,6 +361,9 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
                 onAddStep={addStep}
                 onRemoveStep={removeStep}
                 onChangeStep={changeStep}
+                onAddBinding={addBinding}
+                onRemoveBinding={removeBinding}
+                onChangeBinding={changeBinding}
                 onToggleAdvanced={toggleAdvanced}
                 onDefinitionTextChange={setDefinitionText}
               />

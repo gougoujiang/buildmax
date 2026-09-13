@@ -1,5 +1,5 @@
 import type { Agent } from "../../lib/types"
-import type { StepError, WorkflowStepDraft } from "./steps"
+import type { StepError, WorkflowStepBinding, WorkflowStepDraft } from "./steps"
 
 interface WorkflowStepsEditorProps {
   steps: WorkflowStepDraft[]
@@ -12,6 +12,9 @@ interface WorkflowStepsEditorProps {
   onAddStep: () => void
   onRemoveStep: (index: number) => void
   onChangeStep: (index: number, patch: Partial<Pick<WorkflowStepDraft, "targetAgentId" | "prompt">>) => void
+  onAddBinding: (stepIndex: number) => void
+  onRemoveBinding: (stepIndex: number, bindingIndex: number) => void
+  onChangeBinding: (stepIndex: number, bindingIndex: number, patch: Partial<WorkflowStepBinding>) => void
   onToggleAdvanced: () => void
   onDefinitionTextChange: (text: string) => void
 }
@@ -35,6 +38,9 @@ export function WorkflowStepsEditor({
   onAddStep,
   onRemoveStep,
   onChangeStep,
+  onAddBinding,
+  onRemoveBinding,
+  onChangeBinding,
   onToggleAdvanced,
   onDefinitionTextChange,
 }: WorkflowStepsEditorProps) {
@@ -129,6 +135,64 @@ export function WorkflowStepsEditor({
                     onChange={(e) => onChangeStep(index, { prompt: e.target.value })}
                   />
                 </label>
+                {(() => {
+                  // A binding reads an earlier step's whole output into this
+                  // step's prompt under a name, so it can only point at a step
+                  // above this one. On the first step there is nothing earlier
+                  // to bind, so the control does not appear at all.
+                  const earlierSteps = steps.slice(0, index)
+                  const bindings = step.bindings ?? []
+                  if (bindings.length === 0 && earlierSteps.length === 0) return null
+                  return (
+                    <div className="workflow-page__step-bindings">
+                      <span className="issues-page__field-label">Inputs from earlier steps</span>
+                      {bindings.map((binding, bindingIndex) => (
+                        <div key={bindingIndex} className="workflow-page__binding">
+                          <input
+                            className="issues-page__input"
+                            aria-label={`Input ${bindingIndex + 1} name`}
+                            placeholder="name"
+                            value={binding.name}
+                            disabled={disabled}
+                            onChange={(e) => onChangeBinding(index, bindingIndex, { name: e.target.value })}
+                          />
+                          <select
+                            className="issues-page__input"
+                            aria-label={`Input ${bindingIndex + 1} source step`}
+                            value={binding.fromStep}
+                            disabled={disabled}
+                            onChange={(e) => onChangeBinding(index, bindingIndex, { fromStep: e.target.value })}
+                          >
+                            <option value="">Select an earlier step</option>
+                            {earlierSteps.map((earlier, earlierIndex) => (
+                              <option key={earlier.id} value={earlier.id}>
+                                Step {earlierIndex + 1} ({earlier.id})
+                              </option>
+                            ))}
+                          </select>
+                          {!disabled ? (
+                            <button
+                              type="button"
+                              className="page-activity__action-btn"
+                              onClick={() => onRemoveBinding(index, bindingIndex)}
+                            >
+                              Remove input
+                            </button>
+                          ) : null}
+                        </div>
+                      ))}
+                      {!disabled && earlierSteps.length > 0 ? (
+                        <button
+                          type="button"
+                          className="page-activity__action-btn"
+                          onClick={() => onAddBinding(index)}
+                        >
+                          Add input
+                        </button>
+                      ) : null}
+                    </div>
+                  )
+                })()}
                 {stepErrors.map((e, i) => (
                   <p key={i} className="modal__error">
                     {e.message}
