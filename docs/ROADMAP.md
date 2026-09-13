@@ -186,6 +186,12 @@ untrusted repositories, or workers holding high-value credentials; do not make
 a particular CNI or proxy an unconditional BuildMax dependency without that
 evidence.
 
+Corporate SSO remains an under-discussion
+[enterprise identity proposal](proposals/enterprise-identity-and-access.md), not
+an admitted or ordered R5 outcome. Accept and place it only after a target
+provider, an offboarding bound, a provisioning policy, and the need for native
+connected clients are evidenced.
+
 After the Beta gate, evaluate and deliver the previously unplanned local and
 plugin follow-ons in this order. Each step still needs its stated evidence; an
 ordered place here is not permission to skip a proposal's acceptance decision.
