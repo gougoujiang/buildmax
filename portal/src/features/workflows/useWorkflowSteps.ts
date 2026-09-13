@@ -1,6 +1,14 @@
 import { useCallback, useMemo, useState } from "react"
 import type { Agent } from "../../lib/types"
-import { newStep, parseDefinition, stepsToDefinition, validateSteps, type StepError, type WorkflowStepDraft } from "./steps"
+import {
+  newStep,
+  parseDefinition,
+  stepsToDefinition,
+  validateSteps,
+  type StepError,
+  type WorkflowStepBinding,
+  type WorkflowStepDraft,
+} from "./steps"
 
 export interface WorkflowStepsState {
   steps: WorkflowStepDraft[]
@@ -15,6 +23,9 @@ export interface WorkflowStepsState {
   addStep: () => void
   removeStep: (index: number) => void
   changeStep: (index: number, patch: Partial<Pick<WorkflowStepDraft, "targetAgentId" | "prompt">>) => void
+  addBinding: (stepIndex: number) => void
+  removeBinding: (stepIndex: number, bindingIndex: number) => void
+  changeBinding: (stepIndex: number, bindingIndex: number, patch: Partial<WorkflowStepBinding>) => void
   toggleAdvanced: () => void
   setDefinitionText: (text: string) => void
   /** Replace the whole state from a definition string already on the wire
@@ -52,6 +63,45 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
   const changeStep = useCallback(
     (index: number, patch: Partial<Pick<WorkflowStepDraft, "targetAgentId" | "prompt">>) => {
       setSteps((prev) => prev.map((step, i) => (i === index ? { ...step, ...patch } : step)))
+    },
+    [],
+  )
+
+  const addBinding = useCallback((stepIndex: number) => {
+    setSteps((prev) =>
+      prev.map((step, i) =>
+        i === stepIndex ? { ...step, bindings: [...(step.bindings ?? []), { name: "", fromStep: "" }] } : step,
+      ),
+    )
+  }, [])
+
+  const removeBinding = useCallback((stepIndex: number, bindingIndex: number) => {
+    setSteps((prev) =>
+      prev.map((step, i) => {
+        if (i !== stepIndex) return step
+        // An empty bindings array becomes undefined so the draft matches a step
+        // that never had one -- keeps stepsToDefinition from emitting `bindings`
+        // and the round-trip equal.
+        const bindings = (step.bindings ?? []).filter((_, j) => j !== bindingIndex)
+        return { ...step, bindings: bindings.length > 0 ? bindings : undefined }
+      }),
+    )
+  }, [])
+
+  const changeBinding = useCallback(
+    (stepIndex: number, bindingIndex: number, patch: Partial<WorkflowStepBinding>) => {
+      setSteps((prev) =>
+        prev.map((step, i) =>
+          i === stepIndex
+            ? {
+                ...step,
+                bindings: (step.bindings ?? []).map((binding, j) =>
+                  j === bindingIndex ? { ...binding, ...patch } : binding,
+                ),
+              }
+            : step,
+        ),
+      )
     },
     [],
   )
@@ -99,6 +149,9 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
     addStep,
     removeStep,
     changeStep,
+    addBinding,
+    removeBinding,
+    changeBinding,
     toggleAdvanced,
     setDefinitionText,
     hydrate,

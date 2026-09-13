@@ -29,9 +29,10 @@ Workflow reconciler now folds terminal facts and dispatches from durable state,
 and a Server-owned recovery loop sweeps due runs at startup and on an interval,
 so a lost terminal callback or a Server restart no longer strands a run. A step
 may bind an earlier step's whole output into its input as labelled, untrusted
-context, so a multi-step Workflow can pass one Agent's result to the next; the
-typed `nodes`/`bindings` contract, input and output schemas, and structured
-output remain open.
+context, so a multi-step Workflow can pass one Agent's result to the next, and
+the Portal step form authors those bindings directly rather than only through
+advanced JSON; the typed `nodes`/`bindings` contract, input and output schemas,
+and structured output remain open.
 Automatic re-dispatch of a worker TaskRun lost after it was claimed is a
 documented, accepted first-Beta limit, distinct from that Workflow-progression
 recovery. Trace retention and candidate failure/recovery evidence remain open. Shared Redis coordination is implemented, including

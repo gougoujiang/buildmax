@@ -9,8 +9,8 @@ import type { Agent } from "../../lib/types"
 export const AGENT_TASK_STEP_TYPE = "agent_task"
 
 /** A binding feeds an earlier step's whole output into this step's input under
- *  a name. There is no form field for it yet; it round-trips through advanced
- *  JSON mode so a definition authored there is not silently stripped. */
+ *  a name. The step form authors it directly; it also round-trips through
+ *  advanced JSON mode so a definition authored there is not silently stripped. */
 export interface WorkflowStepBinding {
   name: string
   fromStep: string
@@ -152,6 +152,27 @@ export function validateSteps(steps: WorkflowStepDraft[], agents: Agent[]): Step
     if (!step.prompt.trim()) {
       errors.push({ index, message: "This step needs a prompt." })
     }
+    // A binding feeds an earlier step's whole output into this step, so it can
+    // only name a step that already ran, and each name on a step is distinct --
+    // the same rules the server enforces, checked here so Save stays disabled
+    // for a definition the server would reject.
+    const earlierIds = new Set(steps.slice(0, index).map((s) => s.id))
+    const bindingNames = new Set<string>()
+    step.bindings?.forEach((binding) => {
+      const name = binding.name.trim()
+      const label = name || "(unnamed)"
+      if (!name) {
+        errors.push({ index, message: "An input binding needs a name." })
+      } else if (bindingNames.has(name)) {
+        errors.push({ index, message: `Input binding "${name}" is defined more than once on this step.` })
+      }
+      bindingNames.add(name)
+      if (!binding.fromStep) {
+        errors.push({ index, message: `Input binding "${label}" needs an earlier step to read from.` })
+      } else if (!earlierIds.has(binding.fromStep)) {
+        errors.push({ index, message: `Input binding "${label}" must read from an earlier step.` })
+      }
+    })
   })
   return errors
 }
