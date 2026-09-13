@@ -623,13 +623,17 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "release",
-			usage:   "release <bump|next|notes|verify|notices|licenses>",
+			usage:   "release <bump|next|notes|verify|notices|licenses|desktop>",
 			summary: "Run one release chore.",
 			details: []string{
 				"`bump` tags the next version locally and stops there, because pushing the tag\n" +
 					"is what starts the release build. `notes` prints what that build will publish\n" +
 					"as the release body, or writes it with `-o`. The rest are checks and\n" +
 					"generated files that CI also runs.",
+				"`desktop` packages the Wails app for the host OS into " + desktopReleaseDir + "/ -- a\n" +
+					"`.dmg` on macOS, the self-contained `.exe` on Windows, each with a `.sha256`.\n" +
+					"GoReleaser cannot: it runs on one Linux runner, so the desktop release is a\n" +
+					"per-OS job that calls this. The bundles are unsigned during alpha.",
 				"Each action takes its own flags: `" + mk() + " release verify --help` prints them.",
 			},
 			args: []helpRow{
@@ -639,6 +643,7 @@ func helpTopics() []helpTopic {
 				{"verify", "Validate the built GoReleaser archives"},
 				{"notices", "Regenerate NOTICE-THIRD-PARTY"},
 				{"licenses", "Check npm production dependencies against the allowed set"},
+				{"desktop", "Package the Wails app for the host OS into " + desktopReleaseDir + "/"},
 			},
 			examples: []string{"release notices", "release bump minor", "release notes v0.2.0-alpha.1"},
 			see:      "docs/contribute/releasing.md",

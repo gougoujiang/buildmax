@@ -86,7 +86,16 @@ git push origin v0.2.0-alpha.1
 5. 通过 digest 拉取 `ghcr.io/icloudbb/buildmax:<version>`，确认容器可启动。alpha 版本不得移动 `latest` 标签。镜像扫描在发布前已通过，因此此时发布工作流失败，表示推送后的某个步骤失败，而不是镜像存在漏洞。
 6. 确认 `ghcr.io/icloudbb/buildmax-portal:<version>` 存在，且版本**相同**。它由同一标签触发的独立工作流（`.github/workflows/portal-image.yml`）发布，因此该工作流失败会造成二进制已发布但 Portal 镜像缺失。这是有意的取舍，但必须检查，不能假定成功。设置 `BUILDMAX_API_BASE` 后运行它，确认 `/config.js` 包含该值，且 `/third-party-notices.txt` 提供 npm 许可证归属声明。
 
-Wails 桌面应用不属于发布工作流，因为原生 bundle 尚未签名或公证。
+7. 确认桌面产物已附加：`buildmax-desktop_<version>_darwin_<arch>.dmg` 和
+   `buildmax-desktop_<version>_windows_amd64.exe`，各带其 `.sha256`。它们由同一标签
+   触发的独立按 OS 作业 `.github/workflows/desktop-release.yml` 发布——因为
+   GoReleaser 的单个 Linux runner 无法构建原生 macOS bundle。该作业失败会保持发布其余
+   部分完好而缺失桌面下载，因此要检查而非假定。下载 `.dmg`，验证校验和，并按
+   [安装指南](../../../manual/install.md)在越过 Gatekeeper 后打开应用一次。
+
+alpha 阶段桌面 bundle **未签名、未公证**：下载后的 macOS 应用会被 Gatekeeper 拦住，
+Windows 二进制会触发 SmartScreen 警告，需用户清除一次。签名与公证是下一步；在此之前，
+安装指南记录了这道一次性步骤。
 
 ## 处理有问题的发布
 

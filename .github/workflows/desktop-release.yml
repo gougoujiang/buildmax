@@ -1,0 +1,101 @@
+# Packages the Wails desktop app and attaches it to the GitHub Release.
+#
+# GoReleaser (.goreleaser.yaml) runs on one Linux runner and cannot produce a
+# native macOS bundle or a Windows binary, so the desktop release is a separate
+# per-OS job -- the same split .github/workflows/portal-image.yml uses for the
+# Portal image: one tag, two workflows. release.yml owns creating the Release;
+# this job only uploads desktop assets to it.
+#
+# The artifacts are unsigned during alpha. A downloaded macOS bundle is held by
+# Gatekeeper and a Windows binary warns under SmartScreen until the user clears
+# it once; manual/install.md documents the step. Shipping an unsigned, working
+# download the user can clear is the alpha trade; signing and notarization are
+# the next increment. desktop-package.yml still only builds and does not publish
+# on pull requests -- this workflow is the publish path, gated on a version tag.
+name: Desktop release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to attach the desktop artifacts to'
+        required: true
+
+permissions:
+  contents: write   # upload assets to the GitHub Release
+
+concurrency:
+  # Per tag. A superseded run is not cancelled: each matrix leg uploads its own
+  # OS's asset, and cancelling one would leave the release missing that platform.
+  group: desktop-release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Package (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Both platforms report rather than the first failure cancelling the other:
+      # a release missing one platform is a finding, not a reason to hide the rest.
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Check out the tag itself so `git describe --tags` names the artifact
+          # after the release version rather than after the branch it dispatched
+          # from. fetch-depth: 0 brings the tags describe reads.
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            gui/package-lock.json
+            desktop/frontend/package-lock.json
+
+      - name: Use pinned npm
+        run: npm install --global npm@11.17.0
+
+      # Through the task runner, so tools/mk and the shim are covered with it.
+      # `release desktop` builds gui and the app, then packages the host OS's
+      # artifact into dist/desktop/.
+      - name: Package the desktop app
+        if: runner.os != 'Windows'
+        run: ./make release desktop
+
+      - name: Package the desktop app
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: .\make.bat release desktop
+
+      # bash on both platforms: gh ships on every runner and Git Bash gives
+      # Windows the same glob and loop. The release is created by release.yml on
+      # the same tag; the two workflows run in parallel, so wait for it rather
+      # than assume the ordering.
+      - name: Upload to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 30); do
+            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              break
+            fi
+            echo "Release $TAG not published yet; waiting (attempt $attempt)..."
+            sleep 20
+          done
+          # --clobber so a rerun replaces the previous upload rather than failing.
+          gh release upload "$TAG" dist/desktop/* --clobber --repo "$GITHUB_REPOSITORY"
