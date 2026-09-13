@@ -12,7 +12,7 @@ current alpha platform and deployment boundaries.
 | CLI, server, worker | Linux amd64/arm64, macOS amd64/arm64, Windows amd64 | Release archives |
 | Server and worker container | Linux amd64/arm64 | GHCR image |
 | Portal | Linux amd64/arm64 | GHCR image, or build from source |
-| Desktop | macOS and Windows development builds | Build from source; unsigned |
+| Desktop | macOS arm64 (`.dmg`), Windows amd64 (`.exe`) | Release download; unsigned |
 
 ## Release archive
 
@@ -79,15 +79,38 @@ commands.
 
 ## Desktop app
 
-The desktop app is not published as a binary: distributing a macOS bundle takes
-code signing and notarization, and one without them is refused by Gatekeeper
-after it has been downloaded.
+Download the desktop build for your platform from
+[Releases](https://github.com/icloudbb/buildmax/releases): a `.dmg` on macOS, a
+self-contained `.exe` on Windows. Each carries a `.sha256` beside it; verify the
+download before running it.
 
-Building it yourself is not affected by that — an app built on your machine
-carries no download to be refused, and Wails signs the bundle ad-hoc as it
-packages it. `./make build desktop` produces it in `bin/` in about a minute,
-and `./make run desktop` starts it. `./make build` builds it too, alongside
-everything else.
+```bash
+shasum -a 256 -c buildmax-desktop_<version>_darwin_arm64.dmg.sha256   # macOS
+```
+
+The bundles are **not signed or notarized** during alpha, so the operating
+system holds a fresh download until you clear it once:
+
+- **macOS:** mount the `.dmg`, drag `BuildMax.app` to `/Applications`, then
+  remove the download quarantine so Gatekeeper opens it:
+
+  ```bash
+  xattr -dr com.apple.quarantine /Applications/BuildMax.app
+  ```
+
+  Or right-click the app and choose **Open** the first time to approve it.
+- **Windows:** SmartScreen warns on the unsigned binary. Choose **More info →
+  Run anyway** the first time.
+
+Signing and notarization are planned; until then this is the trade for a
+download that runs.
+
+### Build from source instead
+
+An app you build yourself carries no download to be cleared, and Wails signs the
+bundle ad-hoc as it packages it. `./make build desktop` produces it in `bin/`
+in about a minute, and `./make run desktop` starts it. `./make build` builds it
+alongside everything else.
 
 ## Next
 

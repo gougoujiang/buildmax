@@ -112,7 +112,7 @@ jobs:
           cat > "$body" <<EOF
           ## What and why
 
-          Fold the current changelog entries into **$VERSION**. This PR was prepared by the scheduled release workflow; merging it authorizes creation of the annotated tag and dispatches the binary, server-image, and Portal-image release workflows.
+          Fold the current changelog entries into **$VERSION**. This PR was prepared by the scheduled release workflow; merging it authorizes creation of the annotated tag and dispatches the binary, server-image, Portal-image, and desktop release workflows.
 
           ## Verification
 

@@ -19,7 +19,7 @@ that is due. Once the newest tag is at least 72 hours old and unreleased
 changelog entries exist, it creates the `release/next` pull request.
 It never publishes on a timer: a maintainer must review and merge that pull
 request. The merge creates the annotated tag and dispatches the existing binary,
-server-image, and Portal-image workflows.
+server-image, Portal-image, and desktop workflows.
 
 ## Versioning
 
@@ -102,12 +102,13 @@ digest rather than relying on a mutable tag.
 
 Merging the generated `release/next` pull request is the normal alpha publish
 approval. The promotion workflow validates that its title and changelog name the
-next numbered alpha, creates the tag, and explicitly dispatches both publication
-workflows. GitHub suppresses tag-triggered workflows when a tag is pushed with
-`GITHUB_TOKEN`, which is why the dispatch is intentional rather than duplicate.
+next numbered alpha, creates the tag, and explicitly dispatches the publication
+workflows — **Release**, **Portal image**, and **Desktop release**. GitHub
+suppresses tag-triggered workflows when a tag is pushed with `GITHUB_TOKEN`,
+which is why the dispatch is intentional rather than duplicate.
 
-If either dispatch or publication fails after the tag exists, rerun **Release**
-and **Portal image** manually against that tag. Do not recreate or move it.
+If any dispatch or publication fails after the tag exists, rerun that workflow
+manually against the existing tag. Do not recreate or move it.
 
 For a version outside the current numbered alpha line, or if the automation is
 unavailable, create the tag manually:
@@ -147,8 +148,19 @@ After the workflow completes:
    value, and that `/third-party-notices.txt` serves the npm license
    attributions.
 
-The Wails desktop application is not part of the release workflow because its
-native bundles are not yet signed or notarized.
+7. Confirm the desktop artifacts are attached: `buildmax-desktop_<version>_darwin_<arch>.dmg`
+   and `buildmax-desktop_<version>_windows_amd64.exe`, each with its `.sha256`.
+   They are published by `.github/workflows/desktop-release.yml`, a separate
+   per-OS job triggered by the same tag, because GoReleaser's single Linux
+   runner cannot build a native macOS bundle. A failure there leaves the rest of
+   the release intact and the desktop downloads missing, so check rather than
+   assume. Download the `.dmg`, verify its checksum, and open the app once past
+   Gatekeeper as [the installation guide](../../manual/install.md) describes.
+
+The desktop bundles are **unsigned and unnotarized** during alpha: a downloaded
+macOS app is held by Gatekeeper and a Windows binary warns under SmartScreen
+until the user clears it once. Signing and notarization are the next increment;
+until then the install guide documents the one-time step.
 
 ## Respond to a Bad Release
 

@@ -7,7 +7,7 @@
 
 容器镜像在发布前扫描；存在已有修复的 HIGH 或 CRITICAL 漏洞时，发布失败，不推送任何内容。`.github/workflows/portal-image.yml` 中的 Portal 镜像也遵循此规则，且在拉取请求时也扫描。此前两者在推送后才扫描，发现问题只能让作业失败：`v0.2.0-alpha.3` 发布了两个包含已有修复的 openssl CVE 的镜像，随后因此失败。
 
-alpha 阶段，`.github/workflows/release-prepare.yml` 每天检查是否应发布。当最新标签已存在至少 72 小时且有未发布 changelog 条目时，它创建 `release/next` 拉取请求。它不会按定时器自动发布：维护者必须评审并合并该请求。合并会创建附注标签，并触发现有的二进制、server 镜像和 Portal 镜像工作流。
+alpha 阶段，`.github/workflows/release-prepare.yml` 每天检查是否应发布。当最新标签已存在至少 72 小时且有未发布 changelog 条目时，它创建 `release/next` 拉取请求。它不会按定时器自动发布：维护者必须评审并合并该请求。合并会创建附注标签，并触发现有的二进制、server 镜像、Portal 镜像和桌面工作流。
 
 ## 版本规则
 
@@ -60,7 +60,7 @@ alpha 发布为归档和 SBOM 使用 GitHub Artifact Attestations，为 GHCR 镜
 
 ## 发布
 
-合并自动生成的 `release/next` 拉取请求，是 alpha 发布的常规批准方式。提升工作流验证标题和 changelog 是否指向下一个编号 alpha，创建标签，然后显式触发两个发布工作流。使用 `GITHUB_TOKEN` 推送标签时，GitHub 会抑制标签触发工作流，因此显式触发是必要操作，并非重复执行。
+合并自动生成的 `release/next` 拉取请求，是 alpha 发布的常规批准方式。提升工作流验证标题和 changelog 是否指向下一个编号 alpha，创建标签，然后显式触发各发布工作流——**Release**、**Portal image** 和 **Desktop release**。使用 `GITHUB_TOKEN` 推送标签时，GitHub 会抑制标签触发工作流，因此显式触发是必要操作，并非重复执行。
 
 如果标签已存在后，触发或发布任一环节失败，请针对该标签手动重跑 **Release** 和 **Portal image**，不要重新创建或移动标签。
 
@@ -86,7 +86,16 @@ git push origin v0.2.0-alpha.1
 5. 通过 digest 拉取 `ghcr.io/icloudbb/buildmax:<version>`，确认容器可启动。alpha 版本不得移动 `latest` 标签。镜像扫描在发布前已通过，因此此时发布工作流失败，表示推送后的某个步骤失败，而不是镜像存在漏洞。
 6. 确认 `ghcr.io/icloudbb/buildmax-portal:<version>` 存在，且版本**相同**。它由同一标签触发的独立工作流（`.github/workflows/portal-image.yml`）发布，因此该工作流失败会造成二进制已发布但 Portal 镜像缺失。这是有意的取舍，但必须检查，不能假定成功。设置 `BUILDMAX_API_BASE` 后运行它，确认 `/config.js` 包含该值，且 `/third-party-notices.txt` 提供 npm 许可证归属声明。
 
-Wails 桌面应用不属于发布工作流，因为原生 bundle 尚未签名或公证。
+7. 确认桌面产物已附加：`buildmax-desktop_<version>_darwin_<arch>.dmg` 和
+   `buildmax-desktop_<version>_windows_amd64.exe`，各带其 `.sha256`。它们由同一标签
+   触发的独立按 OS 作业 `.github/workflows/desktop-release.yml` 发布——因为
+   GoReleaser 的单个 Linux runner 无法构建原生 macOS bundle。该作业失败会保持发布其余
+   部分完好而缺失桌面下载，因此要检查而非假定。下载 `.dmg`，验证校验和，并按
+   [安装指南](../../../manual/install.md)在越过 Gatekeeper 后打开应用一次。
+
+alpha 阶段桌面 bundle **未签名、未公证**：下载后的 macOS 应用会被 Gatekeeper 拦住，
+Windows 二进制会触发 SmartScreen 警告，需用户清除一次。签名与公证是下一步；在此之前，
+安装指南记录了这道一次性步骤。
 
 ## 处理有问题的发布
 

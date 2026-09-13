@@ -206,6 +206,8 @@ func cmdRelease(args []string) error {
 		return cmdBump(rest)
 	case "next":
 		return cmdNextVersion(rest)
+	case "desktop":
+		return cmdReleaseDesktop(rest)
 	case "verify":
 		return cmdVerifyArchive(rest)
 	case "notes":
