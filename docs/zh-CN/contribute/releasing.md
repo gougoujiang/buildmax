@@ -7,7 +7,7 @@
 
 容器镜像在发布前扫描；存在已有修复的 HIGH 或 CRITICAL 漏洞时，发布失败，不推送任何内容。`.github/workflows/portal-image.yml` 中的 Portal 镜像也遵循此规则，且在拉取请求时也扫描。此前两者在推送后才扫描，发现问题只能让作业失败：`v0.2.0-alpha.3` 发布了两个包含已有修复的 openssl CVE 的镜像，随后因此失败。
 
-alpha 阶段，`.github/workflows/release-prepare.yml` 每天检查是否应发布。当最新标签已存在至少 72 小时且有未发布 changelog 条目时，它创建 `release/next` 拉取请求。它不会按定时器自动发布：维护者必须评审并合并该请求。合并会创建附注标签，并触发现有的二进制、server 镜像和 Portal 镜像工作流。
+alpha 阶段，`.github/workflows/release-prepare.yml` 每天检查是否应发布。当最新标签已存在至少 72 小时且有未发布 changelog 条目时，它创建 `release/next` 拉取请求。它不会按定时器自动发布：维护者必须评审并合并该请求。合并会创建附注标签，并触发现有的二进制、server 镜像、Portal 镜像和桌面工作流。
 
 ## 版本规则
 
@@ -60,7 +60,7 @@ alpha 发布为归档和 SBOM 使用 GitHub Artifact Attestations，为 GHCR 镜
 
 ## 发布
 
-合并自动生成的 `release/next` 拉取请求，是 alpha 发布的常规批准方式。提升工作流验证标题和 changelog 是否指向下一个编号 alpha，创建标签，然后显式触发两个发布工作流。使用 `GITHUB_TOKEN` 推送标签时，GitHub 会抑制标签触发工作流，因此显式触发是必要操作，并非重复执行。
+合并自动生成的 `release/next` 拉取请求，是 alpha 发布的常规批准方式。提升工作流验证标题和 changelog 是否指向下一个编号 alpha，创建标签，然后显式触发各发布工作流——**Release**、**Portal image** 和 **Desktop release**。使用 `GITHUB_TOKEN` 推送标签时，GitHub 会抑制标签触发工作流，因此显式触发是必要操作，并非重复执行。
 
 如果标签已存在后，触发或发布任一环节失败，请针对该标签手动重跑 **Release** 和 **Portal image**，不要重新创建或移动标签。
 

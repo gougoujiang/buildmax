@@ -19,7 +19,7 @@ that is due. Once the newest tag is at least 72 hours old and unreleased
 changelog entries exist, it creates the `release/next` pull request.
 It never publishes on a timer: a maintainer must review and merge that pull
 request. The merge creates the annotated tag and dispatches the existing binary,
-server-image, and Portal-image workflows.
+server-image, Portal-image, and desktop workflows.
 
 ## Versioning
 
@@ -102,12 +102,13 @@ digest rather than relying on a mutable tag.
 
 Merging the generated `release/next` pull request is the normal alpha publish
 approval. The promotion workflow validates that its title and changelog name the
-next numbered alpha, creates the tag, and explicitly dispatches both publication
-workflows. GitHub suppresses tag-triggered workflows when a tag is pushed with
-`GITHUB_TOKEN`, which is why the dispatch is intentional rather than duplicate.
+next numbered alpha, creates the tag, and explicitly dispatches the publication
+workflows — **Release**, **Portal image**, and **Desktop release**. GitHub
+suppresses tag-triggered workflows when a tag is pushed with `GITHUB_TOKEN`,
+which is why the dispatch is intentional rather than duplicate.
 
-If either dispatch or publication fails after the tag exists, rerun **Release**
-and **Portal image** manually against that tag. Do not recreate or move it.
+If any dispatch or publication fails after the tag exists, rerun that workflow
+manually against the existing tag. Do not recreate or move it.
 
 For a version outside the current numbered alpha line, or if the automation is
 unavailable, create the tag manually:

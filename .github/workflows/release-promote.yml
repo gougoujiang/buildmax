@@ -68,6 +68,10 @@ jobs:
         run: |
           # GITHUB_TOKEN tag pushes intentionally do not start another workflow.
           # Explicit dispatch also makes a failed publication recoverable by
-          # rerunning either workflow against the existing tag.
+          # rerunning any workflow against the existing tag.
           gh workflow run release.yml --ref "$VERSION"
           gh workflow run portal-image.yml --ref "$VERSION"
+          # desktop-release.yml is tag-triggered too, so this bot-pushed tag would
+          # otherwise skip it. It takes the tag as an input because it may also be
+          # dispatched against a branch to attach to an existing release.
+          gh workflow run desktop-release.yml --ref "$VERSION" -f tag="$VERSION"
