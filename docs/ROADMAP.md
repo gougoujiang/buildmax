@@ -109,8 +109,8 @@ on an operator-set window, defaulting to keep-forever and recording each prune;
 no candidate has yet proved hard worker loss, dependency denial, paired restore,
 schema upgrade, binary rollback, or credential rotation.
 
-**Next:** extend real-MySQL coverage for Workflow revision advancement,
-[quota windows](https://github.com/icloudbb/buildmax/issues/498), and
+**Next:** extend real-MySQL coverage for
+[quota windows](https://github.com/icloudbb/buildmax/issues/498) and
 cross-Space scenarios; and make the failure and recovery
 drills in the Beta readiness record executable. Retire plans for removed
 mechanisms, including the old result-delivery queue, rather than recreate them

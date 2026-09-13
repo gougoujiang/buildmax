@@ -93,7 +93,7 @@ step-run 转换现在使用带保护的 compare-and-set 写入，失败步骤的
 清理；尚无候选版本验证过 worker 硬丢失、依赖拒绝、数据库与存储桶配对恢复、模式升级、
 二进制回滚或凭据轮换。
 
-**下一步：** 扩展真实 MySQL 覆盖，包含 Workflow 修订推进、
+**下一步：** 扩展真实 MySQL 覆盖，包含
 [配额窗口](https://github.com/icloudbb/buildmax/issues/498)和跨 Space 场景；让 Beta
 就绪记录中的故障与恢复演练可直接执行。删除针对已移除机制的计划，包括旧结果投递队列；
 不要为了检查表重新引入机制。
