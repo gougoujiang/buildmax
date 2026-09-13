@@ -14,6 +14,79 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.11] - 2026-09-13
+
+### Added
+
+- Each release now attaches downloadable desktop builds — a macOS `.dmg` and a
+  Windows `.exe`, each with a `.sha256`. The bundles are unsigned during alpha,
+  so the install guide covers the one-time Gatekeeper and SmartScreen step.
+
+- The space audit trail now records space creation (with its quota tier),
+  webhook key creation and revocation, agent definition create/update/delete,
+  and workflow create/publish/archive/unpublish; and every event carries the
+  task run it was recorded on behalf of, so an investigation can pivot between
+  an audit event and the run that caused it.
+
+- A server can now expire old run traces: `server.yaml` `trace.retention_days`
+  (0, the default, keeps every trace forever) runs an hourly sweep that removes
+  the trace of a run that ended longer ago than the window and records a
+  `traces.pruned` audit event, so a trace missing by policy is distinguishable
+  from one that was lost.
+
+- Portal Run Details now shows how a worker run's MCP transports were treated —
+  that stdio is disabled by the unattended-worker profile and which remote
+  transports the run resolved — beside the sandbox boundary, recorded in the
+  run's trace. An older trace reads as unknown rather than as stdio-allowed.
+
+- The Workflow step form can now add, name, and remove a step's input bindings
+  to an earlier step's output, so passing one Agent's result to the next no
+  longer requires hand-editing the definition JSON.
+
+- A Workflow step can now take an earlier step's output as input. A step
+  declares `bindings` naming a prior step, and the run feeds that step's full
+  output to the downstream Agent as labelled, untrusted context — so a
+  multi-step Workflow can pass one Agent's result to the next.
+
+### Changed
+
+- The Portal's mutable Space file surface is now named **Files** everywhere
+  (sidebar, breadcrumb, page title, and contextual links), renamed from
+  "Workspace Files"; its route is unchanged.
+
+### Fixed
+
+- On narrow screens, the Portal's compact header no longer shows a fabricated
+  "My Space" when the current Space cannot be resolved; it now shows the same
+  loading/unavailable state label the sidebar uses.
+
+- A task that fits within a Space's run limit is no longer refused for the
+  tokens its auto-generated title spent, so starting one no longer leaves an
+  empty conversation behind on a token-quota refusal.
+
+- Fixed the Portal task view briefly showing a previous turn's reply before the
+  new run's output arrived: the live output stream is now scoped per run, so a
+  finished run's buffered text is never replayed to the next turn's watchers.
+
+- Editing, publishing, or restoring a Workflow while someone else edits it now
+  returns a conflict to the later save instead of silently overwriting the newer
+  definition or failing with an internal error.
+
+- A Workflow run no longer stalls when a step finishes but its completion
+  signal is lost or the server restarts: a background recovery loop reconciles
+  due runs from stored state, advancing them without the callback.
+
+- A Workflow run now completes when its step finishes: the server's terminal
+  callback reads the finished step's result and advances the run, instead of
+  leaving every run stranded in "running".
+
+### Security
+
+- Unattended worker runs now reject stdio MCP servers before any child process
+  or model call, since a worker would launch them outside its sandbox; configure
+  a remote (`http` or `sse`) transport instead. CLI, Desktop, and evaluation runs
+  keep stdio.
+
 ## [0.2.0-alpha.10] - 2026-09-12
 
 ### Added
@@ -2815,7 +2888,8 @@ its Portal image exists. This version replaces it.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.10...HEAD
+[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.11...HEAD
+[0.2.0-alpha.11]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.10...v0.2.0-alpha.11
 [0.2.0-alpha.10]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.9...v0.2.0-alpha.10
 [0.2.0-alpha.9]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.8...v0.2.0-alpha.9
 [0.2.0-alpha.8]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.7...v0.2.0-alpha.8
