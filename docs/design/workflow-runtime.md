@@ -81,13 +81,19 @@ The current implementation has useful foundations:
 - manual and Issue-originated runs exist; and
 - Portal can author a linear definition and inspect its runs.
 
-It is not the runtime designed here. The current definition is an ordered
-`steps` array with static prompts. A run has no input or result contract, one
-step cannot bind a prior step's output, only a 500-rune summary is retained on
-the step, and the next step is dispatched by a best-effort in-process terminal
-callback. Run creation, step creation, Task admission, and step linkage are
-separate writes. Concurrent or repeated advancement can duplicate work, and a
-server crash can strand a run after its TaskRun has already become terminal.
+It is not the runtime designed here, but its execution plane is now durable.
+The current definition is an ordered `steps` array with static prompts and no
+typed input or result contract. A step may bind an earlier step's whole output
+into its input as labelled untrusted data — the linear precursor of §6's
+bindings — reading the full output from that step's TaskRun rather than the
+500-rune summary the step retains for display. Advancement is a reconciliation
+over durable facts: Task admission is idempotent under a stable key, a bounded
+lease reduces duplicate passes, guarded compare-and-set transitions are the
+correctness mechanism, and a Server-owned recovery loop finishes a run stranded
+by a lost callback or a restart. What remains missing against the target is the
+typed contract itself: `input_schema`, the versioned `nodes` and typed
+`bindings` with JSON Pointer selection, DAG `needs`, routes and waits, and
+structured output.
 
 The current Agent snapshot is also not execution authority. Workflow copies the
 old Agent instructions into Task user input while Task admission and the worker

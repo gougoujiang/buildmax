@@ -39,6 +39,18 @@ describe("stepsToDefinition / parseDefinition", () => {
     const parsed = parseDefinition(JSON.stringify({ steps: [{ target_agent_id: "a_1", prompt: "x" }] }))
     expect(parsed?.steps[0].id).toBeTruthy()
   })
+
+  it("round-trips a step's input bindings so advanced JSON does not drop them", () => {
+    const original = [step({ id: "collect" }), step({ id: "summarize", bindings: [{ name: "research", fromStep: "collect" }] })]
+    const parsed = parseDefinition(stepsToDefinition(original))
+    expect(parsed?.steps).toEqual(original)
+  })
+
+  it("emits bindings in the wire snake_case shape only when a step has them", () => {
+    expect(stepsToDefinition([step()])).not.toContain("bindings")
+    const wire = stepsToDefinition([step({ id: "b", bindings: [{ name: "r", fromStep: "a" }] })])
+    expect(wire).toContain(`"from_step": "a"`)
+  })
 })
 
 describe("newStep", () => {

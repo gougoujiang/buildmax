@@ -8,11 +8,20 @@ import type { Agent } from "../../lib/types"
  */
 export const AGENT_TASK_STEP_TYPE = "agent_task"
 
+/** A binding feeds an earlier step's whole output into this step's input under
+ *  a name. There is no form field for it yet; it round-trips through advanced
+ *  JSON mode so a definition authored there is not silently stripped. */
+export interface WorkflowStepBinding {
+  name: string
+  fromStep: string
+}
+
 export interface WorkflowStepDraft {
   id: string
   type: string
   targetAgentId: string
   prompt: string
+  bindings?: WorkflowStepBinding[]
 }
 
 export interface ParsedWorkflowDefinition {
@@ -46,11 +55,32 @@ export function stepsToDefinition(steps: WorkflowStepDraft[]): string {
         type: step.type,
         target_agent_id: step.targetAgentId,
         prompt: step.prompt,
+        ...(step.bindings && step.bindings.length > 0
+          ? { bindings: step.bindings.map((binding) => ({ name: binding.name, from_step: binding.fromStep })) }
+          : {}),
       })),
     },
     null,
     2,
   )
+}
+
+/** Reads a step's `bindings` array, keeping malformed entries (as empty
+ *  strings) so server validation surfaces the mistake rather than the Portal
+ *  dropping it silently. */
+function parseStepBindings(value: unknown): WorkflowStepBinding[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const bindings = value.flatMap((entry): WorkflowStepBinding[] => {
+    if (typeof entry !== "object" || entry == null) return []
+    const record = entry as Record<string, unknown>
+    return [
+      {
+        name: typeof record.name === "string" ? record.name : "",
+        fromStep: typeof record.from_step === "string" ? record.from_step : "",
+      },
+    ]
+  })
+  return bindings.length > 0 ? bindings : undefined
 }
 
 /**
@@ -73,6 +103,7 @@ export function parseDefinition(definition: string): ParsedWorkflowDefinition | 
           type: typeof record.type === "string" && record.type.trim() ? record.type : AGENT_TASK_STEP_TYPE,
           targetAgentId: typeof record.target_agent_id === "string" ? record.target_agent_id : "",
           prompt: typeof record.prompt === "string" ? record.prompt : "",
+          bindings: parseStepBindings(record.bindings),
         }
       }),
     }
