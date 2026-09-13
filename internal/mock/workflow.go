@@ -210,6 +210,7 @@ func (m *MockWorkflowStore) CreateWorkflowStepRuns(_ context.Context, workflowRu
 			AgentInstructions: steps[i].AgentInstructions,
 			AgentRevision:     steps[i].AgentRevision,
 			Prompt:            steps[i].Prompt,
+			Bindings:          steps[i].Bindings,
 			Status:            steps[i].Status,
 			CreatedAt:         time.Now().UTC(),
 		}

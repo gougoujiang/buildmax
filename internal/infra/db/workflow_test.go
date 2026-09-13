@@ -232,6 +232,40 @@ func slicesContains(s []string, v string) bool {
 	return false
 }
 
+// TestWorkflowStepRunBindingsRoundTrip proves a step's snapshotted input
+// bindings survive the store: they persist to the bindings column and read back
+// intact, and a step that binds nothing reads back with none.
+func TestWorkflowStepRunBindingsRoundTrip(t *testing.T) {
+	s, runID, _ := workflowRunFixture(t, 0)
+	ctx := context.Background()
+
+	stepsIn := []coreworkflow.CreateStepRunInput{
+		{StepID: "collect", StepIndex: 0, StepType: coreworkflow.StepTypeAgentTask, Prompt: "do", Status: string(coreworkflow.StepRunStatusPending)},
+		{
+			StepID: "summarize", StepIndex: 1, StepType: coreworkflow.StepTypeAgentTask, Prompt: "do",
+			Status:   string(coreworkflow.StepRunStatusPending),
+			Bindings: []coreworkflow.StepBinding{{Name: "research", FromStep: "collect"}},
+		},
+	}
+	if _, err := s.CreateWorkflowStepRuns(ctx, runID, stepsIn); err != nil {
+		t.Fatalf("CreateWorkflowStepRuns: %v", err)
+	}
+
+	got, err := s.ListWorkflowStepRuns(ctx, runID)
+	if err != nil {
+		t.Fatalf("ListWorkflowStepRuns: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("steps = %d, want 2", len(got))
+	}
+	if len(got[0].Bindings) != 0 {
+		t.Errorf("step[0] bindings = %v, want none", got[0].Bindings)
+	}
+	if len(got[1].Bindings) != 1 || got[1].Bindings[0].Name != "research" || got[1].Bindings[0].FromStep != "collect" {
+		t.Errorf("step[1] bindings = %v, want [{research collect}]", got[1].Bindings)
+	}
+}
+
 func TestWorkflowStepRunTransition_CAS(t *testing.T) {
 	s, _, steps := workflowRunFixture(t, 1)
 	ctx := context.Background()

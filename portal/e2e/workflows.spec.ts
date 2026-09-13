@@ -137,3 +137,68 @@ test("a workflow runs, and the run view reports each step's outcome", async ({ p
     "deployment smoke ok"
   )
 })
+
+test("a workflow binds one step's output into the next step's input", async ({ page }) => {
+  test.setTimeout(RUN_TIMEOUT_MS + 60_000)
+
+  const current = await session(page)
+
+  const agent = await postJSON<{ id: string }>(page, `${current.space}/agents`, current, {
+    name: tagged("Workflow binding agent"),
+    description: "Created by the Portal browser tests.",
+    instructions: "Reply with exactly: deployment smoke ok",
+  })
+  // The second step binds the first step's output into its input. Its dispatch
+  // reads the first step's finished output and fails if the binding cannot
+  // resolve, so a run that reaches "succeeded" is proof the whole binding path
+  // ran end to end -- validation, the run's binding snapshot, and the resolve at
+  // dispatch. Both steps target one agent to keep the model answer deterministic.
+  const workflow = await postJSON<{ id: string }>(page, `${current.space}/workflows`, current, {
+    name: tagged("Workflow binding probe"),
+    description: "Created by the Portal browser tests to exercise step output binding.",
+    definition: JSON.stringify({
+      steps: [
+        { step_id: "collect", type: "agent_task", target_agent_id: agent.id, prompt: "Reply with exactly: deployment smoke ok" },
+        {
+          step_id: "summarize",
+          type: "agent_task",
+          target_agent_id: agent.id,
+          prompt: "Summarize the research below.",
+          bindings: [{ name: "research", from_step: "collect" }],
+        },
+      ],
+    }),
+  })
+  await patchJSON(page, `${current.space}/workflows/${encodeURIComponent(workflow.id)}`, current, {
+    status: "published",
+  })
+  const started = await postJSON<{ run: { id: string } }>(
+    page,
+    `${current.space}/workflows/${encodeURIComponent(workflow.id)}/runs`,
+    current,
+    {}
+  )
+  const runId = started.run.id
+  reportLeftovers(current.spaceId, [`agent ${agent.id}`, `workflow ${workflow.id}`, `workflow run ${runId}`])
+
+  await expect
+    .poll(
+      async () => {
+        const res = await page.request.get(`${current.space}/workflow-runs/${encodeURIComponent(runId)}`, {
+          headers: { Authorization: `Bearer ${current.token}` },
+        })
+        if (!res.ok()) return `HTTP ${res.status()}`
+        const body = (await res.json()) as { run: { status: string; error_message?: string | null } }
+        return body.run.status === "failed" ? `failed: ${body.run.error_message ?? "no message"}` : body.run.status
+      },
+      { timeout: RUN_TIMEOUT_MS, intervals: [2000] }
+    )
+    .toBe("succeeded")
+
+  await page.goto(`/#/spaces/${current.spaceId}/workflow-runs/${runId}`)
+  const steps = page.locator(".issues-page__panel").filter({
+    has: page.getByRole("heading", { name: "Steps" }),
+  })
+  const stepStatuses = steps.locator(".workflow-page__step .issues-page__status")
+  await expect(stepStatuses).toHaveText(["succeeded", "succeeded"])
+})

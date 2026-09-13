@@ -166,19 +166,22 @@ type StepRun struct {
 	// AgentName, AgentDescription, and AgentInstructions capture the target agent
 	// definition as it was when the run started, so later edits to the agent cannot
 	// change what a step in flight sends to the model.
-	AgentName         string     `json:"agent_name,omitempty"`
-	AgentDescription  string     `json:"agent_description,omitempty"`
-	AgentInstructions string     `json:"agent_instructions,omitempty"`
-	AgentRevision     int        `json:"agent_revision,omitempty"`
-	Prompt            string     `json:"prompt"`
-	Status            string     `json:"status"`
-	TaskID            *string    `json:"task_id,omitempty"`
-	TaskRunID         *string    `json:"task_run_id,omitempty"`
-	OutputSummary     *string    `json:"output_summary,omitempty"`
-	ErrorMessage      *string    `json:"error_message,omitempty"`
-	CreatedAt         time.Time  `json:"created_at"`
-	StartedAt         *time.Time `json:"started_at,omitempty"`
-	EndedAt           *time.Time `json:"ended_at,omitempty"`
+	AgentName         string `json:"agent_name,omitempty"`
+	AgentDescription  string `json:"agent_description,omitempty"`
+	AgentInstructions string `json:"agent_instructions,omitempty"`
+	AgentRevision     int    `json:"agent_revision,omitempty"`
+	Prompt            string `json:"prompt"`
+	// Bindings is the run's snapshot of this step's input bindings, taken at start
+	// so a later definition edit cannot change what an in-flight step receives.
+	Bindings      []StepBinding `json:"bindings,omitempty"`
+	Status        string        `json:"status"`
+	TaskID        *string       `json:"task_id,omitempty"`
+	TaskRunID     *string       `json:"task_run_id,omitempty"`
+	OutputSummary *string       `json:"output_summary,omitempty"`
+	ErrorMessage  *string       `json:"error_message,omitempty"`
+	CreatedAt     time.Time     `json:"created_at"`
+	StartedAt     *time.Time    `json:"started_at,omitempty"`
+	EndedAt       *time.Time    `json:"ended_at,omitempty"`
 }
 
 // Definition is the parsed structure of a workflow definition JSON.
@@ -192,6 +195,19 @@ type DefinitionStep struct {
 	Type          string `json:"type"`
 	TargetAgentID string `json:"target_agent_id"`
 	Prompt        string `json:"prompt"`
+	// Bindings feed an earlier step's output into this step's input. Each names a
+	// value (Name) taken from the whole output of a prior step (FromStep). The
+	// bound output reaches the Task as labelled untrusted context, never the
+	// agent's instructions.
+	Bindings []StepBinding `json:"bindings,omitempty"`
+}
+
+// StepBinding binds one earlier step's output into a downstream step's input
+// under a name. The whole upstream output is bound; there is no selection or
+// templating in this contract.
+type StepBinding struct {
+	Name     string `json:"name"`
+	FromStep string `json:"from_step"`
 }
 
 type CreateRunInput struct {
@@ -228,6 +244,7 @@ type CreateStepRunInput struct {
 	AgentInstructions string
 	AgentRevision     int
 	Prompt            string
+	Bindings          []StepBinding
 	Status            string
 }
 

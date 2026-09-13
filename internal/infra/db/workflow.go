@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -129,19 +130,22 @@ type workflowStepRunRow struct {
 	TargetAgentID *uint64 `gorm:"column:target_agent_id;index"`
 	// Agent definition captured when the run started; empty on rows written before
 	// step runs snapshotted their agent.
-	AgentName         string     `gorm:"column:agent_name;type:varchar(255);not null"`
-	AgentDescription  string     `gorm:"column:agent_description;type:text;not null"`
-	AgentInstructions string     `gorm:"column:agent_instructions;type:longtext;not null"`
-	AgentRevision     int        `gorm:"column:agent_revision;not null;default:0"`
-	Prompt            string     `gorm:"type:text;not null"`
-	Status            string     `gorm:"type:varchar(32);not null"`
-	TaskID            *uint64    `gorm:"column:task_id;index"`
-	TaskRunID         *uint64    `gorm:"column:task_run_id;index"`
-	OutputSummary     *string    `gorm:"type:text"`
-	ErrorMessage      *string    `gorm:"type:text"`
-	CreatedAt         time.Time  `gorm:"autoCreateTime"`
-	StartedAt         *time.Time `gorm:""`
-	EndedAt           *time.Time `gorm:""`
+	AgentName         string `gorm:"column:agent_name;type:varchar(255);not null"`
+	AgentDescription  string `gorm:"column:agent_description;type:text;not null"`
+	AgentInstructions string `gorm:"column:agent_instructions;type:longtext;not null"`
+	AgentRevision     int    `gorm:"column:agent_revision;not null;default:0"`
+	Prompt            string `gorm:"type:text;not null"`
+	// Bindings is the run's snapshot of this step's input bindings as a JSON
+	// array, NULL when the step binds nothing.
+	Bindings      *string    `gorm:"type:text"`
+	Status        string     `gorm:"type:varchar(32);not null"`
+	TaskID        *uint64    `gorm:"column:task_id;index"`
+	TaskRunID     *uint64    `gorm:"column:task_run_id;index"`
+	OutputSummary *string    `gorm:"type:text"`
+	ErrorMessage  *string    `gorm:"type:text"`
+	CreatedAt     time.Time  `gorm:"autoCreateTime"`
+	StartedAt     *time.Time `gorm:""`
+	EndedAt       *time.Time `gorm:""`
 }
 
 func (workflowStepRunRow) TableName() string { return "workflow_step_run" }
@@ -268,6 +272,7 @@ func toWorkflowStepRun(row *workflowStepRunReadRow) *coreworkflow.StepRun {
 		AgentInstructions: row.Row.AgentInstructions,
 		AgentRevision:     row.Row.AgentRevision,
 		Prompt:            row.Row.Prompt,
+		Bindings:          decodeStepBindings(row.Row.Bindings),
 		Status:            row.Row.Status,
 		OutputSummary:     row.Row.OutputSummary,
 		ErrorMessage:      row.Row.ErrorMessage,
@@ -288,6 +293,34 @@ func toWorkflowStepRun(row *workflowStepRunReadRow) *coreworkflow.StepRun {
 		out.TaskRunID = &run
 	}
 	return out
+}
+
+// encodeStepBindings serializes a step's snapshotted bindings to the JSON text
+// the row stores, or nil when the step binds nothing so the column stays NULL.
+func encodeStepBindings(bindings []coreworkflow.StepBinding) *string {
+	if len(bindings) == 0 {
+		return nil
+	}
+	encoded, err := json.Marshal(bindings)
+	if err != nil {
+		// StepBinding is two strings; marshalling it cannot fail. Treat an
+		// impossible error as no bindings rather than panicking a store write.
+		return nil
+	}
+	return util.Ptr(string(encoded))
+}
+
+// decodeStepBindings parses the stored bindings JSON. A NULL, empty, or
+// unparseable column yields no bindings.
+func decodeStepBindings(encoded *string) []coreworkflow.StepBinding {
+	if encoded == nil || *encoded == "" {
+		return nil
+	}
+	var bindings []coreworkflow.StepBinding
+	if err := json.Unmarshal([]byte(*encoded), &bindings); err != nil {
+		return nil
+	}
+	return bindings
 }
 
 func toWorkflowStepRuns(rows []workflowStepRunReadRow) []coreworkflow.StepRun {
@@ -643,6 +676,7 @@ func (s *Store) CreateWorkflowStepRuns(ctx context.Context, workflowRunID string
 				AgentInstructions: steps[i].AgentInstructions,
 				AgentRevision:     steps[i].AgentRevision,
 				Prompt:            steps[i].Prompt,
+				Bindings:          encodeStepBindings(steps[i].Bindings),
 				Status:            steps[i].Status,
 				CreatedAt:         now,
 			}

@@ -27,7 +27,11 @@ evidence for the supported worker controls. Worker-wide network
 egress is a documented, accepted limit for the first private Beta. The linear
 Workflow reconciler now folds terminal facts and dispatches from durable state,
 and a Server-owned recovery loop sweeps due runs at startup and on an interval,
-so a lost terminal callback or a Server restart no longer strands a run.
+so a lost terminal callback or a Server restart no longer strands a run. A step
+may bind an earlier step's whole output into its input as labelled, untrusted
+context, so a multi-step Workflow can pass one Agent's result to the next; the
+typed `nodes`/`bindings` contract, input and output schemas, and structured
+output remain open.
 Automatic re-dispatch of a worker TaskRun lost after it was claimed is a
 documented, accepted first-Beta limit, distinct from that Workflow-progression
 recovery. Trace retention and candidate failure/recovery evidence remain open. Shared Redis coordination is implemented, including
@@ -238,6 +242,7 @@ The database coverage is broader than the previous assessment reported:
 | Workflow due-run discovery and reconciliation lease claim/renew/release under contention | [workflow_reconciliation_test.go](../internal/infra/db/workflow_reconciliation_test.go) |
 | Linear reconciler folding terminal TaskRun facts: step advance, final success, failure/cancel distinction and later-step blocking, lost-callback recovery, and one outcome under concurrent reconciliation | [reconcile_mysql_test.go](../internal/service/workflow/reconcile_mysql_test.go), [service_test.go](../internal/service/workflow/service_test.go) |
 | Server-owned Workflow recovery loop: startup sweep, per-run reconcile, tolerance of a due-scan error, Start/Stop lifecycle, and end-to-end restart recovery of a run stranded by a lost callback | [workflow_recovery_test.go](../internal/server/scheduler/workflow_recovery_test.go), [workflow_restart_recovery_mysql_test.go](../internal/server/scheduler/workflow_restart_recovery_mysql_test.go) |
+| Step output binding: publication validation (earlier step, unique names), the run's binding snapshot round-tripping the store, and a bound downstream step dispatched with the upstream step's full output as labelled untrusted input | [binding_test.go](../internal/service/workflow/binding_test.go), [workflow_test.go](../internal/infra/db/workflow_test.go) |
 | Workflow revision advancement under edits and contention (guarded compare-and-set) | [workflow_test.go](../internal/infra/db/workflow_test.go) |
 | Workflow initial revision and revision queries | [revision_query_test.go](../internal/infra/db/revision_query_test.go) |
 | Space isolation for secrets and independent invitations | [secret_test.go](../internal/infra/db/secret_test.go), [space_invitation_test.go](../internal/infra/db/space_invitation_test.go) |
